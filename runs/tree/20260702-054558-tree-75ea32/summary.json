@@ -1,0 +1,10 @@
+{
+  "id": "20260702-054558-tree-75ea32",
+  "environment": "tree",
+  "status": "stopped",
+  "finished": "2026-07-02T05:46:27",
+  "gen": 0,
+  "best": null,
+  "checkpoint": "model.npz",
+  "eval": null
+}

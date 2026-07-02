@@ -1,0 +1,18 @@
+CONVERSATION REAL: generalising English conversation. 6 intents x 6 topics = 36 situations. pop 100, budget 2500, 4 seeds, train 60%.
+  SEEN situation reply-correct:     0.810+/-0.202
+  HELD-OUT situation reply-correct: 0.767+/-0.238   (never trained on these situations)
+========================================================================
+TRANSCRIPT on HELD-OUT situations (organism never trained on these intent+topic combos):
+   situation [want   + you  ] -> organism: "i need my friend      "  (target "i need my friend")
+   situation [leave  + food ] -> organism: "see you some food     "  (target "see you some food")
+   situation [want   + name ] -> organism: "i need your name      "  (target "i need your name")
+   situation [ask    + name ] -> organism: "tell me your name     "  (target "tell me your name")
+   situation [greet  + home ] -> organism: "hello there going home"  (target "hello there going home")
+   situation [want   + home ] -> organism: "i need going home     "  (target "i need going home")
+   situation [warn   + name ] -> organism: "watch out your name   "  (target "watch out your name")
+   situation [want   + food ] -> organism: "i need some food      "  (target "i need some food")
+   situation [warn   + you  ] -> organism: "watch out my friend   "  (target "watch out my friend")
+   situation [warn   + water] -> organism: "watch out the water   "  (target "watch out the water")
+   situation [thank  + help ] -> organism: "thanks for your help  "  (target "thanks for your help")
+   situation [warn   + home ] -> organism: "watch out going home  "  (target "watch out going home")
+done

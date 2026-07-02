@@ -1,0 +1,11 @@
+BREATH x TIME: lung B=6.0, sigma in [0.5,3.0], Smax=6. pop 64, budget 2500, 4 seeds. small tau = STRONG time pressure.
+   tau  pressure |  full-meaning |  mean len |  evolved speed sigma |  breath cap | breath-truncated
+====================================================================================================
+   1.5    STRONG |   0.32+/-0.02 | 1.88+/-0.08 |          2.76+/-0.06 | 2.01+/-0.01 |      0.66+/-0.01
+   6.0    medium |   0.66+/-0.03 | 3.05+/-0.06 |          1.29+/-0.04 | 4.33+/-0.12 |      0.28+/-0.02
+  24.0      weak |   0.79+/-0.07 | 3.42+/-0.01 |          0.89+/-0.03 | 5.63+/-0.07 |      0.06+/-0.01
+====================================================================================================
+READING (CONFIRM): as time pressure rises (tau down) -> sigma UP, breath cap DOWN,
+breath-truncation UP, messages shorter. Urgency -> fast speech -> breath-limited -> short. 
+FALSIFY: sigma flat across tau, or breath never truncates (coupling does nothing).
+done

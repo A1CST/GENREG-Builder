@@ -1,0 +1,7 @@
+Foraging (pure food fitness): marks-ablation gap vs number of food patches
+on=food with marks, off=same organism marks disabled; gap = memory's value in food
+  F=1: marks_on=2.53+/-0.55  marks_off=1.05+/-0.59  GAP=1.49+/-1.14
+  F=2: marks_on=4.08+/-0.32  marks_off=1.51+/-0.44  GAP=2.57+/-0.41
+  F=3: marks_on=5.63+/-0.01  marks_off=2.03+/-0.45  GAP=3.60+/-0.44
+  F=5: marks_on=8.16+/-0.08  marks_off=2.82+/-0.07  GAP=5.34+/-0.01
+done

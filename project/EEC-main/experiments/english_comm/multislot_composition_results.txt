@@ -1,0 +1,11 @@
+MULTISLOT COMPOSITION: V=8 values/slot, slots S -> vocab M=V^S. pop 64, budget 4500, 3 seeds. params O(S*V^2), independent of M.
+  S      M=V^S    chance |   per-slot acc |  FULL-meaning comp
+======================================================================
+  6     262144  3.81e-06 |  0.950+/-0.006 |      0.727+/-0.029
+  8   16777216  5.96e-08 |  0.876+/-0.041 |      0.358+/-0.116
+======================================================================
+READING: per-slot acc ~flat across S (each slot is the same small problem) => vocab M=V^S
+explodes for free; FULL-meaning = perslot^S, so driving per-slot accuracy up is the fluency lever.
+  S=6: vocab   262144  per-slot 0.950  full-meaning 0.727
+  S=8: vocab 16777216  per-slot 0.876  full-meaning 0.358
+done

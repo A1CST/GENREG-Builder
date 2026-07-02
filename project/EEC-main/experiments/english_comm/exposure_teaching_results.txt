@@ -1,0 +1,16 @@
+EXPOSURE / urgency-gated communication (#7), on top of criticality. K=24, chance 0.042, anchor 0.0, 5 seeds
+u = urgency fraction of the channel (0 = pure frequency chatter = Test-1 criticality)
+==========================================================================================
+                 condition |         usage |     freq-half |     rare-half | corr(logF,use)
+     flat,u=0 (PIDGIN ref) | 0.199+/-0.054 | 0.356+/-0.097 | 0.042+/-0.038 |  0.570+/-0.092
+------------------------------------------------------------------------------------------
+         criticality,u=0.0 | 0.306+/-0.036 | 0.495+/-0.052 | 0.118+/-0.070 |  0.596+/-0.107
+        criticality,u=0.25 | 0.341+/-0.044 | 0.320+/-0.075 | 0.363+/-0.094 |  0.154+/-0.141
+         criticality,u=0.5 | 0.258+/-0.077 | 0.193+/-0.059 | 0.323+/-0.102 |  0.054+/-0.129
+        criticality,u=0.75 | 0.277+/-0.012 | 0.141+/-0.050 | 0.414+/-0.069 | -0.288+/-0.199
+         criticality,u=1.0 | 0.315+/-0.055 | 0.140+/-0.039 | 0.490+/-0.100 | -0.391+/-0.059
+==========================================================================================
+OVERALL-USAGE optimum at u=0.25 (usage 0.341). Monotone-down corr = lexicon flattening; interior usage peak = P2 Goldilocks on the exposure axis.
+corr(logF,usage): u0.0=+0.60  u0.25=+0.15  u0.5=+0.05  u0.75=-0.29  u1.0=-0.39
+rare-half usage : u0.0=0.118  u0.25=0.363  u0.5=0.323  u0.75=0.414  u1.0=0.490
+done

@@ -1,0 +1,42 @@
+{
+ "text|none": {
+  "M": 2.5,
+  "gain": 0.14411520585417747,
+  "horizon": 1.875
+ },
+ "text|occ": {
+  "M": 2.5,
+  "gain": 0.10606794338673353,
+  "horizon": 1.84375
+ },
+ "text|entropy": {
+  "M": 2.0,
+  "gain": 0.16875126957893372,
+  "horizon": 1.53125
+ },
+ "text|occ+entropy": {
+  "M": 2.0,
+  "gain": 0.11942038685083389,
+  "horizon": 1.4375
+ },
+ "longrange|none": {
+  "M": 2.0,
+  "gain": 0.06147347576916218,
+  "horizon": 1.1875
+ },
+ "longrange|occ": {
+  "M": 3.0,
+  "gain": 0.36690138280391693,
+  "horizon": 3.09375
+ },
+ "longrange|entropy": {
+  "M": 4.5,
+  "gain": 0.5352990031242371,
+  "horizon": 2.0
+ },
+ "longrange|occ+entropy": {
+  "M": 2.5,
+  "gain": 0.20886549353599548,
+  "horizon": 1.6875
+ }
+}

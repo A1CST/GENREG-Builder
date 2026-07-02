@@ -1,0 +1,13 @@
+COMPUTE SCALING (lookup): uniform comprehension vs generations, pop 48, 2 seeds, budget 4500. target=0.7
+gen:        300    600    900   1200   1500   1800   2100   2400   2700   3000   3300   3600   3900   4200   4500
+K= 32:    0.456  0.581  0.600  0.617  0.587  0.650  0.673  0.651  0.716  0.678  0.713  0.676  0.704  0.678  0.668
+K= 64:    0.367  0.476  0.474  0.509  0.510  0.517  0.513  0.555  0.576  0.558  0.547  0.589  0.584  0.596  0.599
+K=128:    0.321  0.384  0.448  0.460  0.451  0.487  0.479  0.511  0.507  0.516  0.521  0.508  0.520  0.522  0.534
+======================================================================
+generations to reach 0.7 uniform comprehension:
+  K= 32: 2700 gens  (84.4 gens/word)
+  K= 64: >4500 gens  (target not reached)
+  K=128: >4500 gens  (target not reached)
+READING: all K reach target given enough gens => compute-limited (scales). gens-to-target vs K
+         growing ~linearly => benign scaling law; super-linear/plateau => harder wall.
+done

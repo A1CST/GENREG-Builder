@@ -1,0 +1,47 @@
+Building multi-word reply world from llama3.2:3b...
+   "hello"  ->  "hi"
+   "how are you"  ->  "i m fine"
+   "what is your name"  ->  "i am alex"
+   "thanks"  ->  "you re welcome"
+   "i am hungry"  ->  "go get food"
+   "goodbye"  ->  "see you"
+   "who are you"  ->  "me"
+   "i am lost"  ->  "don t worry"
+   "help me"  ->  "what s wrong"
+   "are you ok"  ->  "yeah"
+   "what happened"  ->  "nothing"
+   "where are you"  ->  "at home"
+   "good morning"  ->  "good morning back"
+   "i am scared"  ->  "its okay"
+   "tell me more"  ->  "please"
+   "see you later"  ->  "later"
+======================================================================
+vocab 50 words; evolving organism to produce the LLM's sentence replies (2500 gens)...
+organism 11: word accuracy 0.94, whole-sentence-correct 0.75
+======================================================================
+TRANSCRIPT -- prompt -> organism's multi-word reply (target = what the LLM said):
+   "hello             " -> organism: "hi                        "  (LLM: "hi")
+   "how are you       " -> organism: "i m fine                  "  (LLM: "i m fine")
+   "what is your name " -> organism: "i am alex                 "  (LLM: "i am alex")
+   "thanks            " -> organism: "you re welcome            "  (LLM: "you re welcome")
+   "i am hungry       " -> organism: "go get food               "  (LLM: "go get food")
+   "goodbye           " -> organism: "see you                   "  (LLM: "see you")
+   "who are you       " -> organism: "me                        "  (LLM: "me")
+   "i am lost         " -> organism: "don t worry who help      "  (LLM: "don t worry")
+   "help me           " -> organism: "what s wrong              "  (LLM: "what s wrong")
+   "are you ok        " -> organism: "yeah                      "  (LLM: "yeah")
+   "what happened     " -> organism: "nothing                   "  (LLM: "nothing")
+   "where are you     " -> organism: "at home                   "  (LLM: "at home")
+   "good morning      " -> organism: "good morning back         "  (LLM: "good morning back")
+   "i am scared       " -> organism: "its okay                  "  (LLM: "its okay")
+   "tell me more      " -> organism: "please                    "  (LLM: "please")
+   "see you later     " -> organism: "later scared              "  (LLM: "later")
+======================================================================
+LIVE conversation with the running LLM (organism replies in sentences):
+   turn 1:  LLM: "hello"   ->   organism: "hi"
+   turn 2:  LLM: "how s your day"   ->   organism: "i m fine"
+   turn 3:  LLM: "that s good to hear then"   ->   organism: "good morning back"
+   turn 4:  LLM: "lovely day so far"   ->   organism: "hi"
+   turn 5:  LLM: "how s your week"   ->   organism: "i m fine"
+   turn 6:  LLM: "that s good to hear then"   ->   organism: "good morning back"
+done

@@ -1,0 +1,13 @@
+SCALING CURVE: shared lexicon, fixed budget 1800 gens, pop 60, 3 seeds. cold vs frequent-first curriculum (6 stages)
+UNIFORM = every word tested equally (the right lens for vocab scaling; reveals tail collapse)
+     K | chance |       cold freq/UNIF |     curric freq/UNIF |  UNIF adv
+================================================================================
+    24 |  0.042 |     0.763/0.748     |     0.804/0.734     |    -0.014
+    48 |  0.021 |     0.659/0.580     |     0.721/0.615     |    +0.035
+    96 |  0.010 |     0.629/0.522     |     0.649/0.499     |    -0.023
+   160 |  0.006 |     0.595/0.447     |     0.644/0.501     |    +0.055
+   240 |  0.004 |     0.591/0.442     |     0.560/0.450     |    +0.008
+================================================================================
+READING: if UNIFORM cold collapses toward chance as K grows while curriculum UNIFORM holds,
+the curriculum protects the rare tail -> the scaling advantage is real on the right metric.
+done

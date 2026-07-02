@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>GENREG</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='vendor/xterm.css') }}" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">GENREG<span class="brand-sub">build interface</span></div>
+    <div class="status">
+      <span id="conn-dot" class="dot"></span>
+      <span id="conn-text">connecting…</span>
+      <a class="runs-link" href="/runs" target="_blank" title="Open runs &amp; checkpoints (new tab)">Runs ↗</a>
+      <a class="runs-link" href="/tree" target="_blank" title="Tree-of-Models text prediction (new tab)">Tree LM ↗</a>
+    </div>
+  </header>
+
+  <div class="workspace">
+    <!-- upper region: left sidebar | canvas | right sidebar -->
+    <div class="upper" id="upper">
+      <aside class="sidebar left" id="sidebar-left">
+        <div class="side-head">Control Panel</div>
+        <div class="side-body">
+          <form id="control-panel" class="control-panel" autocomplete="off">
+            <div class="field">
+              <label for="cp-environment">Environment</label>
+              <select id="cp-environment" name="environment">
+                <option value="2048">2048</option>
+                <option value="snake">Snake</option>
+                <option value="cartpole">CartPole</option>
+                <option value="humanoidv5">Humanoid-v5</option>
+                <option value="language">Language</option>
+              </select>
+            </div>
+
+            <div class="field">
+              <label for="cp-population">Population</label>
+              <input id="cp-population" name="population" type="number"
+                     min="1" max="1000" step="1" value="100" />
+              <span class="field-hint">1–1000</span>
+            </div>
+
+            <fieldset class="field constraints">
+              <legend>Constraints</legend>
+
+              <div class="constraint-group" title="Survival axis — pick one; Energy and Mortality are swappable instantiations (stacking both adds nothing)">
+                <div class="group-head">Survival <span class="swap">swap</span></div>
+                <label class="check" title="Prediction is metabolism; a miss burns energy, death at 0"><input type="checkbox" name="constraint" value="energy" /> Energy</label>
+                <label class="check" title="Alternative to Energy: death-risk rises with misses"><input type="checkbox" name="constraint" value="mortality" /> Mortality</label>
+              </div>
+
+              <div class="constraint-group">
+                <div class="group-head">Parsimony</div>
+                <label class="check" title="Time / Occam: fitness × 1/(1 + time/budget)"><input type="checkbox" name="constraint" value="time" /> Time</label>
+                <label class="check" title="Parsimony of memory: holding memory M costs energy per step"><input type="checkbox" name="constraint" value="memory-rent" /> Memory-Rent</label>
+              </div>
+
+              <div class="constraint-group">
+                <div class="group-head">Active maintenance</div>
+                <label class="check" title="Carried state leaks unless refreshed"><input type="checkbox" name="constraint" value="entropy" /> Entropy</label>
+              </div>
+
+              <div class="constraint-group" title="Observation axis — pick one; Occlusion and Noise are swappable instantiations">
+                <div class="group-head">Persistence / memory <span class="swap">swap</span></div>
+                <label class="check" title="Hides a fraction ρ of the input (sensory blackout)"><input type="checkbox" name="constraint" value="occlusion" /> Occlusion</label>
+                <label class="check" title="Corrupts the input (additive noise)"><input type="checkbox" name="constraint" value="noise" /> Noise</label>
+              </div>
+
+              <div class="constraint-group">
+                <div class="group-head">Selection</div>
+                <label class="check" title="Prediction surplus buys offspring (cost per child)"><input type="checkbox" name="constraint" value="reproduction-cost" /> Reproduction-Cost</label>
+              </div>
+
+              <div class="constraint-group">
+                <div class="group-head">Diversity / niches</div>
+                <label class="check" title="Shared finite food and carrying capacity"><input type="checkbox" name="constraint" value="scarcity" /> Scarcity</label>
+              </div>
+
+              <div class="constraint-group">
+                <div class="group-head">Attention / sampling</div>
+                <label class="check" title="Looking (observing) drains energy"><input type="checkbox" name="constraint" value="perception-cost" /> Perception-Cost</label>
+              </div>
+
+              <div class="constraint-group">
+                <div class="group-head">Adaptability / plasticity</div>
+                <label class="check" title="The world's structure shifts every K generations"><input type="checkbox" name="constraint" value="non-stationarity" /> Non-Stationarity</label>
+              </div>
+            </fieldset>
+
+            <fieldset class="field game-controls" id="game-controls">
+              <legend>Game Controls</legend>
+
+              <div class="gc-panel" data-env="snake">
+                <div class="field">
+                  <label for="cp-snake-w">Board Width</label>
+                  <input id="cp-snake-w" type="number" min="5" max="60" step="1" value="20" />
+                  <span class="field-hint">cells (5–60)</span>
+                </div>
+                <div class="field">
+                  <label for="cp-snake-h">Board Height</label>
+                  <input id="cp-snake-h" type="number" min="5" max="60" step="1" value="15" />
+                  <span class="field-hint">cells (5–60)</span>
+                </div>
+              </div>
+
+              <div class="gc-panel" data-env="2048">
+                <span class="field-hint">2048 uses a fixed 4 × 4 board — no controls needed.</span>
+              </div>
+
+              <div class="gc-panel" data-env="other">
+                <span class="field-hint">No game board for this environment.</span>
+              </div>
+            </fieldset>
+
+            <fieldset class="field constraint-params" id="constraint-params">
+              <legend>Parameters</legend>
+              <div class="param-row" data-for="always">
+                <label for="pp-hidden">Net width (H)</label>
+                <input id="pp-hidden" data-param="hidden" type="number" min="4" max="128" step="1" value="24" />
+                <span class="param-note" id="pp-hidden-note" hidden>evolved</span>
+              </div>
+              <div class="param-row" data-for="energy" hidden>
+                <label for="pp-energy_budget">Energy budget</label>
+                <input id="pp-energy_budget" data-param="energy_budget" type="number" min="20" max="1000" step="1" value="120" />
+              </div>
+              <div class="param-row" data-for="energy" hidden>
+                <label for="pp-step_cost">Energy / step</label>
+                <input id="pp-step_cost" data-param="step_cost" type="number" min="0.01" max="5" step="0.01" value="0.01" />
+              </div>
+              <div class="param-row" data-for="energy" data-env="snake" hidden>
+                <label for="pp-food_energy">Food energy (per apple)</label>
+                <input id="pp-food_energy" data-param="food_energy" type="number" min="5" max="500" step="1" value="60" />
+              </div>
+              <div class="param-row" data-for="energy" data-env="2048" hidden>
+                <label for="pp-merge_energy" title="Energy per merge = merged tile value × this (1.0 → 2+2 gives 2)">Merge energy ×</label>
+                <input id="pp-merge_energy" data-param="merge_energy" type="number" min="0.1" max="10" step="0.1" value="1" />
+              </div>
+              <div class="param-row" data-for="mortality" hidden>
+                <label for="pp-hazard">Mortality hazard</label>
+                <input id="pp-hazard" data-param="hazard" type="number" min="0" max="0.2" step="0.005" value="0.02" />
+              </div>
+              <div class="param-row" data-for="time" hidden>
+                <label for="pp-time_budget">Time budget</label>
+                <input id="pp-time_budget" data-param="time_budget" type="number" min="50" max="5000" step="10" value="400" />
+              </div>
+              <div class="param-row" data-for="efficiency memory-rent" hidden>
+                <label for="pp-cost_strength">Cost strength</label>
+                <input id="pp-cost_strength" data-param="cost_strength" type="number" min="0" max="0.2" step="0.005" value="0.01" />
+              </div>
+              <div class="param-row" data-for="entropy" hidden>
+                <label for="pp-decay">Entropy decay</label>
+                <input id="pp-decay" data-param="decay" type="number" min="0" max="0.9" step="0.05" value="0.15" />
+              </div>
+              <div class="param-row" data-for="occlusion" hidden>
+                <label for="pp-occlusion_p">Occlusion prob</label>
+                <input id="pp-occlusion_p" data-param="occlusion_p" type="number" min="0" max="0.9" step="0.05" value="0.25" />
+              </div>
+              <div class="param-row" data-for="noise" hidden>
+                <label for="pp-noise">Noise σ</label>
+                <input id="pp-noise" data-param="noise" type="number" min="0" max="1" step="0.05" value="0.15" />
+              </div>
+              <div class="param-row" data-for="perception-cost" hidden>
+                <label for="pp-perception_cost">Perception cost</label>
+                <input id="pp-perception_cost" data-param="perception_cost" type="number" min="0" max="10" step="0.5" value="1" />
+              </div>
+              <div class="param-row" data-for="non-stationarity" hidden>
+                <label for="pp-shift_every">Shift every (gens)</label>
+                <input id="pp-shift_every" data-param="shift_every" type="number" min="2" max="500" step="1" value="15" />
+              </div>
+            </fieldset>
+
+            <fieldset class="field evolution">
+              <legend>Evolution</legend>
+              <label class="check" title="Evolve the hidden width H (grow/shrink) instead of holding it fixed">
+                <input type="checkbox" id="cp-evolve-hidden" /> Evolve hidden width (H)
+              </label>
+              <label class="check" title="Asexual: reproduce by copy + mutation only, no crossover">
+                <input type="checkbox" id="cp-mutation-only" /> Mutation only (no crossover)
+              </label>
+              <div class="param-row">
+                <label for="cp-elite">Elite (keep best N)</label>
+                <input id="cp-elite" type="number" min="0" max="200" step="1" value="2" />
+              </div>
+              <div class="param-row">
+                <label for="cp-parent-frac">Breed from top %</label>
+                <input id="cp-parent-frac" type="number" min="1" max="100" step="1" value="25" />
+              </div>
+            </fieldset>
+
+            <fieldset class="field training">
+              <legend>Training</legend>
+              <div class="field">
+                <label for="cp-device">Compute</label>
+                <select id="cp-device">
+                  <option value="cpu">CPU engine (full features)</option>
+                  <option value="gpu">GPU vectorized (snake/2048, most constraints)</option>
+                  <option value="auto">Auto (GPU when it helps)</option>
+                </select>
+                <span class="field-hint">GPU wins at large populations</span>
+              </div>
+              <div class="field">
+                <label for="cp-generations">Generations</label>
+                <input id="cp-generations" type="number" min="1" max="1000" step="1" value="60" />
+              </div>
+              <div class="train-actions">
+                <button type="button" id="btn-train" class="train-btn start">Start Training</button>
+                <button type="button" id="btn-train-stop" class="train-btn stop" disabled>Stop</button>
+              </div>
+              <div class="train-status" id="train-status">idle</div>
+            </fieldset>
+          </form>
+        </div>
+      </aside>
+
+      <div class="resizer v" data-resize="left" title="Drag to resize"></div>
+
+      <main class="canvas-wrap" id="canvas-wrap">
+        <canvas id="canvas"></canvas>
+
+        <!-- floating training metrics HUD (draggable) -->
+        <div class="game-hud" id="game-hud" hidden>
+          <div class="hud-head" id="hud-head">
+            <span class="hud-title">Training</span>
+            <span class="hud-gen" id="hud-gen">—</span>
+            <button class="hud-close" id="hud-close" title="Hide">×</button>
+          </div>
+          <canvas class="hud-spark" id="hud-spark" width="240" height="52"></canvas>
+          <div class="hud-legend"><span class="dot best"></span>best <span class="dot mean"></span>mean</div>
+          <div class="hud-rows">
+            <div><span>best fit</span><b id="hud-best">—</b></div>
+            <div><span>mean</span><b id="hud-mean">—</b></div>
+            <div><span>median</span><b id="hud-median">—</b></div>
+            <div><span>score</span><b id="hud-score">—</b></div>
+            <div><span>peak score</span><b id="hud-peak">—</b></div>
+            <div><span>steps</span><b id="hud-steps">—</b></div>
+            <div><span>H · leak · bits</span><b id="hud-net">—</b></div>
+          </div>
+        </div>
+      </main>
+
+      <div class="resizer v" data-resize="right" title="Drag to resize"></div>
+
+      <aside class="sidebar right" id="sidebar-right">
+        <div class="side-head side-tabs" id="inspector-tabs">
+          <button class="side-tab active" data-tab="microscope">Microscope</button>
+          <button class="side-tab" data-tab="po">PO Metrics</button>
+        </div>
+        <div class="side-body scope-body" id="tab-microscope">
+          <div class="scope-toolbar">
+            <button id="scope-toggle" class="scope-btn" title="Pause / resume live mutation">Pause</button>
+            <button id="scope-step" class="scope-btn" title="Apply one mutation step">Step</button>
+            <span class="scope-badge" id="scope-gen">gen 0</span>
+          </div>
+          <div class="scope-stage" id="scope-stage">
+            <canvas id="scope-canvas"></canvas>
+          </div>
+          <div class="scope-readout" id="scope-readout">hover a weight to inspect · click a neuron to track it</div>
+          <div class="scope-watch">
+            <div class="scope-watch-head">Tracked neurons <span id="scope-watch-count">0</span></div>
+            <ul class="scope-watch-list" id="scope-watch-list"></ul>
+            <div class="scope-watch-empty" id="scope-watch-empty">Click a neuron (a matrix row or its saturation bar) to track it.</div>
+          </div>
+        </div>
+
+        <div class="side-body po-body" id="tab-po" hidden>
+          <div class="po-stage" id="po-stage">
+            <canvas id="po-canvas"></canvas>
+          </div>
+          <div class="po-readout" id="po-readout">No constraints — infinite possibility (sphere).</div>
+        </div>
+      </aside>
+    </div>
+
+    <!-- horizontal splitter for the terminal dock -->
+    <div class="resizer h" id="term-resizer" title="Drag to resize terminal"></div>
+
+    <!-- bottom terminal dock -->
+    <section class="terminal-panel" id="terminal-panel">
+      <div class="term-header">
+        <div class="tabs" id="tabs"></div>
+        <button id="new-tab" class="tab-new" title="New terminal">+ New Tab</button>
+        <div class="term-actions">
+          <button id="btn-changelog" title="View the GENREG changelog">Changelog</button>
+          <button id="btn-claude" title="Open a new terminal running claude --dangerously-skip-permissions">Claude</button>
+          <button id="btn-clear" title="Clear this terminal">Clear</button>
+          <button id="btn-restart" title="Kill and respawn the shell (fresh state)">Restart</button>
+          <button id="btn-stop" title="Stop the shell process (halts a running command)">Stop</button>
+        </div>
+      </div>
+      <main id="panes" class="panes"></main>
+    </section>
+  </div>
+
+  <!-- changelog modal -->
+  <div id="changelog-overlay" class="modal-overlay" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="changelog-title">
+      <div class="modal-head">
+        <span id="changelog-title">Changelog</span>
+        <button id="changelog-close" class="modal-close" title="Close">×</button>
+      </div>
+      <pre id="changelog-body" class="modal-body">Loading…</pre>
+    </div>
+  </div>
+
+  <script src="{{ url_for('static', filename='vendor/xterm.js') }}"></script>
+  <script src="{{ url_for('static', filename='vendor/addon-fit.js') }}"></script>
+  <script src="{{ url_for('static', filename='ui.js') }}"></script>
+  <script src="{{ url_for('static', filename='microscope.js') }}"></script>
+  <script src="{{ url_for('static', filename='po_metrics.js') }}"></script>
+  <script src="{{ url_for('static', filename='training.js') }}"></script>
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>

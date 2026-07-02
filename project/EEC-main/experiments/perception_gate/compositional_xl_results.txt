@@ -1,0 +1,16 @@
+COMPOSITIONAL XL: push V^S to the billions. double-novel test (unseen combo + held-out surface).
+  S   V           meanings V^S     chance |   per-slot  full-meaning
+==============================================================================
+  4   8                  4,096    2.4e-04 |     1.0000        1.0000
+  6   8                262,144    3.8e-06 |     1.0000        1.0000
+  8   8             16,777,216    6.0e-08 |     1.0000        1.0000
+ 10   8          1,073,741,824    9.3e-10 |     1.0000        1.0000
+ 12   8         68,719,476,736    1.5e-11 |     1.0000        1.0000
+  8  12            429,981,696    2.3e-09 |     1.0000        1.0000
+ 10  12         61,917,364,224    1.6e-11 |     1.0000        1.0000
+ 14  10    100,000,000,000,000    1.0e-14 |     1.0000        1.0000
+==============================================================================
+READING: per-slot stays ~1.0 -> full-meaning = per-slot^S holds even as V^S reaches billions+.
+Experience perceives each attribute; composition multiplies them into an astronomically large
+meaning space generalised from a tiny vocabulary. This is the scaling.
+done

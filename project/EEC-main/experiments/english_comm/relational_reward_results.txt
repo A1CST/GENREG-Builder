@@ -1,0 +1,11 @@
+==================================================================
+SYNTAX under different fitness shapes (chance full-event = 0.017)
+does order EMERGE (full >> chance) and is it LOAD-BEARING (full >> scrambled)?
+==================================================================
+  all_or_nothing : full=0.011+/-0.006  scrambled=0.015+/-0.004  -> does NOT emerge (~chance)
+  any            : full=0.062+/-0.015  scrambled=0.030+/-0.007  -> does NOT emerge (~chance)
+  threshold2     : full=0.146+/-0.012  scrambled=0.048+/-0.013  -> ORDER EMERGES & load-bearing
+  per_role       : full=0.225+/-0.030  scrambled=0.067+/-0.017  -> ORDER EMERGES & load-bearing
+  square         : full=0.228+/-0.049  scrambled=0.070+/-0.011  -> ORDER EMERGES & load-bearing
+
+done

@@ -1,0 +1,12 @@
+REALISTIC distributional comprehension. 18 groups x 6 words, 14 topics (chance 0.071). held-out-synonym generalisation vs experience.
+        condition |       1000 exp |       4000 exp |      12000 exp |      30000 exp
+==============================================================================
+            clean |         0.848 |         1.000 |         1.000 |         1.000
+           +noise |         0.831 |         1.000 |         1.000 |         1.000
+            +zipf |         0.903 |         1.000 |         1.000 |         1.000
+        +polysemy |         0.849 |         0.933 |         0.940 |         0.959
+  realistic (all) |         0.661 |         0.789 |         0.876 |         0.918
+==============================================================================
+READING: does the distributional engine still generalise as structure gets language-like, and
+how much more experience does each realism factor cost?
+done

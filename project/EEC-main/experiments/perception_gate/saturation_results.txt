@@ -1,0 +1,21 @@
+counting + building co-occurrence...
+vocab 14,000, ppmi nnz 13,431,614. running SVD to 600 dims...
+================================================================
+  dim  singular val  cum.energy(sv^2)  cum.var.ratio
+   10        425.73             0.356          0.059
+   25        267.28             0.438          0.086
+   50        206.58             0.510          0.109
+   75        176.12             0.557          0.125
+  100        158.56             0.593          0.137
+  150        142.56             0.653          0.156
+  200        133.93             0.703          0.173
+  300        123.86             0.791          0.201
+  400        116.96             0.867          0.227
+  500        111.87             0.937          0.250
+  600        106.50             1.000          0.270
+================================================================
+singular value drop 100->600: 158.6 -> 106.5  (ratio 1.49x)
+marginal energy in dims 100-200: 0.110   200-600: 0.297
+variance-ratio captured by first 100 of 600: 50.5%
+READING: if sv[100] is still large and energy keeps climbing past 100, dim-100 truncated real
+signal -> perception was bottlenecked by my hardcoded DIM, not the data.

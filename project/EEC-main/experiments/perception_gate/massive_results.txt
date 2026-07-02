@@ -1,0 +1,59 @@
+MASSIVE build: embeddings on dialogue+wiki (16,000,000 tok cap), dialogue model on real dialogue.
+  counting word frequencies...
+  vocab 14,000. building sparse co-occurrence...
+  co-occurrence nnz 16,143,332. PPMI + truncated SVD (dim 100)...
+embeddings: 14,000 x 100
+dialogues: 25,965
+n-gram vocab 21,073, 4-gram ctx 798,168
+clustering 40,000 sampled turns into 60 intents...
+evolving reply policy (be-understood + identify-the-input)...
+  gen   0: best 0.017
+  gen  40: best 0.030
+  gen  80: best 0.042
+  gen 119: best 0.049
+distinct reply-intents: 39/60
+
+============================================================================
+  you: hey looks like rain again
+       [heard: good here day some] -> bot: i just got the most
+
+  you: hey i'm so exhausted today
+       [heard: hey are today there] -> bot: i just got up
+
+  you: i'm so hungry right now
+       [heard: hey are today there] -> bot: it is i just got
+
+  you: i'm having some trouble with my bike
+       [heard: love go enjoy great] -> bot: i like to spend
+
+  you: i'm just feeling really down today
+       [heard: hey are today there] -> bot: it is i just got
+
+  you: i'm so bored
+       [heard: hey are today there] -> bot: i just got up
+
+  you: thanks so much for helping me out
+       [heard: sure am great will] -> bot: i am doing well
+
+  you: it's freezing out here
+       [heard: good here day some] -> bot: i just got a new coffee shop
+
+  you: do you wanna grab coffee
+       [heard: hey are today there] -> bot: i just got out
+
+  you: i had such a great day today
+       [heard: from day back am] -> bot: i just got a long day at work
+
+  you: how was your weekend
+       [heard: are today thanks well] -> bot: am or work
+
+  you: i can't sleep at all lately
+       [heard: hey are today there] -> bot: it is i just got
+
+  you: what music do you like
+       [heard: music love favorite kind] -> bot: i like to rock
+
+  you: my dog is sick and i'm worried
+       [heard: dog are best love] -> bot: i like to read fiction
+
+done

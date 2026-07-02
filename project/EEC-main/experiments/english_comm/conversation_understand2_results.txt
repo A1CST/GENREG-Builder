@@ -1,0 +1,14 @@
+Generating paraphrases + embedding with nomic-embed-text...
+======================================================================
+HELD-OUT paraphrase comprehension (nomic): 33/39 = 0.85  (chance 0.10)
+======================================================================
+LIVE: organism comprehends the running LLM's messages via nomic embeddings, replies:
+   turn 1: LLM: "hey there how is it going             " -> [understood: greeting ] -> "hello there friend"
+   turn 2: LLM: "not much just hanging around          " -> [understood: happy    ] -> "that is great"
+   turn 3: LLM: "glad to have some downtime now        " -> [understood: happy    ] -> "that is great"
+   turn 4: LLM: "it s nice to finally relax            " -> [understood: happy    ] -> "that is great"
+   turn 5: LLM: "i could really use a nap              " -> [understood: tired    ] -> "you should rest"
+   turn 6: LLM: "it s not that i need sleep            " -> [understood: tired    ] -> "you should rest"
+   turn 7: LLM: "i m feeling just fine thanks          " -> [understood: happy    ] -> "that is great"
+   turn 8: LLM: "just got back from a hike             " -> [understood: lost     ] -> "stay calm there"
+done

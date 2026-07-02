@@ -1,0 +1,9 @@
+CONVERSATION SCALE: zero-shot reply to unseen prompts. S=2, pop 64, budget 3000, 4 seeds, train 70% of V^2 prompts.
+   V  prompts V^2   chance |  SEEN reply acc |  HELD-OUT reply acc |  held conv len
+======================================================================================
+  10          100    0.100 |   0.856+/-0.075 |       0.793+/-0.092 | 12.430+/-16.220
+  16          256    0.062 |   0.704+/-0.072 |       0.661+/-0.047 |  1.953+/-0.491
+======================================================================================
+READING: HELD-OUT reply accuracy ~ SEEN => the organism replies correctly to prompt combinations
+it NEVER trained on -> zero-shot conversation. It generalises the chat, doesn't memorise it.
+done

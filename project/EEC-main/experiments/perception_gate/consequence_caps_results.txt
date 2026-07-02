@@ -1,0 +1,14 @@
+CONSEQUENCE world: generate-to-survive, memory is the generator, everything evolvable. V=50, 6 topics, gens=260, pop=64.
+gen    1 | best life    59/600 | M 33 ED 28 decay 0.56 mr 0.27 temp 0.74 | held-own-topic-through-gaps 0.17
+        MUS:song SPO:game really FOO:hungry SPO:score i SPO:ball SPO:gym WEA:snow FOO:hungry and just WEA:sunny WEA:storm WOR:boss MUS:album SPO:ball WOR:deadline MUS:album really do WOR:email the you WEA:storm WEA:snow MUS:band WOR:deadline WEA:storm WEA:warm just i so SLE:bed today FOO:pizza i SPO:team we and MUS:song WEA:storm SPO:play WOR:deadline
+gen   50 | best life    80/600 | M 20 ED 256 decay 0.91 mr 0.34 temp 0.29 | held-own-topic-through-gaps 0.29
+gen  100 | best life   600/600 | M 13 ED 253 decay 0.84 mr 0.27 temp 0.20 | held-own-topic-through-gaps 0.98
+gen  150 | best life   600/600 | M 14 ED 190 decay 0.84 mr 0.40 temp 0.32 | held-own-topic-through-gaps 0.96
+gen  200 | best life   600/600 | M 13 ED 204 decay 0.84 mr 0.02 temp 0.28 | held-own-topic-through-gaps 0.98
+gen  250 | best life   600/600 | M 13 ED 193 decay 0.94 mr 0.02 temp 0.20 | held-own-topic-through-gaps 1.00
+gen  260 | best life   600/600 | M 14 ED 198 decay 0.71 mr 0.03 temp 0.20 | held-own-topic-through-gaps 1.00
+        SPO:play a FOO:cook a FOO:cook a FOO:hungry a FOO:cook a FOO:hungry a FOO:cook a FOO:hungry a FOO:cook a FOO:cook a a FOO:cook a a FOO:cook a FOO:cook a FOO:hungry a FOO:cook a FOO:hungry a FOO:cook a a FOO:cook a FOO:hungry a FOO:cook a FOO:hungry
+
+SUCCESS = best life climbs AND held-own-topic-through-gaps >> chance (1/6=0.17): the organism
+GENERATES self-consistent topical text from its own memory, holding its thread across neutral gaps.
+done

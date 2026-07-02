@@ -1,0 +1,16 @@
+CONSEQUENCE world: generate-to-survive, memory is the generator, everything evolvable. V=50, 6 topics, gens=400, pop=64.
+gen    1 | best life    61/300 | M 30 ED 12 decay 0.80 mr 0.29 temp 0.63 | held-own-topic-through-gaps 0.23
+        MUS:song SPO:game today FOO:hungry SPO:score i SPO:team SPO:gym WEA:snow FOO:hungry and just WEA:cold WEA:storm WOR:boss MUS:album SPO:gym WOR:deadline MUS:album today do WOR:email the you WEA:storm WEA:snow MUS:guitar WOR:email WOR:job WEA:storm just i so SLE:bed today FOO:cook i SPO:team we and SPO:score WOR:job SPO:play SLE:tired
+gen   50 | best life    63/300 | M  3 ED  9 decay 0.59 mr 0.08 temp 1.45 | held-own-topic-through-gaps 0.23
+gen  100 | best life    66/300 | M 34 ED 14 decay 0.43 mr 0.16 temp 1.05 | held-own-topic-through-gaps 0.31
+gen  150 | best life   258/300 | M 47 ED 23 decay 0.79 mr 0.41 temp 1.07 | held-own-topic-through-gaps 0.93
+gen  200 | best life   300/300 | M 45 ED  4 decay 0.86 mr 0.21 temp 1.00 | held-own-topic-through-gaps 0.97
+gen  250 | best life   300/300 | M 46 ED  4 decay 0.85 mr 0.02 temp 0.79 | held-own-topic-through-gaps 1.00
+gen  300 | best life   300/300 | M 41 ED  4 decay 0.69 mr 0.45 temp 0.20 | held-own-topic-through-gaps 1.00
+gen  350 | best life   300/300 | M 45 ED  4 decay 0.95 mr 0.39 temp 1.50 | held-own-topic-through-gaps 0.98
+gen  400 | best life   300/300 | M 44 ED  4 decay 0.99 mr 0.13 temp 0.45 | held-own-topic-through-gaps 1.00
+        SLE:sleep today and and so and so so SLE:rest so so SLE:rest so SLE:bed so so SLE:bed so so SLE:rest so SLE:bed so so SLE:sleep so SLE:sleep SLE:sleep so SLE:bed so so SLE:sleep so SLE:sleep SLE:sleep so SLE:bed so so SLE:bed so SLE:bed SLE:sleep
+
+SUCCESS = best life climbs AND held-own-topic-through-gaps >> chance (1/6=0.17): the organism
+GENERATES self-consistent topical text from its own memory, holding its thread across neutral gaps.
+done

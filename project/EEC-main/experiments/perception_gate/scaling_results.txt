@@ -1,0 +1,14 @@
+SCALING the two-timescale organism: held-out reply accuracy as the meaning space grows.
+ meanings   vocab   chance  experience |  held-out reply accuracy
+============================================================================
+       14     108    0.071        3960 |            0.831+/-0.086
+       30     216    0.033        7920 |            0.990+/-0.008
+       50     360    0.020       13200 |            0.994+/-0.006
+       80     576    0.013       21120 |            0.998+/-0.002
+      120     900    0.008       33000 |            1.000+/-0.000
+      180    1320    0.006       48400 |            1.000+/-0.000
+============================================================================
+READING: if held-out reply accuracy stays high (>> chance) as meanings grow to 180+, the
+architecture SCALES: experience-perception generalises and the policy maps it, at any size,
+given experience scaled to the meaning space.
+done

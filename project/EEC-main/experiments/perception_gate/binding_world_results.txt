@@ -1,0 +1,13 @@
+MEMORY-DEMANDING WORLD: dense recalls, tight energy. Can evolution solve binding at all (B=1)?
+ B     D | best_M  avg_M | organism recall 4gram recall
+============================================================
+-- B=3 (interleaved, out-of-window): distance sweep -> does M climb, does organism beat 4g? --
+ 3   300 |      2    2.0 |            0.02         0.03
+ 3   700 |      2    2.0 |            0.04         0.04
+ 3  1300 |      2    2.0 |            0.02         0.02
+-- binding-count sweep (D=700) --
+ 1   700 |      2    2.0 |            0.00         0.07
+ 2   700 |      2    2.0 |            0.08         0.02
+============================================================
+SUCCESS = organism recall >> 4gram recall (memory does what n-gram can't), AND best_M climbs with D.
+done

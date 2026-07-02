@@ -1,0 +1,20 @@
+building FROZEN English perception (PPMI-SVD over real dialogue)...
+English grounding: V=600, EDIM=128. coupled+scarcity+output-cost, MAX_M=256, gens=300.
+gen    1 | couple-life 116.0/500 | understanding 0.00 | M 253 ED 100 temp 1.07 | distinct 101
+        speaker: "body video * anyway waiting ' bring understand every mean actually okay coming meaning u grow tv stressed hopefully as she laughs have my wish nothing along party plans house see you lately world ever talking i figure hey will lives downtown"
+gen   30 | couple-life 117.3/500 | understanding 0.00 | M 92 ED 88 temp 0.61 | distinct 107
+gen   60 | couple-life 122.7/500 | understanding 0.00 | M 140 ED 100 temp 0.22 | distinct 100
+gen   90 | couple-life 318.3/500 | understanding 0.13 | M 256 ED 119 temp 0.20 | distinct 184
+gen  120 | couple-life 408.0/500 | understanding 0.15 | M 256 ED 126 temp 0.20 | distinct 188
+gen  150 | couple-life 389.0/500 | understanding 0.17 | M 256 ED 113 temp 0.20 | distinct 221
+gen  180 | couple-life 410.3/500 | understanding 0.18 | M 256 ED 120 temp 0.20 | distinct 232
+gen  210 | couple-life 448.0/500 | understanding 0.21 | M 256 ED 118 temp 0.20 | distinct 262
+gen  240 | couple-life 426.7/500 | understanding 0.15 | M 256 ED 116 temp 0.20 | distinct 190
+gen  270 | couple-life 455.7/500 | understanding 0.17 | M 256 ED 121 temp 0.20 | distinct 212
+gen  300 | couple-life 391.0/500 | understanding 0.17 | M 256 ED 124 temp 0.20 | distinct 215
+        speaker: "meeting saying feeling not eating ' whole dream break place there by school recently coming works use reading trouble had right meet up s bed seems boss since thats yet where and try give together taking . meeting night walk either only"
+
+SUCCESS = understanding climbs (the English-grounded listener follows the speaker) AND the speaker's
+output reads as English-shaped, coherent words -- because that is the only thing the listener can
+understand. Experience grounds it, coupled survival makes it load-bearing, memory generates it.
+done

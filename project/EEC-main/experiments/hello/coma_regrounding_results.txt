@@ -1,0 +1,22 @@
+COMA / RE-GROUNDING on the foraging world (food fitness, memory = marks). grow=350, recover=120 gens, drift_sigma=0.05
+================================================================================
+GROWN (continuity intact): food=4.03+/-0.24  memory-gap=2.40+/-0.37
+NAIVE re-ground from scratch (120 gens): food=3.27
+--------------------------------------------------------------------------------
+ coma C |    wake food  wake mem-gap |  recovered food  recovered gap
+      0 |  4.04+/-0.24   2.44+/-0.32 |     3.94+/-0.27    2.48+/-0.48
+     40 |  2.90+/-0.37   1.38+/-0.62 |     3.93+/-0.23    2.48+/-0.30
+    120 |  2.36+/-0.15   0.91+/-0.21 |     4.06+/-0.18    2.55+/-0.25
+    300 |  1.64+/-0.17   0.33+/-0.24 |     3.87+/-0.07    2.39+/-0.38
+    700 |  1.26+/-0.03  -0.01+/-0.08 |     3.44+/-0.48    1.56+/-1.06
+--------------------------------------------------------------------------------
+EROSION: does the capability decay with coma length? (use-it-or-lose-it)
+  wake food: C0=4.04  C40=2.90  C120=2.36  C300=1.64  C700=1.26
+  wake gap : C0=2.44  C40=1.38  C120=0.91  C300=0.33  C700=-0.01
+WALLIS TEST: coma'd recovered food vs naive (same recovery budget)
+  C=  0: recovered 3.94 vs naive 3.27  -> FASTER than naive (residual structure)
+  C= 40: recovered 3.93 vs naive 3.27  -> FASTER than naive (residual structure)
+  C=120: recovered 4.06 vs naive 3.27  -> FASTER than naive (residual structure)
+  C=300: recovered 3.87 vs naive 3.27  -> FASTER than naive (residual structure)
+  C=700: recovered 3.44 vs naive 3.27  -> marginal
+done

@@ -1,0 +1,49 @@
+building perception + language (K=40)...
+evolving reply policy under be-understood + identify-the-input (chance-ish; mutual info)...
+  gen   0: best 0.023  mean 0.015
+  gen  30: best 0.044  mean 0.038
+  gen  60: best 0.052  mean 0.045
+  gen  90: best 0.053  mean 0.047
+  gen 109: best 0.055  mean 0.048
+distinct reply-intents used: 26/40  (v2 collapsed toward 1; higher = less generic)
+
+============================================================================
+conversations (input -> perceived -> EVOLVED reply -> FLUENT utterance). nothing authored.
+============================================================================
+  you: hey looks like rain again
+  bot: nice weather today huh    [reply: nice day today outside]
+
+  you: hey have you eaten yet
+  bot: okay sure fine    [reply: okay sure fine if]
+
+  you: hey i'm so exhausted today
+  bot: hey how's what's    [reply: hey how's what's day]
+
+  you: hey how was your day
+  bot: okay sure fine    [reply: okay sure fine if]
+
+  you: hey i'm headed to the airport soon i just wanted to say hi and
+  bot: they're always talking about how much time people might even think    [reply: or can people are]
+
+  you: hey i'm having some trouble with my bike today
+  bot: okay sure fine    [reply: okay sure fine if]
+
+  you: hey i think we took a wrong turn back there
+  bot: what about after work what about you what are you thinking    [reply: something or maybe some]
+
+  you: hey i'm so glad today was good
+  bot: okay sure fine    [reply: okay sure fine if]
+
+  you: i'm just feeling really down today
+  bot: hey how's what's    [reply: hey how's what's day]
+
+  you: hey what's up wanna do anything this weekend
+  bot: okay sure fine    [reply: okay sure fine if]
+
+  you: hey i just wanted to say thanks for helping me out yesterday
+  bot: we're all about how people are trying to talk to someone    [reply: or can people are]
+
+  you: hey i'm so boooored
+  bot: okay sure fine    [reply: okay sure fine if]
+
+done

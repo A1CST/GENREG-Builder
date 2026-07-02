@@ -1,0 +1,51 @@
+{
+  "id": "20260701-194639-2048-79dfc2",
+  "environment": "2048",
+  "created": "2026-07-01T19:46:39",
+  "config": {
+    "op": "start",
+    "environment": "2048",
+    "device": "cpu",
+    "population": 60,
+    "generations": 60,
+    "constraints": [
+      "energy"
+    ],
+    "params": {
+      "hidden": 24,
+      "energy_budget": 10,
+      "step_cost": 0.5,
+      "food_energy": 60,
+      "merge_energy": 1,
+      "hazard": 0.02,
+      "time_budget": 400,
+      "cost_strength": 0.01,
+      "decay": 0.15,
+      "occlusion_p": 0.25,
+      "noise": 0.15,
+      "perception_cost": 1,
+      "shift_every": 15
+    },
+    "snake": {
+      "w": 20,
+      "h": 15
+    },
+    "evolve_hidden": true,
+    "sexual": false,
+    "elite": 10,
+    "parent_frac": 0.6,
+    "seed": 0
+  },
+  "started": {
+    "n_in": 16,
+    "n_out": 4,
+    "constraints": [
+      "energy"
+    ],
+    "po": 1,
+    "population": 60,
+    "generations": 60,
+    "notes": []
+  },
+  "status": "stopped"
+}

@@ -1,0 +1,12 @@
+SCALING DIAGNOSTIC: lookup (K^2, decomposable) vs structured (D^2, entangled) vs codes (K x D=64, decomposable+linear). pop 44, budget 1500, 2 seeds. UNIFORM comp.
+     K |  chance |          lookup |      structured |     codes (KxD) |     winner
+======================================================================================
+    24 |   0.042 |   0.733+/-0.001 |   0.615+/-0.001 |   0.638+/-0.004 |     lookup
+    64 |   0.016 |   0.555+/-0.030 |   0.276+/-0.001 |   0.431+/-0.030 |     lookup
+   128 |   0.008 |   0.486+/-0.011 |   0.143+/-0.014 |   0.377+/-0.013 |     lookup
+======================================================================================
+READING: which architecture holds uniform comprehension best as K grows = the scaling rep.
+       lookup K24->K128: 0.733 -> 0.486
+   structured K24->K128: 0.615 -> 0.143
+        codes K24->K128: 0.638 -> 0.377
+done

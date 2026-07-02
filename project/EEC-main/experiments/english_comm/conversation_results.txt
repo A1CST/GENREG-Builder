@@ -1,0 +1,14 @@
+CONVERSATION: transform-don't-copy. S=2 slots, V=8 (64 meanings), reply r(v)!=v. pop 64, budget 2000, 4 seeds. fitness = conversation length (max 8).
+  response accuracy (says the correct REPLY):  0.93+/-0.05  (chance 0.125)
+  conversation length kept alive:              81.96+/-77.08  / 8
+  PARROT baseline conversation length:         0.00+/-0.00  (copying dies)
+======================================================================
+READING: accuracy >> chance & convo length >> parrot => the organism learned to TRANSFORM the
+input into the correct different reply, keeping the conversation alive. Parroting starves.
+----------------------------------------------------------------------
+TRANSCRIPT (organism 0) -- world prompts (a,b); organism replies; correct reply = r(prompt):
+  turn 1: world says (3,4) -> organism replies (1,2); correct reply (1,2)  [continues]
+  turn 2: world says (6,7) -> organism replies (0,6); correct reply (0,6)  [continues]
+  turn 3: world says (0,1) -> organism replies (5,4); correct reply (5,3)  [CONVERSATION DIES]
+  (note: replies differ from prompts -> communication, not echo)
+done

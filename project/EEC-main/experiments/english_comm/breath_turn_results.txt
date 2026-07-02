@@ -1,0 +1,40 @@
+BREATH TURN: meaning = C real words (C~1..6); breath lung B=4.0; response length EMERGES. pop 64, budget 2000, 3 seeds.
+mean response length by content size C (should rise with C, stay in a natural band):
+  C=1: 1.00+/-0.00 words
+  C=2: 2.00+/-0.00 words
+  C=3: 3.00+/-0.00 words
+  C=4: 4.00+/-0.00 words
+  C=5: 5.00+/-0.00 words
+  C=6: 6.00+/-0.00 words
+------------------------------------------------------------
+  one-word COLLAPSE rate (C>=2 answered in <=1 word): 0.00+/-0.00
+  'BOOK' rate (length >= 2C+3, rambling):             0.00+/-0.00
+  full-meaning conveyed:                              0.35+/-0.02
+  evolved speed sigma:                                0.95+/-0.03
+============================================================
+TRANSCRIPT (best organism) -- meaning -> spoken response (with breath groups) -> heard:
+  meaning(1): first
+     spoken : love
+     heard  : love   [0/1]
+  meaning(1): lord
+     spoken : lord
+     heard  : lord   [1/1]
+  meaning(2): took face
+     spoken : took face
+     heard  : took face   [2/2]
+  meaning(3): yes world first
+     spoken : yes world love
+     heard  : yes world love   [2/3]
+  meaning(4): three men first through
+     spoken : three men love [breath] right
+     heard  : three men love right   [2/4]
+  meaning(6): found left people something heard night
+     spoken : found left people [breath] something heard night
+     heard  : found left people something heard night   [6/6]
+  meaning(5): old mind god night sir
+     spoken : asked took god [breath] night sir
+     heard  : asked took god night sir   [3/5]
+  meaning(2): hand better
+     spoken : hand lord
+     heard  : hand lord   [1/2]
+done

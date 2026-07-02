@@ -1,0 +1,18 @@
+COUPLED world: speaker+listener, scarcity, output cost, NO reward formulas. V=50, pop=64, L=500, gens=350. fitness = couple lifespan.
+gen    1 | couple-life 133.3/500 | understanding 0.01 | speaker M 61 ED 105 temp 1.02 | distinct words used 46
+        speaker: MUS:song SPO:gym really FOO:hungry SPO:score i SPO:ball SPO:game WEA:snow FOO:eat FOO:eat and WEA:sunny WEA:storm WOR:meeting MUS:album SPO:gym WOR:email MUS:album today do WOR:email you the WEA:storm WEA:sunny MUS:guitar WOR:email WOR:job WEA:warm just i so SLE:bed today FOO:pizza i SPO:ball we and MUS:song WEA:storm SPO:play WOR:deadline SLE:dream a WOR:boss WOR:job
+gen   40 | couple-life 500.0/500 | understanding 0.24 | speaker M 128 ED 256 temp 0.20 | distinct words used 50
+gen   80 | couple-life 500.0/500 | understanding 0.34 | speaker M 126 ED 232 temp 0.20 | distinct words used 50
+gen  120 | couple-life 500.0/500 | understanding 0.27 | speaker M 127 ED 222 temp 0.20 | distinct words used 50
+gen  160 | couple-life 500.0/500 | understanding 0.27 | speaker M 128 ED 235 temp 0.20 | distinct words used 50
+gen  200 | couple-life 500.0/500 | understanding 0.32 | speaker M 127 ED 226 temp 0.20 | distinct words used 50
+gen  240 | couple-life 500.0/500 | understanding 0.19 | speaker M 128 ED 236 temp 0.35 | distinct words used 50
+gen  280 | couple-life 500.0/500 | understanding 0.21 | speaker M 117 ED 237 temp 0.20 | distinct words used 50
+gen  320 | couple-life 500.0/500 | understanding 0.30 | speaker M 125 ED 244 temp 0.20 | distinct words used 50
+gen  350 | couple-life 500.0/500 | understanding 0.28 | speaker M 123 ED 256 temp 0.20 | distinct words used 50
+        speaker: SPO:team SPO:game do FOO:cook SPO:game to SLE:rest SPO:game WEA:warm FOO:pizza i WEA:sunny WEA:warm really MUS:song MUS:sing just SLE:rest SPO:team and we WOR:boss do you WOR:boss FOO:hungry MUS:concert SPO:game so FOO:cook today you SLE:sleep WOR:email it WOR:office i MUS:album FOO:eat really MUS:guitar WOR:deadline SPO:score WEA:cold SPO:team so WOR:meeting FOO:dinner
+
+SUCCESS = couple-life climbs (mutual understanding sustains) AND understanding >> chance (1/V): the
+speaker generates predictable-but-VARIED structure that an evolved listener learns to follow.
+No formula graded it -- structure emerged because un-understood speech starved the listener.
+done

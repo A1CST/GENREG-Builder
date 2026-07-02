@@ -1,0 +1,20 @@
+building FROZEN English perception (PPMI-SVD over real dialogue)...
+English grounding: V=600, EDIM=256. coupled+scarcity+output-cost, M UNBOUNDED (rent=0.002), gens=300.
+gen    1 | couple-life 106.3/500 | understanding 0.01 | M 6 ED 15 temp 0.80 | distinct 106
+        speaker: "either eating feeling mean spend i scary quiet different those an see girl music reading window often since hopefully back work sometime what so plans kids move since phone easy into ? lately world would talking . point she will pick downtown"
+gen   30 | couple-life 156.3/500 | understanding 0.10 | M 3 ED 146 temp 0.20 | distinct 128
+gen   60 | couple-life 220.7/500 | understanding 0.14 | M 5 ED 192 temp 0.20 | distinct 150
+gen   90 | couple-life 302.3/500 | understanding 0.26 | M 4 ED 188 temp 0.23 | distinct 126
+gen  120 | couple-life 309.0/500 | understanding 0.24 | M 4 ED 202 temp 0.20 | distinct 114
+gen  150 | couple-life 320.3/500 | understanding 0.17 | M 4 ED 205 temp 0.20 | distinct 177
+gen  180 | couple-life 394.0/500 | understanding 0.28 | M 4 ED 204 temp 0.20 | distinct 160
+gen  210 | couple-life 461.3/500 | understanding 0.24 | M 4 ED 193 temp 0.20 | distinct 181
+gen  240 | couple-life 448.0/500 | understanding 0.24 | M 4 ED 193 temp 0.20 | distinct 154
+gen  270 | couple-life 497.7/500 | understanding 0.32 | M 4 ED 182 temp 0.20 | distinct 195
+gen  300 | couple-life 500.0/500 | understanding 0.30 | M 4 ED 190 temp 0.20 | distinct 218
+        speaker: "waiting while said definitely class " small tough while sometime doing every doing city sometime hopefully weeks while chicken last should must do for seen wish either most while find doing it lately walking anything while , tv stuff doing waiting yet"
+
+SUCCESS = understanding climbs (the English-grounded listener follows the speaker) AND the speaker's
+output reads as English-shaped, coherent words -- because that is the only thing the listener can
+understand. Experience grounds it, coupled survival makes it load-bearing, memory generates it.
+done

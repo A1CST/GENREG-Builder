@@ -1,0 +1,28 @@
+================================================================
+SCALING SWEEP — invented memory under progressively harder worlds
+================================================================
+
+[1] INVENTED MEMORY (one world slot): recall vs delay
+    cue seen L-1 steps before the response; chance = 0.17
+    delay L= 2: recall=0.72  #####################
+    delay L= 3: recall=0.56  ################
+    delay L= 4: recall=0.76  ######################
+    delay L= 6: recall=0.48  ##############
+    delay L= 8: recall=0.56  ################
+    delay L=12: recall=0.57  ################
+
+[2] SPATIAL SEQUENCE MEMORY: fraction reproduced vs sequence length
+    length=2 (tape 4): reproduced=0.78  #######################
+    length=3 (tape 5): reproduced=0.96  ############################
+    length=4 (tape 6): reproduced=0.73  #####################
+    length=5 (tape 7): reproduced=0.58  #################
+    length=6 (tape 8): reproduced=0.35  ##########
+    length=8 (tape 10): reproduced=0.53  ################
+
+[3] CONTENT-ADDRESSED RETRIEVAL: recall-by-key vs number of pairs K
+    (pairs in random arrival order; chance = 0.25)
+    pairs K=2: retrieval=0.52  ###############
+    pairs K=3: retrieval=0.43  ############
+
+================================================================
+done — see scaling_results.txt

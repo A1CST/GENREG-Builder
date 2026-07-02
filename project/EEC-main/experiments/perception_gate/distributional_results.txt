@@ -1,0 +1,15 @@
+DISTRIBUTIONAL comprehension: generalise to HELD-OUT synonyms. 16 groups x 6 words, 12 topics (chance 0.083).
+SURFACE baseline (token identity, no model): 0.093  <- held-out words unseen in topics
+======================================================================
+experience (# synonymy sentences) -> held-out comprehension (distributional model):
+        0 synonymy exposures : 0.069+/-0.031
+      500 synonymy exposures : 0.564+/-0.024
+     1500 synonymy exposures : 0.949+/-0.037
+     4000 synonymy exposures : 1.000+/-0.000
+     9000 synonymy exposures : 1.000+/-0.000
+======================================================================
+no synonymy experience 0.069 (~surface) -> rich experience 1.000
+READING: with no synonymy exposure the model can't bridge surface forms (~surface/chance). As
+experience accumulates, held-out synonyms embed near their meaning and comprehension GENERALISES
+-- distributional/experience learning is the comprehension engine, and it scales with exposure.
+done

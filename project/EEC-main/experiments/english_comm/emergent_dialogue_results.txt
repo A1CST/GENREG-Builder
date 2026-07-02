@@ -1,0 +1,7 @@
+EMERGENT DIALOGUE: does a back-channel (listener->speaker 'what i need') emerge? pop 80, budget 1500, 6 seeds.
+   one_way: task success (speaker sends the attribute the listener needs) 0.500+/-0.000
+   two_way: task success (speaker sends the attribute the listener needs) 1.000+/-0.000
+======================================================================
+READING: two_way ~1.0 >> one_way ~0.5 => the listener's request carries 'what i need' and the
+speaker uses it -- a feedback/back-channel protocol emerged; the speaker can't do it blind.
+done

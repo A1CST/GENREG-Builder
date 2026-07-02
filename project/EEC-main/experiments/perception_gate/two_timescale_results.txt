@@ -1,0 +1,11 @@
+TWO-TIMESCALE ORGANISM: experience-perception + evolved transform-policy.
+task = give the correct (different) reply to an input phrased in HELD-OUT surface forms (chance 0.071).
+======================================================================
+  TWO-TIMESCALE (experience perception + evolved policy): 0.866+/-0.058
+  surface perception + same policy:                      0.173+/-0.006
+======================================================================
+READING: two-timescale >> surface => the organism replies correctly to phrasings it never saw,
+because experience-perception comprehends the new surface form and the evolved policy maps the
+understood meaning to its reply. Neither half alone does this: surface can't comprehend the new
+phrasing; a policy with no perception has nothing to map. Experience perceives, evolution acts.
+done

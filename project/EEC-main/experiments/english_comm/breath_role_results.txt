@@ -1,0 +1,11 @@
+BREATH ROLE: does STOP calibrate length (speaker knows its content) where BREATH cannot? Smax=8. pop 64, budget 2500, 4 seeds.
+     regime terminator |  full-meaning |  mean len |  corr(span,len) |  len-span
+================================================================================
+ contiguous       stop | 0.739+/-0.047 | 4.492+/-0.052 |   1.000+/-0.000 | 0.000+/-0.000
+ contiguous     breath | 0.796+/-0.075 | 7.989+/-0.019 |       nan+/-nan | 3.497+/-0.067
+  scattered       stop | 0.768+/-0.143 | 6.946+/-0.030 |   1.000+/-0.000 | 0.000+/-0.000
+  scattered     breath | 0.724+/-0.053 | 8.000+/-0.000 |       nan+/-nan | 1.054+/-0.030
+================================================================================
+READING: stop corr(span,len)~1 in BOTH regimes => the learned stop calibrates length because the
+speaker knows its own content. breath corr~0 => breath is NOT the calibrator (its role is chunking).
+done

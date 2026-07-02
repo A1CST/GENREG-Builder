@@ -1,0 +1,14 @@
+COMPOSITIONAL SCALING: V=6 values/slot, S slots -> V^S meanings. test = unseen COMBINATION expressed in HELD-OUT SURFACE words (double-novel). full-meaning reply accuracy.
+ slots S  meanings V^S    chance |   held-out full-reply accuracy
+==============================================================================
+       2            36   2.8e-02 |                  1.000+/-0.000
+       3           216   4.6e-03 |                  1.000+/-0.000
+       4         1,296   7.7e-04 |                  1.000+/-0.000
+       5         7,776   1.3e-04 |                  1.000+/-0.000
+       6        46,656   2.1e-05 |                  1.000+/-0.000
+==============================================================================
+READING: full-meaning reply accuracy stays high as V^S explodes into the thousands => the
+organism comprehends+replies to meanings it never saw, in surface forms it never saw, over an
+EXPONENTIAL space -- composition gives the meanings for free, experience perceives them, the
+evolved policy replies. The architecture scales exponentially.
+done

@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>GENREG — Runs &amp; Checkpoints</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+</head>
+<body class="runs-body">
+  <header class="topbar">
+    <div class="brand">GENREG<span class="brand-sub">runs &amp; checkpoints</span></div>
+    <div class="runs-top-actions">
+      <button id="runs-refresh" class="runs-btn" title="Reload runs">Refresh</button>
+      <a class="runs-btn link" href="/tree" title="Tree-of-Models text prediction">Tree LM ↗</a>
+      <a class="runs-btn link" href="/" title="Back to the build interface">Build interface ↗</a>
+    </div>
+  </header>
+
+  <div class="runs-layout">
+    <aside class="runs-tree">
+      <div class="env-tabs" id="env-tabs"></div>
+      <div class="tree" id="tree"><div class="tree-empty">No runs yet. Click <b>Start Training</b> on the build interface.</div></div>
+    </aside>
+    <main class="runs-detail" id="detail">
+      <div class="detail-empty">Select a run from the tree to view its configuration, metrics, and checkpoint.</div>
+    </main>
+  </div>
+
+  <script src="{{ url_for('static', filename='trace_view.js') }}"></script>
+  <script src="{{ url_for('static', filename='runs.js') }}"></script>
+</body>
+</html>

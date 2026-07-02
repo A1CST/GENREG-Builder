@@ -1,0 +1,17 @@
+{
+  "id": "20260701-194948-snake-e04426",
+  "environment": "snake",
+  "status": "finished",
+  "finished": "2026-07-01T19:50:07",
+  "gen": 60,
+  "best": {
+    "score": 5,
+    "steps": 620,
+    "base": 11.2,
+    "H": 25,
+    "n_params": 378,
+    "leak": 0.0,
+    "bits": 7.04
+  },
+  "checkpoint": "checkpoint.pkl"
+}

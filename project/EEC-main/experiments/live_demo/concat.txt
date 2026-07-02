@@ -1,0 +1,5 @@
+file run_1_canonical.mp4
+file run_2_energy_substrate.mp4
+file run_3_order_path.mp4
+file run_4_all_at_once.mp4
+file run_5_lift_energy.mp4

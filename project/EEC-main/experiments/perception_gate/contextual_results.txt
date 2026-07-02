@@ -1,0 +1,12 @@
+CONTEXT vs polysemy: does a context-reweighted sentence representation break the polysemy ceiling?
+(chance 0.071, high experience = 20000 synonymy exposures)
+======================================================================
+        condition |     plain mean |     CONTEXTUAL
+        +polysemy |  0.952+/-0.030 |  0.728+/-0.008
+   heavy polysemy |  0.941+/-0.010 |  0.570+/-0.036
+  realistic (all) |  0.904+/-0.068 |  0.032+/-0.006
+realistic + heavy |  0.963+/-0.004 |  0.050+/-0.005
+======================================================================
+READING: contextual > plain on polysemy => resolving a word's sense from its sentence context
+recovers the comprehension that a single blended embedding loses. Context is the polysemy fix.
+done

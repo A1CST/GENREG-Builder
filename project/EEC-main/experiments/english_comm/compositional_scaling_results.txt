@@ -1,0 +1,15 @@
+COMPOSITIONAL SCALING (#5): zero-shot to HELD-OUT combinations. pop 48, budget 1500, 3 seeds, train 70% of V^2 combos
+   V  M=V^2  chance |     COMPOSITIONAL seen/HELDOUT |          FLAT seen/HELDOUT
+======================================================================================
+   4     16   0.062 |         0.963 /        0.934 |        0.979 /      0.215
+   6     36   0.028 |         0.965 /        0.956 |        0.840 /      0.297
+   8     64   0.016 |         0.893 /        0.818 |        0.716 /      0.295
+  10    100   0.010 |         0.862 /        0.731 |        0.615 /      0.374
+======================================================================================
+READING: COMPOSITIONAL held-out >> chance and >> FLAT held-out => zero-shot generalisation:
+the compositional rep understands meanings it never saw -> vocabulary scales for free.
+  V=4: compositional held-out 0.934  vs  flat held-out 0.215  (chance 0.062)
+  V=6: compositional held-out 0.956  vs  flat held-out 0.297  (chance 0.028)
+  V=8: compositional held-out 0.818  vs  flat held-out 0.295  (chance 0.016)
+  V=10: compositional held-out 0.731  vs  flat held-out 0.374  (chance 0.010)
+done

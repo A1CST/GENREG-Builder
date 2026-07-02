@@ -1,0 +1,7 @@
+# generated artifacts
+best.pkl
+*.pkl
+*.tmp
+# python
+__pycache__/
+*.pyc

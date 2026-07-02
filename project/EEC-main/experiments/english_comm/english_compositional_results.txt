@@ -1,0 +1,10 @@
+ENGLISH COMPOSITIONAL: 300 real words -> product-quantised S=4 x V=8 codes (V^S=4096). pop 64, budget 3000, 3 seeds, train 70%.
+zero-shot = code-comprehension on HELD-OUT real words never seen in training.
+======================================================================
+  seen-word code-comprehension : 0.836+/-0.060
+  HELD-OUT (zero-shot)         : 0.828+/-0.069   (chance ~ 2.4e-04)
+  code uniqueness (1=no collisions): 0.888+/-0.006
+======================================================================
+READING: held-out >> chance => the organism comprehends REAL words it never trained on,
+via shared per-slot machinery. Real-English vocabulary scales by composition, zero-shot.
+done

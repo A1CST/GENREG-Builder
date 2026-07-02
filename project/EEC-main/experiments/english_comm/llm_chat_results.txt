@@ -1,0 +1,18 @@
+Building conversational repertoire (36 prompts) from llama3.2:3b...
+vocab 52; evolving organism over 36 prompts (5000 gens)...
+organism 12: word accuracy 0.88, whole-sentence-correct 0.53
+======================================================================
+LIVE CONVERSATION (the LLM matches each message to the organism's nearest known prompt):
+   turn  1:  LLM: "hey there friend                  " -> organism: "hello"
+   turn  2:  LLM: "how s your day going              " -> organism: "thanks"
+   turn  3:  LLM: "not bad thanks for asking         " -> organism: "you re welcome"
+   turn  4:  LLM: "no need to thank me               " -> organism: "you re welcome"
+   turn  5:  LLM: "no worries just being helpful     " -> organism: "great"
+   turn  6:  LLM: "glad i could assist               " -> organism: "you re welcome"
+   turn  7:  LLM: "anytime feel free to ask          " -> organism: "home too hello"
+   turn  8:  LLM: "sounds good i ll be there         " -> organism: "okay then"
+   turn  9:  LLM: "see you soon then                 " -> organism: "later"
+   turn 10:  LLM: "i ll talk to you later            " -> organism: "later"
+   turn 11:  LLM: "i ll catch you then               " -> organism: "explain it"
+   turn 12:  LLM: "never said that before            " -> organism: "night thanks"
+done

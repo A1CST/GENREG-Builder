@@ -1,0 +1,7 @@
+CONVERSATION MEMORY: context-dependent reply h(context,prompt). C=6, P=6, mem M=6. pop 100, budget 3000, 5 seeds.  chance 0.125; stateless ceiling ~ 0.167.
+   stateless: context-dependent reply accuracy 0.339+/-0.021
+    stateful: context-dependent reply accuracy 0.956+/-0.054
+================================================================
+READING: stateful >> stateless (~1/C) => the organism must WRITE turn-1 context to memory and
+READ it at turn-2 to reply correctly. Conversation needs memory; the organism evolves to use it.
+done

@@ -1,0 +1,10 @@
+CONVERSATION COMPOSE: 2-word phrase per component, S=2 -> 4-word replies. pop 100, budget 3000, 4 seeds, train 70% of V^2 prompts.
+   V  prompts |  SEEN reply-correct |  HELD-OUT reply-correct
+================================================================
+   6       36 |       0.950+/-0.004 |           0.951+/-0.005
+  10      100 |       0.951+/-0.010 |           0.951+/-0.007
+  16      256 |       0.943+/-0.003 |           0.943+/-0.002
+================================================================
+READING: HELD-OUT full-reply-correct ~ SEEN => the organism produces the correct multi-word reply
+to prompt combinations it never trained on -> generalising sentence-level conversation (no lookup).
+done

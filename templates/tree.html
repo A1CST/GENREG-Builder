@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>GENREG — Tree-of-Models</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+</head>
+<body class="tlm-body">
+  <header class="topbar">
+    <div class="brand">GENREG<span class="brand-sub">tree-of-models · byte-level text prediction</span></div>
+    <div class="status">
+      <span class="dot" id="tlm-dot"></span>
+      <span id="tlm-conn">connecting…</span>
+      <a class="runs-link" href="/" title="Back to the build interface">Build ↗</a>
+      <a class="runs-link" href="/runs" title="Runs &amp; checkpoints">Runs ↗</a>
+    </div>
+  </header>
+
+  <div class="tlm-layout">
+    <!-- ── config sidebar ─────────────────────────────── -->
+    <aside class="sidebar left tlm-side">
+      <div class="side-head">Configuration</div>
+      <div class="side-body control-panel">
+        <div class="field">
+          <label for="cf-branch">Branching factor</label>
+          <input type="number" id="cf-branch" value="4" min="2" max="64" />
+          <span class="field-hint">children per router (4 → depth 4, 16 → depth 2)</span>
+        </div>
+        <div class="field">
+          <label for="cf-ctxwin">Context window (bytes)</label>
+          <input type="number" id="cf-ctxwin" value="16" min="2" max="64" />
+        </div>
+        <div class="field">
+          <label for="cf-embed">Embed dim</label>
+          <input type="number" id="cf-embed" value="32" min="4" max="128" />
+        </div>
+        <div class="field">
+          <label for="cf-ctxdim">Context dim</label>
+          <input type="number" id="cf-ctxdim" value="64" min="8" max="256" />
+        </div>
+        <div class="field">
+          <label for="cf-layers">Routing layers</label>
+          <input type="number" id="cf-layers" value="2" min="0" max="8" />
+          <span class="field-hint">router depth; 0 = one flat specialist over all 256 bytes (no routers); leaf size = 256 / branch^layers</span>
+        </div>
+        <div class="field">
+          <label for="cf-samples">Training samples</label>
+          <input type="number" id="cf-samples" value="16000" min="500" max="100000" step="500" />
+          <span class="field-hint">windows drawn from the 49&nbsp;MB Gutenberg corpus</span>
+        </div>
+        <div class="field">
+          <label for="cf-encgens">Encoder generations</label>
+          <input type="number" id="cf-encgens" value="40" min="0" max="500" />
+          <span class="field-hint">pre-evolve the context encoder (0 = skip, random encoder)</span>
+        </div>
+        <div class="field">
+          <label class="check"><input type="checkbox" id="cf-encspeed-on" /> Encoder speed phase</label>
+          <span class="field-hint">phase 2: time/Occam constraint — fitness ÷ (1 + active-weights/budget)</span>
+        </div>
+        <div class="field">
+          <label for="cf-encspeed">Speed gens</label>
+          <input type="number" id="cf-encspeed" value="40" min="0" max="500" />
+        </div>
+        <div class="field">
+          <label for="cf-encbudget">Speed time budget</label>
+          <input type="number" id="cf-encbudget" value="0.5" min="0.05" max="10" step="0.05" />
+          <span class="field-hint">higher = weaker pressure (1 = mild, 0.15 = harsh)</span>
+        </div>
+        <div class="field">
+          <label for="cf-pop">Population</label>
+          <input type="number" id="cf-pop" value="60" min="8" max="300" />
+        </div>
+        <div class="field">
+          <label for="cf-gens">Generations / node</label>
+          <input type="number" id="cf-gens" value="60" min="5" max="1000" />
+        </div>
+        <div class="field">
+          <label for="cf-mut">Mutation rate</label>
+          <input type="number" id="cf-mut" value="0.15" min="0" max="1" step="0.05" />
+        </div>
+        <div class="field">
+          <label for="cf-elite">Elite fraction</label>
+          <input type="number" id="cf-elite" value="0.2" min="0.05" max="0.9" step="0.05" />
+        </div>
+        <div class="tlm-actions">
+          <button id="tlm-start" class="runs-btn tlm-primary">Start Training</button>
+          <button id="tlm-stop" class="runs-btn" disabled>Stop</button>
+        </div>
+        <div class="tlm-status" id="tlm-status">idle</div>
+        <div class="tlm-corpus" id="tlm-corpus"></div>
+      </div>
+    </aside>
+
+    <!-- ── visualizations ─────────────────────────────── -->
+    <main class="tlm-main">
+      <!-- stat tiles -->
+      <div class="tlm-tiles">
+        <div class="tlm-tile"><div class="tlm-tile-label">Held-out accuracy</div><div class="tlm-tile-value" id="st-acc">—</div></div>
+        <div class="tlm-tile"><div class="tlm-tile-label">Bigram baseline</div><div class="tlm-tile-value" id="st-bigram">—</div></div>
+        <div class="tlm-tile"><div class="tlm-tile-label">Δ vs bigram</div><div class="tlm-tile-value" id="st-delta">—</div></div>
+        <div class="tlm-tile"><div class="tlm-tile-label">Tokens / sec</div><div class="tlm-tile-value" id="st-tps">—</div></div>
+        <div class="tlm-tile"><div class="tlm-tile-label">Parameters</div><div class="tlm-tile-value" id="st-params">—</div></div>
+        <div class="tlm-tile"><div class="tlm-tile-label">Nodes frozen</div><div class="tlm-tile-value" id="st-nodes">—</div></div>
+      </div>
+
+      <!-- routing tree icicle -->
+      <section class="tlm-card">
+        <div class="tlm-card-head">
+          <h2>Routing tree <span class="tlm-card-sub">byte range 0–255 across, depth down — each block is one evolved genome</span></h2>
+          <div class="tlm-legend" id="icicle-legend">
+            <span class="tlm-chip"><i style="background:var(--tlm-idle)"></i>untrained</span>
+            <span class="tlm-chip"><i style="background:var(--tlm-active)"></i>evolving</span>
+            <span class="tlm-chip"><i class="tlm-ramp"></i>frozen — accuracy low→high</span>
+          </div>
+        </div>
+        <div class="tlm-chart-wrap"><svg id="icicle" role="img" aria-label="Routing tree, nodes colored by accuracy"></svg></div>
+      </section>
+
+      <div class="tlm-two-col">
+        <!-- evolution fitness -->
+        <section class="tlm-card">
+          <div class="tlm-card-head">
+            <h2>Evolution — <span id="fit-node" class="tlm-card-sub">no node yet</span></h2>
+            <div class="tlm-legend">
+              <span class="tlm-chip"><i style="background:var(--tlm-s1)"></i>best fitness</span>
+              <span class="tlm-chip"><i style="background:var(--tlm-s2)"></i>population mean</span>
+            </div>
+          </div>
+          <div class="tlm-chart-wrap"><svg id="fitness" role="img" aria-label="Best and mean fitness per generation"></svg></div>
+        </section>
+
+        <!-- accuracy by depth -->
+        <section class="tlm-card">
+          <div class="tlm-card-head">
+            <h2>Mean accuracy by depth</h2>
+            <div class="tlm-legend">
+              <span class="tlm-chip"><i style="background:var(--tlm-s1)"></i>routers</span>
+              <span class="tlm-chip"><i style="background:var(--tlm-s2)"></i>leaves</span>
+            </div>
+          </div>
+          <div class="tlm-chart-wrap"><svg id="depthbars" role="img" aria-label="Mean accuracy per tree depth, routers vs leaves"></svg></div>
+          <details class="tlm-table-view"><summary>View as table</summary><div id="depth-table"></div></details>
+        </section>
+      </div>
+
+      <!-- generation -->
+      <section class="tlm-card">
+        <div class="tlm-card-head"><h2>Generate text <span class="tlm-card-sub">route each byte through the frozen tree</span></h2></div>
+        <div class="tlm-genrow">
+          <input type="text" id="gen-prompt" placeholder="prompt, e.g.  the old man " value="the " />
+          <label>len <input type="number" id="gen-len" value="300" min="1" max="2000" /></label>
+          <label>temp <input type="number" id="gen-temp" value="0.8" min="0" max="3" step="0.1" /></label>
+          <button id="gen-btn" class="runs-btn tlm-primary" disabled>Generate</button>
+        </div>
+        <pre id="gen-out" class="tlm-gen-out">Train a model (or reuse the last one) to generate.</pre>
+      </section>
+
+      <!-- config sweep -->
+      <section class="tlm-card">
+        <div class="tlm-card-head">
+          <h2>Config sweep <span class="tlm-card-sub">unchecked params stay locked to the sidebar; check a param and list values to test — every combination trains (max 24), each saved as a run</span></h2>
+        </div>
+        <div id="sweep-params" class="tlm-sweep-params"></div>
+        <div class="tlm-genrow">
+          <button id="sweep-btn" class="runs-btn tlm-primary" disabled>Run sweep</button>
+          <span id="sweep-status" class="tlm-card-sub"></span>
+        </div>
+        <div id="sweep-results"></div>
+      </section>
+
+      <!-- routing inspector -->
+      <section class="tlm-card">
+        <div class="tlm-card-head">
+          <h2>Routing inspector <span class="tlm-card-sub">trace a generation, then click any byte to see every router's decision on its path</span></h2>
+        </div>
+        <div class="tlm-genrow">
+          <input type="text" id="tr-prompt" placeholder="prompt to trace" value="the " />
+          <label>steps <input type="number" id="tr-steps" value="48" min="1" max="200" /></label>
+          <label>temp <input type="number" id="tr-temp" value="0.8" min="0" max="3" step="0.1" /></label>
+          <button id="tr-btn" class="runs-btn tlm-primary" disabled>Trace</button>
+        </div>
+        <div id="tr-strip" class="tlm-strip" hidden></div>
+        <div id="tr-detail" class="tlm-tr-detail">No trace yet — train a model, then hit <b>Trace</b>.</div>
+      </section>
+    </main>
+  </div>
+
+  <div class="tlm-tooltip" id="tlm-tooltip" hidden></div>
+  <script src="{{ url_for('static', filename='trace_view.js') }}"></script>
+  <script src="{{ url_for('static', filename='treelm.js') }}"></script>
+</body>
+</html>

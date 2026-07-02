@@ -1,0 +1,22 @@
+{
+  "id": "20260702-055443-tree-3c684f",
+  "environment": "tree",
+  "status": "finished",
+  "finished": "2026-07-02T05:56:56",
+  "gen": 49,
+  "best": {
+    "score": 0.1895,
+    "base": 0.2985
+  },
+  "checkpoint": "model.npz",
+  "eval": {
+    "accuracy": 0.1895,
+    "train_accuracy": null,
+    "bigram_accuracy": 0.2985,
+    "tokens_per_sec": 222267.7724490607,
+    "unique_predictions": 19,
+    "target_entropy": 4.671041585122897,
+    "total_params": 41214,
+    "train_seconds": 133.0
+  }
+}

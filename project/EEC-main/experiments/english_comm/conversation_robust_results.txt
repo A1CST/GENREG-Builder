@@ -1,0 +1,11 @@
+Building prototypes (nomic)...
+======================================================================
+  conversation 1 (opener: "hey there good to see you"): coherence 0.75, 11 distinct replies
+  conversation 2 (opener: "i could really use some help"): coherence 0.83, 11 distinct replies
+  conversation 3 (opener: "what a beautiful morning"): coherence 0.75, 12 distinct replies
+  conversation 4 (opener: "i am feeling pretty tired to"): coherence 0.67, 11 distinct replies
+  conversation 5 (opener: "thanks so much for everythin"): coherence 0.75, 12 distinct replies
+======================================================================
+INTEGRATED SYSTEM over 5 conversations: coherence 0.75+/-0.05, distinct replies 11.4
+READING: a robust coherence number for the full perceive->comprehend->reply loop with a live LLM.
+done

@@ -1,0 +1,15 @@
+WORD ORDER under WORLD-CONSEQUENCE fitness. Listener must APPROACH prey AND FLEE predator;
+eat +2, walk into predator -3, fail to flee the predator -2. Needs the FULL role assignment.
+BAG has only 14 usable unordered messages < 20 events -> provably insufficient.
+chance both-roles-correct ~ 0.050; chance predator-death ~ 0.20
+======================================================================
+SEQUENTIAL channel (5 seeds):
+  both-roles-correct : 0.613+/-0.096   (chance 0.05)
+  predator-death     : 0.004+/-0.003   (LOW = uses the message to avoid the predator)
+  both SCRAMBLED     : 0.361+/-0.063   (collapse => order load-bearing)
+  death  SCRAMBLED   : 0.145+/-0.048   (rises => scrambling makes it walk into predators)
+======================================================================
+BAG (order destroyed) (5 seeds): provably cannot assign both roles:
+  both-roles-correct : 0.447+/-0.042   (vs sequential above)
+  predator-death     : 0.003+/-0.003   (HIGH = cannot tell prey from predator)
+done

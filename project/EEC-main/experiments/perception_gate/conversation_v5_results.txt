@@ -1,0 +1,49 @@
+building perception + language (K=40, SIF informativeness weighting)...
+evolving reply policy (be-understood + identify-the-input)...
+  gen   0: best 0.030
+  gen  30: best 0.065
+  gen  60: best 0.078
+  gen  90: best 0.083
+  gen 109: best 0.085
+distinct reply-intents: 25/40
+
+============================================================================
+conversations (informativeness perception -> EVOLVED reply -> FLUENT utterance). nothing authored.
+============================================================================
+  you: hey looks like rain again
+       [heard: nice outside today weather]  ->  bot: there's something about days
+
+  you: hey i'm so exhausted today
+       [heard: feeling today kinda tired]  ->  bot: sometimes when we're feeling stressed out
+
+  you: i'm so hungry right now
+       [heard: feeling today kinda tired]  ->  bot: how are you feeling overwhelmed
+
+  you: hey i'm having some trouble with my bike
+       [heard: always some one around]  ->  bot: maybe try out what day works best
+
+  you: i'm just feeling really down today
+       [heard: feeling today kinda tired]  ->  bot: how are you feeling
+
+  you: hey i'm so bored
+       [heard: feeling today kinda tired]  ->  bot: how are you feeling overwhelmed
+
+  you: thanks so much for helping me out
+       [heard: sounds thanks great would]  ->  bot: problem way happy
+
+  you: it's freezing out here
+       [heard: nice outside today weather]  ->  bot: some days are always good
+
+  you: do you wanna grab coffee
+       [heard: grab some maybe can]  ->  bot: go before the weekend
+
+  you: i had such a great day today
+       [heard: sounds thanks great would]  ->  bot: problem way happy
+
+  you: how was your weekend
+       [heard: thinking weekend trip some]  ->  bot: good thinking about what we're thinking
+
+  you: i can't sleep at all lately
+       [heard: morning good after day]  ->  bot: what are you up early
+
+done

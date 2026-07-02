@@ -1,0 +1,35 @@
+================================================================
+HIGH-SEED RE-TESTS — mean +/- std
+================================================================
+
+[B] English stability under channel noise (sex vs clone):
+   noise=0.0  clone  : english_usage 0.950 +/- 0.019  (n=8)
+   noise=0.0  sexual : english_usage 1.000 +/- 0.000  (n=8)
+   noise=0.15 clone  : english_usage 0.659 +/- 0.152  (n=8)
+   noise=0.15 sexual : english_usage 0.906 +/- 0.069  (n=8)
+   noise=0.3  clone  : english_usage 0.359 +/- 0.157  (n=8)
+   noise=0.3  sexual : english_usage 0.789 +/- 0.095  (n=8)
+
+[F] Syntax: order-dependence (scramble) + bag control:
+   sequential full intact   : 0.219 +/- 0.041  (n=8)
+   sequential full scrambled: 0.055 +/- 0.010  (n=8)   (collapse => order load-bearing)
+   BAG full                 : 0.139 +/- 0.027  (n=8)  (vs sequential intact)
+
+[I] Invented external memory ablation (recall with vs without world slot):
+   slot writable: 0.668 +/- 0.185  (n=8)
+   slot disabled: 0.161 +/- 0.012  (n=8)
+
+[J] Spatial sequence: W=1 vs W=3, freeze-head ablation:
+   W=1 (one cell): 0.441 +/- 0.028  (n=6)
+   W=3 movable   : 0.831 +/- 0.221  (n=6)
+   W=3 frozen    : 0.406 +/- 0.043  (n=6)
+
+[K] Invented-memory recall vs delay (is it really delay-robust?):
+   delay L=2  : 0.848 +/- 0.103  (n=5)
+   delay L=4  : 0.631 +/- 0.152  (n=5)
+   delay L=8  : 0.608 +/- 0.058  (n=5)
+   delay L=12 : 0.616 +/- 0.117  (n=5)
+   delay L=16 : 0.648 +/- 0.133  (n=5)
+   delay L=24 : 0.612 +/- 0.029  (n=5)
+
+done

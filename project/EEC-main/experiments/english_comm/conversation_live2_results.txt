@@ -1,0 +1,23 @@
+Building prototypes (nomic)...
+==========================================================================
+LIVE CONVERSATION v2 (varied replies + memory + pivot on repeat):
+    1. LLM: "hey there good to see you               " -> [greeting          ] -> "hello there friend"
+    2. LLM: "how s your day going so far             " -> [weather           ] -> "the weather is lovely"
+    3. LLM: "i m glad it s a beautiful day outside   " -> [weather           ] -> "what a nice day"
+    4. LLM: "it s lovely to see the sunshine together" -> [weather->PIVOT:hungry] -> "by the way are you getting hungry"
+    5. LLM: "i was thinking of grabbing some snacks  " -> [hungry            ] -> "go find some food"
+    6. LLM: "i ll go grab something then             " -> [hungry            ] -> "let us get a snack"
+    7. LLM: "how about we compromise and get snacks  " -> [hungry->PIVOT:weather] -> "anyway how is the weather there"
+    8. LLM: "the conversation started outside it s sunny today" -> [weather           ] -> "perfect day outside"
+    9. LLM: "the park looks lovely on a day like this" -> [weather           ] -> "the weather is lovely"
+   10. LLM: "the flowers are blooming beautifully today" -> [weather->PIVOT:bored] -> "what do you do for fun"
+   11. LLM: "i enjoy walking in the nearby park      " -> [weather->PIVOT:happy] -> "what made you happy today"
+   12. LLM: "the sunshine and fresh air lifted me    " -> [weather->PIVOT:tired] -> "are you feeling tired"
+   13. LLM: "i was feeling a bit sluggish suddenly   " -> [happy             ] -> "that is great to hear"
+   14. LLM: "i must have misspoken i m not even tired" -> [tired             ] -> "you should get some rest"
+   15. LLM: "i think i did fall asleep               " -> [tired             ] -> "go take a nap"
+   16. LLM: "i ll just close my eyes for now         " -> [tired             ] -> "sleep would do you good"
+==========================================================================
+  coherent replies (LLM-judged, majority): 12/16 = 0.75
+  distinct replies used: 15/16 (v1 looped on ~2)
+done

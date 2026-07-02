@@ -1,0 +1,9 @@
+CONVERSATION PIPELINE: hear->understand->reply. S=2, V=10, 2-word phrases. pop 100, budget 2500, 4 seeds.
+  training |  SEEN full-reply |  HELD-OUT full-reply
+========================================================
+     joint |    0.637+/-0.060 |        0.538+/-0.125
+    series |    0.929+/-0.004 |        0.931+/-0.007
+========================================================
+READING: if series >> joint, stacked comprehend+respond must be trained in SERIES (parallel
+collapses). held-out ~ seen => the full pipeline generalises to unseen prompts.
+done

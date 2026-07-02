@@ -1,0 +1,48 @@
+Building the conversational world from llama3.2:3b (caching its replies)...
+   LLM: "hello" -> "hi"
+   LLM: "hi" -> "hello"
+   LLM: "thanks" -> "appreciate"
+   LLM: "sorry" -> "okay"
+   LLM: "goodbye" -> "later"
+   LLM: "yes" -> "agreed"
+   LLM: "no" -> "sorry"
+   LLM: "how" -> "what"
+   LLM: "what" -> "question"
+   LLM: "who" -> "person"
+   LLM: "help" -> "emergency"
+   LLM: "food" -> "restaurant"
+   LLM: "danger" -> "alert"
+   LLM: "water" -> "hydrate"
+   LLM: "friend" -> "howdy"
+   LLM: "name" -> "person"
+================================================================
+vocab (27): agreed alert appreciate danger emergency food friend goodbye hello help hi how howdy hydrate later name no okay person question restaurant sorry thanks water what who yes
+evolving organism to learn the LLM's conversational replies (1500 gens)...
+organism 5: learned-reply accuracy 0.88  (parrot would score 0.00 — copying fails)
+================================================================
+TRANSCRIPT — organism answering the LLM's prompts (reply differs from prompt = communication):
+   LLM says "hello   " -> organism replies "hi       "  (LLM-correct "hi")  [chat continues]
+   LLM says "hi      " -> organism replies "hello    "  (LLM-correct "hello")  [chat continues]
+   LLM says "thanks  " -> organism replies "sorry    "  (LLM-correct "appreciate")  [chat would stall]
+   LLM says "sorry   " -> organism replies "okay     "  (LLM-correct "okay")  [chat continues]
+   LLM says "goodbye " -> organism replies "later    "  (LLM-correct "later")  [chat continues]
+   LLM says "yes     " -> organism replies "agreed   "  (LLM-correct "agreed")  [chat continues]
+   LLM says "no      " -> organism replies "no       "  (LLM-correct "sorry")  [chat would stall]
+   LLM says "how     " -> organism replies "what     "  (LLM-correct "what")  [chat continues]
+   LLM says "what    " -> organism replies "question "  (LLM-correct "question")  [chat continues]
+   LLM says "who     " -> organism replies "person   "  (LLM-correct "person")  [chat continues]
+   LLM says "help    " -> organism replies "emergency"  (LLM-correct "emergency")  [chat continues]
+   LLM says "food    " -> organism replies "restaurant"  (LLM-correct "restaurant")  [chat continues]
+   LLM says "danger  " -> organism replies "alert    "  (LLM-correct "alert")  [chat continues]
+   LLM says "water   " -> organism replies "hydrate  "  (LLM-correct "hydrate")  [chat continues]
+   LLM says "friend  " -> organism replies "howdy    "  (LLM-correct "howdy")  [chat continues]
+   LLM says "name    " -> organism replies "person   "  (LLM-correct "person")  [chat continues]
+================================================================
+LIVE conversation with the running LLM (organism keeps it going):
+   turn 1: LLM: "hello"   |   organism: "hi"
+   turn 2: LLM: "how"   |   organism: "what"
+   turn 3: LLM: "huh"   |   organism: "sorry"
+   turn 4: LLM: "what"   |   organism: "question"
+   turn 5: LLM: "explain"   |   organism: "later"
+   turn 6: LLM: "never"   |   organism: "agreed"
+done

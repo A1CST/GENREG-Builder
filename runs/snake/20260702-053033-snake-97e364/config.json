@@ -1,0 +1,51 @@
+{
+  "id": "20260702-053033-snake-97e364",
+  "environment": "snake",
+  "created": "2026-07-02T05:30:33",
+  "config": {
+    "op": "start",
+    "environment": "snake",
+    "device": "cpu",
+    "population": 20,
+    "generations": 500,
+    "constraints": [
+      "energy"
+    ],
+    "params": {
+      "hidden": 24,
+      "energy_budget": 20,
+      "step_cost": 0.5,
+      "food_energy": 60,
+      "merge_energy": 1,
+      "hazard": 0.02,
+      "time_budget": 400,
+      "cost_strength": 0.01,
+      "decay": 0.15,
+      "occlusion_p": 0.25,
+      "noise": 0.15,
+      "perception_cost": 1,
+      "shift_every": 15
+    },
+    "snake": {
+      "w": 10,
+      "h": 10
+    },
+    "evolve_hidden": true,
+    "sexual": false,
+    "elite": 10,
+    "parent_frac": 0.6,
+    "seed": 0
+  },
+  "started": {
+    "n_in": 11,
+    "n_out": 3,
+    "constraints": [
+      "energy"
+    ],
+    "po": 1,
+    "population": 20,
+    "generations": 500,
+    "notes": []
+  },
+  "status": "finished"
+}

@@ -1,0 +1,23 @@
+Building situation prototypes (paraphrase embeddings) ...
+==========================================================================
+LIVE CONVERSATION (organism perceives + comprehends + replies; LLM judges each reply):
+    1. LLM: "hey there good to see you               " -> [greeting  ] -> "hello there friend"
+    2. LLM: "how s your day been so far              " -> [weather   ] -> "the weather is nice today"
+    3. LLM: "it s always lovely on a sunny day       " -> [weather   ] -> "the weather is nice today"
+    4. LLM: "i love spending time outdoors on days like this" -> [weather   ] -> "the weather is nice today"
+    5. LLM: "it s perfect for a walk outside then    " -> [weather   ] -> "the weather is nice today"
+    6. LLM: "that sounds like a lovely combination   " -> [weather   ] -> "the weather is nice today"
+    7. LLM: "perfect day for a walk outside          " -> [weather   ] -> "the weather is nice today"
+    8. LLM: "i d love to join you soon               " -> [ask_help  ] -> "i will help you"
+    9. LLM: "that sounds like a great team effort    " -> [thanks    ] -> "you are welcome"
+   10. LLM: "i m glad we could work together smoothly" -> [weather   ] -> "the weather is nice today"
+   11. LLM: "it s a perfect day to take a walk       " -> [weather   ] -> "the weather is nice today"
+   12. LLM: "i think i should grab my boots          " -> [lost      ] -> "stay calm i am here"
+   13. LLM: "everything will be alright i promise you" -> [happy     ] -> "that is great to hear"
+   14. LLM: "i didn t say that actually              " -> [agree     ] -> "yes i think so too"
+   15. LLM: "let s start fresh then shall we         " -> [greeting  ] -> "hello there friend"
+   16. LLM: "i m so glad to have you chatting        " -> [compliment] -> "that is very kind of you"
+==========================================================================
+LLM JUDGE (majority of 3): was each organism reply a sensible response to the message?
+  coherent replies: 10/16 = 0.62 (LLM-judged, majority vote)
+done

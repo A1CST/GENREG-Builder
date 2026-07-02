@@ -1,0 +1,36 @@
+Sampling acceptable reply SETS from llama3.2:3b (8 samples/prompt)...
+   "hello             " acceptable replies: hey, nice, okay
+   "thanks            " acceptable replies: much, okay, pleasure, you
+   "goodbye           " acceptable replies: later, okay, see
+   "how are you       " acceptable replies: fine, good, okay
+   "who are you       " acceptable replies: friend, me
+   "i am hungry       " acceptable replies: food, starving, time
+   "i am lost         " acceptable replies: help, okay, what, where
+   "help              " acceptable replies: assistant, emergency, honey, okay, please
+   "good morning      " acceptable replies: fine, hello, nice, okay
+   "what is your name " acceptable replies: friend, hello, mike
+   "i am tired        " acceptable replies: okay, rest
+   "see you           " acceptable replies: later
+   "are you ok        " acceptable replies: fine
+   "i am happy        " acceptable replies: aww, glad, great, ok, okay
+======================================================================
+vocab 29; evolving organism to land in the acceptable set (2000 gens)...
+organism 3: acceptable-reply rate 1.00; chose a DIFFERENT valid reply than the LLM modal: 0.64
+======================================================================
+LLM JUDGES the organism's self-chosen replies (independent check it really communicates):
+   "hello             " -> organism: "okay      " [own-choice]   LLM judge: yes  OK
+   "thanks            " -> organism: "much      " [own-choice]   LLM judge: yes  OK
+   "goodbye           " -> organism: "okay      " [own-choice]   LLM judge: yes  OK
+   "how are you       " -> organism: "fine      " [modal]   LLM judge: no   
+   "who are you       " -> organism: "me        " [own-choice]   LLM judge: no   
+   "i am hungry       " -> organism: "time      " [own-choice]   LLM judge: no   
+   "i am lost         " -> organism: "where     " [modal]   LLM judge: yes  OK
+   "help              " -> organism: "assistant " [own-choice]   LLM judge: no   
+   "good morning      " -> organism: "okay      " [own-choice]   LLM judge: yes  OK
+   "what is your name " -> organism: "friend    " [own-choice]   LLM judge: no   
+   "i am tired        " -> organism: "rest      " [own-choice]   LLM judge: yes  OK
+   "see you           " -> organism: "later     " [modal]   LLM judge: yes  OK
+   "are you ok        " -> organism: "fine      " [modal]   LLM judge: no   
+   "i am happy        " -> organism: "great     " [modal]   LLM judge: yes  OK
+LLM accepted 8/14 of the organism's self-chosen replies.
+done

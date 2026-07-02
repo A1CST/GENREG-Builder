@@ -1,0 +1,15 @@
+THE EYELID v2: shared-token world (each token in 8/12 topics). classify HELD-OUT topic (chance 0.083).
+SURFACE baseline (always-on, no model): 0.207
+======================================================================
+  gate g |   held-out comprehension (eyelid organism)
+     0.0 |                              0.271+/-0.002
+    0.15 |                              0.274+/-0.005
+     0.3 |                              0.272+/-0.018
+    0.45 |                              0.264+/-0.006
+     0.6 |                              0.271+/-0.007
+    0.75 |                              0.264+/-0.009
+======================================================================
+best g=0.15 -> 0.274   vs g=0 0.271   vs surface 0.207
+READING: eyelid (g>0) > g=0 AND > surface => gating builds the comprehending model; peak at
+moderate g = Goldilocks (some blindness forces modelling, too much starves it).
+done

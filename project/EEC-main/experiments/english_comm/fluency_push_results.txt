@@ -1,0 +1,30 @@
+FLUENCY PUSH on the correct landscape (freq-first grow, criticality+u=0.25). pop=72, rounds=8, gens/stage=650 (total 2600), 3 seeds
+metric = TWO-WAY COMPREHENSION (chance 0.042); also split speaker vs listener loss
+============================================================================================
+ stage(vocab) |  comprehension |  speaker usage |  comp|saidEN | listener-only
+            6 |  0.530+/-0.006 |  0.291+/-0.022 | 0.931+/-0.008 | 0.266+/-0.010
+           12 |  0.559+/-0.022 |  0.405+/-0.028 | 0.866+/-0.029 | 0.337+/-0.051
+           18 |  0.594+/-0.023 |  0.433+/-0.044 | 0.862+/-0.035 | 0.403+/-0.030
+           24 |  0.631+/-0.016 |  0.486+/-0.029 | 0.835+/-0.024 | 0.438+/-0.044
+============================================================================================
+FINAL comprehension 0.631+/-0.016  vs 480-gen probe 0.362 vs fixed-champion 0.30
+READING: rising across stages = training-limited (push longer). speaker usage << listener-only
+=> speaker is the cap; listener-only << 1 => listener is the cap. Fix the lower one next.
+--------------------------------------------------------------------------------------------
+SAMPLE CONVERSATION from a trained pair (speaker 54 -> listener 55), 14 frequency-sampled turns:
+  [OK] mean 'man     ' -> says 'man     ' -> heard 'man     '
+  [OK] mean 'first   ' -> says 'first   ' -> heard 'first   '
+  [x ] mean 'eyes    ' -> says 'last    ' -> heard 'life    '
+  [OK] mean 'man     ' -> says 'man     ' -> heard 'man     '
+  [OK] mean 'man     ' -> says 'man     ' -> heard 'man     '
+  [x ] mean 'yes     ' -> says 'room    ' -> heard 'prince  '
+  [OK] mean 'man     ' -> says 'man     ' -> heard 'man     '
+  [OK] mean 'man     ' -> says 'man     ' -> heard 'man     '
+  [x ] mean 'saw     ' -> says 'saw     ' -> heard 'men     '
+  [x ] mean 'eyes    ' -> says 'last    ' -> heard 'life    '
+  [OK] mean 'time    ' -> says 'time    ' -> heard 'time    '
+  [OK] mean 'first   ' -> says 'first   ' -> heard 'first   '
+  [x ] mean 'life    ' -> says 'man     ' -> heard 'man     '
+  [OK] mean 'like    ' -> says 'like    ' -> heard 'like    '
+  -> 9/14 understood in this sample
+done

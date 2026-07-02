@@ -1,0 +1,59 @@
+MASSIVE build: embeddings on dialogue+wiki (16,000,000 tok cap), dialogue model on real dialogue.
+  counting word frequencies...
+  vocab 14,000. building sparse co-occurrence...
+  co-occurrence nnz 17,263,397. PPMI + truncated SVD (dim 100)...
+embeddings: 14,000 x 100
+dialogues: 20,868
+n-gram vocab 19,559, 4-gram ctx 685,079
+clustering 40,000 sampled turns into 45 intents...
+evolving reply policy (be-understood + identify-the-input)...
+  gen   0: best 0.015
+  gen  40: best 0.028
+  gen  80: best 0.035
+  gen 119: best 0.038
+distinct reply-intents: 25/45
+
+============================================================================
+  you: hey looks like rain again
+       [heard: new some sounds thinking] -> bot: yeah just the usual
+
+  you: hey i'm so exhausted today
+       [heard: hey how's what's sounds] -> bot: you have to do
+
+  you: i'm so hungry right now
+       [heard: sounds good that's know] -> bot: you have to do
+
+  you: i'm having some trouble with my bike
+       [heard: are can or all] -> bot: that sounds like a great time
+
+  you: i'm just feeling really down today
+       [heard: sounds good that's know] -> bot: i have a good
+
+  you: i'm so bored
+       [heard: hey how's what's sounds] -> bot: i have a good
+
+  you: thanks so much for helping me out
+       [heard: can good know think] -> bot: you have to be
+
+  you: it's freezing out here
+       [heard: new some sounds thinking] -> bot: hey how's what's
+
+  you: do you wanna grab coffee
+       [heard: hey how's what's sounds] -> bot: you have a good
+
+  you: i had such a great day today
+       [heard: are can there people] -> bot: i have a and i had
+
+  you: how was your weekend
+       [heard: sounds good that's know] -> bot: you have to do
+
+  you: i can't sleep at all lately
+       [heard: sounds good that's know] -> bot: you have to do
+
+  you: what music do you like
+       [heard: sounds good something maybe] -> bot: you have to do
+
+  you: my dog is sick and i'm worried
+       [heard: sorry happened am hear] -> bot: sorry happened am
+
+done

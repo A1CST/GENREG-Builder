@@ -1,0 +1,18 @@
+ZIPFIAN SCARCITY / criticality (real embeddings, Zipf freq over K=24 referents, chance 0.042, anchor 0.0)
+frequency spread 33x; English usage MEASURED never rewarded; English acquired from natives
+======================================================================================
+  flat         | usage 0.199+/-0.054 | freq-half 0.356+/-0.097 | rare-half 0.042+/-0.038 | corr(logF,usage) 0.570+/-0.092
+  criticality  | usage 0.306+/-0.036 | freq-half 0.495+/-0.052 | rare-half 0.118+/-0.070 | corr(logF,usage) 0.596+/-0.107
+  random       | usage 0.196+/-0.032 | freq-half 0.311+/-0.027 | rare-half 0.082+/-0.054 | corr(logF,usage) 0.608+/-0.151
+--------------------------------------------------------------------------------------
+READING: flat = PIDGIN (usage tracks frequency: corr>0, rare-half low).
+         criticality = rare half RISES and corr FLATTENS toward 0 => full lexicon English-ifies.
+======================================================================================
+THE LAW: per-word usage vs rent = freq x stake (all three worlds should collapse onto one curve)
+  rent quartile (pooled flat/criticality/random)   mean usage
+    0.0019..0.0140    usage 0.071  (n=18)
+    0.0140..0.0182    usage 0.199  (n=29)
+    0.0182..0.0271    usage 0.239  (n=26)
+    0.0271..0.4643    usage 0.460  (n=18)
+  corr(log rent, usage) pooled = +0.62  (positive => rent, not raw frequency, is the law)
+done

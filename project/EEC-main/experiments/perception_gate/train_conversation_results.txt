@@ -1,0 +1,47 @@
+building distributional perception from the corpus...
+19,308 turns, 2,456 dialogues. clustering into 14 discovered intents...
+chance survival ~ 0.071. evolving the reply policy (gradient-free, pop 80)...
+  gen   0: best survival 0.215   mean 0.075
+  gen  20: best survival 0.578   mean 0.469
+  gen  40: best survival 0.722   mean 0.625
+  gen  60: best survival 0.800   mean 0.661
+  gen  80: best survival 0.803   mean 0.689
+  gen 100: best survival 0.812   mean 0.714
+  gen 119: best survival 0.818   mean 0.706
+==========================================================================
+final survival 0.818  (chance 0.071).  policy matches world-law on 14/14 intents -- DISCOVERED from survival alone, never told.
+==========================================================================
+real conversations (input turn -> organism perceives intent -> EVOLVED reply -> emitted words):
+  you: hey looks like rain again
+       [heard intent: nice love day always outside]
+  bot: much outside all there   [reply intent: nice love day always outside]
+
+  you: hey have you eaten yet
+       [heard intent: hey how's what's here's conversation]
+  bot: same today tired work   [reply intent: here same today work day]
+
+  you: hey i'm so exhausted today
+       [heard intent: hey how's what's here's conversation]
+  bot: getting lately same pretty   [reply intent: here same today work day]
+
+  you: hey how was your day
+       [heard intent: hey how's what's here's conversation]
+  bot: feeling same today done   [reply intent: here same today work day]
+
+  you: hey i'm headed to the airport soon i just wanted to say hi a
+       [heard intent: hey how's what's here's conversation]
+  bot: done today stuff tired   [reply intent: here same today work day]
+
+  you: hey i'm having some trouble with my bike today
+       [heard intent: hey how's what's here's conversation]
+  bot: done same lately work   [reply intent: here same today work day]
+
+  you: hey i think we took a wrong turn back there
+       [heard intent: that's think okay good cool]
+  bot: know that's maybe can   [reply intent: or can something sometimes are]
+
+  you: hey i'm so glad today was good
+       [heard intent: hey how's what's here's conversation]
+  bot: lately from same stuff   [reply intent: here same today work day]
+
+done

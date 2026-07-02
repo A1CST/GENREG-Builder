@@ -1,0 +1,10 @@
+ENGLISH COMP SCALE: real vocab [2000] via S=6 x V=8 codes (V^S=262,144). GENOME 6x8x8 is CONSTANT in K. pop 64, budget 8000, 2 seeds, train 70%.
+K (real words) |  HELD-OUT code-comp |  word-recovery |  uniqueness
+========================================================================
+          2000 |       0.556+/-0.055 |  0.528+/-0.055 | 0.956+/-0.008
+========================================================================
+READING: held-out comprehension ~flat as K grows = real-English vocabulary scales by
+composition, zero-shot, at CONSTANT compute. A flat lexicon needs O(K^2) params and cannot
+generalise to held-out words at all.
+  K=2000: held-out code-comp 0.556, word-recovery 0.528
+done

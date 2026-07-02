@@ -1,0 +1,28 @@
+{
+  "id": "20260702-053927-tree-211b4b",
+  "environment": "tree",
+  "created": "2026-07-02T05:39:27",
+  "config": {
+    "environment": "tree",
+    "branching_factor": 2,
+    "context_window": 16,
+    "embed_dim": 32,
+    "context_dim": 64,
+    "min_leaf_tokens": 1,
+    "max_depth": 8,
+    "pop_size": 60,
+    "generations": 60,
+    "mutation_rate": 0.15,
+    "elite_frac": 0.2,
+    "max_samples": 16000,
+    "encoder_generations": 40,
+    "encoder_samples": 2000,
+    "population": 60
+  },
+  "started": {
+    "population": 60,
+    "generations": 60,
+    "notes": "metadata reconstructed from model.npz after accidental deletion (tree shape exact: bf=2, depth 8, 511 nodes; GA params assumed UI defaults; history.jsonl and eval numbers lost)"
+  },
+  "status": "finished"
+}

@@ -1,0 +1,8 @@
+EMERGENT MULTI-TURN DIALOGUE: K=6 attrs, listener knows 3, budget T=3 turns. pop 80, budget 1500, 6 seeds, 16 scenarios.
+      blind: task success (listener gets all attributes in 3 turns) 0.135+/-0.023
+   feedback: task success (listener gets all attributes in 3 turns) 1.000+/-0.000
+========================================================================
+chance that a blind 3-send covers the listener's random missing-3: ~ 0.05
+READING: feedback ~1.0 >> blind => the listener directs the dialogue (request the missing,
+remember the received) and the speaker answers -- a multi-turn clarification protocol emerged.
+done

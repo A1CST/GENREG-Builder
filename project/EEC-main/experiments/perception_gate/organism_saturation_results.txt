@@ -1,0 +1,17 @@
+evolved organism: M=2, a_ng=3.869, a_nn=0.0000, EMBED=16
+
+-- recurrent hidden-state neuron saturation --
+  evolved (M=2): |s|>0.9 saturated = 0.0% | dead units (std<0.05) = 0.0% | mean|s| = 0.115 | active range = 100.0%
+  forced M=8: |s|>0.9 saturated = 0.0% | dead units (std<0.05) = 0.0% | mean|s| = 0.103 | active range = 100.0%
+  forced M=16: |s|>0.9 saturated = 0.0% | dead units (std<0.05) = 0.0% | mean|s| = 0.119 | active range = 100.0%
+  forced M=32: |s|>0.9 saturated = 0.0% | dead units (std<0.05) = 0.0% | mean|s| = 0.185 | active range = 100.0%
+  forced M=48: |s|>0.9 saturated = 1.3% | dead units (std<0.05) = 0.0% | mean|s| = 0.375 | active range = 98.7%
+
+-- input embedding dimension --
+  EMBED = 16 dims for 3000 words. embedding-matrix rank = 16
+  embedding singular values: top 5.58 -> bottom 4.68 (ratio 1.2x)
+  energy in first 8 of 16 dims: 54.4%
+
+READING: high tanh-saturation or many dead units => recurrence carries no info. EMBED=16 vs the
+~400 dims the corpus wanted (saturation_results.txt) => the neural channel's INPUT is starved
+~25x before evolution even starts -- it literally can't see enough to beat the trigram.

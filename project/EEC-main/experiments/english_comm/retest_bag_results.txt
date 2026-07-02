@@ -1,0 +1,5 @@
+FAIR bag vs sequential (both 1500 gens = near plateau); full-event AND swap (order-specific)
+swap = distinguishing 'A acts B' from 'B acts A'; the bag's TRUE ceiling on swap is ~chance
+  SEQUENTIAL : full=0.369+/-0.035  swap=0.345+/-0.035
+  BAG        : full=0.247+/-0.028  swap=0.252+/-0.038
+done

@@ -1,0 +1,31 @@
+LISTENER FIX: shared lexicon vs two-matrix, freq-first grow + criticality + u=0.25. pop60 rounds8 gens/stage=350 (1400 total), 4 seeds
+metric = two-way comprehension (chance 0.042); lis-uniform = decode native English over all words
+========================================================================================
+ stage(vocab) |  two_matrix comp  (lis-unif) |   SHARED comp  (lis-unif)
+            6 |    0.447+/-0.070 0.234+/-0.054 | 0.659+/-0.026 0.256+/-0.026
+           12 |    0.484+/-0.074 0.311+/-0.053 | 0.751+/-0.018 0.326+/-0.064
+           18 |    0.485+/-0.068 0.370+/-0.071 | 0.783+/-0.012 0.400+/-0.074
+           24 |    0.507+/-0.051 0.398+/-0.049 | 0.831+/-0.020 0.462+/-0.099
+========================================================================================
+FINAL comprehension: two_matrix 0.507+/-0.051  |  SHARED 0.831+/-0.020  (shared/two = 1.64x)
+READING: shared >> two_matrix => tying speak+hear (understanding before expression) is the listener fix.
+----------------------------------------------------------------------------------------
+SHARED model — per-word fluency (frequent->rare), pop-level speak accuracy:
+  man:100%  like:100%  time:100%  old:95%  two:100%  first:100%  day:0%  hand:98%  eyes:0%  might:0%  life:0%  face:0%  head:0%  men:98%  room:88%  prince:98%  don:100%  nothing:0%  through:0%  night:95%  last:0%  yes:97%  saw:0%  pierre:100%
+SAMPLE CONVERSATION (shared, speaker 0 -> listener 1):
+  [OK] mean 'don     ' -> says 'don     ' -> heard 'don     '
+  [OK] mean 'don     ' -> says 'don     ' -> heard 'don     '
+  [OK] mean 'first   ' -> says 'first   ' -> heard 'first   '
+  [OK] mean 'like    ' -> says 'like    ' -> heard 'like    '
+  [OK] mean 'man     ' -> says 'man     ' -> heard 'man     '
+  [OK] mean 'time    ' -> says 'time    ' -> heard 'time    '
+  [OK] mean 'old     ' -> says 'old     ' -> heard 'old     '
+  [OK] mean 'man     ' -> says 'man     ' -> heard 'man     '
+  [OK] mean 'man     ' -> says 'man     ' -> heard 'man     '
+  [OK] mean 'pierre  ' -> says 'pierre  ' -> heard 'pierre  '
+  [x ] mean 'life    ' -> says 'men     ' -> heard 'men     '
+  [OK] mean 'like    ' -> says 'like    ' -> heard 'like    '
+  [OK] mean 'old     ' -> says 'old     ' -> heard 'old     '
+  [OK] mean 'pierre  ' -> says 'pierre  ' -> heard 'pierre  '
+  -> 13/14 understood
+done

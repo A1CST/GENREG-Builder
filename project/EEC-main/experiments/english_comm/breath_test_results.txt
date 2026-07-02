@@ -1,0 +1,12 @@
+BREATH TEST: emergent utterance length. Smax=6, V=6, pop 64, budget 2500, 4 seeds. meaning complexity C~1..6; energy/word=0.15.
+terminator |  full-meaning |  mean length |  corr(C,len) | len/C ratio
+========================================================================
+  designed | 0.799+/-0.035 | 3.498+/-0.011 | 1.000+/-0.000 | 1.000+/-0.000
+    breath | 0.590+/-0.051 | 4.237+/-0.306 | 0.006+/-0.010 | 1.212+/-0.090
+      stop | 0.746+/-0.062 | 3.502+/-0.029 | 0.990+/-0.011 | 1.001+/-0.007
+========================================================================
+READING: corr(C,len)>0 => length CALIBRATES to meaning complexity. len/C~1 => efficient (no waste).
+  designed = oracle upper bound (length=C). breath = physics. stop = learned conditional halt.
+  CONFIRM breath: breath calibrates (corr>0, len/C~1) & full-meaning ~ designed, stop lags (search-wall).
+  FALSIFY: stop calibrates as well as breath => a learned stop suffices, breath not needed here.
+done

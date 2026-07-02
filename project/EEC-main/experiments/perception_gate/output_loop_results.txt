@@ -1,0 +1,36 @@
+STATE OF THE OUTPUT — closed loop on the literary corpus (4,000,005 tokens, per-slot ~0.72).
+input word  ->  [understood meaning]  ->  spoken reply (different word, same meaning)
+==========================================================================
+         happy  ->  [  happy  ]  ->  pleased     
+          glad  ->  [  happy  ]  ->  delighted   
+        joyful  ->  [  happy  ]  ->  happy       
+      cheerful  ->  [  happy  ]  ->  delighted   
+       pleased  ->  [  happy  ]  ->  happy       
+     delighted  ->  [  happy  ]  ->  cheerful    
+           sad  ->  [   sad   ]  ->  down        
+       unhappy  ->  [   sad   ]  ->  miserable   
+     miserable  ->  [   sad   ]  ->  sad         
+        gloomy  ->  [   sad   ]  ->  miserable   
+         upset  ->  [   bad   ]  ->  terrible       <- misheard
+          down  ->  [  small  ]  ->  tiny           <- misheard
+           big  ->  [   big   ]  ->  giant       
+         large  ->  [  small  ]  ->  small          <- misheard
+          huge  ->  [   big   ]  ->  massive     
+         giant  ->  [   big   ]  ->  enormous    
+      enormous  ->  [   big   ]  ->  massive     
+       massive  ->  [   big   ]  ->  huge        
+         small  ->  [   big   ]  ->  giant          <- misheard
+          tiny  ->  [  small  ]  ->  small       
+        little  ->  [  small  ]  ->  tiny        
+          fast  ->  [  fast   ]  ->  quick       
+         quick  ->  [  fast   ]  ->  rapid       
+         rapid  ->  [  fast   ]  ->  quick       
+         swift  ->  [  fast   ]  ->  rapid       
+         tired  ->  [  tired  ]  ->  weary       
+==========================================================================
+output fidelity (spoke a true same-meaning word): 44/61 = 0.721
+READING: the organism DOES produce real-word output -- it hears a word, understands the meaning,
+and says a DIFFERENT word of that meaning (transform-don't-copy, not echo). Output quality is
+bounded by perception (~per-slot): when it mishears the meaning, it speaks the wrong word. The
+expression step itself is trivial; the bottleneck is comprehension, and the lever is experience.
+done
