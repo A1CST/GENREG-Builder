@@ -1,0 +1,52 @@
+[
+  {
+    "test": "2a_landscape_redesign",
+    "results": [
+      {
+        "landscape": "baseline",
+        "mean": 0.5533333420753479,
+        "std": 0.03299833315355293,
+        "trials": [
+          0.5900000333786011,
+          0.5600000023841858,
+          0.5099999904632568
+        ]
+      },
+      {
+        "landscape": "granular_per_bit",
+        "mean": 0.5533333420753479,
+        "std": 0.03299833315355293,
+        "trials": [
+          0.5900000333786011,
+          0.5600000023841858,
+          0.5099999904632568
+        ]
+      },
+      {
+        "landscape": "confidence_margin",
+        "mean": 0.48666666944821674,
+        "std": 0.021256800936625617,
+        "trials": [
+          0.503333330154419,
+          0.4566666781902313,
+          0.5
+        ]
+      }
+    ]
+  },
+  {
+    "test": "2b_architecture",
+    "conclusion": "Architecture scaling produces minimal improvement (62x params \u2192 3% gain)",
+    "data": "See parity_architecture.py results for full table"
+  },
+  {
+    "test": "2c_hardcoded",
+    "control_acc_2bit": 0.8800000349680582,
+    "trials": [
+      0.9100000262260437,
+      0.7633333802223206,
+      0.9666666984558105
+    ],
+    "note": "2-bit XOR is learnable; verifies architecture CAN represent it"
+  }
+]

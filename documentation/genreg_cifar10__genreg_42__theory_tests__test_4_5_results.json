@@ -1,0 +1,85 @@
+[
+  {
+    "test": "4a_trust_vs_snapshot",
+    "snapshot_mean_error": 0.016581217447916668,
+    "temporal_mean_error": 0.02446746826171875,
+    "snapshot_trials": [
+      0.01824188232421875,
+      0.02118682861328125,
+      0.01031494140625
+    ],
+    "temporal_trials": [
+      0.027984619140625,
+      0.008148193359375,
+      0.03726959228515625
+    ]
+  },
+  {
+    "test": "5a_v1_vs_v3",
+    "results": {
+      "V1_minimal_encoder": {
+        "max_error": 0.7677650451660156,
+        "mean_error": 0.2659034729003917,
+        "first_gen_below_5": 150,
+        "time_s": 5.266824245452881
+      },
+      "V3_evolved_encoder": {
+        "max_error": 1.991011047363287,
+        "mean_error": 0.8023454666137706,
+        "first_gen_below_5": 50,
+        "time_s": 5.259389162063599
+      }
+    }
+  },
+  {
+    "test": "5c_activation_analysis",
+    "snapshots": [
+      {
+        "generation": 0,
+        "counts": {
+          "resonance": 65,
+          "gated_linear": 69,
+          "identity_plus": 61,
+          "quadratic_relu": 61,
+          "soft_threshold": 67,
+          "dual_path": 68,
+          "tanh_scaled": 60,
+          "abs_gate": 49
+        }
+      },
+      {
+        "generation": 50,
+        "counts": {
+          "quadratic_relu": 450,
+          "tanh_scaled": 35,
+          "dual_path": 6,
+          "gated_linear": 5,
+          "identity_plus": 2,
+          "resonance": 2
+        }
+      },
+      {
+        "generation": 100,
+        "counts": {
+          "quadratic_relu": 490,
+          "tanh_scaled": 7,
+          "dual_path": 1,
+          "gated_linear": 2
+        }
+      },
+      {
+        "generation": 250,
+        "counts": {
+          "quadratic_relu": 500
+        }
+      },
+      {
+        "generation": 499,
+        "counts": {
+          "quadratic_relu": 499,
+          "gated_linear": 1
+        }
+      }
+    ]
+  }
+]

@@ -1,0 +1,133 @@
+[
+  {
+    "round": 1,
+    "total_gens": 500,
+    "round_time_s": 1573.5619888305664,
+    "best_tile_this_round": 1024,
+    "best_tile_ever": 1024,
+    "avg_score_round": 2344.3884000000003,
+    "best_avg_score_ever": 2344.3884000000003,
+    "stall_count": 0,
+    "cfg": {
+      "population_size": 1000,
+      "hidden_size": 8,
+      "max_generations": 4000,
+      "target_tile": 2048,
+      "starting_energy": 30,
+      "checkpoint_freq": 500,
+      "survival_pct": 20,
+      "trust_inherit": 0.6,
+      "child_mutation": 0.05,
+      "n_games": 5,
+      "ratchet_strength": 2.0,
+      "proximity_strength": 2.0,
+      "checkpoint_dir": "/home/payton-millnet/Documents/GENREG/checkpoints_push2048",
+      "invalid_move_penalty": 1.0
+    },
+    "final_stats": {
+      "best_tile": 1024,
+      "avg_tile": 394.432,
+      "best_score": 5664,
+      "avg_score": 2860.897,
+      "p512": 0.531,
+      "p1024": 0.009,
+      "p2048": 0.0,
+      "avg_efficiency": 0.43130461140683474,
+      "dist": {
+        "512": 522,
+        "256": 453,
+        "128": 15,
+        "1024": 9,
+        "64": 1
+      },
+      "gen": 500
+    }
+  },
+  {
+    "round": 2,
+    "total_gens": 1000,
+    "round_time_s": 1967.3819768428802,
+    "best_tile_this_round": 1024,
+    "best_tile_ever": 1024,
+    "avg_score_round": 2795.4987,
+    "best_avg_score_ever": 2795.4987,
+    "stall_count": 0,
+    "cfg": {
+      "population_size": 1000,
+      "hidden_size": 8,
+      "max_generations": 4000,
+      "target_tile": 2048,
+      "starting_energy": 30,
+      "checkpoint_freq": 500,
+      "survival_pct": 20,
+      "trust_inherit": 0.6,
+      "child_mutation": 0.05,
+      "n_games": 5,
+      "ratchet_strength": 2.0,
+      "proximity_strength": 2.0,
+      "checkpoint_dir": "/home/payton-millnet/Documents/GENREG/checkpoints_push2048",
+      "invalid_move_penalty": 1.0
+    },
+    "final_stats": {
+      "best_tile": 1024,
+      "avg_tile": 413.184,
+      "best_score": 5867,
+      "avg_score": 2934.696,
+      "p512": 0.611,
+      "p1024": 0.006,
+      "p2048": 0.0,
+      "avg_efficiency": 0.3999104334609046,
+      "dist": {
+        "512": 605,
+        "256": 372,
+        "128": 15,
+        "1024": 6,
+        "64": 2
+      },
+      "gen": 1000
+    }
+  },
+  {
+    "round": 3,
+    "total_gens": 1500,
+    "round_time_s": 2011.0457201004028,
+    "best_tile_this_round": 1024,
+    "best_tile_ever": 1024,
+    "avg_score_round": 2978.3191999999995,
+    "best_avg_score_ever": 2978.3191999999995,
+    "stall_count": 0,
+    "cfg": {
+      "population_size": 1000,
+      "hidden_size": 8,
+      "max_generations": 4000,
+      "target_tile": 2048,
+      "starting_energy": 30,
+      "checkpoint_freq": 500,
+      "survival_pct": 20,
+      "trust_inherit": 0.6,
+      "child_mutation": 0.05,
+      "n_games": 5,
+      "ratchet_strength": 2.0,
+      "proximity_strength": 2.0,
+      "checkpoint_dir": "/home/payton-millnet/Documents/GENREG/checkpoints_push2048",
+      "invalid_move_penalty": 1.0
+    },
+    "final_stats": {
+      "best_tile": 1024,
+      "avg_tile": 406.784,
+      "best_score": 6110,
+      "avg_score": 2975.151,
+      "p512": 0.58,
+      "p1024": 0.007,
+      "p2048": 0.0,
+      "avg_efficiency": 0.3896305298408562,
+      "dist": {
+        "256": 410,
+        "1024": 7,
+        "512": 573,
+        "128": 10
+      },
+      "gen": 1500
+    }
+  }
+]

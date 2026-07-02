@@ -91,7 +91,7 @@
     detailEl.innerHTML = `
       <div class="detail-head">
         <div><div class="dh-title">${d.id}</div><div class="dh-sub">${(d.config && d.config.environment) || ""}</div></div>
-        <div class="dh-badges">${statusDot(summ.status || "running")}${summ.checkpoint ? '<span class="ckpt">checkpoint</span>' : '<span class="nockpt">no checkpoint</span>'}</div>
+        <div class="dh-badges">${statusDot(summ.status || "running")}${summ.checkpoint ? '<span class="ckpt">checkpoint</span>' : '<span class="nockpt">no checkpoint</span>'}<button id="export-btn" class="runs-btn" title="Download every detail of this run as a JSON file">⤓ Export JSON</button></div>
       </div>
       <div class="detail-grid">
         <section class="d-card">
@@ -117,6 +117,11 @@
           </div>
           <div class="infer-stage" id="infer-stage"><canvas id="infer-canvas"></canvas></div>
         </section>
+        ${summ.encoder ? `
+        <section class="d-card wide">
+          <h3>Encoder evolution</h3>
+          <div id="enc-detail"></div>
+        </section>` : ""}
         ${summ.sweep_results ? `
         <section class="d-card wide">
           <h3>Sweep results (ranked)</h3>
@@ -134,8 +139,74 @@
     drawSparkline($("d-spark"), d.history || []);
     const btn = $("infer-btn");
     if (btn) btn.addEventListener("click", () => playInference(id));
+    $("export-btn").addEventListener("click", () => exportRun(id, d, isTree));
+    if (summ.encoder) renderEncoderDetail(summ.encoder);
     if (summ.sweep_results) renderSweepDetail(summ.sweep_results);
     if (isTree) loadTraces(id);
+  }
+
+  // -- encoder evolution card (tree runs: summary.encoder) -------------------
+  function renderEncoderDetail(enc) {
+    const box = $("enc-detail");
+    if (!box) return;
+    const pct = (v) => v != null ? (v * 100).toFixed(0) + "%" : null;
+    const rows = [
+      ["NC accuracy (fitness proxy)", enc.nc_accuracy],
+      ["fitness samples", enc.samples],
+      ["generations", enc.generations],
+      ["population", enc.pop_size],
+      ["context dim", enc.evolve_dims
+        ? `${enc.start_context_dim} → ${enc.context_dim} (evolved)`
+        : enc.context_dim],
+      ["time constraint", enc.time_constrained ? `on · budget ${enc.time_budget}` : "off"],
+      ["active weights", pct(enc.active_fraction)],
+      ["head diversity", enc.diversity ? `on · budget ${enc.diversity_budget}` : "off"],
+      ["head redundancy", enc.redundancy],
+      ["speed phase", enc.speed_generations
+        ? `${enc.speed_generations} gens → acc ${enc.speed_nc_accuracy}, active ${pct(enc.speed_active_fraction)}`
+        : "off"],
+    ].filter(([, v]) => v != null && v !== "");
+    const curves = enc.curves || {};
+    const keys = Object.keys(curves).filter((k) => (curves[k] || []).length > 1);
+    box.innerHTML =
+      `<table class="cfg">${rows.map(([k, v]) => `<tr><td>${k}</td><td>${v}</td></tr>`).join("")}</table>` +
+      keys.map((k, i) =>
+        `<div class="spark-legend" style="margin-top:10px"><span class="dot best"></span>best ` +
+        `<span class="dot mean"></span>mean — ${k} fitness per generation` +
+        `${(enc.time_constrained || enc.diversity) && k === "encoder" ? " (constrained)" : ""}</div>` +
+        `<canvas id="enc-spark-${i}" class="d-spark" width="360" height="70"></canvas>`).join("");
+    keys.forEach((k, i) => {
+      drawSparkline($(`enc-spark-${i}`),
+        curves[k].map((p) => ({ fitness: { best: p.best, mean: p.mean } })));
+    });
+  }
+
+  // -- export: download every detail of a run as one JSON file ---------------
+  async function exportRun(id, d, isTree) {
+    const btn = $("export-btn");
+    if (btn) { btn.disabled = true; btn.textContent = "exporting…"; }
+    const bundle = {
+      exported_at: new Date().toISOString(),
+      id: d.id,
+      config: d.config || null,          // launch config + metadata + status
+      summary: d.summary || null,        // final result / eval block
+      history: d.history || [],          // per-generation (or per-node) metrics
+    };
+    if (isTree) {
+      try {
+        bundle.traces = await (await fetch(`/api/runs/${id}/traces`)).json();
+      } catch (_) { bundle.traces = []; }
+    }
+    const blob = new Blob([JSON.stringify(bundle, null, 2)],
+                          { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `${d.id}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    if (btn) { btn.disabled = false; btn.textContent = "⤓ Export JSON"; }
   }
 
   // -- sweep detail (ranked candidate table; rows jump to the candidate run) --

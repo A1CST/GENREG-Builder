@@ -65,7 +65,7 @@ window.TraceView = (() => {
       hop.scores.forEach((s, c) => {
         const r = hop.children[c];
         div.appendChild(barRow(
-          `bytes ${r.t0}–${r.t1 - 1}`,
+          r.sample ? r.sample : `bytes ${r.t0}–${r.t1 - 1}`,
           hi - lo > 1e-9 ? (s - lo) / (hi - lo) : 1,
           s.toFixed(3),
           c === hop.chosen));
@@ -79,7 +79,7 @@ window.TraceView = (() => {
     div.className = "tlm-hop";
     const h = document.createElement("div");
     h.className = "tlm-hop-head";
-    h.innerHTML = `<b>leaf ${leaf.id}</b> · bytes ${leaf.t0}–${leaf.t1 - 1} ` +
+    h.innerHTML = `<b>leaf ${leaf.id}</b> · ${leaf.sample ? leaf.sample : `bytes ${leaf.t0}–${leaf.t1 - 1}`} ` +
       `(${leaf.tokens} token${leaf.tokens > 1 ? "s" : ""}) · top candidates`;
     div.appendChild(h);
     leaf.top.forEach((t) => {

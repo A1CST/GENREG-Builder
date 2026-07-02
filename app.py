@@ -21,7 +21,7 @@ import sys
 import threading
 import time
 
-from flask import Flask, render_template, jsonify
+from flask import Flask, render_template, jsonify, send_from_directory
 from flask_sock import Sock
 
 app = Flask(__name__)
@@ -108,6 +108,56 @@ def changelog():
         return app.response_class("Changelog not found.", mimetype="text/plain", status=404)
 
 
+DOCS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "documentation")
+
+
+@app.route("/docs")
+def docs_page():
+    resp = app.make_response(render_template("docs.html"))
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
+
+
+@app.route("/api/docs")
+def api_docs():
+    """List every file in documentation/ (recursive) with type metadata."""
+    out = []
+    for root, _dirs, files in os.walk(DOCS_DIR):
+        for fn in files:
+            full = os.path.join(root, fn)
+            rel = os.path.relpath(full, DOCS_DIR).replace(os.sep, "/")
+            try:
+                st = os.stat(full)
+            except OSError:
+                continue
+            out.append({
+                "path": rel,
+                "name": fn,
+                "ext": os.path.splitext(fn)[1].lower().lstrip("."),
+                "size": st.st_size,
+                "mtime": st.st_mtime,
+            })
+    out.sort(key=lambda f: f["name"].lower())
+    return jsonify(out)
+
+
+@app.route("/api/docs/file/<path:relpath>")
+def api_doc_file(relpath):
+    """Serve one documentation file. send_from_directory blocks traversal."""
+    ext = os.path.splitext(relpath)[1].lower()
+    # Text-ish formats: force an inline text mimetype so the browser/fetch
+    # gets utf-8 text instead of a download; PDFs keep application/pdf so
+    # the <embed> viewer works; anything else downloads.
+    text_exts = {".md", ".markdown", ".txt", ".json", ".log", ".csv"}
+    if ext in text_exts:
+        resp = send_from_directory(DOCS_DIR, relpath, mimetype="text/plain")
+        resp.headers["Content-Type"] = "text/plain; charset=utf-8"
+        return resp
+    if ext == ".pdf":
+        return send_from_directory(DOCS_DIR, relpath, mimetype="application/pdf")
+    return send_from_directory(DOCS_DIR, relpath, as_attachment=True)
+
+
 @app.route("/runs")
 def runs_page():
     resp = app.make_response(render_template("runs.html"))
@@ -157,43 +207,42 @@ def tree_page():
 
 @sock.route("/treelm")
 def treelm(ws):
-    """Tree-of-Models training/generation socket.
+    """Tree-of-Models socket — a *viewer* onto the server-side job hub.
 
-    Browser -> server: {"op":"start", ...config} | {"op":"stop"} |
-                       {"op":"generate", prompt, length, temperature}.
-    Server -> browser: JSON events (corpus / tree / node_* / eval / done /
-    generated / error). Same thread layout as /train: the trainer runs in a
-    background thread, this handler keeps reading so stop/generate work mid-run.
+    Browser -> server: {"op":"start"|"sweep", ...config} | {"op":"stop"} |
+                       {"op":"generate"|"trace", prompt, length, temperature}.
+    Server -> browser: JSON events (corpus / tree / node_* / eval / sweep_* /
+    done / generated / trace / error).
+
+    Training runs in the hub (tree_service.HUB) and is NOT tied to this
+    socket: navigating away only detaches the viewer; re-connecting replays
+    the journal snapshot so the page rebuilds mid-run. Stopping is explicit
+    (stop op or starting a new job).
     """
-    lock = threading.Lock()
-    state = {"trainer": None, "thread": None}
+    send_lock = threading.Lock()
 
     def emit(ev):
-        try:
-            ws.send(json.dumps(ev))
-        except Exception:
-            with lock:
-                if state["trainer"]:
-                    state["trainer"].stop()
+        payload = json.dumps(ev)
+        with send_lock:                    # hub thread + handler thread both send
+            ws.send(payload)
 
     if not TREE_OK:
-        emit({"type": "error", "message": f"tree-of-models unavailable: {TREE_ERR}"})
+        try:
+            emit({"type": "error", "message": f"tree-of-models unavailable: {TREE_ERR}"})
+        except Exception:
+            pass
         return
-    emit({"type": "model", "available": tree_service.has_model(),
-          "info": tree_service.model_info()})
 
-    def start(cfg_msg, cls):
-        with lock:
-            if state["trainer"]:
-                state["trainer"].stop()
-            old = state["thread"]
-        if old is not None:
-            old.join(timeout=5.0)
-        trainer = cls(cfg_msg, emit)
-        th = threading.Thread(target=trainer.run, name="tree-lm-train", daemon=True)
-        with lock:
-            state["trainer"], state["thread"] = trainer, th
-        th.start()
+    hub = tree_service.HUB
+    try:
+        emit({"type": "model", "available": tree_service.has_model(),
+              "info": tree_service.model_info()})
+        for ev in hub.snapshot():          # rebuild mid-run state
+            emit(ev)
+        emit({"type": "job", "running": hub.running()})
+    except Exception:
+        return
+    hub.subscribe(emit)
 
     try:
         while True:
@@ -206,13 +255,11 @@ def treelm(ws):
                 continue
             op = data.get("op")
             if op == "start":
-                start(data, tree_service.TreeLMTrainer)
+                hub.start(data, tree_service.TreeLMTrainer)
             elif op == "sweep":
-                start(data, tree_service.TreeSweeper)
+                hub.start(data, tree_service.TreeSweeper)
             elif op == "stop":
-                with lock:
-                    if state["trainer"]:
-                        state["trainer"].stop()
+                hub.stop()
             elif op == "generate":
                 try:
                     text = tree_service.generate_text(
@@ -232,10 +279,10 @@ def treelm(ws):
                     emit({"type": "trace", **tr})
                 except Exception as exc:
                     emit({"type": "error", "message": str(exc)})
+    except Exception:
+        pass
     finally:
-        with lock:
-            if state["trainer"]:
-                state["trainer"].stop()
+        hub.unsubscribe(emit)              # detach only — training keeps going
 
 
 @sock.route("/train")

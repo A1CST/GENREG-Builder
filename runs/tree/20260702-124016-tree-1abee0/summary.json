@@ -1,0 +1,241 @@
+{
+  "id": "20260702-124016-tree-1abee0",
+  "environment": "tree",
+  "status": "finished",
+  "finished": "2026-07-02T12:40:56",
+  "gen": 18,
+  "best": {
+    "score": 0.166,
+    "base": 0.2815
+  },
+  "checkpoint": "model.npz",
+  "eval": {
+    "accuracy": 0.166,
+    "train_accuracy": null,
+    "bigram_accuracy": 0.2815,
+    "tokens_per_sec": 182857.9400544959,
+    "unique_predictions": 28,
+    "target_entropy": 4.676240974628744,
+    "total_params": 58964,
+    "train_seconds": 39.5
+  },
+  "encoder": {
+    "nc_accuracy": 0.3195,
+    "samples": 2000,
+    "generations": 40,
+    "pop_size": 60,
+    "start_context_dim": 64,
+    "context_dim": 64,
+    "evolve_dims": false,
+    "time_constrained": false,
+    "time_budget": null,
+    "active_fraction": null,
+    "diversity": false,
+    "diversity_budget": null,
+    "redundancy": null,
+    "curves": {
+      "encoder": [
+        {
+          "gen": 0,
+          "best": 0.198,
+          "mean": 0.1231
+        },
+        {
+          "gen": 1,
+          "best": 0.2,
+          "mean": 0.1712
+        },
+        {
+          "gen": 2,
+          "best": 0.235,
+          "mean": 0.2006
+        },
+        {
+          "gen": 3,
+          "best": 0.241,
+          "mean": 0.2212
+        },
+        {
+          "gen": 4,
+          "best": 0.2445,
+          "mean": 0.2288
+        },
+        {
+          "gen": 5,
+          "best": 0.2525,
+          "mean": 0.234
+        },
+        {
+          "gen": 6,
+          "best": 0.257,
+          "mean": 0.2385
+        },
+        {
+          "gen": 7,
+          "best": 0.2575,
+          "mean": 0.2438
+        },
+        {
+          "gen": 8,
+          "best": 0.2635,
+          "mean": 0.2473
+        },
+        {
+          "gen": 9,
+          "best": 0.264,
+          "mean": 0.2508
+        },
+        {
+          "gen": 10,
+          "best": 0.2645,
+          "mean": 0.2544
+        },
+        {
+          "gen": 11,
+          "best": 0.27,
+          "mean": 0.2575
+        },
+        {
+          "gen": 12,
+          "best": 0.274,
+          "mean": 0.261
+        },
+        {
+          "gen": 13,
+          "best": 0.28,
+          "mean": 0.2638
+        },
+        {
+          "gen": 14,
+          "best": 0.283,
+          "mean": 0.2656
+        },
+        {
+          "gen": 15,
+          "best": 0.286,
+          "mean": 0.2692
+        },
+        {
+          "gen": 16,
+          "best": 0.286,
+          "mean": 0.272
+        },
+        {
+          "gen": 17,
+          "best": 0.2885,
+          "mean": 0.2737
+        },
+        {
+          "gen": 18,
+          "best": 0.2885,
+          "mean": 0.2783
+        },
+        {
+          "gen": 19,
+          "best": 0.2895,
+          "mean": 0.2789
+        },
+        {
+          "gen": 20,
+          "best": 0.2915,
+          "mean": 0.2805
+        },
+        {
+          "gen": 21,
+          "best": 0.2935,
+          "mean": 0.2838
+        },
+        {
+          "gen": 22,
+          "best": 0.294,
+          "mean": 0.2857
+        },
+        {
+          "gen": 23,
+          "best": 0.2975,
+          "mean": 0.2867
+        },
+        {
+          "gen": 24,
+          "best": 0.3,
+          "mean": 0.2883
+        },
+        {
+          "gen": 25,
+          "best": 0.3005,
+          "mean": 0.2896
+        },
+        {
+          "gen": 26,
+          "best": 0.3045,
+          "mean": 0.2907
+        },
+        {
+          "gen": 27,
+          "best": 0.3045,
+          "mean": 0.2934
+        },
+        {
+          "gen": 28,
+          "best": 0.3055,
+          "mean": 0.2948
+        },
+        {
+          "gen": 29,
+          "best": 0.308,
+          "mean": 0.2978
+        },
+        {
+          "gen": 30,
+          "best": 0.308,
+          "mean": 0.2976
+        },
+        {
+          "gen": 31,
+          "best": 0.308,
+          "mean": 0.2986
+        },
+        {
+          "gen": 32,
+          "best": 0.309,
+          "mean": 0.2994
+        },
+        {
+          "gen": 33,
+          "best": 0.309,
+          "mean": 0.302
+        },
+        {
+          "gen": 34,
+          "best": 0.31,
+          "mean": 0.3034
+        },
+        {
+          "gen": 35,
+          "best": 0.315,
+          "mean": 0.3007
+        },
+        {
+          "gen": 36,
+          "best": 0.315,
+          "mean": 0.3066
+        },
+        {
+          "gen": 37,
+          "best": 0.3155,
+          "mean": 0.306
+        },
+        {
+          "gen": 38,
+          "best": 0.318,
+          "mean": 0.3064
+        },
+        {
+          "gen": 39,
+          "best": 0.3195,
+          "mean": 0.3109
+        }
+      ]
+    }
+  }
+}

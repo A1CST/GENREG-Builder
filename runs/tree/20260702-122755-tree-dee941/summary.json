@@ -1,0 +1,70 @@
+{
+  "id": "20260702-122755-tree-dee941",
+  "environment": "tree",
+  "status": "finished",
+  "finished": "2026-07-02T12:27:56",
+  "gen": 5,
+  "best": {
+    "score": 0.055,
+    "base": 0.295
+  },
+  "checkpoint": "model.npz",
+  "eval": {
+    "accuracy": 0.055,
+    "train_accuracy": null,
+    "bigram_accuracy": 0.295,
+    "tokens_per_sec": 199538.72502378686,
+    "unique_predictions": 38,
+    "target_entropy": 4.32402026116535,
+    "total_params": 16804,
+    "train_seconds": 0.7
+  },
+  "encoder": {
+    "nc_accuracy": 0.304,
+    "samples": 500,
+    "generations": 6,
+    "start_context_dim": 32,
+    "context_dim": 32,
+    "evolve_dims": false,
+    "time_constrained": false,
+    "time_budget": null,
+    "active_fraction": null,
+    "diversity": false,
+    "diversity_budget": null,
+    "redundancy": null,
+    "curves": {
+      "encoder": [
+        {
+          "gen": 0,
+          "best": 0.28,
+          "mean": 0.2494
+        },
+        {
+          "gen": 1,
+          "best": 0.28,
+          "mean": 0.2049
+        },
+        {
+          "gen": 2,
+          "best": 0.28,
+          "mean": 0.1857
+        },
+        {
+          "gen": 3,
+          "best": 0.28,
+          "mean": 0.1819
+        },
+        {
+          "gen": 4,
+          "best": 0.288,
+          "mean": 0.2053
+        },
+        {
+          "gen": 5,
+          "best": 0.304,
+          "mean": 0.2743
+        }
+      ]
+    }
+  }
+}

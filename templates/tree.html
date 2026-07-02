@@ -14,6 +14,7 @@
       <span id="tlm-conn">connecting…</span>
       <a class="runs-link" href="/" title="Back to the build interface">Build ↗</a>
       <a class="runs-link" href="/runs" title="Runs &amp; checkpoints">Runs ↗</a>
+      <a class="runs-link" href="/docs" title="Project documentation">Docs ↗</a>
     </div>
   </header>
 
@@ -23,9 +24,21 @@
       <div class="side-head">Configuration</div>
       <div class="side-body control-panel">
         <div class="field">
+          <label for="cf-device">Compute</label>
+          <select id="cf-device">
+            <option value="cpu" selected>CPU</option>
+            <option value="gpu">GPU (CUDA, batched)</option>
+          </select>
+          <span class="field-hint">GPU evaluates the whole population per generation in one batched tensor op (encoder + every router/leaf) on the RTX; falls back to CPU if CUDA is unavailable. "Evolve context dim" runs stay on CPU (ragged genomes)</span>
+        </div>
+        <div class="field">
           <label for="cf-branch">Branching factor</label>
           <input type="number" id="cf-branch" value="4" min="2" max="64" />
           <span class="field-hint">children per router (4 → depth 4, 16 → depth 2)</span>
+        </div>
+        <div class="field">
+          <label class="check"><input type="checkbox" id="cf-cluster" /> Cluster token split</label>
+          <span class="field-hint">group bytes by context co-occurrence (balanced k-means per node) instead of sequential byte-ID ranges — so ␣, e, t can land in different branches. Icicle x-axis becomes cluster order; tooltips show the actual tokens</span>
         </div>
         <div class="field">
           <label for="cf-ctxwin">Context window (bytes)</label>
@@ -55,8 +68,30 @@
           <span class="field-hint">pre-evolve the context encoder (0 = skip, random encoder)</span>
         </div>
         <div class="field">
+          <label for="cf-encpop">Encoder population</label>
+          <input type="number" id="cf-encpop" value="0" min="0" max="1000" />
+          <span class="field-hint">GA population for the encoder phases only (0 = same as Population below); the encoder genome is far larger than a node's, so it may want more</span>
+        </div>
+        <div class="field">
+          <label class="check"><input type="checkbox" id="cf-encdims" /> Evolve context dim</label>
+          <span class="field-hint">let evolution grow/shrink the encoder's output dimension count — start = Context dim above, bounds 4–4×; unchecked = fixed. Per EEC, pure accuracy tends to grow dims; add the time or diversity constraint to reward smaller encoders. The routing tree is rebuilt at the evolved width.</span>
+        </div>
+        <div class="field">
+          <label class="check"><input type="checkbox" id="cf-enctime" /> Time-constrained from scratch</label>
+          <span class="field-hint">evolve the encoder with time &amp; its original fitness combined for ALL encoder gens — fitness ÷ (1 + active-weights/budget) from generation 0 (uses the speed time budget below)</span>
+        </div>
+        <div class="field">
+          <label class="check"><input type="checkbox" id="cf-encdiv" /> Head diversity</label>
+          <span class="field-hint">encourage the encoder's output dims (heads) to be different — fitness ÷ (1 + mean|corr between dims|/budget), applied for ALL encoder gens; dead dims count as redundant</span>
+        </div>
+        <div class="field">
+          <label for="cf-encdivbudget">Diversity budget</label>
+          <input type="number" id="cf-encdivbudget" value="0.5" min="0.05" max="10" step="0.05" />
+          <span class="field-hint">higher = weaker pressure (1 = mild, 0.15 = harsh)</span>
+        </div>
+        <div class="field">
           <label class="check"><input type="checkbox" id="cf-encspeed-on" /> Encoder speed phase</label>
-          <span class="field-hint">phase 2: time/Occam constraint — fitness ÷ (1 + active-weights/budget)</span>
+          <span class="field-hint">phase 2: time/Occam constraint added for n extra gens AFTER the accuracy phase</span>
         </div>
         <div class="field">
           <label for="cf-encspeed">Speed gens</label>

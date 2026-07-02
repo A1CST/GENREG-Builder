@@ -1,0 +1,32 @@
+{
+  "id": "20260702-063415-tree-5358ef",
+  "environment": "tree",
+  "created": "2026-07-02T06:34:15",
+  "config": {
+    "environment": "tree",
+    "branching_factor": 4,
+    "context_window": 8,
+    "embed_dim": 32,
+    "context_dim": 64,
+    "min_leaf_tokens": 256,
+    "max_depth": 8,
+    "routing_layers": 0,
+    "pop_size": 40,
+    "generations": 40,
+    "mutation_rate": 0.15,
+    "elite_frac": 0.2,
+    "max_samples": 16000,
+    "seed": 1234,
+    "encoder_generations": 80,
+    "encoder_samples": 2000,
+    "encoder_speed_generations": 0,
+    "encoder_time_budget": 0.15,
+    "population": 40
+  },
+  "started": {
+    "population": 40,
+    "generations": 40,
+    "notes": "sweep 20260702-062902-sweep-776b21 \u00b7 layers=0 \u00b7 bf=4 \u00b7 dim=64 \u00b7 emb=32 \u00b7 win=8 \u00b7 gens=40 \u00b7 pop=40 \u00b7 enc=80 \u00b7 spd=0 \u00b7 budget=0.15"
+  },
+  "status": "finished"
+}

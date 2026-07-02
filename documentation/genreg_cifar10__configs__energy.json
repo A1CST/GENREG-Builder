@@ -1,0 +1,16 @@
+{
+  "population_size": "50",
+  "hidden_size": "32",
+  "mutation_rate": "0.1",
+  "max_generations": "5000",
+  "target_tile": "2048",
+  "starting_energy": "200",
+  "checkpoint_freq": "10",
+  "survival_pct": "20",
+  "trust_inherit": "10",
+  "child_mutation": "0.05",
+  "n_games": "3",
+  "ratchet_strength": "2.0",
+  "proximity_strength": "1.0",
+  "checkpoint_dir": "/home/payton-millnet/Documents/GENREG/checkpoints"
+}

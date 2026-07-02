@@ -1,0 +1,494 @@
+{
+  "id": "20260702-062902-sweep-776b21",
+  "environment": "tree",
+  "status": "finished",
+  "finished": "2026-07-02T07:03:29",
+  "gen": 24,
+  "best": {
+    "score": 0.2705,
+    "base": 0.28
+  },
+  "checkpoint": null,
+  "sweep_results": [
+    {
+      "i": 22,
+      "name": "layers=0 \u00b7 bf=4 \u00b7 dim=64 \u00b7 emb=32 \u00b7 win=8 \u00b7 gens=40 \u00b7 pop=80 \u00b7 enc=80 \u00b7 spd=40 \u00b7 budget=0.5",
+      "overrides": {
+        "routing_layers": 0,
+        "branching_factor": 4,
+        "context_dim": 64,
+        "embed_dim": 32,
+        "context_window": 8,
+        "generations": 40,
+        "pop_size": 80,
+        "encoder_generations": 80,
+        "encoder_speed_generations": 40,
+        "encoder_time_budget": 0.5
+      },
+      "accuracy": 0.2705,
+      "bigram": 0.28,
+      "seconds": 137.9,
+      "run_id": "20260702-065852-tree-a0ce1d"
+    },
+    {
+      "i": 0,
+      "name": "layers=0 \u00b7 bf=4 \u00b7 dim=64 \u00b7 emb=32 \u00b7 win=8 \u00b7 gens=40 \u00b7 pop=40 \u00b7 enc=40 \u00b7 spd=0 \u00b7 budget=0.15",
+      "overrides": {
+        "routing_layers": 0,
+        "branching_factor": 4,
+        "context_dim": 64,
+        "embed_dim": 32,
+        "context_window": 8,
+        "generations": 40,
+        "pop_size": 40,
+        "encoder_generations": 40,
+        "encoder_speed_generations": 0,
+        "encoder_time_budget": 0.15
+      },
+      "accuracy": 0.267,
+      "bigram": 0.28,
+      "seconds": 46.6,
+      "run_id": "20260702-062902-tree-d41e87"
+    },
+    {
+      "i": 2,
+      "name": "layers=0 \u00b7 bf=4 \u00b7 dim=64 \u00b7 emb=32 \u00b7 win=8 \u00b7 gens=40 \u00b7 pop=40 \u00b7 enc=40 \u00b7 spd=0 \u00b7 budget=1",
+      "overrides": {
+        "routing_layers": 0,
+        "branching_factor": 4,
+        "context_dim": 64,
+        "embed_dim": 32,
+        "context_window": 8,
+        "generations": 40,
+        "pop_size": 40,
+        "encoder_generations": 40,
+        "encoder_speed_generations": 0,
+        "encoder_time_budget": 1.0
+      },
+      "accuracy": 0.267,
+      "bigram": 0.28,
+      "seconds": 46.6,
+      "run_id": "20260702-063036-tree-9e3ebf"
+    },
+    {
+      "i": 19,
+      "name": "layers=0 \u00b7 bf=4 \u00b7 dim=64 \u00b7 emb=32 \u00b7 win=8 \u00b7 gens=40 \u00b7 pop=80 \u00b7 enc=80 \u00b7 spd=0 \u00b7 budget=0.5",
+      "overrides": {
+        "routing_layers": 0,
+        "branching_factor": 4,
+        "context_dim": 64,
+        "embed_dim": 32,
+        "context_window": 8,
+        "generations": 40,
+        "pop_size": 80,
+        "encoder_generations": 80,
+        "encoder_speed_generations": 0,
+        "encoder_time_budget": 0.5
+      },
+      "accuracy": 0.2625,
+      "bigram": 0.28,
+      "seconds": 115.0,
+      "run_id": "20260702-065245-tree-8dd012"
+    },
+    {
+      "i": 11,
+      "name": "layers=0 \u00b7 bf=4 \u00b7 dim=64 \u00b7 emb=32 \u00b7 win=8 \u00b7 gens=40 \u00b7 pop=40 \u00b7 enc=80 \u00b7 spd=40 \u00b7 budget=1",
+      "overrides": {
+        "routing_layers": 0,
+        "branching_factor": 4,
+        "context_dim": 64,
+        "embed_dim": 32,
+        "context_window": 8,
+        "generations": 40,
+        "pop_size": 40,
+        "encoder_generations": 80,
+        "encoder_speed_generations": 40,
+        "encoder_time_budget": 1.0
+      },
+      "accuracy": 0.252,
+      "bigram": 0.28,
+      "seconds": 68.6,
+      "run_id": "20260702-063924-tree-961a53"
+    },
+    {
+      "i": 9,
+      "name": "layers=0 \u00b7 bf=4 \u00b7 dim=64 \u00b7 emb=32 \u00b7 win=8 \u00b7 gens=40 \u00b7 pop=40 \u00b7 enc=80 \u00b7 spd=40 \u00b7 budget=0.15",
+      "overrides": {
+        "routing_layers": 0,
+        "branching_factor": 4,
+        "context_dim": 64,
+        "embed_dim": 32,
+        "context_window": 8,
+        "generations": 40,
+        "pop_size": 40,
+        "encoder_generations": 80,
+        "encoder_speed_generations": 40,
+        "encoder_time_budget": 0.15
+      },
+      "accuracy": 0.2495,
+      "bigram": 0.28,
+      "seconds": 68.4,
+      "run_id": "20260702-063707-tree-81077d"
+    },
+    {
+      "i": 1,
+      "name": "layers=0 \u00b7 bf=4 \u00b7 dim=64 \u00b7 emb=32 \u00b7 win=8 \u00b7 gens=40 \u00b7 pop=40 \u00b7 enc=40 \u00b7 spd=0 \u00b7 budget=0.5",
+      "overrides": {
+        "routing_layers": 0,
+        "branching_factor": 4,
+        "context_dim": 64,
+        "embed_dim": 32,
+        "context_window": 8,
+        "generations": 40,
+        "pop_size": 40,
+        "encoder_generations": 40,
+        "encoder_speed_generations": 0,
+        "encoder_time_budget": 0.5
+      },
+      "accuracy": 0.2455,
+      "bigram": 0.28,
+      "seconds": 46.5,
+      "run_id": "20260702-062949-tree-d88b09"
+    },
+    {
+      "i": 7,
+      "name": "layers=0 \u00b7 bf=4 \u00b7 dim=64 \u00b7 emb=32 \u00b7 win=8 \u00b7 gens=40 \u00b7 pop=40 \u00b7 enc=80 \u00b7 spd=0 \u00b7 budget=0.5",
+      "overrides": {
+        "routing_layers": 0,
+        "branching_factor": 4,
+        "context_dim": 64,
+        "embed_dim": 32,
+        "context_window": 8,
+        "generations": 40,
+        "pop_size": 40,
+        "encoder_generations": 80,
+        "encoder_speed_generations": 0,
+        "encoder_time_budget": 0.5
+      },
+      "accuracy": 0.2445,
+      "bigram": 0.28,
+      "seconds": 57.6,
+      "run_id": "20260702-063513-tree-46cff9"
+    },
+    {
+      "i": 8,
+      "name": "layers=0 \u00b7 bf=4 \u00b7 dim=64 \u00b7 emb=32 \u00b7 win=8 \u00b7 gens=40 \u00b7 pop=40 \u00b7 enc=80 \u00b7 spd=0 \u00b7 budget=1",
+      "overrides": {
+        "routing_layers": 0,
+        "branching_factor": 4,
+        "context_dim": 64,
+        "embed_dim": 32,
+        "context_window": 8,
+        "generations": 40,
+        "pop_size": 40,
+        "encoder_generations": 80,
+        "encoder_speed_generations": 0,
+        "encoder_time_budget": 1.0
+      },
+      "accuracy": 0.2445,
+      "bigram": 0.28,
+      "seconds": 56.8,
+      "run_id": "20260702-063610-tree-441bc3"
+    },
+    {
+      "i": 23,
+      "name": "layers=0 \u00b7 bf=4 \u00b7 dim=64 \u00b7 emb=32 \u00b7 win=8 \u00b7 gens=40 \u00b7 pop=80 \u00b7 enc=80 \u00b7 spd=40 \u00b7 budget=1",
+      "overrides": {
+        "routing_layers": 0,
+        "branching_factor": 4,
+        "context_dim": 64,
+        "embed_dim": 32,
+        "context_window": 8,
+        "generations": 40,
+        "pop_size": 80,
+        "encoder_generations": 80,
+        "encoder_speed_generations": 40,
+        "encoder_time_budget": 1.0
+      },
+      "accuracy": 0.2435,
+      "bigram": 0.28,
+      "seconds": 138.6,
+      "run_id": "20260702-070110-tree-e3f294"
+    },
+    {
+      "i": 18,
+      "name": "layers=0 \u00b7 bf=4 \u00b7 dim=64 \u00b7 emb=32 \u00b7 win=8 \u00b7 gens=40 \u00b7 pop=80 \u00b7 enc=80 \u00b7 spd=0 \u00b7 budget=0.15",
+      "overrides": {
+        "routing_layers": 0,
+        "branching_factor": 4,
+        "context_dim": 64,
+        "embed_dim": 32,
+        "context_window": 8,
+        "generations": 40,
+        "pop_size": 80,
+        "encoder_generations": 80,
+        "encoder_speed_generations": 0,
+        "encoder_time_budget": 0.15
+      },
+      "accuracy": 0.238,
+      "bigram": 0.28,
+      "seconds": 113.5,
+      "run_id": "20260702-065051-tree-c0bccf"
+    },
+    {
+      "i": 20,
+      "name": "layers=0 \u00b7 bf=4 \u00b7 dim=64 \u00b7 emb=32 \u00b7 win=8 \u00b7 gens=40 \u00b7 pop=80 \u00b7 enc=80 \u00b7 spd=0 \u00b7 budget=1",
+      "overrides": {
+        "routing_layers": 0,
+        "branching_factor": 4,
+        "context_dim": 64,
+        "embed_dim": 32,
+        "context_window": 8,
+        "generations": 40,
+        "pop_size": 80,
+        "encoder_generations": 80,
+        "encoder_speed_generations": 0,
+        "encoder_time_budget": 1.0
+      },
+      "accuracy": 0.238,
+      "bigram": 0.28,
+      "seconds": 114.6,
+      "run_id": "20260702-065440-tree-0eb783"
+    },
+    {
+      "i": 6,
+      "name": "layers=0 \u00b7 bf=4 \u00b7 dim=64 \u00b7 emb=32 \u00b7 win=8 \u00b7 gens=40 \u00b7 pop=40 \u00b7 enc=80 \u00b7 spd=0 \u00b7 budget=0.15",
+      "overrides": {
+        "routing_layers": 0,
+        "branching_factor": 4,
+        "context_dim": 64,
+        "embed_dim": 32,
+        "context_window": 8,
+        "generations": 40,
+        "pop_size": 40,
+        "encoder_generations": 80,
+        "encoder_speed_generations": 0,
+        "encoder_time_budget": 0.15
+      },
+      "accuracy": 0.2375,
+      "bigram": 0.28,
+      "seconds": 57.7,
+      "run_id": "20260702-063415-tree-5358ef"
+    },
+    {
+      "i": 4,
+      "name": "layers=0 \u00b7 bf=4 \u00b7 dim=64 \u00b7 emb=32 \u00b7 win=8 \u00b7 gens=40 \u00b7 pop=40 \u00b7 enc=40 \u00b7 spd=40 \u00b7 budget=0.5",
+      "overrides": {
+        "routing_layers": 0,
+        "branching_factor": 4,
+        "context_dim": 64,
+        "embed_dim": 32,
+        "context_window": 8,
+        "generations": 40,
+        "pop_size": 40,
+        "encoder_generations": 40,
+        "encoder_speed_generations": 40,
+        "encoder_time_budget": 0.5
+      },
+      "accuracy": 0.232,
+      "bigram": 0.28,
+      "seconds": 57.4,
+      "run_id": "20260702-063220-tree-1e8f33"
+    },
+    {
+      "i": 3,
+      "name": "layers=0 \u00b7 bf=4 \u00b7 dim=64 \u00b7 emb=32 \u00b7 win=8 \u00b7 gens=40 \u00b7 pop=40 \u00b7 enc=40 \u00b7 spd=40 \u00b7 budget=0.15",
+      "overrides": {
+        "routing_layers": 0,
+        "branching_factor": 4,
+        "context_dim": 64,
+        "embed_dim": 32,
+        "context_window": 8,
+        "generations": 40,
+        "pop_size": 40,
+        "encoder_generations": 40,
+        "encoder_speed_generations": 40,
+        "encoder_time_budget": 0.15
+      },
+      "accuracy": 0.2305,
+      "bigram": 0.28,
+      "seconds": 57.7,
+      "run_id": "20260702-063122-tree-f76999"
+    },
+    {
+      "i": 5,
+      "name": "layers=0 \u00b7 bf=4 \u00b7 dim=64 \u00b7 emb=32 \u00b7 win=8 \u00b7 gens=40 \u00b7 pop=40 \u00b7 enc=40 \u00b7 spd=40 \u00b7 budget=1",
+      "overrides": {
+        "routing_layers": 0,
+        "branching_factor": 4,
+        "context_dim": 64,
+        "embed_dim": 32,
+        "context_window": 8,
+        "generations": 40,
+        "pop_size": 40,
+        "encoder_generations": 40,
+        "encoder_speed_generations": 40,
+        "encoder_time_budget": 1.0
+      },
+      "accuracy": 0.2295,
+      "bigram": 0.28,
+      "seconds": 57.7,
+      "run_id": "20260702-063317-tree-031bda"
+    },
+    {
+      "i": 16,
+      "name": "layers=0 \u00b7 bf=4 \u00b7 dim=64 \u00b7 emb=32 \u00b7 win=8 \u00b7 gens=40 \u00b7 pop=80 \u00b7 enc=40 \u00b7 spd=40 \u00b7 budget=0.5",
+      "overrides": {
+        "routing_layers": 0,
+        "branching_factor": 4,
+        "context_dim": 64,
+        "embed_dim": 32,
+        "context_window": 8,
+        "generations": 40,
+        "pop_size": 80,
+        "encoder_generations": 40,
+        "encoder_speed_generations": 40,
+        "encoder_time_budget": 0.5
+      },
+      "accuracy": 0.2095,
+      "bigram": 0.28,
+      "seconds": 114.4,
+      "run_id": "20260702-064702-tree-5ebb72"
+    },
+    {
+      "i": 10,
+      "name": "layers=0 \u00b7 bf=4 \u00b7 dim=64 \u00b7 emb=32 \u00b7 win=8 \u00b7 gens=40 \u00b7 pop=40 \u00b7 enc=80 \u00b7 spd=40 \u00b7 budget=0.5",
+      "overrides": {
+        "routing_layers": 0,
+        "branching_factor": 4,
+        "context_dim": 64,
+        "embed_dim": 32,
+        "context_window": 8,
+        "generations": 40,
+        "pop_size": 40,
+        "encoder_generations": 80,
+        "encoder_speed_generations": 40,
+        "encoder_time_budget": 0.5
+      },
+      "accuracy": 0.2035,
+      "bigram": 0.28,
+      "seconds": 68.0,
+      "run_id": "20260702-063816-tree-0f4ac6"
+    },
+    {
+      "i": 15,
+      "name": "layers=0 \u00b7 bf=4 \u00b7 dim=64 \u00b7 emb=32 \u00b7 win=8 \u00b7 gens=40 \u00b7 pop=80 \u00b7 enc=40 \u00b7 spd=40 \u00b7 budget=0.15",
+      "overrides": {
+        "routing_layers": 0,
+        "branching_factor": 4,
+        "context_dim": 64,
+        "embed_dim": 32,
+        "context_window": 8,
+        "generations": 40,
+        "pop_size": 80,
+        "encoder_generations": 40,
+        "encoder_speed_generations": 40,
+        "encoder_time_budget": 0.15
+      },
+      "accuracy": 0.197,
+      "bigram": 0.28,
+      "seconds": 114.6,
+      "run_id": "20260702-064507-tree-953e77"
+    },
+    {
+      "i": 17,
+      "name": "layers=0 \u00b7 bf=4 \u00b7 dim=64 \u00b7 emb=32 \u00b7 win=8 \u00b7 gens=40 \u00b7 pop=80 \u00b7 enc=40 \u00b7 spd=40 \u00b7 budget=1",
+      "overrides": {
+        "routing_layers": 0,
+        "branching_factor": 4,
+        "context_dim": 64,
+        "embed_dim": 32,
+        "context_window": 8,
+        "generations": 40,
+        "pop_size": 80,
+        "encoder_generations": 40,
+        "encoder_speed_generations": 40,
+        "encoder_time_budget": 1.0
+      },
+      "accuracy": 0.195,
+      "bigram": 0.28,
+      "seconds": 115.0,
+      "run_id": "20260702-064856-tree-1b337f"
+    },
+    {
+      "i": 12,
+      "name": "layers=0 \u00b7 bf=4 \u00b7 dim=64 \u00b7 emb=32 \u00b7 win=8 \u00b7 gens=40 \u00b7 pop=80 \u00b7 enc=40 \u00b7 spd=0 \u00b7 budget=0.15",
+      "overrides": {
+        "routing_layers": 0,
+        "branching_factor": 4,
+        "context_dim": 64,
+        "embed_dim": 32,
+        "context_window": 8,
+        "generations": 40,
+        "pop_size": 80,
+        "encoder_generations": 40,
+        "encoder_speed_generations": 0,
+        "encoder_time_budget": 0.15
+      },
+      "accuracy": 0.187,
+      "bigram": 0.28,
+      "seconds": 91.8,
+      "run_id": "20260702-064032-tree-bc0760"
+    },
+    {
+      "i": 21,
+      "name": "layers=0 \u00b7 bf=4 \u00b7 dim=64 \u00b7 emb=32 \u00b7 win=8 \u00b7 gens=40 \u00b7 pop=80 \u00b7 enc=80 \u00b7 spd=40 \u00b7 budget=0.15",
+      "overrides": {
+        "routing_layers": 0,
+        "branching_factor": 4,
+        "context_dim": 64,
+        "embed_dim": 32,
+        "context_window": 8,
+        "generations": 40,
+        "pop_size": 80,
+        "encoder_generations": 80,
+        "encoder_speed_generations": 40,
+        "encoder_time_budget": 0.15
+      },
+      "accuracy": 0.184,
+      "bigram": 0.28,
+      "seconds": 137.7,
+      "run_id": "20260702-065634-tree-a96399"
+    },
+    {
+      "i": 14,
+      "name": "layers=0 \u00b7 bf=4 \u00b7 dim=64 \u00b7 emb=32 \u00b7 win=8 \u00b7 gens=40 \u00b7 pop=80 \u00b7 enc=40 \u00b7 spd=0 \u00b7 budget=1",
+      "overrides": {
+        "routing_layers": 0,
+        "branching_factor": 4,
+        "context_dim": 64,
+        "embed_dim": 32,
+        "context_window": 8,
+        "generations": 40,
+        "pop_size": 80,
+        "encoder_generations": 40,
+        "encoder_speed_generations": 0,
+        "encoder_time_budget": 1.0
+      },
+      "accuracy": 0.181,
+      "bigram": 0.28,
+      "seconds": 91.8,
+      "run_id": "20260702-064335-tree-6f23fc"
+    },
+    {
+      "i": 13,
+      "name": "layers=0 \u00b7 bf=4 \u00b7 dim=64 \u00b7 emb=32 \u00b7 win=8 \u00b7 gens=40 \u00b7 pop=80 \u00b7 enc=40 \u00b7 spd=0 \u00b7 budget=0.5",
+      "overrides": {
+        "routing_layers": 0,
+        "branching_factor": 4,
+        "context_dim": 64,
+        "embed_dim": 32,
+        "context_window": 8,
+        "generations": 40,
+        "pop_size": 80,
+        "encoder_generations": 40,
+        "encoder_speed_generations": 0,
+        "encoder_time_budget": 0.5
+      },
+      "accuracy": 0.1675,
+      "bigram": 0.28,
+      "seconds": 91.4,
+      "run_id": "20260702-064204-tree-35de4b"
+    }
+  ]
+}

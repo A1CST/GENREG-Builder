@@ -1,0 +1,37 @@
+{
+  "id": "20260702-123921-tree-2b2384",
+  "environment": "tree",
+  "created": "2026-07-02T12:39:21",
+  "config": {
+    "environment": "tree",
+    "branching_factor": 4,
+    "context_window": 8,
+    "embed_dim": 8,
+    "context_dim": 24,
+    "min_leaf_tokens": 256,
+    "max_depth": 8,
+    "routing_layers": 0,
+    "pop_size": 10,
+    "generations": 5,
+    "mutation_rate": 0.15,
+    "elite_frac": 0.2,
+    "max_samples": 1200,
+    "seed": 3,
+    "encoder_generations": 3,
+    "encoder_samples": 400,
+    "encoder_pop_size": 24,
+    "encoder_speed_generations": 2,
+    "encoder_time_budget": 0.5,
+    "encoder_time_constrained": false,
+    "encoder_diversity": false,
+    "encoder_diversity_budget": 0.5,
+    "encoder_evolve_dims": true,
+    "population": 10
+  },
+  "started": {
+    "population": 10,
+    "generations": 5,
+    "notes": "tree-of-models text prediction"
+  },
+  "status": "finished"
+}

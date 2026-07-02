@@ -1,0 +1,699 @@
+[
+  {
+    "name": "baseline_cosine",
+    "head": "cosine",
+    "kwargs": "{'temperature': 0.7, 'top_k': 50, 'rep_penalty': 1.5}",
+    "samples": [
+      "the king sat on the and one year age days twenty guineas annum gb liter bdt budgeted baht dkk cny mxn costing kwh pesos millions trillion krone francs infogrames microsoft",
+      "she was born in home manchester wanderers tottenham doncaster darwen manningham birmingham everton stevenage laird northampton chelsea hotspur luton leyton auxerre huddersfield liverpool argyle dalglish chesterfield farnborough stamford barnsley",
+      "the city of their   was one last another subsequent following followed took war government policy civil committee senate sejm delegates governors presidents mayor senator nixon hillary democrat",
+      "he played for the before again october january september july day advisories edouard evariste hortense utc nangka hernan gilda jokwe gretelle typhoon carla storm imbudo brenda ione hilda dora",
+      "the united states history war civil armed sardinian portuguese bulgarian bombarded blockaded ijn merchant carriers submarines vessels aboard flagship fleet flotilla battleships roon adalbert karlsruhe hindenburg kawachi geraes",
+      "in the beginning of of same current name species endemic alcelaphus oryzomys perovskia crex praetervisa ficus hygrophorus pluteus pumilio aonchotheca coccinea agaricus psilocybe argyrosperma peniophora eliurus rostratus synonym nebrius",
+      "the cat sat on the at located hall building museum auditorium toronto baltimore arizona kansas nevada nebraska maryland maine southeastern africa siberia bolivia dominican afghanistan liberia northern republic invasion raid",
+      "it was the first the as was being later january until last prior next minutes balls lindwall bowled skipper captained xi xi yorkshire yorkshire cricketer matches doubles federer novak",
+      "the president of the it was heavily completely partly formally previously largely traditionally varanasi metropolitan regional transit galveston municipal municipality longyearbyen coquitlam medford enugu alberta chairing representatives candidates democratic",
+      "they were called the   from its upon following following despite having couple isabella sneyd honora ina clennell childbirth childbirth chengyuan allingham olds creutz rowell shabazz sudirman kenney braddock"
+    ]
+  },
+  {
+    "name": "ridge_lambda_0.01",
+    "head": "ridge(\u03bb=0.01,n=128)",
+    "kwargs": "{'temperature': 0.7, 'top_k': 50, 'rep_penalty': 1.5}",
+    "samples": [
+      "the king sat on the over a then and when air but city there i y military test started his than only may e more way c years took less",
+      "she was born in she was racer moved he or death system r d jordan battle racer without where himself ridge second further   that was were r by",
+      "the city of some help is u has has being e r was has   was an mph no she york then my my coast league league his",
+      "he played for the area what your split star new his way character t has   my n k p character than   then   been was league including",
+      "the united states for p union being a h he space linear are house all y but when then early three x   are most two series considered",
+      "in the beginning of t followed against won century ny when when th support he nd all about r is then church then his two l i in all",
+      "the cat sat on the march dv world choiseul world it march has w league its in it out american e several be been air be i most was r",
+      "it was the first system then over game as over out k air but church first and u final t k than g a final air a s three",
+      "the president of the also n has may their was former t s no this new school at s a this its r squadron b wing what been american",
+      "they were called the my during scranton ship where k because r so where was their during york t off game state in x no were w no g"
+    ]
+  },
+  {
+    "name": "ridge_lambda_0.1",
+    "head": "ridge(\u03bb=0.1,n=128)",
+    "kwargs": "{'temperature': 0.7, 'top_k': 50, 'rep_penalty': 1.5}",
+    "samples": [
+      "the king sat on the on be n new a g of out n new state l scranton featured i way l or early i or best and on series",
+      "she was born in been be his may t r their his his k he on his lead main started commission s n lead z he e series work",
+      "the city of been own been on despite their centre r choiseul two early hospital way first were last been has his church has or series there their",
+      "he played for the r g war may b h f y in i and d a k m he h their hundred on k after r m t",
+      "the united states over her were e e v r i a for no only f state not to their with only this those but this best however",
+      "in the beginning of day called are make r g they york p considered called last or out called despite no church r all also l e a i",
+      "the cat sat on the leader while york took ii york n x around x be l been   in was on or been than around was their no best",
+      "it was the first t had been s world last was r own university choiseul most spence his with e off winds l e an s with for two",
+      "the president of the g g than   states game a d of by final best i u game   l   w i or many other be most",
+      "they were called the throughout league called little g war he during house school   l c of their because out e u y no school way v than"
+    ]
+  },
+  {
+    "name": "ridge_lambda_0.5",
+    "head": "ridge(\u03bb=0.5,n=128)",
+    "kwargs": "{'temperature': 0.7, 'top_k': 50, 'rep_penalty': 1.5}",
+    "samples": [
+      "the king sat on the when all united society american be been have on being are from have n early all air than or i are such use no were",
+      "she was born in was almost i o f battle   viet battle almost most ridge an b years   s on use coast power history his as in",
+      "the city of some this while city many there years years found north o o character s r national both g best fire national been   which best",
+      "he played for the she   test played he born in or where where although what she n is played not last baseball in g e s all baseball",
+      "the united states to won   u then o she most   k i no   best he united school wing there further she k y two then",
+      "in the beginning of last years   later dumont on including ness what church then man l t on then man on down a into she l in across",
+      "the cat sat on the be a then second a final church then without was make of said been create that a no then new has an best they second",
+      "it was the first made the or the or an one this my despite early their e e choiseul two d field york lead t including e found r",
+      "the president of the lincoln has then n later new e own a early two four no jordan his k t three than   for and five t which",
+      "they were called the most their n form   form when her functions system k test e z than where victims south called r r y out t war"
+    ]
+  },
+  {
+    "name": "ridge_lambda_1.0",
+    "head": "ridge(\u03bb=1.0,n=128)",
+    "kwargs": "{'temperature': 0.7, 'top_k': 50, 'rep_penalty': 1.5}",
+    "samples": [
+      "the king sat on the when york be in what to he   king then x king n ii s was of n ii damage of o when most american",
+      "she was born in da life r dv her this life out nh she character sy out to your into two been league each the out form ing into",
+      "the city of than by brody g not k did their much t little her their lead i s their field t first e l their first e",
+      "he played for the from t t a the played was called baseball he called i b known the would including or what region early k called system was",
+      "the united states much north many british led three p t f w led h is league was considered be to best r k out best y f",
+      "in the beginning of taken rams science an not an not not new first e r series early following who first r r scranton second league during a an",
+      "the cat sat on the can second be from his most first took own last first such   through second r be made no team more his l series league",
+      "it was the first form form another form then original last music early his team city   and and form e her as than system two version form three",
+      "the president of the m no president john being he ship president are they wing then b made their   f d then leader would or are won national",
+      "they were called the may named were a first had v on a american early began all on for more began an for   much league been jordan who"
+    ]
+  },
+  {
+    "name": "ridge_lambda_5.0",
+    "head": "ridge(\u03bb=5.0,n=128)",
+    "kwargs": "{'temperature': 0.7, 'top_k': 50, 'rep_penalty': 1.5}",
+    "samples": [
+      "the king sat on the war no death l an not racer   an the the   north damage along e be being i t e for ridge their is",
+      "she was born in after her your without i your first early form k way e l o two two series main off r coast they the could where",
+      "the city of simba k reported center space field world more test o early and k york took may was a u later considered g was e k",
+      "he played for the pigeon was at their   was relief all are and r their k small its g form b system r a york are team is",
+      "the united states p her d to series r series w on work world states no york made i new for made   made for university baseball x",
+      "in the beginning of most more october scranton than their new than a   or be december their under or all known than best be c other could also",
+      "the cat sat on the the her under his or r pigeon e world role she despite war own war own bird his what work own out early their been",
+      "it was the first the s choiseul her then no despite spens they those what n u o b he new she particularly his than these most n league",
+      "the president of the without without were k than r l more v city she little york l b g be he church in bear l new where great",
+      "they were called the named at featured made v character called l form three one e form n so than r out built c the area use work created"
+    ]
+  },
+  {
+    "name": "ridge_lambda_20.0",
+    "head": "ridge(\u03bb=20.0,n=128)",
+    "kwargs": "{'temperature': 0.7, 'top_k': 50, 'rep_penalty': 1.5}",
+    "samples": [
+      "the king sat on the city u february new l y october she august that april that august december air r that january while against made air coast o following",
+      "she was born in story some many what league some against n during g most s p other e and at at their p small other l american b",
+      "the city of been since this without led led k scandium have is field be of and and this is k this it is than as this jordan",
+      "he played for the he played as played such first cong campaign played episode enemy out r her form no in   area on form w form for not",
+      "the united states   york l former   house original work states of   work northern this all or when fire best   the then only he for",
+      "in the beginning of of most field scranton of g i high during winds during is york storm ship a u scranton being early mph made york made h",
+      "the cat sat on the based game game on final f final found e states more on new a o all during series f united on american several it p",
+      "it was the first without it choiseul spens university ed most it for university more their she her work out city ship spens for ing for team his against",
+      "the president of the   lincoln u q best is d no d f but city early be   life g e v then his or of or an",
+      "they were called the at from of rabin then river   their at along b n own all were in there north two league were g no called  "
+    ]
+  },
+  {
+    "name": "ridge_nwin_16",
+    "head": "ridge(\u03bb=0.5,n=16)",
+    "kwargs": "{'temperature': 0.7, 'top_k': 50, 'rep_penalty': 1.5}",
+    "samples": [
+      "the king sat on the foretold is the rosi s mae habroptila major that s great n t star work his s l their all of foretold not pennsylvanian would",
+      "she was born in of az in started worked mei initial thought show previous   after of s worked s of in system scranton t of   two t",
+      "the city of her mae in a years northern city out witness madero madero scranton nutbush nevin were d oxygen traditionally has ursa as second her other large",
+      "he played for the including the   been t be former the   have star traditionally second   already episodes her may plot against in stars for star against",
+      "the united states live su star yugoslavia are oxygen   d thought draw oxygen c worked played d scranton star show minor october sporadic six live important outbreaks",
+      "in the beginning of of simple ed so those played by received k attention their way k study their city   further all n scranton scranton as worked close",
+      "the cat sat on the team   around first eclipsing as campaign usa world system by u kochab were as c for worked constellation and constellation scranton ursa in remaining",
+      "it was the first slightly those c navy u b as first but organisms k u god study   for of crew system y his t y within  ",
+      "the president of the century that th series scranton with farm   car major party let show a larger lives their played thought may city scranton are former system",
+      "they were called the they star t great who worked mae ship city binary b france b navy storm f american f l c sporadic with however who croatia"
+    ]
+  },
+  {
+    "name": "ridge_nwin_32",
+    "head": "ridge(\u03bb=0.5,n=32)",
+    "kwargs": "{'temperature': 0.7, 'top_k': 50, 'rep_penalty': 1.5}",
+    "samples": [
+      "the king sat on the work just found the considered from or scar or north let e o sol on her one l stay bear including o for their by",
+      "she was born in collaborator she s her referendum that or by an an let my by my composed assertion their by down form greeley his or let form",
+      "the city of by this v york   century this its once their city down and an marijuana her north because simultaneously back according north are american nh",
+      "he played for the annual r all n war r played this b united war this during great when or all shot or my   only nh great team",
+      "the united states over bree baseball all royal nations are is minor only c e o o h are is m k c in   no not y",
+      "in the beginning of n a so on than plants y who become plants so grow genus about not   not working so down is an about little early",
+      "the cat sat on the torchwood scandium american up is be u w m their u played long w not american r campaign   not league towards k greeley do",
+      "it was the first shot   the sprite has but have anna an his sprite n during way p anna way nh c nh region from c on or",
+      "the president of the u r earth of on scandium her nd second most of than on   one arsenal and work t also many new used second c",
+      "they were called the their nathan urged viet viet t during z simba s she were also scandium first use church or other gain show shot than for back"
+    ]
+  },
+  {
+    "name": "ridge_nwin_64",
+    "head": "ridge(\u03bb=0.5,n=64)",
+    "kwargs": "{'temperature': 0.7, 'top_k': 50, 'rep_penalty': 1.5}",
+    "samples": [
+      "the king sat on the from by be their test together ing way or all kingdom no come england rule test o an most let walpole all most he north",
+      "she was born in moved into later john   she l in may d following t the e x during system elements may d campaign be days considered october",
+      "the city of supported support state g t there is american n state league william there season north little away episodes way when of of best they great",
+      "he played for the league form she area version church spielberg no little area her great u l p most b than g b as are leader their k",
+      "the united states support all city states v york in flies worked england in in of during bengal than test north is mole her played star church baseball",
+      "in the beginning of in england city is east years version system where mines later during considered possession s considered north become k later above also as taken level",
+      "the cat sat on the out most over known as york only scandium years first universe a homotopy s best he he such scranton made repairs who t universe coast",
+      "it was the first played place first was   way played parrot way north ing place t october story press flies k time flies t u greeley such attracted",
+      "the president of the to support i k most film   t for of series r considered said be called considered on non on said at states the said",
+      "they were called the where o series g baseball star early k o years star scandium all come she as said star l taken when on n my character"
+    ]
+  },
+  {
+    "name": "ridge_nwin_128",
+    "head": "ridge(\u03bb=0.5,n=128)",
+    "kwargs": "{'temperature': 0.7, 'top_k': 50, 'rep_penalty': 1.5}",
+    "samples": [
+      "the king sat on the field first last may to u this winds   can has no their such series his have r no there than he their been but",
+      "she was born in began series was league out she early into featured down back be k u their c of university g school church g including has school",
+      "the city of p u e l h most so v was some an led in o two in during no an with only the more form between",
+      "he played for the they for featured   they r but made way because out   an because   early way f school so so two and what high",
+      "the united states no mph a was is story is an p k r this   a p no series b but no b they g i this",
+      "in the beginning of become made between   minnesota d most little q during little there of church years led took an than further rather not way their later",
+      "the cat sat on the a most ship km without out away or then more air what l made air most they winds t their on all be other taken",
+      "it was the first system won she three first for great last   of won system r city e own   e two d s u they several e",
+      "the president of the all universe church states t series than including is american previous then released but into t but series into y p n than through league",
+      "they were called the no war c k led war all story during years last or my ridge than took of held than p o h three early two"
+    ]
+  },
+  {
+    "name": "ridge_nwin_256",
+    "head": "ridge(\u03bb=0.5,n=256)",
+    "kwargs": "{'temperature': 0.7, 'top_k': 50, 'rep_penalty': 1.5}",
+    "samples": [
+      "the king sat on the has d t d league player despite league or t season jordan or such their into taken during main come from i taken form they",
+      "she was born in w i n on where north k x american has most ii e t north more north v her rather more their a two more",
+      "the city of all only series series no series city held all p c main ing out to new be united following to for their over her n",
+      "he played for the been called form his t than rather character song character than g c her church her k all he been   by s no on",
+      "the united states t most d p first her all during but b united however their c he way two most song your a is your ing k",
+      "in the beginning of in made the l e made included e c made g a her system   by which a d are   moved   be also",
+      "the cat sat on the did the was most original would to you would they will i out moved g most e on south v her from all a d",
+      "it was the first were its most original was original his american its fantasy final all r new original original for of york release held two features won own",
+      "the president of the city o city has t has go may really back n december another to back i up i v y were d x been y",
+      "they were called the most more t more years two could six main all series no were be   over four held   court in no including where ing"
+    ]
+  },
+  {
+    "name": "temp_0.3",
+    "head": "ridge(\u03bb=0.5,n=128)",
+    "kwargs": "{'temperature': 0.3, 'top_k': 50, 'rep_penalty': 1.5}",
+    "samples": [
+      "the king sat on the you new like   queen when n ship who such taken simba off ii city city than north most american p more series could is",
+      "she was born in what every been in now two series years science last little years no she n in she of no years held series championship l series",
+      "the city of g their north city k character is east   since she than has their has l via her off character y k from l p",
+      "he played for the its they his pigeon k his original its most r most r be than jordan as could g they more can than r victims r",
+      "the united states final u b r no wing   then out f x this u k k y to k is because v w m x what",
+      "in the beginning of city last than two were   with american be be in with is society team considered   american e   been championship another can former",
+      "the cat sat on the his   on march n the ship on new crew or this than story york three   best r l i more own a for",
+      "it was the first who s then mother e n out   queen test south   v b i i coast in   first they i in she out",
+      "the president of the be all were without two of then the church were first damage in t an league   second first damage series damage been has mph",
+      "they were called the o their called b spens my r are early reported d made spens all december other march from than school in early all r where"
+    ]
+  },
+  {
+    "name": "temp_0.5",
+    "head": "ridge(\u03bb=0.5,n=128)",
+    "kwargs": "{'temperature': 0.5, 'top_k': 50, 'rep_penalty': 1.5}",
+    "samples": [
+      "the king sat on the not within battle d few i some company simba not all no all but this all no new may east r made out which than",
+      "she was born in championship than where r where out she american they american some further some g some north where is she further k show main or or",
+      "the city of g york in been the t were f u the an b e c be be his new could   first but third can their",
+      "he played for the its area way carys their out n the   league   team no t own g no its b an including u squadron several what",
+      "the united states all several coal a t those   d their t on main american   for their she best no this his wing he has great",
+      "in the beginning of began particularly n o made scranton the way their day and with scranton took   u b little wing by a was with including with",
+      "the cat sat on the can they you did could out d been can had not n they been r r l out has out s a n also time",
+      "it was the first first great house he they most what series your series story show original some early own during   final their second my until first united",
+      "the president of the m city than g u y y be g i e military major made be city a than air using damage where x t work",
+      "they were called the d the being e out and from   are t then two stories n i   out h l series story following first series best"
+    ]
+  },
+  {
+    "name": "temp_0.7",
+    "head": "ridge(\u03bb=0.5,n=128)",
+    "kwargs": "{'temperature': 0.7, 'top_k': 50, 'rep_penalty': 1.5}",
+    "samples": [
+      "the king sat on the his league cong all american her n i her her nh they his american because d so t l n own r e because s",
+      "she was born in r h december then january ii city war some n series g i the r may   before g be been coast city then be",
+      "the city of to scranton scranton arrived system no edinburgh l ridge but system for system system added or use system city   than racer for area city",
+      "he played for the including s countries is all k no been support through been   t were than f a r a for r been a e more",
+      "the united states much way the much further th place their were his last all all following were i r s place d out until o y c",
+      "in the beginning of than o week character the all no their g with all than her with most g or d u is winds were sold is t",
+      "the cat sat on the society   field field x took without by out r o of series o e of best all be many which c best t most",
+      "it was the first they was from when their military members t n i many be it l but it when   series including o b p from no",
+      "the president of the system no season   of was john work   no league e wing work left r is because little then no character high be character",
+      "they were called the to and nevin no   made river t she where   all they way they off what up my be we a g all you"
+    ]
+  },
+  {
+    "name": "temp_0.9",
+    "head": "ridge(\u03bb=0.5,n=128)",
+    "kwargs": "{'temperature': 0.9, 'top_k': 50, 'rep_penalty': 1.5}",
+    "samples": [
+      "the king sat on the field church   y t of then moved she no no wing ing k i was where squadron of e wing g all league made",
+      "she was born in in war held since he place found since place the of series made from r on took on found life r years p death early",
+      "the city of to p r has can has i out support i has km early then life own early i y s e she r born n",
+      "he played for the s support been house there been or there an of american e despite f is subject all early   new w story united what early",
+      "the united states much this those their own more   l united all the two during b church for other with small many several he countries e d",
+      "in the beginning of l ny called p considered an called of called much that known or two also eight for set american   three made six little an",
+      "the cat sat on the group in members racer press women can war every york or an order as in new could be england during played order t england to",
+      "it was the first form to early to life has scandium i despite despite major received lead his an   s character r played their this all called no",
+      "the president of the all was reported k found y only by reported american r b no g only what   most this league r n of for was",
+      "they were called the no river great work war no r   not only d campaign but south later n c she years years castro out k last further"
+    ]
+  },
+  {
+    "name": "temp_1.2",
+    "head": "ridge(\u03bb=0.5,n=128)",
+    "kwargs": "{'temperature': 1.2, 'top_k': 50, 'rep_penalty': 1.5}",
+    "samples": [
+      "the king sat on the be my the death reported their on king e season of queen being l considered   r t station at from two most r u",
+      "she was born in be into t she g world this born air r l t a l no almost s out any out an l e t for",
+      "the city of t north p what g who then does south american including northern th following nd than than t three during a p p two  ",
+      "he played for the in your women featured your was for out   than women american their what a no wing field or main a norway england you nh",
+      "the united states was of l this k united sound u m p t united ridge made second k t i   all   two as w first",
+      "in the beginning of during not   only n an when took out then time did test first last only test best or out he r test team were",
+      "the cat sat on the early house took in by second her may air his his be last city space he space he lead great when own t their  ",
+      "it was the first early minnesota it october early york lead his may no also no or who t v she who for who also known on which way",
+      "the president of the   has p t t is can mph through what including k so been rams league then they own was been she t no i",
+      "they were called the clumsy d sarah k had war to t series v were i but was he later his their american he its all power t was"
+    ]
+  },
+  {
+    "name": "topk_5",
+    "head": "ridge(\u03bb=0.5,n=128)",
+    "kwargs": "{'temperature': 0.7, 'top_k': 5, 'rep_penalty': 1.5}",
+    "samples": [
+      "the king sat on the the by by by by the   and and on and   and and by and by and and on and and by by on",
+      "she was born in in the of was the of was the was of by by was by   the of   the the of was the   the",
+      "the city of city of   their their   their their   his   and   for his and and and and   and   and their an",
+      "he played for the he for he their their   the   the the his   and   his the the   and and their the his with the",
+      "the united states in in the of of   united in to to of to   of   the   to of   and   and of of",
+      "in the beginning of in in   the p e o the   c the of   of and   in in in in and in   in in",
+      "the cat sat on the on   of of a on of on of a a a the   of of a   a a of of   of of",
+      "it was the first was it   was were first   it   and first   it   and it   first first   and it it and  ",
+      "the president of the had   was   were   was was   had had   and been and   been   have   and and been and and",
+      "they were called the were a a a t n a   a a t a a of of   and a a   and and with an  "
+    ]
+  },
+  {
+    "name": "topk_10",
+    "head": "ridge(\u03bb=0.5,n=128)",
+    "kwargs": "{'temperature': 0.7, 'top_k': 10, 'rep_penalty': 1.5}",
+    "samples": [
+      "the king sat on the by of out of the i e e the   i l l s n e e and r r o n i a e",
+      "she was born in of her the born e o n t i in   n e o l r i t e r in   and in in",
+      "the city of city of by their of of area n an of of   area for and and city between area   of an t   with",
+      "he played for the   the the he to r l l to i i t n r and t r r t s l l a r o",
+      "the united states united is city to be the as states in for for an is their in is an p an   of for and and their",
+      "in the beginning of of their his the   his his an   their her his with its their   his with its he an an with a  ",
+      "the cat sat on the house   then   she out was   house   new   york   york new was house york   house including   built  ",
+      "it was the first   the r first was t o l l t t a was   first   first first   for one   was a was",
+      "the president of the to the   i a n and of be being t o l e of is of their his of of were of   for",
+      "they were called the from to   called no e a no this called an t e l o i o n a of for   from for  "
+    ]
+  },
+  {
+    "name": "topk_20",
+    "head": "ridge(\u03bb=0.5,n=128)",
+    "kwargs": "{'temperature': 0.7, 'top_k': 20, 'rep_penalty': 1.5}",
+    "samples": [
+      "the king sat on the his i t the   new on i was be he   was is   be t e been t o his g d is",
+      "she was born in was life e in was   t for   d t l f b s l e l and t s g on their on",
+      "the city of has has e been this was had   this his their he an t r s this s for u their his s t and",
+      "he played for the for than a or than those she all no his for their than he he for for their   a he with or in his",
+      "the united states united arsenal on arsenal arsenal been   arsenal early she being been she been her were for an he been is her an is is",
+      "in the beginning of p been is was been his was e is been were most   his have have more   most for r be i be most",
+      "the cat sat on the   his she was no he their no n t o d their for he i a his new for n no most for  ",
+      "it was the first it the the their american first for american were   most a only but his than own were than were   was two from were",
+      "the president of the to   leader d a f n n f d was i r h their t their e   t   for her   on",
+      "they were called the and d l r called s b b b v s b r u and o o b g l c s p t which"
+    ]
+  },
+  {
+    "name": "topk_50",
+    "head": "ridge(\u03bb=0.5,n=128)",
+    "kwargs": "{'temperature': 0.7, 'top_k': 50, 'rep_penalty': 1.5}",
+    "samples": [
+      "the king sat on the death into into may from city their   what not of york much society g years c took years y their new took g own",
+      "she was born in e c o n february against war o g o on part an p in o their and march advantage   for early way  ",
+      "the city of more p the g c c years little n there some g r t i despite y school all called no c than   because",
+      "he played for the own early american he began than way new including days l u than all best later later c where r s in however series d",
+      "the united states each each   order l did won three out then best a who did two space with r three took one or an other with",
+      "in the beginning of p h last out p into down two into she two church she with more her into than no between who new featured then  ",
+      "the cat sat on the his n this her viet new viet noted two although cong john main can were a e m own video i viet will d own",
+      "it was the first early ed been lead have have been choiseul used taken as on late own s i july land december including s c was new the",
+      "the president of the r c is k can you be e e queen use air i their racer power their than their american more those and e k",
+      "they were called the nevin stories american all known reported g   is were sent early reported r l s r o f a than his for considered s"
+    ]
+  },
+  {
+    "name": "topk_100",
+    "head": "ridge(\u03bb=0.5,n=128)",
+    "kwargs": "{'temperature': 0.7, 'top_k': 100, 'rep_penalty': 1.5}",
+    "samples": [
+      "the king sat on the sol ship what can red used during has product without on roger support the been en there rams   city damage with damaged g were",
+      "she was born in is held almost da in then was received released independence version k u march i spence via in y edward way t april   december",
+      "the city of star made more ursa york league days o jordan v by e her g produced role field e robert most ing character mph character following",
+      "he played for the astros they form where sociedad homotopy own spens victims city for than no council u u is their he area   all his two out",
+      "the united states is for three lead place main or only held northern player led victims during all touchdown g school her all sank yard who but who",
+      "in the beginning of has an is through with support using ny fire highly created make north by lead north leader issue get advantage more than beginning winds character",
+      "the cat sat on the owned of group back city my air world an february   another on operated star victims t july said be t pigeon october a november",
+      "it was the first for across took being lb had during press england really spens just stories film late taken super in spence for early played whose early taken",
+      "the president of the without despite those american result women across popular contributions k i much previous took location included last u f her made left water his been",
+      "they were called the a considered with from known w more considered included ing   john only that as popular only argued during h new members two united their"
+    ]
+  },
+  {
+    "name": "topk_200",
+    "head": "ridge(\u03bb=0.5,n=128)",
+    "kwargs": "{'temperature': 0.7, 'top_k': 200, 'rep_penalty': 1.5}",
+    "samples": [
+      "the king sat on the members throne bunker working including left kg death john bengal than december we humpty including water sank team buffalo was also playing rapid sunk region",
+      "she was born in description defined of defined are wrestling championships were functional given form d across last result jordan life battle especially three include t these functions main",
+      "the city of by believed placed th way tna test daulah show her story needed followed north held on your known sy test called secret damage water korea",
+      "he played for the spielberg supported proserv all especially ii composed appeared york by coast supported return moved parts k coast northern work placed independence coast do florida loyal",
+      "the united states league other united for rule earth mission moved united schwarzwelt order church personality education cricket several included later force yorkshire small loyal coal three several",
+      "in the beginning of dv led been directly jordan his scranton on the main resulting two sunk elements three out told an that shot your been major were via",
+      "the cat sat on the small sought future vessels ship y music bird roger protection she lb enemy sank spielberg federation britain in pigeon should drug we great john relatively",
+      "it was the first s together military form daughter due street two performed team great force coal popular test nursery sent when what areas we be last music t",
+      "the president of the wanted or touchdown g was of sought winds against hospital wind north over homotopy d variable south opus b universe england pirate february continuous monster",
+      "they were called the led naya hardboiled each local u revolution sank q lead general sms or red entered bay world early including made cruiser small addition has said"
+    ]
+  },
+  {
+    "name": "topk_500",
+    "head": "ridge(\u03bb=0.5,n=128)",
+    "kwargs": "{'temperature': 0.7, 'top_k': 500, 'rep_penalty': 1.5}",
+    "samples": [
+      "the king sat on the ing earth falk territory nobody father october jenny humpty hank alongside battle now at base originally objectives foreign river manufacture in   ships country chicago",
+      "she was born in house talent name taft knockouts allied astros class does must owned own mart english updated leader city x norse who noirs schedule managed n character",
+      "the city of cyclic taken fritsch swallowing city everybody olson haddock homeless ljungberg warren of courtesy himself studies included fiction council submitted williams originally engineering appears original affairs",
+      "he played for the lost bart week element paramount food d remained music their river near expanded d groza eighth operation own there continuous attempt distribution occurred throughout gun",
+      "the united states coal cruiser leading seminary es mines returned believed carlos how mart transferred d african jesuit edward scavo former second saw grant rollins male prominent today",
+      "in the beginning of being kg by date given ny instead equivalent by prepare spence dassault norway learns edinburgh many when conduits left work early cancer system damaged huffman",
+      "the cat sat on the you bey limited reach following full meet oxide al australia over quarter educated howard join limited this match en overseer german quickly via four adult",
+      "it was the first remained consisting peak late how really days miss off won party dv lb critic been work williams positions towards viet could we elements resulting synthetic",
+      "the president of the probably is widely passenger out characters held noting originally press higher tubman publication england parts walpole ud their citadel huffman whether test do station name",
+      "they were called the think somerset visited cooney rape featuring inside women males alan former used east significant out hospital guinea issues mines more areas believed ti sy model"
+    ]
+  },
+  {
+    "name": "reppn_1.0",
+    "head": "ridge(\u03bb=0.5,n=128)",
+    "kwargs": "{'temperature': 0.7, 'top_k': 50, 'rep_penalty': 1.0}",
+    "samples": [
+      "the king sat on the war th or region world g centre or all racer all united she   there all in ridge two each p way the on two",
+      "she was born in born of where high following form been   t being l r via via than an my for   an league a the playing on",
+      "the city of   north big some than   damage l   the win some city no e wing l e y between or town many   out",
+      "he played for the united own all best the music three city video lead   only p i a form on their two way or other many support a",
+      "the united states ali m main main did time can large l l when new first b may later in l no second that later all l three",
+      "in the beginning of october g e been their found american she or found found own p her known a e or an lead williams has one part two",
+      "the cat sat on the in society in on an out in star took may held held victims early then bunker featured considered featured fire bunker x they including featured",
+      "it was the first which this from last been were being for was this into d l which two their which d from gi two d most most t",
+      "the president of the has held through can r no out american damage best because a out a out a made first than league more i has i y",
+      "they were called the nevin v league those all   k f were have only there x i last reported   f series took story best because out power"
+    ]
+  },
+  {
+    "name": "reppn_1.2",
+    "head": "ridge(\u03bb=0.5,n=128)",
+    "kwargs": "{'temperature': 0.7, 'top_k': 50, 'rep_penalty': 1.2}",
+    "samples": [
+      "the king sat on the of group or field field their centre all town first reported what out   only work considered their city of   out jordan were two",
+      "she was born in moved almost war is not r but e p a she system h t n what v d she he he your all military was",
+      "the city of   has general this been own has city k york   on state no chicago league own r little wing with on for e his",
+      "he played for the house the city what new this ship   it   william r e does k l l david as no what she t e there",
+      "the united states states is t work original to used system way designed work including best united their last l c was league been best england no continuing",
+      "in the beginning of began t most by during century t th p an u with l l out september p the an p an of than be or",
+      "the cat sat on the their a my out most an can an used f r d use t their area using l no f d for than for area",
+      "it was the first system then test first km third best mph then without system what out best form work sexual series form because because coast york for early",
+      "the president of the all two all then r i each a all other church or main touchdown continued then small later in out a then series early out",
+      "they were called the e and all only early called between known river they included reported during r is known war or company   during t at most east"
+    ]
+  },
+  {
+    "name": "reppn_1.5",
+    "head": "ridge(\u03bb=0.5,n=128)",
+    "kwargs": "{'temperature': 0.7, 'top_k': 50, 'rep_penalty': 1.5}",
+    "samples": [
+      "the king sat on the of or society n no than about of not society their society that small best n a order she all league women he three r",
+      "she was born in championship into she been two more they days k main r l following of its she e he of series main school their their out",
+      "the city of states w t a began who united years o years former g kingdom northern three new or series later there or e i he university",
+      "he played for the where in may against against be sarah chicago e i p city h most h during than two k a three or during states two",
+      "the united states led be when all t be the c all then be those early are held later other k o her by   years k three",
+      "in the beginning of through sy each own through began n another on started main on character her so northern o be on north be   their was were",
+      "the cat sat on the did around popular i out h along made said without took new l main made main was n main best their western team most church",
+      "it was the first the original   i final was was within but may later not third she new would and no r r later n x what no",
+      "the president of the chicago w e g t a her mph mph despite a without with despite a their each k only winds high r no new despite",
+      "they were called the their river with main her most they nh were   g been l with his r her nh for with no little league off back"
+    ]
+  },
+  {
+    "name": "reppn_2.0",
+    "head": "ridge(\u03bb=0.5,n=128)",
+    "kwargs": "{'temperature': 0.7, 'top_k': 50, 'rep_penalty': 2.0}",
+    "samples": [
+      "the king sat on the v american king s a e i v of military of series no is no without no being be single g were was for was",
+      "she was born in ridge is death born his series house what york their not first york on out be on into work new league scranton jordan be baseball",
+      "the city of home york family most until then some when no damage is left g held y held damage what out elements who g took through first",
+      "he played for the taken all as league from choiseul ing york including including k not to w s w f t h b scranton to played coast y",
+      "the united states over former sarah former order space church four built president united eight second new little best during revolution great test including during what as  ",
+      "in the beginning of   work despite   no their choiseul ed city own death p ed out jordan   of o a two her other league his r",
+      "the cat sat on the big out in pigeon group my then they to second to league she in into what on in our north be t out be last",
+      "it was the first system their mph   t it star k   u which because york last john r little series was role story k because most or",
+      "the president of the general r states t years   the one governor air r k american to series force character we what city new we military k most",
+      "they were called the most also t b cong house viet ship e t d o war league nh league i in what started north   gi was this"
+    ]
+  },
+  {
+    "name": "reppn_3.0",
+    "head": "ridge(\u03bb=0.5,n=128)",
+    "kwargs": "{'temperature': 0.7, 'top_k': 50, 'rep_penalty': 3.0}",
+    "samples": [
+      "the king sat on the be power back not american over most out were r been american have a also early were more all be is were force become power",
+      "she was born in in citadel found r support s citadel p g series k in k t american b no there there is way be where x because",
+      "the city of since october c states than out american much included river group were more and any between city led o y e p c c with",
+      "he played for the s on march or the who way she he december mother has original queen u york her for work taken october what such been victims",
+      "the united states states be then t of held did states bunker during jaws t r a out united should the considered i f c v was church",
+      "in the beginning of held c q e military their   year out jordan an two r early o field his took years field g is o his p",
+      "the cat sat on the of a in p support damage city out   new what city y in my league during you way the way american she series down",
+      "it was the first held racer is held championship despite the made out through a played new who   york   february family no league g b c e",
+      "the president of the lincoln t o later l k years of mph be been american f been on what she she more n this no wing series made",
+      "they were called the k but g r are cong were no c been is there is r is american x but of not early they this american be"
+    ]
+  },
+  {
+    "name": "reppn_5.0",
+    "head": "ridge(\u03bb=0.5,n=128)",
+    "kwargs": "{'temperature': 0.7, 'top_k': 50, 'rep_penalty': 5.0}",
+    "samples": [
+      "the king sat on the without king s addition simba was in was on been from form taken been at been g his their had k out american own featured",
+      "she was born in story way during war where then she system was two character series who every by best could best another in order other their moved own",
+      "the city of to their general e all two of york church big n o n the league about reported i winds k baseball some early r d",
+      "he played for the taken league no york death he two t i she new storm these space general are series in ii featured baseball when league in all",
+      "the united states lee is united the   most l y more as be a this this york often than be york not press in october g second",
+      "in the beginning of   than than rather c like but more being of g almost she much than american their league o for l the an their p",
+      "the cat sat on the big i e in of damage scandium herbie used this city g victims out into be y d of be v k x b they",
+      "it was the first mph km v of t miles f their w i including universe led been victims october under   now was coast mph   in was",
+      "the president of the all general around had been when scandium and the form first second their his than rather n between t a h victims   three was",
+      "they were called the t s unified form ing   no new but any air g made a early or he up main l h was all moved considered"
+    ]
+  },
+  {
+    "name": "freqpn_0.0",
+    "head": "ridge(\u03bb=0.5,n=128)",
+    "kwargs": "{'temperature': 0.7, 'top_k': 50, 'rep_penalty': 1.5, 'freq_penalty': 0.0}",
+    "samples": [
+      "the king sat on the n this on scranton second ed cool american all winds scranton most   terror winds way up scranton of damage last l   most main",
+      "she was born in war work l the series on where show in the all north television her e the v n o v g y there x series",
+      "the city of since l in war new been p during pigeon since was is he   been own her e u o despite be s n they",
+      "he played for the but two eight but however who their for they   john this but american states power john from w than british w much b or",
+      "the united states second only her left made r following e made took for their her given his led on their pigeon no league women day no despite",
+      "in the beginning of of l north century o the g east started all road is in i e started first off support her then   l was off",
+      "the cat sat on the american w she   d can city some by may could is not d is these queen would would could new main work northern be",
+      "it was the first the r choiseul her first simpsons was then final city and this second final final following   was r another another is work his an",
+      "the president of the are series are first first   which without released made first then history these in which first c was march p u w c no",
+      "they were called the so no   g r form but use g high made york used was team early his may was late o league t following early"
+    ]
+  },
+  {
+    "name": "freqpn_5.0",
+    "head": "ridge(\u03bb=0.5,n=128)",
+    "kwargs": "{'temperature': 0.7, 'top_k': 50, 'rep_penalty': 1.5, 'freq_penalty': 5.0}",
+    "samples": [
+      "the king sat on the new britain group may form been scranton been own been called jordan led caine song ing or than name less be name city genus what",
+      "she was born in he story campaign mother e early mae later air years e old said force racer schwarzwelt first campaign ridge same i school time your same",
+      "the city of scandium pigeon being choiseul original york led including choiseul scandium kakapo average scranton being american who played been former who than american had more also",
+      "he played for the has than on t final game series brody all best all main these final p early main commission late what viet my were campus then",
+      "the united states lee mph winds h mph storm born mph mph no estimated v power most own who during no k despite than areas led great what",
+      "in the beginning of between east each east last through main delsin my city then most later more more k main television not new than new song be york",
+      "the cat sat on the early new own my reported noted final should out be last they own featured moved my lead song what she being american being be despite",
+      "it was the first great sy main has northern than out their northern series t western l character your role l parts south in what out she her your",
+      "the president of the president k school y then high be form can form form stable h early homotopy any states considered team form groups who own who p",
+      "they were called the be stories use is leader being d bird without featured york racer used no this choiseul ing use was league team or racer coast other"
+    ]
+  },
+  {
+    "name": "freqpn_10.0",
+    "head": "ridge(\u03bb=0.5,n=128)",
+    "kwargs": "{'temperature': 0.7, 'top_k': 50, 'rep_penalty': 1.5, 'freq_penalty': 10.0}",
+    "samples": [
+      "the king sat on the war daulah up by all then has by through citadel damage on daulah including including taken simpsons food out episodes citadel members story found then",
+      "she was born in without death lead use series war where lead victims chicago y her their live last rihanna every use my little than my choiseul your she",
+      "the city of big so league when including had two area damage choiseul revolution than there ursa during spence several what she ridge nd league days most great",
+      "he played for the functions states house or took small took american large last test or be played lb females space before males food will pigeon than way character",
+      "the united states much their for american german own ships erzherzog last vessels k t erzherzog own for sank jordan women off scranton championship choiseul for tna york",
+      "in the beginning of in between p each new than superheroes character watchmen another their between their name damage name winds new new cyclone floods cyclone way reported story",
+      "the cat sat on the prime continued city quickly universe found small her found little leader been big team out league started down off american his been williams sank what",
+      "it was the first simpsons military being having all major choiseul relief those two being played played jordan really two do another together featured t space can originally revolution",
+      "the president of the yard out make returned american test england yorkshire league really league form coal jordan church south what branch way there form coal series their system",
+      "they were called the clumsy so nh victims k their war there x gi nh gi ing has fire this t f two viet added ing jaws later w"
+    ]
+  },
+  {
+    "name": "freqpn_20.0",
+    "head": "ridge(\u03bb=0.5,n=128)",
+    "kwargs": "{'temperature': 0.7, 'top_k': 50, 'rep_penalty': 1.5, 'freq_penalty': 20.0}",
+    "samples": [
+      "the king sat on the battle no really best usually your greeley battle appears last roger series socialist wrestling started es yorkshire aleph yorkshire come racer all american aleph theatre",
+      "she was born in who character her science create played what role scranton damage their previous what coastal best nh own their best super main her damage field series",
+      "the city of fire coal victims last sarah members functions herbie nevin our es death greeley commission years erzherzog your your himself early whose including coal use lb",
+      "he played for the choiseul team won states professional bird your their support pigeon pigeon league former choiseul their particularly spence en played pigeon castro being indigenous coal gi",
+      "the united states nawab all come most ud american should was colliery sms series ridge work parts colliery story pohl second range held zone issue final range your",
+      "in the beginning of great their falk norse ship super work cruiser bears being scranton being their ships nh en rams he polaris jordan viet falk discovers enemy viet",
+      "the cat sat on the based like drug battalion smuggling hospital mines marines plots spence functions powers marines branch south test air survey test science york then lb our east",
+      "it was the first first rams early including october house sold played walpole way sold ness including your form released what played then no little story version taken flies",
+      "the president of the tribune church greeley delsin jordan become held own lived original story held story championship come added best victims who main lou en en western who",
+      "they were called the form held naya nh dv february present championship called citadel use founded tag than tna northern enemy their racer ing hamersley called jordan himself man"
+    ]
+  },
+  {
+    "name": "freqpn_50.0",
+    "head": "ridge(\u03bb=0.5,n=128)",
+    "kwargs": "{'temperature': 0.7, 'top_k': 50, 'rep_penalty': 1.5, 'freq_penalty': 50.0}",
+    "samples": [
+      "the king sat on the founded referendum cooney ing anna anna anna aves mae notable schedule citadel falk delsin castro church cong castro delsin racer kovu sequel nh gi rebels",
+      "she was born in commutative managed dv humpty test da commutative started yorkshire spens dv yorkshire existed dv priory opus en drug caine gay delsin hamersley sp spender dv",
+      "the city of spheres dv flies wilhelm mole your hamersley our erzherzog conditional cong sy austro exception queen commission colliery ships gore er viet exception where northern demons",
+      "he played for the space coast magnitude jordan jean en your le ing no spens aves tours via appears appears taken yorkshire kakapo le main victims author spence flies",
+      "the united states church church independence ud coal plants siraj been grower foods mughal miss miss plants yorkshire been early ali flies florida commission yorkshire ali university walpole",
+      "in the beginning of fernandez lang fernandez assertion food olds spens our my spens universe choiseul knockouts sp opus spender championship functions appears sp nh tna your humpty continuous",
+      "the cat sat on the pigeon damage greeley my birds choiseul ursa won variable falk racer inaugural league nea sank league ship cricket cruiser sailing sailing spielberg sank herbie league",
+      "it was the first colliery championship founded champions mole founded sport owned spence tag formerly wonderbra tna wonderbra market spenser spence acres jordan functions knockouts falk knockouts typhoon product",
+      "the president of the nawab rosi soci sociedad ladies spens birds evita reported racer spens racer spender ar hamersley choiseul assertion revolution en flies my your own chalukyas mei",
+      "they were called the ing choiseul spens winds ing greenwood ing pigeon held means jordan racer scandium mines appears spike spike ridge iron lee namco sequel ing sympathetically scandium"
+    ]
+  },
+  {
+    "name": "freqpn_100.0",
+    "head": "ridge(\u03bb=0.5,n=128)",
+    "kwargs": "{'temperature': 0.7, 'top_k': 50, 'rep_penalty': 1.5, 'freq_penalty': 100.0}",
+    "samples": [
+      "the king sat on the queen gore matilda daulah kiara aleph functions colliery mem citadel colliery da scar ud donor da dv priory males polaris schwarzwelt simpsons da understands television",
+      "she was born in dv proserv hamersley rams sable submitted relief da sp racer assertion choiseul revolution arcade naya robin spenser walpole nh gi kh ar en vietnam greeley",
+      "the city of foretold manning peninsula manning daulah oxygen ud dv touchdowns oxygen stories greenwood hadji delsin alcohol lou daulah halfback trachea siraj larynx aleph yorkshire proved functions",
+      "he played for the seized shin falk kovu hamersley smoking nh walpole edinburgh cong federation pohl yorkshire gi browns viet paying scandium racer priory greeley mace herbie conditional en",
+      "the united states manchester anna anna walpole tag independence marines champions cruiser kg mole kaneko independence walpole kakapo mart ida jos independence hamersley revolution choiseul en eva sp",
+      "in the beginning of sy asserts saptibha predications korea hamersley homomorphism greenwood nia dv homomorphism crematorium tna conditional karl bengal browns naya chicago predications wherein visits conditional chola meanwhile",
+      "the cat sat on the rebel sank sank trachea sunk cella reach siraj entered viet trachea da spence productions sp aleph mughal ridge caine caine dv universe colliery lang schedule",
+      "it was the first owners relief noirs owners sable kenney pigeon aves du church butler fuller le feral fierstein le spenser yorkshire haddock relief pohl pigeon chola opus lee",
+      "the president of the particularly biogeography nawab researchers hadji racer nh sequel megami nawab tensei particularly herbie tensei ursa norse minor gore tensei victims pirate yorkshire continuing hinckley attracted",
+      "they were called the pigeon nsberg protection abundant busan greeley food fairfax pohl castro magazines sarah pigeon pohl spenser constellation assertion parrot habroptila nh assertion greeley julian fernandez nh"
+    ]
+  },
+  {
+    "name": "combo_0",
+    "head": "ridge(\u03bb=0.5,n=128)",
+    "kwargs": "{'temperature': 0.5, 'top_k': 20, 'rep_penalty': 2.0, 'freq_penalty': 10.0}",
+    "samples": [
+      "the king sat on the battle road been east victims league victims carys mines their south their from north air be league has many field from been field many land",
+      "she was born in moved where she addition g g l r addition l e o f y n many further two l y further ny early then out",
+      "the city of p most city where most p where century th has nd years fire first fire out my then via your second more then her church",
+      "he played for the area been has was house their been league choiseul york be own no no squadron early she wing this series including series made show early",
+      "the united states much but states than than all city she little years three her church church all than all these their these new for these several church",
+      "in the beginning of early scranton scranton sank then her repairs city scranton american penguin being what her new new her york new northern their area original new northern",
+      "the cat sat on the pigeon ship can most could two then or they held she out bunker be may they series may early will later bunker t e been",
+      "it was the first was racer york was york winds pigeon pigeon no york last pigeon city sarah he no use pigeon pigeon no pigeon won their areas choiseul",
+      "the president of the be the been no only or been been air this been an made be taken taken has given come been taken considered or taken fire",
+      "they were called the were former they they become their were following called its were no his its own its k this k called league were most most for"
+    ]
+  },
+  {
+    "name": "combo_1",
+    "head": "ridge(\u03bb=0.5,n=128)",
+    "kwargs": "{'temperature': 0.6, 'top_k': 30, 'rep_penalty': 1.5, 'freq_penalty': 20.0}",
+    "samples": [
+      "the king sat on the death sy ud held where flies out da ii where flies scandium dv should will all males you females then moved victims taken average males",
+      "she was born in she managed he house own own managed led for jordan own death death racer revolution space years space months elements days considered space racer way",
+      "the city of has mph american wind crew american damage sudestada mph rams science what typhoon space throughout noir science hardboiled genre author what coast space your story",
+      "he played for the choiseul playing viet featured nevin appeared browns become league become considered form delsin featured jordan league falk ing professional their usa called nevin what what",
+      "the united states mph story rihanna lb church originally than kg without church kg way church opus early than cross be elements lb test early williams catholic test",
+      "in the beginning of campaign campaign butler way jordan gi via most sank than championship way nh tna championship through wrestling week tna team professional all jordan champions professional",
+      "the cat sat on the owned championship out pigeon form wrestling then she tna owned victims test wrestling company world form tna or x won functions including castro they castro",
+      "it was the first she no really mother people daughter death really world she what mother most mother what championship children castro system jordan story tag racer most further",
+      "the president of the been their their former president yard mughal added his former league team general castro athletic spence women school league what led former spenser high robert",
+      "they were called the so they taylor viet early walpole cong little this they years later great pohl little years parrot this river nh way days than means jordan"
+    ]
+  },
+  {
+    "name": "combo_2",
+    "head": "ridge(\u03bb=0.5,n=128)",
+    "kwargs": "{'temperature': 0.7, 'top_k': 50, 'rep_penalty': 2.0, 'freq_penalty': 50.0}",
+    "samples": [
+      "the king sat on the converted sank brick sailing yorkshire test coal miss q citadel form structures damascus what interior flagg tag osijek aleph victims himself mph placed herbie interior",
+      "she was born in habroptila gauthier gauthier sarah aves aves gauthier victims your gabrielle fritsch tropical form featured lou xiao own chola nh spens my nh carlos athletic ridge",
+      "the city of big demons big greeley every yorkshire lb nevin young buffalo ali revolution damascus ursa mae hamersley nh racer your humpty popular yorkshire tna northern castro",
+      "he played for the magnitude castro homotopy ships commutative mph erzherzog rihanna revolution revolution typhoon arcade nh scandium hungarian oxygen greeley tensei choiseul castro racer buffalo bisons held knoxville",
+      "the united states countries citadel noirs departments revolution barracks struck dv lb korea clive invaded kyle lou rams york xiao comic crematorium angel featured fallen detective simba keppel",
+      "in the beginning of fallen towards yorkshire nh fairfax arsenal priory nevin flies ridge opus olds stebbins cong kh walpole somerset dei estate greeley fuller catholic uniting cubitt scandium",
+      "the cat sat on the cong ness canadian sy al our functions falk sy air dv cong whose colliery simpsons whose greeley schedule church survey racer dei whose greeley nh",
+      "it was the first nevin ridge minnesota greeley championship noirs space press universe test space played mae field space system flies church champions institute avialae championship church owned wrestling",
+      "the president of the evita miss former lead daughter edgar daughter house rockets started herbie jordan racer le ar shot story areas attracted appears spens falk spens advantage castro",
+      "they were called the so unified bunker product so featured jordan bundy functions reported typhoon choiseul falk scranton parrot pigeon racer damage tag revolution what knockouts tna sarah rams"
+    ]
+  },
+  {
+    "name": "combo_3",
+    "head": "ridge(\u03bb=0.5,n=128)",
+    "kwargs": "{'temperature': 0.4, 'top_k': 10, 'rep_penalty': 3.0, 'freq_penalty': 30.0}",
+    "samples": [
+      "the king sat on the society flies king war can ii ud national can daulah national aleph queen damage pride mph no your no chola rams en there flies rams",
+      "she was born in racer death her she being her ridge without own nh she cong husband victims sarah she great gi mother her their racer viet schwarzwelt battle",
+      "the city of called called city called called called known york so considered spens called form most called effort where stories during elements called racer all church publication",
+      "he played for the league baseball team jordan championship played no he tna no wrestling nevin own tna space his title their vs your my tag out hamersley women",
+      "the united states countries church opus all church united second anglican place jordan early third catholic final uniting fourth roman non all church main elements main opus space",
+      "in the beginning of scranton led penguin took citadel rams following last jordan despite siege parallel week under battle delsin damascus space main sank campus q ship mph coast",
+      "the cat sat on the out then small ali city city ud york moved american area what south american damage coast american league american league video arsenal jordan best mph",
+      "it was the first mph km ship mph cruiser sank mph winds wind off throughout mph queen story damage sarah gusts rams create rainfall use greeley km use herbie",
+      "the president of the president president former independence own revolution castro led new delsin simba jordan herbie callie roger featured ali system le ali church le under q church",
+      "they were called the no they wing world no naya york tna new tag own championship own their championship new new his york team scranton britain their new his"
+    ]
+  },
+  {
+    "name": "combo_4",
+    "head": "ridge(\u03bb=0.5,n=128)",
+    "kwargs": "{'temperature': 0.8, 'top_k': 100, 'rep_penalty': 1.3, 'freq_penalty': 5.0}",
+    "samples": [
+      "the king sat on the without queen turned december october whose our character they as sailing then she ships whose km victims e could no not or did an be",
+      "she was born in being performed area without found using opened an championship rams found champions fire worked been their final for champions his of via used no leader",
+      "the city of spanish owners work he performed an she nevin e own under experimental particularly every their form en my ridge water jordan level popular than league",
+      "he played for the test mother mole born during moved born who place or included played used spielberg building williams falk er western falk south song road story professional",
+      "the united states three their sunk only angel interior navy last enemy following falk including rams big held an lee lincoln herbie received walpole was so american york",
+      "in the beginning of next da every these your t between hours falk whose did known power only p coal lived winds florida television racer york noted delsin hank",
+      "the cat sat on the air over yorkshire will united held lead moved anna racer lived mines worked powers without said took december an despite test england use over arsenal",
+      "it was the first her their campaign t work out france prince september f vs roger then now chicago including en e scranton featured my mph or fierstein will",
+      "the president of the p without lb being city en campaign g during she new en own your f will press then en u star t browns out butler",
+      "they were called the world river out over xiao took korea made force away placed early did create started york stories then placed best from coast given ing best"
+    ]
+  }
+]

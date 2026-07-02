@@ -1,0 +1,74 @@
+{
+  "id": "20260702-062902-sweep-776b21",
+  "environment": "tree",
+  "created": "2026-07-02T06:29:02",
+  "config": {
+    "branching_factor": 4,
+    "context_window": 16,
+    "embed_dim": 32,
+    "context_dim": 64,
+    "routing_layers": 2,
+    "max_samples": 16000,
+    "encoder_generations": 40,
+    "encoder_speed_generations": 0,
+    "encoder_time_budget": 0.5,
+    "pop_size": 60,
+    "generations": 60,
+    "mutation_rate": 0.15,
+    "elite_frac": 0.2,
+    "seed": 1234,
+    "environment": "tree",
+    "sweep": {
+      "routing_layers": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "branching_factor": [
+        4,
+        16
+      ],
+      "context_dim": [
+        64,
+        128,
+        256
+      ],
+      "embed_dim": [
+        32,
+        64
+      ],
+      "context_window": [
+        8,
+        16,
+        32
+      ],
+      "generations": [
+        40,
+        80
+      ],
+      "pop_size": [
+        40,
+        80
+      ],
+      "encoder_generations": [
+        40,
+        80
+      ],
+      "encoder_speed_generations": [
+        0,
+        40
+      ],
+      "encoder_time_budget": [
+        0.15,
+        0.5,
+        1.0
+      ]
+    }
+  },
+  "started": {
+    "notes": "config sweep: routing_layers\u2208[0, 1, 2, 3, 4], branching_factor\u2208[4, 16], context_dim\u2208[64, 128, 256], embed_dim\u2208[32, 64], context_window\u2208[8, 16, 32], generations\u2208[40, 80], pop_size\u2208[40, 80], encoder_generations\u2208[40, 80], encoder_speed_generations\u2208[0, 40], encoder_time_budget\u2208[0.15, 0.5, 1.0]"
+  },
+  "status": "finished"
+}

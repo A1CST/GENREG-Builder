@@ -1,0 +1,147 @@
+{
+  "id": "20260702-125732-tree-121c30",
+  "environment": "tree",
+  "status": "finished",
+  "finished": "2026-07-02T12:57:43",
+  "gen": 17,
+  "best": {
+    "score": 0.198,
+    "base": 0.336
+  },
+  "checkpoint": "model.npz",
+  "eval": {
+    "accuracy": 0.198,
+    "train_accuracy": null,
+    "bigram_accuracy": 0.336,
+    "tokens_per_sec": 105210.05367982743,
+    "unique_predictions": 15,
+    "target_entropy": 4.574107456998543,
+    "total_params": 58964,
+    "train_seconds": 10.8
+  },
+  "encoder": {
+    "nc_accuracy": 0.2705,
+    "samples": 2000,
+    "generations": 15,
+    "pop_size": 40,
+    "start_context_dim": 64,
+    "context_dim": 64,
+    "evolve_dims": false,
+    "time_constrained": true,
+    "time_budget": 0.5,
+    "active_fraction": 0.4579,
+    "diversity": true,
+    "diversity_budget": 0.5,
+    "redundancy": 0.0681,
+    "speed_generations": 5,
+    "speed_nc_accuracy": 0.2455,
+    "speed_active_fraction": 0.1963,
+    "speed_time_budget": 0.5,
+    "curves": {
+      "encoder": [
+        {
+          "gen": 0,
+          "best": 0.1025,
+          "mean": 0.0485
+        },
+        {
+          "gen": 1,
+          "best": 0.1025,
+          "mean": 0.0799
+        },
+        {
+          "gen": 2,
+          "best": 0.1025,
+          "mean": 0.0859
+        },
+        {
+          "gen": 3,
+          "best": 0.1035,
+          "mean": 0.0882
+        },
+        {
+          "gen": 4,
+          "best": 0.1044,
+          "mean": 0.0898
+        },
+        {
+          "gen": 5,
+          "best": 0.1044,
+          "mean": 0.0963
+        },
+        {
+          "gen": 6,
+          "best": 0.1067,
+          "mean": 0.0981
+        },
+        {
+          "gen": 7,
+          "best": 0.1112,
+          "mean": 0.0992
+        },
+        {
+          "gen": 8,
+          "best": 0.114,
+          "mean": 0.103
+        },
+        {
+          "gen": 9,
+          "best": 0.1156,
+          "mean": 0.1063
+        },
+        {
+          "gen": 10,
+          "best": 0.1174,
+          "mean": 0.111
+        },
+        {
+          "gen": 11,
+          "best": 0.1204,
+          "mean": 0.115
+        },
+        {
+          "gen": 12,
+          "best": 0.1221,
+          "mean": 0.1136
+        },
+        {
+          "gen": 13,
+          "best": 0.1221,
+          "mean": 0.114
+        },
+        {
+          "gen": 14,
+          "best": 0.1243,
+          "mean": 0.1175
+        }
+      ],
+      "encoder-speed": [
+        {
+          "gen": 0,
+          "best": 0.1708,
+          "mean": 0.0541
+        },
+        {
+          "gen": 1,
+          "best": 0.1708,
+          "mean": 0.1028
+        },
+        {
+          "gen": 2,
+          "best": 0.1737,
+          "mean": 0.1527
+        },
+        {
+          "gen": 3,
+          "best": 0.1744,
+          "mean": 0.1636
+        },
+        {
+          "gen": 4,
+          "best": 0.1763,
+          "mean": 0.1684
+        }
+      ]
+    }
+  }
+}

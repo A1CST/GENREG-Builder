@@ -1,0 +1,144 @@
+{
+  "genreg": {
+    "model": "GENREG Wiki LLM",
+    "device": "cuda",
+    "gpu": {
+      "name": "NVIDIA GeForce RTX 4080",
+      "total_mb": 16709.255168
+    },
+    "size": {
+      "disk_mb": 516.720087,
+      "evolved_params": 12056520,
+      "vram_allocated_mb": 217.486336,
+      "vram_reserved_mb": 1440.743424
+    },
+    "speed": {
+      "generation_tokens_per_sec": 29.415732360891287,
+      "generation_ms_per_token": 33.99541400946104,
+      "encoding_tokens_per_sec": 71476.1934368545,
+      "encoding_ms_per_pass_512": 7.163224220275879,
+      "peak_vram_mb": 222.718464
+    },
+    "samples": [
+      {
+        "prompt": "the king sat on the",
+        "output": "the king sat on the   only   the   second   of   which   was   in   and   it   also   has   one   for   the band   had   with   his   first   and most"
+      },
+      {
+        "prompt": "she was born in",
+        "output": "she was born in   the   first   time   in   it   was   also   used   on   march   and   the band   toured   in its   champions   of   each   type   will"
+      },
+      {
+        "prompt": "the city of",
+        "output": "the city of   the   second   and   in   he   was   not   as   part   of   an   area   before   the series   in its   way   which   peaked   at"
+      },
+      {
+        "prompt": "he played for the",
+        "output": "he played for the   french   and   english   in   the   second   time   of   its   first   airing   as   it   was   also   the previous   year   and down   motion"
+      },
+      {
+        "prompt": "the united states",
+        "output": "the united states   that   the   new   york   and   on   may   he   was   in   any   of   the previous   year   and alex   james   told   by   this"
+      },
+      {
+        "prompt": "it was the first",
+        "output": "it was the first   time   in   the   early   on   but   that   it   was   not   been   for   his   performance   and   the series   to   be   played  "
+      },
+      {
+        "prompt": "the president of the",
+        "output": "the president of the   plant   the   new   york   city   and   in   he   was   also   used   to   be   one   of   the previous   year   as   well  "
+      },
+      {
+        "prompt": "during the second world war",
+        "output": "during the second world war   and   the   first   time   in   its   original   broadcast   of   later   with   no   longer   on   the hebrew   and down   motion   of marked  "
+      },
+      {
+        "prompt": "the film was directed by",
+        "output": "the film was directed by   the   end   of   his   career   with   an   english   and   at   its   best   known   for   the moon   was   one   of marked   by"
+      },
+      {
+        "prompt": "the church was built in",
+        "output": "the church was built in   the   first   time   in   and   served   as   one   of   his   earlier   work   paterson   new   jersey   and most   part   he   is  "
+      },
+      {
+        "prompt": "the album was released in",
+        "output": "the album was released in   the   first   time   in   his   career   and   he   was   not   well   as   the band   toured   with   tom   green   and most   of"
+      },
+      {
+        "prompt": "the team won the championship",
+        "output": "the team won the championship   and   all   the   time   of   his   first   novel   by   american   recording   and down   this   was   one   of the   plant   but   with"
+      }
+    ]
+  },
+  "gpt2": {
+    "model": "GPT-2 Small",
+    "device": "cuda",
+    "gpu": {
+      "name": "NVIDIA GeForce RTX 4080",
+      "total_mb": 16709.255168
+    },
+    "size": {
+      "disk_mb": 497.759232,
+      "evolved_params": 124439808,
+      "vram_allocated_mb": 498.55897600000003,
+      "vram_reserved_mb": 555.74528
+    },
+    "speed": {
+      "generation_tokens_per_sec": 129.33683520685724,
+      "generation_ms_per_token": 7.731749415397644,
+      "encoding_tokens_per_sec": 42584.32312242299,
+      "encoding_ms_per_pass_512": 7.068328857421875,
+      "peak_vram_mb": 512.512512
+    },
+    "samples": [
+      {
+        "prompt": "the king sat on the",
+        "output": "the king sat on the throne, his face covered with a red cape, his hair tied in a bun. The king was seated in the right hand, and the king took a seat with his right hand, and the king"
+      },
+      {
+        "prompt": "she was born in",
+        "output": "she was born in England and raised in the village of St. Eustace in the south of England. There she married a farmer named William Maclean. The couple moved to the town of Wittenberg and in"
+      },
+      {
+        "prompt": "the city of",
+        "output": "the city of Rijeka in the Netherlands, where a new city complex is being constructed to create a new center for the city.\n\nThe facility is expected to create a new center for the city, the"
+      },
+      {
+        "prompt": "he played for the",
+        "output": "he played for the Giants in the first nine games of his career and has played in all 16 games for the team this season.\n\n\"He's a young kid, and he's an older kid,\" Giants coach"
+      },
+      {
+        "prompt": "the united states",
+        "output": "the united states of the union.\"\n\n\"The question of unionism as a social science,\" he added, \"is a question of historical fact, and the present policy of the United States government is not the"
+      },
+      {
+        "prompt": "it was the first",
+        "output": "it was the first, and last, attempt to convince the world that the whole \"World Wars\" thing really is a fake. The American and British governments, they realized, would have to give their money for the war"
+      },
+      {
+        "prompt": "the president of the",
+        "output": "the president of the United States. After the election, Trump said, \"I'm going to be able to tell you what I know now, I'm going to tell you what I've done before, I'm going"
+      },
+      {
+        "prompt": "during the second world war",
+        "output": "during the second world war, the Nazis sent the Nazis-a group of young men who were well-dressed and who had been trained in the art of drawing. After the war, Adolf Hitler was able to put on"
+      },
+      {
+        "prompt": "the film was directed by",
+        "output": "the film was directed by George Michael. It was produced by Michael and David Zucker.\n\nIn the movie, the film was written and directed by Adam Horowitz, who is also a member of the Warner Bros. and Warner"
+      },
+      {
+        "prompt": "the church was built in",
+        "output": "the church was built in 1487 and was named after the founder of the church, who was killed in 1492. In the early 1700s, several churches were built in the city of Alexandria, and one church was built"
+      },
+      {
+        "prompt": "the album was released in",
+        "output": "the album was released in the US in October 2010.\n\nOn the album, the band also included a song called \"Bitter Blood\" which was released in the UK in February 2014 and performed by the band's members"
+      },
+      {
+        "prompt": "the team won the championship",
+        "output": "the team won the championship in 2012. It was a great year for a lot of people.\n\n\"I had a great year in the team as well.\"\n\nThe win also marks a comeback for coach Tony Adams"
+      }
+    ]
+  }
+}

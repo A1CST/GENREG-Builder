@@ -50,6 +50,10 @@
         break;
       case "status": $("tlm-status").textContent = ev.message; break;
       case "run": if (ev.id) $("tlm-status").textContent = `run ${ev.id}`; break;
+      case "job":                    // sent after snapshot replay on (re)attach
+        running = !!ev.running;
+        setButtons();
+        break;
       case "corpus":
         $("tlm-corpus").textContent =
           `${ev.source} — ${ev.train_samples.toLocaleString()} train / ${ev.test_samples.toLocaleString()} test windows`;
@@ -238,7 +242,8 @@
     const kind = n.leaf ? "leaf" : "router";
     const acc = n.acc === null ? "—" : (n.acc * 100).toFixed(1) + "%";
     const accName = n.leaf ? "prediction acc" : "routing acc";
-    return `<b>${kind} ${n.id}</b><br>bytes ${n.t0}–${n.t1 - 1} (${n.tokens} token${n.tokens > 1 ? "s" : ""})<br>` +
+    const span = n.sample ? n.sample : `bytes ${n.t0}–${n.t1 - 1}`;
+    return `<b>${kind} ${n.id}</b><br>${span} (${n.tokens} token${n.tokens > 1 ? "s" : ""})<br>` +
       `${n.samples ? n.samples.toLocaleString() + " samples (" + n.coverage.toFixed(1) + "%)<br>" : ""}` +
       `${accName}: ${acc} · ${n.status}`;
   }
@@ -397,11 +402,18 @@
     const v = (id) => parseFloat($(id).value);
     return {
       branching_factor: v("cf-branch"), context_window: v("cf-ctxwin"),
+      cluster_tokens: $("cf-cluster").checked,
+      device: $("cf-device").value,
       embed_dim: v("cf-embed"), context_dim: v("cf-ctxdim"),
       routing_layers: v("cf-layers"), max_samples: v("cf-samples"),
       encoder_generations: v("cf-encgens"),
+      encoder_pop_size: v("cf-encpop") || 0,
       encoder_speed_generations: $("cf-encspeed-on").checked ? v("cf-encspeed") : 0,
       encoder_time_budget: v("cf-encbudget"),
+      encoder_time_constrained: $("cf-enctime").checked,
+      encoder_evolve_dims: $("cf-encdims").checked,
+      encoder_diversity: $("cf-encdiv").checked,
+      encoder_diversity_budget: v("cf-encdivbudget"),
       pop_size: v("cf-pop"), generations: v("cf-gens"),
       mutation_rate: v("cf-mut"), elite_frac: v("cf-elite"),
     };
@@ -418,14 +430,20 @@
   const SWEEPABLE = [
     { key: "routing_layers", label: "routing layers", suggest: "0,1,2" },
     { key: "branching_factor", label: "branching", suggest: "4,16" },
+    { key: "cluster_tokens", label: "cluster token split (0/1)", suggest: "0,1" },
     { key: "context_dim", label: "context dim", suggest: "64,128,256" },
     { key: "embed_dim", label: "embed dim", suggest: "32,64" },
     { key: "context_window", label: "context window", suggest: "8,16,32" },
     { key: "generations", label: "generations / node", suggest: "40,80" },
     { key: "pop_size", label: "population", suggest: "40,80" },
     { key: "encoder_generations", label: "encoder gens", suggest: "40,80" },
+    { key: "encoder_pop_size", label: "encoder population (0 = shared)", suggest: "0,120" },
     { key: "encoder_speed_generations", label: "speed gens", suggest: "0,40" },
     { key: "encoder_time_budget", label: "speed budget", suggest: "0.15,0.5,1" },
+    { key: "encoder_time_constrained", label: "time-constrained encoder (0/1)", suggest: "0,1" },
+    { key: "encoder_diversity", label: "encoder head diversity (0/1)", suggest: "0,1" },
+    { key: "encoder_evolve_dims", label: "evolve context dim (0/1)", suggest: "0,1" },
+    { key: "encoder_diversity_budget", label: "diversity budget", suggest: "0.15,0.5,1" },
   ];
 
   function buildSweepParams() {

@@ -1,0 +1,55 @@
+[
+  {
+    "test": "3a_progressive_sorting",
+    "results": [
+      {
+        "landscape": "L1 only (adjacent ordering)",
+        "position_accuracy": 0.08374999463558197,
+        "time_s": 65.87228417396545
+      },
+      {
+        "landscape": "L1+L2 (all pairs ordered)",
+        "position_accuracy": 0.036249998956918716,
+        "time_s": 161.69198727607727
+      },
+      {
+        "landscape": "L1-L3 (+ range constraint)",
+        "position_accuracy": 0.1274999976158142,
+        "time_s": 174.90517377853394
+      },
+      {
+        "landscape": "L1-L4 (+ proximity)",
+        "position_accuracy": 0.2787500023841858,
+        "time_s": 184.1241865158081
+      },
+      {
+        "landscape": "L1-L5 (+ precision)",
+        "position_accuracy": 0.2800000011920929,
+        "time_s": 188.70693063735962
+      }
+    ]
+  },
+  {
+    "test": "3b_modular_arithmetic",
+    "gradient": {
+      "accuracy": 0.08999999612569809,
+      "time_s": 1.9924743175506592
+    },
+    "genreg": {
+      "accuracy": 0.25999999046325684,
+      "time_s": 112.2915358543396
+    }
+  },
+  {
+    "test": "3c_sha256_rounds",
+    "random_baseline_error": 0.33,
+    "gradient": {
+      "mean_error": 0.23830752074718475,
+      "time_s": 1.9098796844482422
+    },
+    "genreg": {
+      "mean_error": 0.24352505803108215,
+      "time_s": 65.21440172195435
+    }
+  }
+]

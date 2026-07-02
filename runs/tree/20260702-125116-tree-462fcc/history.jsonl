@@ -1,0 +1,15 @@
+{"gen": 0, "node": "encoder", "kind": "encoder", "fitness": {"best": 0.293, "mean": 0.293}}
+{"gen": 1, "node": "R.0.0", "kind": "leaf", "fitness": {"best": 1.0, "mean": 0.6465}}
+{"gen": 2, "node": "R.0.1", "kind": "leaf", "fitness": {"best": 0.8627, "mean": 0.7186}}
+{"gen": 3, "node": "R.0.2", "kind": "leaf", "fitness": {"best": 0.6788, "mean": 0.7086}}
+{"gen": 4, "node": "R.0.3", "kind": "leaf", "fitness": {"best": 0.5673, "mean": 0.6804}}
+{"gen": 5, "node": "R.0", "kind": "router", "fitness": {"best": 0.6728, "mean": 0.6791}}
+{"gen": 6, "node": "R.1.2", "kind": "leaf", "fitness": {"best": 0.4341, "mean": 0.6441}}
+{"gen": 7, "node": "R.1", "kind": "router", "fitness": {"best": 1.0, "mean": 0.6886}}
+{"gen": 8, "node": "R.2.0", "kind": "leaf", "fitness": {"best": 0.2459, "mean": 0.6394}}
+{"gen": 9, "node": "R.2.1", "kind": "leaf", "fitness": {"best": 0.6013, "mean": 0.6356}}
+{"gen": 10, "node": "R.2", "kind": "router", "fitness": {"best": 0.8706, "mean": 0.6569}}
+{"gen": 11, "node": "R.3.0", "kind": "leaf", "fitness": {"best": 0.8696, "mean": 0.6747}}
+{"gen": 12, "node": "R.3.1", "kind": "leaf", "fitness": {"best": 1.0, "mean": 0.6997}}
+{"gen": 13, "node": "R.3", "kind": "router", "fitness": {"best": 1.0, "mean": 0.7211}}
+{"gen": 14, "node": "R", "kind": "router", "fitness": {"best": 0.8077, "mean": 0.7269}}

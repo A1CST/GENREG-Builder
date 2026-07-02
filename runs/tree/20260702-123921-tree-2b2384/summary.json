@@ -1,0 +1,78 @@
+{
+  "id": "20260702-123921-tree-2b2384",
+  "environment": "tree",
+  "status": "finished",
+  "finished": "2026-07-02T12:39:21",
+  "gen": 1,
+  "best": {
+    "score": 0.19,
+    "base": 0.3
+  },
+  "checkpoint": "model.npz",
+  "eval": {
+    "accuracy": 0.19,
+    "train_accuracy": null,
+    "bigram_accuracy": 0.3,
+    "tokens_per_sec": 200000000.0,
+    "unique_predictions": 12,
+    "target_entropy": 4.604974473974793,
+    "total_params": 10008,
+    "train_seconds": 0.2
+  },
+  "encoder": {
+    "nc_accuracy": 0.2925,
+    "samples": 400,
+    "generations": 3,
+    "pop_size": 24,
+    "start_context_dim": 24,
+    "context_dim": 24,
+    "evolve_dims": true,
+    "time_constrained": false,
+    "time_budget": null,
+    "active_fraction": null,
+    "diversity": false,
+    "diversity_budget": null,
+    "redundancy": null,
+    "speed_generations": 2,
+    "speed_nc_accuracy": 0.2475,
+    "speed_active_fraction": 0.1502,
+    "speed_time_budget": 0.5,
+    "curves": {
+      "encoder": [
+        {
+          "gen": 0,
+          "best": 0.2825,
+          "mean": 0.2256,
+          "dim": 24,
+          "mean_dim": 24.0
+        },
+        {
+          "gen": 1,
+          "best": 0.2825,
+          "mean": 0.2319,
+          "dim": 24,
+          "mean_dim": 24.1
+        },
+        {
+          "gen": 2,
+          "best": 0.2925,
+          "mean": 0.2368,
+          "dim": 24,
+          "mean_dim": 24.3
+        }
+      ],
+      "encoder-speed": [
+        {
+          "gen": 0,
+          "best": 0.1903,
+          "mean": 0.0905
+        },
+        {
+          "gen": 1,
+          "best": 0.1903,
+          "mean": 0.1391
+        }
+      ]
+    }
+  }
+}

@@ -11,6 +11,235 @@ log below; don't rewrite existing entries.
 ---
 
 ## 2026-07-02 (Claude Code / Fable 5)
+- **Repository published to GitHub** (user request): added `LICENSE` (GNU AGPL-3.0
+  — strict copyleft covering network use) and committed the full working tree for
+  publication as the public repo `GENREG-Builder` under the `A1CST` account.
+
+## 2026-07-02 (Claude Code / Fable 5)
+- **GPU compute option for Tree-of-Models** (user: "these longer trainings are
+  killing me"): new **Compute** selector (CPU / GPU (CUDA, batched)) in the
+  `/tree` sidebar, `device` in the config (persisted in run configs).
+  - GPU mode evaluates the **whole population per generation in one batched
+    tensor op** on CUDA instead of a Python loop of numpy matmuls:
+    `_batch_linear_acc` (every router/leaf: genomes → (P,dim,k) einsum →
+    accuracy) and `_batch_encoder_fitness` (replicates
+    ContextEncoder.encode — embed gather + positions → bmm mix → tanh — plus
+    batched nearest-centroid accuracy, and batched time/diversity penalties
+    when those constraints are on). Population chunked to bound GPU memory.
+    `_evolve` gained a `batch_fitness` hook; the GA logic is unchanged.
+  - Measured (pop 100, 16k samples, 30 gens, layers 2, RTX 4080):
+    **79.8s → 7.4s ≈ 10.8×**; small configs ~1.8×. Encoder accuracy matches
+    CPU to ~1e-3 (float32 vs float64 — champions can differ slightly, same
+    caveat as the main engine's GPU mode).
+  - Falls back to CPU with a status message if CUDA/torch is unavailable.
+    "Evolve context dim" runs keep the CPU loop (ragged genomes); the
+    dim-evolution GA is exempt from batching.
+
+## 2026-07-02 (Claude Code / Fable 5)
+- **Clustered token split** (user idea: the root's 0–63/64–127/… split is an
+  arbitrary token-ID artifact, not linguistic — let the tree be built over
+  context clusters instead):
+  - New `/tree` checkbox **"Cluster token split"** (`cluster_tokens`, default
+    off, sweepable "cluster token split (0/1)"): bytes are described by their
+    **preceding-context profiles** (Hellinger-scaled distributions of the
+    previous 1–2 bytes, `_byte_context_features`) and recursively partitioned
+    by **capacity-balanced k-means** per node (`_balanced_kmeans` — balanced
+    so leaf sizes still match the routing_layers math; deterministic per run
+    seed so the dim-evolution rebuild reproduces the same partition;
+    `_build_root` replaces direct `build_tree` calls). tree_lm blueprint
+    untouched — its TreeNode/inference/save-load were already set-based.
+  - `_train_node` is now fully set-based (membership mask, leaf local-index
+    lookup, router child-of lookup) instead of assuming contiguous ranges —
+    identical results for sequential trees.
+  - Icicle t0/t1 are now DFS *positions* (== byte values for sequential
+    trees, a contiguous layout axis for clustered ones); manifest + trace
+    nodes carry a `sample` token preview ("␣ e t a …") which the icicle
+    tooltip and the routing-inspector/trace views show instead of
+    "bytes N–M" when present.
+  - Measured (6k samples, dim 48, bf 4, layers 2, seed 11, small run):
+    clustering is plainly linguistic (uppercase / common-lowercase+space /
+    unused-high-bytes branches) and held-out accuracy **0.129 → 0.168**
+    (+3.9 pts) vs the sequential split on identical config. Note: ␣/e/t
+    landed *together* (they share preceding contexts — co-occurrence groups
+    similar-context bytes, making ROUTING easy and leaves hard); it still
+    beat byte-ID ranges. Clustered models replay fine from the runs store.
+
+## 2026-07-02 (Claude Code / Fable 5)
+- **Separate encoder population** (`encoder_pop_size`, `/tree` sidebar field
+  "Encoder population", default 0 = inherit the shared Population): the
+  encoder GA previously always used the same pop_size as every router/leaf;
+  since the encoder genome is orders of magnitude larger, it can now have its
+  own population. Applies to all three encoder GAs (fixed-dim `_evolve`, the
+  variable-dim GA, and the phase-2 speed phase; seed-count scales with it) —
+  `_evolve`/`_evolve_encoder_dims` gained a `pop_size` override parameter
+  (node training is untouched; seed_pop is now also truncated to pop_size).
+  Persisted in run configs, shown in the runs-panel Encoder evolution card
+  (effective size), and sweepable ("encoder population (0 = shared)").
+  Verified headless: 0 inherits (pop 10), 24 applies to fixed/speed/dims
+  paths, full runs complete.
+
+## 2026-07-02 (Claude Code / Fable 5)
+- **Encoder dimension evolution** (answering "are we evolving the dims in the
+  encoder?" — previously no, context_dim was always fixed by the sidebar):
+  - New `/tree` sidebar checkbox **"Evolve context dim"**
+    (`encoder_evolve_dims`, default off = fixed number, the current
+    behavior). When on, `tree_service._evolve_encoder_dims` runs a
+    **variable-dimension GA**: each individual carries its own context_dim;
+    structural mutation (p=0.25) grows (append a small random mixer column)
+    or shrinks (drop the lowest-|W|+|b| column) within **[4, 4×start]**
+    (start = the sidebar Context dim); crossover mixes parents in their
+    shared column subspace (child keeps parent 1's dim). Works with the
+    time/diversity constrained fitness (all fitness closures now take an
+    optional dim; scratch probe encoders are cached per dim via
+    dataclasses.replace). Per EEC, pure accuracy fitness tends to grow dims —
+    the hint says to pair with time/diversity for shrink pressure.
+  - Downstream: router/leaf genome sizes depend on context_dim, so when the
+    evolved dim differs the trainer **rebuilds the routing tree at the new
+    width** and re-emits the tree manifest (icicle + params tiles update);
+    cfg.context_dim is updated so persistence/replay (`save_tree`/`load_tree`)
+    and phase 2 all use the evolved width. node_gen events for the encoder
+    gain `dim`/`mean_dim`; node_done gains `context_dim`. Sweepable
+    ("evolve context dim (0/1)").
+  - Verified headless (start dim 32, 6 gens): fixed mode unchanged; evolve
+    mode reached dim 33/34, tree rebuilt at the evolved width, full run +
+    model save completes.
+- **Encoder training is now fully recorded in the runs dashboard** (it
+  previously only left one history line):
+  - `summary.json` gains an **`encoder` block**: NC accuracy, fitness
+    samples, generations, start→final context dim, per-constraint settings
+    and outcomes (time budget + active-weight fraction, diversity budget +
+    head redundancy), speed-phase results, plus **per-generation best/mean
+    fitness curves** for "encoder" and "encoder-speed" (captured from the GA
+    loops).
+  - `/runs` detail pages for tree runs show a new **"Encoder evolution"
+    card**: metrics table + fitness-curve sparkline(s) (labelled
+    "(constrained)" when a constraint shaped the curve). Old runs without
+    the block simply don't show the card. The ⤓ Export JSON download
+    includes it automatically (it lives in summary).
+  - Loads when the Flask server is next started (no restart performed).
+
+## 2026-07-02 (Claude Code / Fable 5)
+- **Encoder head-diversity constraint** (user experiment: time pressure didn't
+  break the plateau — try pushing the encoder's output dims to be different):
+  - New `/tree` sidebar checkbox **"Head diversity"** (`encoder_diversity`,
+    default off) + **"Diversity budget"** field
+    (`encoder_diversity_budget`, default 0.5, lower = harsher): when on, the
+    encoder's whole accuracy phase is scored as
+    fitness ÷ (1 + redundancy/budget), where **redundancy = mean
+    |off-diagonal correlation| between the encoded context dims** on the
+    fitness sample (0 = every head carries a different signal). Dead
+    (constant) dims count as fully redundant so collapsing dims can't game
+    the penalty.
+  - Composes with the time constraint: both checkboxes on → both penalties
+    multiply into one constrained fitness (`fitness_constrained` now folds in
+    whichever constraints are enabled). The phase-2 speed phase got its own
+    pure-time closure back so it is unaffected by the diversity flag.
+  - node_done for "encoder" now carries `redundancy` when the mode is on;
+    the status line reports acc + per-constraint numbers. Both new fields
+    persist in run configs and are **sweepable** ("encoder head diversity
+    (0/1)" and "diversity budget"), so diversity × time × budgets can be
+    A/B'd in one sweep. Reported accuracy stays raw for comparability.
+  - Verified headless (seed 5, 4 encoder gens): baseline acc 0.448;
+    diversity on (budget 0.3) → redundancy 0.072 at acc 0.420;
+    time+diversity together → 44% active weights, redundancy 0.078,
+    acc 0.408; flags persist; full runs complete.
+  - Loads when the Flask server is next started (no restart performed).
+
+## 2026-07-02 (Claude Code / Fable 5)
+- **Time-constrained encoder evolution from scratch** (user experiment: evolve
+  the encoder with time & its original fitness *combined*, instead of only as
+  a phase-2 addition):
+  - New `/tree` sidebar checkbox **"Time-constrained from scratch"**
+    (`encoder_time_constrained`, default off): when on, the encoder's whole
+    accuracy phase (all `encoder_generations`) uses
+    fitness ÷ (1 + active-weights/budget) — the time/Occam constraint folded
+    into the original nearest-centroid fitness from generation 0, sharing the
+    existing "Speed time budget" field. The seed population additionally gets
+    magnitude-pruned variants (30/50/70%) of the heuristic genome so the
+    sparse region is reachable immediately. Reported accuracy stays raw
+    (unconstrained) for comparability; node_done for "encoder" now carries
+    `active_fraction` and a status line reports acc + active-weight % when
+    the mode is on. The flag persists in run configs and is **sweepable**
+    ("time-constrained encoder (0/1)", suggest 0,1), so it can be A/B'd
+    against the two-phase form in one sweep.
+  - The independent phase-2 "Encoder speed phase" is unchanged (hint text now
+    clarifies it runs AFTER the accuracy phase); its fitness now reuses the
+    same constrained-fitness closure instead of a duplicate definition.
+  - Verified headless: constrained-from-scratch run (budget 0.3) → encoder at
+    44% active weights, flag persisted, full train/eval completes; two-phase
+    regression run unchanged (dense phase 1 → 30% active after speed phase).
+  - Note: `tree_service.py` changes load when the (currently stopped) Flask
+    server is next started — no restart was performed.
+- **Runs can now be exported to JSON**: every run detail page on `/runs` has a
+  **"⤓ Export JSON"** button (next to the checkpoint badge) that downloads
+  `<run-id>.json` containing the full run record — config (launch params +
+  metadata + status), summary (final result / eval block / sweep results),
+  complete per-generation history, and, for tree runs, all saved routing
+  traces. Entirely client-side (`runs.js exportRun`, Blob download from the
+  existing `/api/runs/<id>` + `/traces` endpoints) — no new server routes.
+
+## 2026-07-02 (Claude Code / Fable 5)
+- Added a **Documentation browser** (`/docs`, "Docs ↗" links in the build /
+  runs / tree topbars) styled like the runs dashboard:
+  - Copied the user's `Desktop\documentation` folder (91 files: .md, .pdf,
+    .json, .docx, …) into `GENREG/documentation/`.
+  - `app.py`: `GET /docs` (page), `GET /api/docs` (recursive file list with
+    ext/size/mtime), `GET /api/docs/file/<path>` (md/txt/json served inline as
+    utf-8 text, PDFs as application/pdf for the embedded viewer, everything
+    else as a download; `send_from_directory` blocks path traversal —
+    verified).
+  - `templates/docs.html` + `static/docs.js` + CSS (`doc-*`, `md-body`):
+    left sidebar with type tabs (All / Markdown / PDF / JSON / Other), a
+    name filter, and run-node-styled file entries; detail pane renders
+    **Markdown inline** via a small built-in renderer (headings, fenced code,
+    tables, lists with hanging-indent continuation, blockquotes, inline
+    formatting — HTML-escaped first, no external libs), **PDFs in a native
+    `<embed>` viewer**, JSON pretty-printed, and a ⤓ Open/download button on
+    every file. Deep-linkable via `/docs#<path>`.
+  - Verified end-to-end after a Flask restart: list API, md/pdf serving,
+    traversal 404, and the renderer against the real doc set (tables/code
+    blocks balanced, no unescaped HTML).
+
+## 2026-07-02 (Claude Code / Fable 5)
+- **Tree training now survives leaving the page.** Previously the `/treelm`
+  socket handler owned the trainer and stopped it on disconnect, so clicking
+  "Runs ↗" (same-tab nav) killed the run/sweep. Now:
+  - `tree_service.JobHub` (module singleton `HUB`): the trainer/sweeper runs
+    in the hub, decoupled from any socket. Sockets are viewers — they
+    subscribe on connect and detach on close. The hub keeps a replayable
+    journal (all events except per-generation ticks, which are kept only for
+    the node currently evolving; latest status only; capped at 50k), so a
+    reconnecting page replays the snapshot and rebuilds mid-run state
+    (icicle, fitness chart, sweep table, tiles), then gets a
+    `{"type":"job","running":…}` event to sync the buttons.
+  - Stopping is explicit only: the Stop button or starting a new job.
+    Multiple tabs can watch the same run simultaneously.
+  - Per-connection send lock (hub thread + handler thread both write).
+  - Verified: killed the socket mid-run — training completed server-side and
+    a fresh connection replayed tree/node/eval/done correctly.
+- Added a **configurable config sweep** to the `/tree` page:
+  - New "Config sweep" card: each sweepable parameter (routing layers,
+    branching, dims, window, gens/pop, encoder gens, speed gens, speed budget,
+    …) is either **locked to the sidebar value** (unchecked) or given a
+    comma-separated **list of values to test**; every combination trains
+    (Cartesian product, capped at 24 candidates, values capped at 8/param),
+    live-ranked in a results table, all candidates on a shared seed (1234)
+    for comparability.
+  - `tree_service.TreeSweeper` (`/treelm` op "sweep"): runs candidates
+    sequentially as normal TreeLMTrainer runs (each persists to the runs
+    store, tagged `sweep <id> · <candidate>` in its notes) and persists the
+    sweep itself as a run (`runs/tree/<stamp>-sweep-<hash>/`) whose
+    summary.json carries `sweep_results` (ranked) and whose history.jsonl
+    holds per-candidate accuracy (sparkline works).
+  - `/runs` dashboard: sweep entries show a **"Sweep results (ranked)"**
+    table in the detail view with per-candidate links that jump to the
+    candidate run's detail; `/runs#<run-id>` now deep-links to a run (the
+    sweep table on /tree links out this way); run details now show the
+    `notes` row (so candidates display their sweep membership).
+  - Sidebar: encoder speed phase is now behind an **enable checkbox**
+    (default off — measurement showed it compresses but slightly hurts
+    downstream accuracy) and the **time budget is exposed** as a field, so
+    the constraint's strength can be tuned rather than only toggled.
 - Added a **two-phase encoder evolution with a speed/time constraint**
   (user experiment: does Occam pressure break the ~25% encoder plateau?):
   - After the accuracy-only phase (encoder_generations), a second phase runs

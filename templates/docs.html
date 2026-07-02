@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>GENREG — Documentation</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+</head>
+<body class="runs-body">
+  <header class="topbar">
+    <div class="brand">GENREG<span class="brand-sub">documentation</span></div>
+    <div class="runs-top-actions">
+      <button id="docs-refresh" class="runs-btn" title="Reload file list">Refresh</button>
+      <a class="runs-btn link" href="/" title="Back to the build interface">Build interface ↗</a>
+      <a class="runs-btn link" href="/runs" title="Runs &amp; checkpoints">Runs ↗</a>
+      <a class="runs-btn link" href="/tree" title="Tree-of-Models text prediction">Tree LM ↗</a>
+    </div>
+  </header>
+
+  <div class="runs-layout">
+    <aside class="runs-tree">
+      <div class="env-tabs" id="type-tabs"></div>
+      <div class="docs-search"><input id="docs-filter" type="text" placeholder="filter files…" spellcheck="false" /></div>
+      <div class="tree" id="doc-list"><div class="tree-empty">Loading documentation…</div></div>
+    </aside>
+    <main class="runs-detail" id="doc-detail">
+      <div class="detail-empty">Select a document from the list to read it here. Markdown renders inline; PDFs open in an embedded viewer.</div>
+    </main>
+  </div>
+
+  <script src="{{ url_for('static', filename='docs.js') }}"></script>
+</body>
+</html>

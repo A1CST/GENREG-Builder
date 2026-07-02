@@ -1,0 +1,182 @@
+[
+  {
+    "gradient": {
+      "method": "gradient",
+      "task": "1_linear_regression",
+      "params": 1153,
+      "best_score": -0.7066883444786072,
+      "time_s": 0.7378547191619873,
+      "epochs": 500
+    },
+    "genreg": {
+      "method": "genreg",
+      "task": "1_linear_regression",
+      "params": 4406,
+      "best_score": -0.029551712796092033,
+      "time_s": 59.74614906311035,
+      "generations": 1000
+    }
+  },
+  {
+    "gradient": {
+      "method": "gradient",
+      "task": "2_polynomial_regression",
+      "params": 1153,
+      "best_score": -0.026349425315856934,
+      "time_s": 1.1702682971954346,
+      "epochs": 1000
+    },
+    "genreg": {
+      "method": "genreg",
+      "task": "2_polynomial_regression",
+      "params": 9318,
+      "best_score": -0.17095990478992462,
+      "time_s": 118.49554538726807,
+      "generations": 2000
+    }
+  },
+  {
+    "gradient": {
+      "method": "gradient",
+      "task": "3_classification_10_class",
+      "params": 8970,
+      "best_score": 1.0,
+      "time_s": 0.6158127784729004,
+      "epochs": 500
+    },
+    "genreg": {
+      "method": "genreg",
+      "task": "3_classification_10_class",
+      "params": 18863,
+      "best_score": 0.8833333849906921,
+      "time_s": 212.95115995407104,
+      "generations": 2000
+    }
+  },
+  {
+    "gradient": {
+      "method": "gradient",
+      "task": "4_xor_parity_8bit",
+      "params": 20673,
+      "best_score": 0.550000011920929,
+      "time_s": 2.346508741378784,
+      "epochs": 2000
+    },
+    "genreg": {
+      "method": "genreg",
+      "task": "4_xor_parity_8bit",
+      "params": 18566,
+      "best_score": 0.6200000047683716,
+      "time_s": 201.0979061126709,
+      "generations": 3000
+    }
+  },
+  {
+    "gradient": {
+      "method": "gradient",
+      "task": "5_sorting_8_numbers",
+      "params": 21128,
+      "best_score": 0.4587499797344208,
+      "time_s": 2.4818248748779297,
+      "epochs": 2000
+    },
+    "genreg": {
+      "method": "genreg",
+      "task": "5_sorting_8_numbers",
+      "params": 21133,
+      "best_score": 0.3062500059604645,
+      "time_s": 199.5802173614502,
+      "generations": 3000
+    }
+  },
+  {
+    "gradient": {
+      "method": "gradient",
+      "task": "6_modular_arithmetic_mod7",
+      "params": 20673,
+      "best_score": 0.1599999964237213,
+      "time_s": 2.2794742584228516,
+      "epochs": 2000
+    },
+    "genreg": {
+      "method": "genreg",
+      "task": "6_modular_arithmetic_mod7",
+      "params": 18566,
+      "best_score": 0.2199999988079071,
+      "time_s": 192.76938438415527,
+      "generations": 3000
+    }
+  },
+  {
+    "gradient": {
+      "method": "gradient",
+      "task": "7_constraint_satisfaction",
+      "params": 20673,
+      "best_score": 1.0,
+      "time_s": 2.34907603263855,
+      "epochs": 2000
+    },
+    "genreg": {
+      "method": "genreg",
+      "task": "7_constraint_satisfaction",
+      "params": 18566,
+      "best_score": 1.0,
+      "time_s": 69.98843836784363,
+      "generations": 1000
+    }
+  },
+  {
+    "gradient": {
+      "method": "gradient",
+      "task": "8_discrete_reasoning",
+      "params": 20673,
+      "best_score": 0.23999999463558197,
+      "time_s": 2.3665401935577393,
+      "epochs": 2000
+    },
+    "genreg": {
+      "method": "genreg",
+      "task": "8_discrete_reasoning",
+      "params": 20678,
+      "best_score": 0.26999998092651367,
+      "time_s": 193.86621141433716,
+      "generations": 3000
+    }
+  },
+  {
+    "gradient": {
+      "method": "gradient",
+      "task": "9_permutation_learning",
+      "params": 21128,
+      "best_score": 0.03125,
+      "time_s": 2.2503390312194824,
+      "epochs": 2000
+    },
+    "genreg": {
+      "method": "genreg",
+      "task": "9_permutation_learning",
+      "params": 21133,
+      "best_score": 0.08999999612569809,
+      "time_s": 200.73777723312378,
+      "generations": 3000
+    }
+  },
+  {
+    "gradient": {
+      "method": "gradient",
+      "task": "10_timeseries_phase_shifts",
+      "params": 20673,
+      "best_score": 1.0,
+      "time_s": 2.2592945098876953,
+      "epochs": 2000
+    },
+    "genreg": {
+      "method": "genreg",
+      "task": "10_timeseries_phase_shifts",
+      "params": 20678,
+      "best_score": 0.949999988079071,
+      "time_s": 194.83988571166992,
+      "generations": 3000
+    }
+  }
+]
