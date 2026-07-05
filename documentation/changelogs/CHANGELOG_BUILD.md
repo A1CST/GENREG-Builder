@@ -6,6 +6,16 @@ Seeded 2026-07-05 from the main changelog (keyword split, best effort).
 
 ---
 
+- **[2026-07-05] (Claude)** — **Published to GitHub: A1CST/GENREG-LAB (private).** Full program
+  snapshot pushed — engine, Tree LM, DiffEvo, Animation, LM campaign, panels, docs — with the
+  I2 program excluded per user decision (also caught + fixed a real hazard: the old .gitignore
+  had a trailing comment ON the pattern line, so `i2_admin_key.json` didn't actually match and
+  the PRIVATE KEY was staged — pattern fixed, key never pushed, verified absent from the
+  remote tree). Also excluded: runs/ (577MB runtime artifacts, untracked in a follow-up
+  commit), dist/, i2_store/, agent_store/, corpora/. Local remote name `genreg-lab`; origin
+  (GENREG-Builder) untouched. Final remote tree: 557 files, zero i2/key/runs leaks (verified
+  via API).
+
 - **[2026-07-05] (Claude)** — **Per-project changelogs.** Each project page's Changelog button
   now defaults to a project-scoped log with a "show all projects" toggle (app.js modal, all
   pages incl. Animation). Files live in `documentation/changelogs/CHANGELOG_{BUILD,TREE,
