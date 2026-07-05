@@ -4,6 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>GENREG — Tree-of-Models</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='vendor/xterm.css') }}" />
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
 </head>
 <body class="tlm-body">
@@ -13,6 +14,8 @@
       <span class="dot" id="tlm-dot"></span>
       <span id="tlm-conn">connecting…</span>
       <a class="runs-link" href="/" title="Back to the build interface">Build ↗</a>
+      <a class="runs-link" href="/diff" title="DiffEvo — denoising diffusion by neuroevolution">DiffEvo ↗</a>
+      <a class="runs-link" href="/animation" title="Animation program">Animation ↗</a>
       <a class="runs-link" href="/runs" title="Runs &amp; checkpoints">Runs ↗</a>
       <a class="runs-link" href="/docs" title="Project documentation">Docs ↗</a>
     </div>
@@ -26,10 +29,23 @@
         <div class="field">
           <label for="cf-device">Compute</label>
           <select id="cf-device">
-            <option value="cpu" selected>CPU</option>
-            <option value="gpu">GPU (CUDA, batched)</option>
+            <option value="cpu">CPU</option>
+            <option value="gpu" selected>GPU (CUDA, batched)</option>
           </select>
           <span class="field-hint">GPU evaluates the whole population per generation in one batched tensor op (encoder + every router/leaf) on the RTX; falls back to CPU if CUDA is unavailable. "Evolve context dim" runs stay on CPU (ragged genomes)</span>
+        </div>
+        <div class="field">
+          <label for="cf-tokenmode">Token level</label>
+          <select id="cf-tokenmode">
+            <option value="byte" selected>Byte — 256 symbols</option>
+            <option value="word">Word — top-K vocabulary</option>
+          </select>
+          <span class="field-hint">word level predicts whole words/punctuation from a frequency-built vocabulary (&lt;unk&gt; is never trained as a target or emitted) — real semantic embeddings, readable generation. Byte encoders can't be reused in word mode (vocab mismatch). Context window is in TOKENS: 16 words ≈ 70 bytes of context</span>
+        </div>
+        <div class="field" id="cf-vocab-field" hidden>
+          <label for="cf-vocab">Vocabulary size (word mode)</label>
+          <input type="number" id="cf-vocab" value="2048" min="256" max="8192" step="256" />
+          <span class="field-hint">top-K corpus words + &lt;unk&gt;; 2048 ≈ 85.6% corpus coverage, 4096 ≈ 89%</span>
         </div>
         <div class="field">
           <label for="cf-branch">Branching factor</label>
@@ -37,7 +53,19 @@
           <span class="field-hint">children per router (4 → depth 4, 16 → depth 2)</span>
         </div>
         <div class="field">
-          <label class="check"><input type="checkbox" id="cf-cluster" /> Cluster token split</label>
+          <label class="check"><input type="checkbox" id="cf-sa" /> Self-adaptive mutation</label>
+          <span class="field-hint">each genome carries its own evolving mutation step size (ES style, like the main engine)</span>
+        </div>
+        <div class="field">
+          <label class="check"><input type="checkbox" id="cf-resample" /> Resample node fitness</label>
+          <span class="field-hint">EEC non-stationarity: rotate the node fitness half-sample each generation (GPU only)</span>
+        </div>
+        <div class="field">
+          <label class="check"><input type="checkbox" id="cf-ridge" checked /> Ridge seed for nodes</label>
+          <span class="field-hint">seed every router/leaf GA with the closed-form least-squares solution (alongside nearest-centroid) — starts evolution at the node's linear optimum. Measured: −11 → −0.08 pts vs bigram at dim 256</span>
+        </div>
+        <div class="field">
+          <label class="check"><input type="checkbox" id="cf-cluster" checked /> Cluster token split</label>
           <span class="field-hint">group bytes by context co-occurrence (balanced k-means per node) instead of sequential byte-ID ranges — so ␣, e, t can land in different branches. Icicle x-axis becomes cluster order; tooltips show the actual tokens</span>
         </div>
         <div class="field">
@@ -46,61 +74,30 @@
         </div>
         <div class="field">
           <label for="cf-embed">Embed dim</label>
-          <input type="number" id="cf-embed" value="32" min="4" max="128" />
+          <input type="number" id="cf-embed" value="32" min="4" max="256" />
+          <span class="field-hint">word mode wants this LARGE — evolve-embed selected 256 for vocab 2048 (best word run: −1.67 pts vs bigram)</span>
         </div>
         <div class="field">
           <label for="cf-ctxdim">Context dim</label>
-          <input type="number" id="cf-ctxdim" value="64" min="8" max="256" />
+          <input type="number" id="cf-ctxdim" value="256" min="8" max="256" />
         </div>
         <div class="field">
           <label for="cf-layers">Routing layers</label>
-          <input type="number" id="cf-layers" value="2" min="0" max="8" />
+          <input type="number" id="cf-layers" value="1" min="0" max="8" />
           <span class="field-hint">router depth; 0 = one flat specialist over all 256 bytes (no routers); leaf size = 256 / branch^layers</span>
         </div>
         <div class="field">
           <label for="cf-samples">Training samples</label>
-          <input type="number" id="cf-samples" value="16000" min="500" max="100000" step="500" />
+          <input type="number" id="cf-samples" value="32000" min="500" max="100000" step="500" />
           <span class="field-hint">windows drawn from the 49&nbsp;MB Gutenberg corpus</span>
         </div>
         <div class="field">
-          <label for="cf-encgens">Encoder generations</label>
-          <input type="number" id="cf-encgens" value="40" min="0" max="500" />
-          <span class="field-hint">pre-evolve the context encoder (0 = skip, random encoder)</span>
-        </div>
-        <div class="field">
-          <label for="cf-encpop">Encoder population</label>
-          <input type="number" id="cf-encpop" value="0" min="0" max="1000" />
-          <span class="field-hint">GA population for the encoder phases only (0 = same as Population below); the encoder genome is far larger than a node's, so it may want more</span>
-        </div>
-        <div class="field">
-          <label class="check"><input type="checkbox" id="cf-encdims" /> Evolve context dim</label>
-          <span class="field-hint">let evolution grow/shrink the encoder's output dimension count — start = Context dim above, bounds 4–4×; unchecked = fixed. Per EEC, pure accuracy tends to grow dims; add the time or diversity constraint to reward smaller encoders. The routing tree is rebuilt at the evolved width.</span>
-        </div>
-        <div class="field">
-          <label class="check"><input type="checkbox" id="cf-enctime" /> Time-constrained from scratch</label>
-          <span class="field-hint">evolve the encoder with time &amp; its original fitness combined for ALL encoder gens — fitness ÷ (1 + active-weights/budget) from generation 0 (uses the speed time budget below)</span>
-        </div>
-        <div class="field">
-          <label class="check"><input type="checkbox" id="cf-encdiv" /> Head diversity</label>
-          <span class="field-hint">encourage the encoder's output dims (heads) to be different — fitness ÷ (1 + mean|corr between dims|/budget), applied for ALL encoder gens; dead dims count as redundant</span>
-        </div>
-        <div class="field">
-          <label for="cf-encdivbudget">Diversity budget</label>
-          <input type="number" id="cf-encdivbudget" value="0.5" min="0.05" max="10" step="0.05" />
-          <span class="field-hint">higher = weaker pressure (1 = mild, 0.15 = harsh)</span>
-        </div>
-        <div class="field">
-          <label class="check"><input type="checkbox" id="cf-encspeed-on" /> Encoder speed phase</label>
-          <span class="field-hint">phase 2: time/Occam constraint added for n extra gens AFTER the accuracy phase</span>
-        </div>
-        <div class="field">
-          <label for="cf-encspeed">Speed gens</label>
-          <input type="number" id="cf-encspeed" value="40" min="0" max="500" />
-        </div>
-        <div class="field">
-          <label for="cf-encbudget">Speed time budget</label>
-          <input type="number" id="cf-encbudget" value="0.5" min="0.05" max="10" step="0.05" />
-          <span class="field-hint">higher = weaker pressure (1 = mild, 0.15 = harsh)</span>
+          <label for="cf-encoder-id">Encoder</label>
+          <select id="cf-encoder-id">
+            <option value="">evolve fresh each run</option>
+          </select>
+          <span class="field-hint">reuse a saved encoder (skips encoder evolution; its dims override Embed/Context dim above) or evolve fresh every run</span>
+          <button id="enc-modal-open" class="runs-btn" type="button" style="margin-top:6px">Train encoder…</button>
         </div>
         <div class="field">
           <label for="cf-pop">Population</label>
@@ -221,8 +218,118 @@
     </main>
   </div>
 
+  <!-- ── encoder trainer modal ─────────────────────────── -->
+  <div class="modal-overlay" id="enc-modal" hidden>
+    <div class="modal">
+      <div class="modal-head">Encoder trainer
+        <button class="modal-close" id="enc-modal-close" title="Close">×</button>
+      </div>
+      <div class="modal-body enc-modal-body">
+        <p class="field-hint" style="margin-top:0">Trains a standalone context encoder on the corpus and saves it to the encoder store (runs/encoder/…, also visible on the runs dashboard). It uses the sidebar's Compute, Embed dim, Context dim, Context window, Training samples, Population, Mutation and Elite settings. Once saved, pick it under <b>Encoder</b> in the sidebar so tree runs reuse it instead of re-evolving one every time.</p>
+        <div class="control-panel">
+          <div class="field">
+            <label for="cf-encgens">Encoder generations</label>
+            <input type="number" id="cf-encgens" value="60" min="0" max="500" />
+            <span class="field-hint">the encoder is the binding constraint — 200 gens + pop 300 + 16k samples was worth ~+1 pt over 60/150/8k (at ~4× encoder time)</span>
+          </div>
+          <div class="field">
+            <label for="cf-encpop">Encoder population</label>
+            <input type="number" id="cf-encpop" value="0" min="0" max="1000" />
+            <span class="field-hint">0 = same as the sidebar Population; the encoder genome is far larger than a node's, so it may want more</span>
+          </div>
+          <div class="field">
+            <label for="cf-encsamples">Fitness samples</label>
+            <input type="number" id="cf-encsamples" value="2000" min="200" max="20000" step="100" />
+            <span class="field-hint">contexts used per fitness evaluation — the plateau tracks this more than generations</span>
+          </div>
+          <div class="field">
+            <label for="cf-encdepth">Encoder depth</label>
+            <select id="cf-encdepth">
+              <option value="1">1 — single evolved mix (blueprint)</option>
+              <option value="2" selected>2 — two-stage evolved mixer</option>
+            </select>
+            <span class="field-hint">depth 2 adds a second evolved tanh stage (position interactions a single linear mix can't encode); seeded near-identity so it starts equal to depth 1. No gradients — same GA</span>
+          </div>
+          <div class="field">
+            <label for="cf-enchidden">Hidden width (depth 2)</label>
+            <input type="number" id="cf-enchidden" value="0" min="0" max="2048" />
+            <span class="field-hint">0 = same as Context dim</span>
+          </div>
+          <div class="field">
+            <label for="cf-encfit">Encoder fitness</label>
+            <select id="cf-encfit">
+              <option value="ridge" selected>ridge (held-out readout)</option>
+              <option value="nc">nearest-centroid (in-sample)</option>
+            </select>
+            <span class="field-hint">ridge = held-out accuracy of a closed-form linear readout — aligned with ridge-seeded leaves, can't win by overfitting centroids. Measured: −0.08 → +2.65 pts vs bigram</span>
+          </div>
+          <div class="field">
+            <label class="check"><input type="checkbox" id="cf-encrotate" checked /> Rotate ridge split</label>
+            <span class="field-hint">re-shuffle the ridge fit/val split every generation so selection can't overfit a fixed validation half. Measured: +4.38 → +4.58 vs bigram</span>
+          </div>
+          <div class="field">
+            <label class="check"><input type="checkbox" id="cf-encdims" /> Evolve context dim</label>
+            <span class="field-hint">grow/shrink the output dimension count (4–4× the sidebar Context dim); pair with time/diversity for shrink pressure. Stays on CPU</span>
+          </div>
+          <div class="field">
+            <label class="check"><input type="checkbox" id="cf-enctime" /> Time-constrained from scratch</label>
+            <span class="field-hint">fitness ÷ (1 + active-weights/budget) for ALL gens (uses the speed time budget below)</span>
+          </div>
+          <div class="field">
+            <label class="check"><input type="checkbox" id="cf-encdiv" /> Head diversity</label>
+            <span class="field-hint">fitness ÷ (1 + mean|corr between dims|/budget) — push the output dims to be different</span>
+          </div>
+          <div class="field">
+            <label class="check"><input type="checkbox" id="cf-encseed" checked /> Seed embeddings from co-occurrence</label>
+            <span class="field-hint">start the byte-embedding table as a PCA of each byte's context profile (bytes used in similar contexts start near each other) instead of random — the embedding table is otherwise a neutral plateau evolution never organizes (check the 3D plot on /runs)</span>
+          </div>
+          <div class="field">
+            <label class="check"><input type="checkbox" id="cf-encnov" /> Population novelty bonus</label>
+            <span class="field-hint">genomes more DIFFERENT from the rest of the population get a fitness boost at selection (fitness × (1 + strength × novelty)) — fights premature convergence; champion is still ranked on raw fitness</span>
+          </div>
+          <div class="field">
+            <label for="cf-encnovstr">Novelty strength</label>
+            <input type="number" id="cf-encnovstr" value="0.5" min="0.05" max="5" step="0.05" />
+          </div>
+          <div class="field">
+            <label for="cf-encdivbudget">Diversity budget</label>
+            <input type="number" id="cf-encdivbudget" value="0.5" min="0.05" max="10" step="0.05" />
+          </div>
+          <div class="field">
+            <label class="check"><input type="checkbox" id="cf-encspeed-on" /> Encoder speed phase</label>
+            <span class="field-hint">phase 2: time constraint for n extra gens AFTER the accuracy phase</span>
+          </div>
+          <div class="field">
+            <label for="cf-encspeed">Speed gens</label>
+            <input type="number" id="cf-encspeed" value="40" min="0" max="500" />
+          </div>
+          <div class="field">
+            <label for="cf-encbudget">Speed time budget</label>
+            <input type="number" id="cf-encbudget" value="0.5" min="0.05" max="10" step="0.05" />
+            <span class="field-hint">higher = weaker pressure (1 = mild, 0.15 = harsh)</span>
+          </div>
+        </div>
+        <div class="tlm-actions">
+          <button id="enc-train" class="runs-btn tlm-primary">Train encoder</button>
+          <button id="enc-stop" class="runs-btn" disabled>Stop</button>
+        </div>
+        <div class="tlm-status" id="enc-status">idle — live fitness shows on the main chart while training</div>
+        <div class="enc-saved-head">Saved encoders</div>
+        <div id="enc-list" class="enc-list">none saved yet</div>
+      </div>
+    </div>
+  </div>
+
   <div class="tlm-tooltip" id="tlm-tooltip" hidden></div>
   <script src="{{ url_for('static', filename='trace_view.js') }}"></script>
   <script src="{{ url_for('static', filename='treelm.js') }}"></script>
+  <script src="{{ url_for('static', filename='cfgpersist.js') }}"></script>
+  <!-- shared daemon-backed terminal dock (same terminals as the build page) -->
+  <script src="{{ url_for('static', filename='vendor/xterm.js') }}"></script>
+  <script src="{{ url_for('static', filename='vendor/addon-fit.js') }}"></script>
+  <script src="{{ url_for('static', filename='termdock.js') }}"></script>
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
+  <script src="{{ url_for('static', filename='agentpanel.js') }}"></script>
+  <script src="{{ url_for('static', filename='configpanel.js') }}"></script>
 </body>
 </html>

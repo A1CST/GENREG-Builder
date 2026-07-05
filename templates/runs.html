@@ -4,6 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>GENREG — Runs &amp; Checkpoints</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='vendor/xterm.css') }}" />
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
 </head>
 <body class="runs-body">
@@ -12,6 +13,7 @@
     <div class="runs-top-actions">
       <button id="runs-refresh" class="runs-btn" title="Reload runs">Refresh</button>
       <a class="runs-btn link" href="/tree" title="Tree-of-Models text prediction">Tree LM ↗</a>
+      <a class="runs-btn link" href="/animation" title="Animation program">Animation ↗</a>
       <a class="runs-btn link" href="/docs" title="Project documentation">Docs ↗</a>
       <a class="runs-btn link" href="/" title="Back to the build interface">Build interface ↗</a>
     </div>
@@ -20,7 +22,25 @@
   <div class="runs-layout">
     <aside class="runs-tree">
       <div class="env-tabs" id="env-tabs"></div>
+      <div class="runs-filter">
+        <input id="run-search" type="text" placeholder="filter — label, tag, group, id…" spellcheck="false" />
+        <div class="rf-row">
+          <select id="run-status" title="Filter by status">
+            <option value="">any status</option>
+            <option value="finished">finished</option>
+            <option value="stopped">stopped</option>
+            <option value="running">running</option>
+          </select>
+          <select id="run-sort" title="Sort order">
+            <option value="new">newest first</option>
+            <option value="old">oldest first</option>
+            <option value="score">best score</option>
+          </select>
+          <button id="run-fav" class="rf-toggle" title="Show favorites only">★</button>
+        </div>
+      </div>
       <div class="tree" id="tree"><div class="tree-empty">No runs yet. Click <b>Start Training</b> on the build interface.</div></div>
+      <datalist id="run-groups"></datalist>
     </aside>
     <main class="runs-detail" id="detail">
       <div class="detail-empty">Select a run from the tree to view its configuration, metrics, and checkpoint.</div>
@@ -29,5 +49,12 @@
 
   <script src="{{ url_for('static', filename='trace_view.js') }}"></script>
   <script src="{{ url_for('static', filename='runs.js') }}"></script>
+  <!-- shared daemon-backed terminal dock (same terminals as the build page) -->
+  <script src="{{ url_for('static', filename='vendor/xterm.js') }}"></script>
+  <script src="{{ url_for('static', filename='vendor/addon-fit.js') }}"></script>
+  <script src="{{ url_for('static', filename='termdock.js') }}"></script>
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
+  <script src="{{ url_for('static', filename='agentpanel.js') }}"></script>
+  <script src="{{ url_for('static', filename='configpanel.js') }}"></script>
 </body>
 </html>

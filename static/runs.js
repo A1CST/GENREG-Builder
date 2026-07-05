@@ -10,16 +10,57 @@
   let currentId = null;
   let replayTimer = null;
 
+  // -- filter / sort / group toolbar state -----------------------------------
+  const searchEl = $("run-search"), statusEl = $("run-status"),
+        sortEl = $("run-sort"), favBtn = $("run-fav");
+  let favOnly = false;
+  const COLLAPSE_KEY = "genreg_runs_collapse";      // "<env>:<group>" -> bool
+  let collapsedMap = {};
+  try { collapsedMap = JSON.parse(localStorage.getItem(COLLAPSE_KEY)) || {}; } catch (_) {}
+  const saveCollapsed = () => {
+    try { localStorage.setItem(COLLAPSE_KEY, JSON.stringify(collapsedMap)); } catch (_) {}
+  };
+
   async function load() {
     try {
       runs = await (await fetch("/api/runs")).json();
     } catch (_) { runs = []; }
     byEnv = {};
     for (const r of runs) (byEnv[r.environment] = byEnv[r.environment] || []).push(r);
-    for (const e in byEnv) byEnv[e].sort((a, b) => (a.created || "").localeCompare(b.created || ""));
     renderTabs();
     if (!currentEnv || !byEnv[currentEnv]) currentEnv = Object.keys(byEnv)[0] || null;
     renderTree();
+  }
+
+  // -- run metadata (label / favorite / group / tags) ------------------------
+  async function saveMeta(id, patch) {
+    let meta = null;
+    try {
+      const res = await fetch(`/api/runs/${id}/meta`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(patch),
+      });
+      meta = await res.json();
+      if (!res.ok) meta = null;
+    } catch (_) { meta = null; }
+    if (meta && !meta.error) {
+      const r = runs.find((x) => x.id === id);
+      if (r) Object.assign(r, { label: meta.label || "", favorite: !!meta.favorite,
+                                group: meta.group || "", tags: meta.tags || [] });
+      renderTree();
+      syncDetailStar(id);
+    }
+    return meta;
+  }
+
+  function syncDetailStar(id) {
+    const btn = $("dh-fav");
+    if (!btn || currentId !== id) return;
+    const r = runs.find((x) => x.id === id);
+    const on = !!(r && r.favorite);
+    btn.classList.toggle("on", on);
+    btn.textContent = on ? "★" : "☆";
   }
 
   function renderTabs() {
@@ -40,26 +81,120 @@
     return `<span class="st-dot ${cls}" title="${status}"></span>`;
   }
 
+  // searchable text for one run (filter box matches any of it)
+  function hay(r) {
+    return [r.id, r.label, r.group, (r.tags || []).join(" "), r.created,
+            r.device, (r.constraints || []).join(" "), r.status]
+      .join(" ").toLowerCase();
+  }
+
+  function sortRuns(list) {
+    const mode = sortEl ? sortEl.value : "new";
+    const score = (r) => (r.best && typeof r.best.score === "number") ? r.best.score : -Infinity;
+    const arr = [...list];
+    if (mode === "old") arr.sort((a, b) => (a.created || "").localeCompare(b.created || ""));
+    else if (mode === "score") arr.sort((a, b) => score(b) - score(a));
+    else arr.sort((a, b) => (b.created || "").localeCompare(a.created || ""));
+    // favorites pinned first (stable within each half)
+    return arr.filter((r) => r.favorite).concat(arr.filter((r) => !r.favorite));
+  }
+
   function renderTree() {
-    const list = (currentEnv && byEnv[currentEnv]) || [];
-    if (!list.length) { treeEl.innerHTML = '<div class="tree-empty">No runs for this environment.</div>'; return; }
-    treeEl.innerHTML = `<div class="tree-root">▣ ${currentEnv}</div>`;
-    const branches = document.createElement("div");
-    branches.className = "tree-branches";
-    treeEl.appendChild(branches);
-    for (const r of list) {
-      const node = document.createElement("div");
-      node.className = "tree-node" + (r.id === currentId ? " selected" : "");
-      const cons = (r.constraints || []).length ? ` · ${r.constraints.length}c` : "";
-      const best = r.best && r.best.score != null ? `score ${r.best.score}` : "—";
-      node.innerHTML =
-        `${statusDot(r.status)}<div class="tn-main">` +
-        `<div class="tn-title">${r.created ? r.created.replace("T", " ") : r.id}</div>` +
-        `<div class="tn-sub">${r.device || "cpu"} · pop ${r.population ?? "?"} · ${r.generations ?? "?"}g${cons} · ${best}` +
-        `${r.has_checkpoint ? ' · <span class="ckpt">ckpt</span>' : ""}</div></div>`;
-      node.addEventListener("click", () => showDetail(r.id));
-      branches.appendChild(node);
+    const all = (currentEnv && byEnv[currentEnv]) || [];
+    treeEl.innerHTML = "";
+    if (!all.length) { treeEl.innerHTML = '<div class="tree-empty">No runs for this environment.</div>'; return; }
+
+    const q = searchEl ? searchEl.value.trim().toLowerCase() : "";
+    let list = all;
+    if (q) list = list.filter((r) => hay(r).includes(q));
+    if (statusEl && statusEl.value) list = list.filter((r) => (r.status || "") === statusEl.value);
+    if (favOnly) list = list.filter((r) => r.favorite);
+
+    const root = document.createElement("div");
+    root.className = "tree-root";
+    root.textContent = `▣ ${currentEnv}` +
+      (list.length !== all.length ? ` · ${list.length}/${all.length} shown` : "");
+    treeEl.appendChild(root);
+    if (!list.length) {
+      const d = document.createElement("div");
+      d.className = "tree-empty";
+      d.textContent = "No runs match the filter.";
+      treeEl.appendChild(d);
+      return;
     }
+
+    // bucket by group: ungrouped first, then named groups alphabetically
+    const groups = new Map();
+    for (const r of list) {
+      const g = (r.group || "").trim();
+      if (!groups.has(g)) groups.set(g, []);
+      groups.get(g).push(r);
+    }
+    const names = [...groups.keys()].sort((a, b) =>
+      a === "" ? -1 : b === "" ? 1 : a.localeCompare(b));
+    const flat = names.length === 1 && names[0] === "";   // no groups anywhere
+
+    for (const g of names) {
+      const runsIn = sortRuns(groups.get(g));
+      if (!flat) {
+        const key = `${currentEnv}:${g}`;
+        // named groups start collapsed (that's their point); ungrouped starts open
+        const isClosed = key in collapsedMap ? !!collapsedMap[key] : g !== "";
+        const head = document.createElement("div");
+        head.className = "group-head" + (isClosed ? " closed" : "");
+        head.innerHTML = `<span class="gh-arrow">${isClosed ? "▸" : "▾"}</span>` +
+                         `<span class="gh-name"></span><span class="gh-count">${runsIn.length}</span>`;
+        head.querySelector(".gh-name").textContent = g || "ungrouped";
+        head.addEventListener("click", () => {
+          collapsedMap[key] = !isClosed;
+          saveCollapsed();
+          renderTree();
+        });
+        treeEl.appendChild(head);
+        if (isClosed) continue;
+      }
+      const branches = document.createElement("div");
+      branches.className = "tree-branches";
+      treeEl.appendChild(branches);
+      for (const r of runsIn) branches.appendChild(runNode(r));
+    }
+  }
+
+  function runNode(r) {
+    const node = document.createElement("div");
+    node.className = "tree-node" + (r.id === currentId ? " selected" : "");
+    const cons = (r.constraints || []).length ? ` · ${r.constraints.length}c` : "";
+    const best = r.best && r.best.score != null ? `score ${r.best.score}` : "—";
+    node.innerHTML =
+      `${statusDot(r.status)}<div class="tn-main">` +
+      `<div class="tn-title"></div>` +
+      `<div class="tn-sub">${r.device || "cpu"} · pop ${r.population ?? "?"} · ${r.generations ?? "?"}g${cons} · ${best}` +
+      `${r.has_checkpoint ? ' · <span class="ckpt">ckpt</span>' : ""}</div></div>` +
+      `<button class="tn-star${r.favorite ? " on" : ""}" title="${r.favorite ? "Unfavorite" : "Favorite"}">${r.favorite ? "★" : "☆"}</button>`;
+    const title = node.querySelector(".tn-title");
+    const date = r.created ? r.created.replace("T", " ") : r.id;
+    title.textContent = r.label || date;              // textContent: labels are user text
+    if (r.label) {
+      const t = document.createElement("span");
+      t.className = "tn-date";
+      t.textContent = " · " + date;
+      title.appendChild(t);
+    }
+    if ((r.tags || []).length) {
+      const sub = node.querySelector(".tn-sub");
+      for (const tg of r.tags) {
+        const c = document.createElement("span");
+        c.className = "tag-chip";
+        c.textContent = tg;
+        sub.appendChild(c);
+      }
+    }
+    node.querySelector(".tn-star").addEventListener("click", (e) => {
+      e.stopPropagation();
+      saveMeta(r.id, { favorite: !r.favorite });
+    });
+    node.addEventListener("click", () => showDetail(r.id));
+    return node;
   }
 
   // -- detail --------------------------------------------------------------
@@ -72,6 +207,7 @@
     if (!d || d.error) { detailEl.innerHTML = '<div class="detail-empty">Failed to load run.</div>'; return; }
     const cfg = (d.config && d.config.config) || {};
     const isTree = (d.config && d.config.environment) === "tree";
+    const isEnc = (d.config && d.config.environment) === "encoder";
     const started = (d.config && d.config.started) || {};
     const summ = d.summary || {};
     const best = summ.best || {};
@@ -88,10 +224,18 @@
       ["notes", started.notes],
     ].filter(([, v]) => v != null && v !== "");
 
+    const meta = d.meta || {};
     detailEl.innerHTML = `
       <div class="detail-head">
         <div><div class="dh-title">${d.id}</div><div class="dh-sub">${(d.config && d.config.environment) || ""}</div></div>
-        <div class="dh-badges">${statusDot(summ.status || "running")}${summ.checkpoint ? '<span class="ckpt">checkpoint</span>' : '<span class="nockpt">no checkpoint</span>'}<button id="export-btn" class="runs-btn" title="Download every detail of this run as a JSON file">⤓ Export JSON</button></div>
+        <div class="dh-badges">${statusDot(summ.status || "running")}${summ.checkpoint ? '<span class="ckpt">checkpoint</span>' : '<span class="nockpt">no checkpoint</span>'}<button id="dh-fav" class="dh-star${meta.favorite ? " on" : ""}" title="Toggle favorite">${meta.favorite ? "★" : "☆"}</button><button id="export-btn" class="runs-btn" title="Download every detail of this run as a JSON file">⤓ Export JSON</button></div>
+      </div>
+      <div class="meta-edit">
+        <input id="me-label" class="me-in" placeholder="label (shown in the run list)" maxlength="80" spellcheck="false" />
+        <input id="me-group" class="me-in" list="run-groups" placeholder="group" maxlength="80" spellcheck="false" />
+        <input id="me-tags" class="me-in" placeholder="tags, comma separated" spellcheck="false" />
+        <button id="me-save" class="runs-btn">Save</button>
+        <span id="me-status" class="me-status"></span>
       </div>
       <div class="detail-grid">
         <section class="d-card">
@@ -109,6 +253,7 @@
           <canvas id="d-spark" class="d-spark" width="360" height="70"></canvas>
           <div class="spark-legend"><span class="dot best"></span>best <span class="dot mean"></span>mean fitness / gen</div>
         </section>
+        ${!isEnc ? `
         <section class="d-card wide">
           <h3>Inference / verify</h3>
           <div class="infer-bar">
@@ -116,7 +261,20 @@
             <span class="infer-status" id="infer-status">${summ.checkpoint ? (isTree ? "generates a text sample from the saved tree model" : "runs the saved champion on a fresh game") : "no checkpoint saved for this run"}</span>
           </div>
           <div class="infer-stage" id="infer-stage"><canvas id="infer-canvas"></canvas></div>
+        </section>` : ""}
+        ${(isTree || isEnc) && summ.checkpoint ? `
+        <section class="d-card wide">
+          <h3>Embedding space — letters <span class="dh-sub">the 256 byte embeddings (PCA → 3D, drag to rotate)</span></h3>
+          <div class="emb-info" id="emb-info">loading embedding cloud…</div>
+          <div class="emb-stage"><canvas id="emb-canvas"></canvas></div>
+          <div class="emb-legend" id="emb-legend"></div>
         </section>
+        <section class="d-card wide">
+          <h3>Embedding space — words <span class="dh-sub">top corpus words encoded as context vectors (PCA → 3D, drag to rotate)</span></h3>
+          <div class="emb-info" id="wemb-info">loading word cloud…</div>
+          <div class="emb-stage"><canvas id="wemb-canvas"></canvas></div>
+          <div class="emb-legend">dot size = word frequency · most frequent 30 labeled · hover any dot for its word</div>
+        </section>` : ""}
         ${summ.encoder ? `
         <section class="d-card wide">
           <h3>Encoder evolution</h3>
@@ -140,7 +298,38 @@
     const btn = $("infer-btn");
     if (btn) btn.addEventListener("click", () => playInference(id));
     $("export-btn").addEventListener("click", () => exportRun(id, d, isTree));
+
+    // -- metadata editor (values set via .value/.textContent — user text) ----
+    $("me-label").value = meta.label || "";
+    $("me-group").value = meta.group || "";
+    $("me-tags").value = (meta.tags || []).join(", ");
+    const groupList = $("run-groups");
+    if (groupList) {
+      groupList.innerHTML = "";
+      for (const g of [...new Set(runs.map((r) => r.group).filter(Boolean))].sort()) {
+        const o = document.createElement("option");
+        o.value = g;
+        groupList.appendChild(o);
+      }
+    }
+    $("dh-fav").addEventListener("click", () => {
+      const r = runs.find((x) => x.id === id);
+      saveMeta(id, { favorite: !(r ? r.favorite : meta.favorite) });
+    });
+    $("me-save").addEventListener("click", async () => {
+      $("me-status").textContent = "saving…";
+      const m = await saveMeta(id, {
+        label: $("me-label").value,
+        group: $("me-group").value,
+        tags: $("me-tags").value,
+      });
+      $("me-status").textContent = m && !m.error ? "saved ✓" : "save failed";
+    });
+    for (const mid of ["me-label", "me-group", "me-tags"]) {
+      $(mid).addEventListener("keydown", (e) => { if (e.key === "Enter") $("me-save").click(); });
+    }
     if (summ.encoder) renderEncoderDetail(summ.encoder);
+    if ((isTree || isEnc) && summ.checkpoint) { renderEmbedding(id); renderWordEmbedding(id); }
     if (summ.sweep_results) renderSweepDetail(summ.sweep_results);
     if (isTree) loadTraces(id);
   }
@@ -162,6 +351,8 @@
       ["active weights", pct(enc.active_fraction)],
       ["head diversity", enc.diversity ? `on · budget ${enc.diversity_budget}` : "off"],
       ["head redundancy", enc.redundancy],
+      ["novelty bonus", enc.novelty ? `on · strength ${enc.novelty_strength}` : "off"],
+      ["seeded embeddings", enc.seeded_embeddings != null ? (enc.seeded_embeddings ? "co-occurrence PCA" : "random") : null],
       ["speed phase", enc.speed_generations
         ? `${enc.speed_generations} gens → acc ${enc.speed_nc_accuracy}, active ${pct(enc.speed_active_fraction)}`
         : "off"],
@@ -179,6 +370,175 @@
       drawSparkline($(`enc-spark-${i}`),
         curves[k].map((p) => ({ fitness: { best: p.best, mean: p.mean } })));
     });
+  }
+
+  // -- embedding space: rotatable 3D scatter of the byte embeddings ----------
+  async function renderEmbedding(id) {
+    const info = $("emb-info"), cv = $("emb-canvas");
+    if (!info || !cv) return;
+    let d;
+    try { d = await (await fetch(`/api/runs/${id}/embedding`)).json(); } catch (_) { d = null; }
+    if (!d || d.error || !d.points) {
+      info.textContent = "no embedding available" + (d && d.error ? ` — ${d.error}` : "");
+      return;
+    }
+    const pct = d.explained.map((e) => (e * 100).toFixed(1) + "%").join(" / ");
+    let verdict = "";
+    if (d.explained[0] > 0.9) verdict = "  ⚠ PC1 holds >90% of variance — embedding has collapsed to ~a line";
+    else if (d.effective_rank < 3) verdict = `  ⚠ effective rank ${d.effective_rank} of ${d.embed_dim} — heavy collapse`;
+    else if (d.effective_rank < d.embed_dim / 4) verdict = `  ⚠ effective rank ${d.effective_rank} of ${d.embed_dim} — most dims unused`;
+    info.textContent = `embed_dim ${d.embed_dim} · PC1/2/3 explain ${pct} · ` +
+      `effective rank ${d.effective_rank} · mean vector norm ${d.mean_norm}${verdict}`;
+
+    const labels = d.labels || null;   // word-mode run: embeddings are WORDS
+    const cls = (b) => b === 32 ? "space"
+      : (b >= 97 && b <= 122) ? "lower" : (b >= 65 && b <= 90) ? "upper"
+      : (b >= 48 && b <= 57) ? "digit" : (b > 32 && b < 127) ? "punct" : "other";
+    const COL = { space: "#e8f0fe", lower: "#4ea1ff", upper: "#19a974",
+                  digit: "#c98500", punct: "#b085f5", other: "#49525e" };
+    const LABELED = [32, 101, 116, 97, 111, 110, 105];   // ␣ e t a o n i
+    let yaw = 0.7, pitch = 0.35, drag = null;
+    const g = cv.getContext("2d");
+
+    function draw() {
+      const dpr = window.devicePixelRatio || 1;
+      const w = cv.clientWidth || 600, h = cv.clientHeight || 380;
+      cv.width = w * dpr; cv.height = h * dpr;
+      g.setTransform(dpr, 0, 0, dpr, 0, 0);
+      g.clearRect(0, 0, w, h);
+      const cy = Math.cos(yaw), sy = Math.sin(yaw);
+      const cp = Math.cos(pitch), sp = Math.sin(pitch);
+      const R = Math.min(w, h) * 0.42;
+      const proj = d.points.map((p) => {
+        const x1 = p.x * cy + p.z * sy, z1 = -p.x * sy + p.z * cy;
+        const y1 = p.y * cp - z1 * sp, z2 = p.y * sp + z1 * cp;
+        return { sx: w / 2 + x1 * R, sy: h / 2 - y1 * R, z: z2, b: p.b };
+      }).sort((a, b) => a.z - b.z);
+      proj.forEach((q) => {
+        const t = (q.z + 1.2) / 2.4;                     // depth 0..1
+        g.globalAlpha = 0.3 + 0.7 * Math.max(0, Math.min(1, t));
+        g.fillStyle = labels ? "#4ea1ff" : COL[cls(q.b)];
+        g.beginPath();
+        g.arc(q.sx, q.sy, 1.8 + 2.6 * t, 0, 7);
+        g.fill();
+      });
+      g.globalAlpha = 1; g.font = "11px monospace"; g.fillStyle = "#c7d0dc";
+      if (labels) {
+        // word-mode: label the most frequent tokens (ids 1..30; 0 = <unk>)
+        proj.forEach((q) => {
+          if (q.b >= 1 && q.b <= 30 && labels[q.b]) g.fillText(labels[q.b], q.sx + 5, q.sy - 4);
+        });
+      } else {
+        LABELED.forEach((b) => {
+          const q = proj.find((p) => p.b === b);
+          if (q) g.fillText(b === 32 ? "␣" : String.fromCharCode(b), q.sx + 5, q.sy - 4);
+        });
+      }
+    }
+
+    cv.style.cursor = "grab";
+    cv.onmousedown = (e) => { drag = { x: e.clientX, y: e.clientY }; e.preventDefault(); };
+    window.addEventListener("mousemove", (e) => {
+      if (!drag) return;
+      yaw += (e.clientX - drag.x) * 0.01;
+      pitch = Math.max(-1.5, Math.min(1.5, pitch + (e.clientY - drag.y) * 0.01));
+      drag = { x: e.clientX, y: e.clientY };
+      draw();
+    });
+    window.addEventListener("mouseup", () => { drag = null; });
+    draw();
+
+    $("emb-legend").innerHTML = [["space", "␣ space"], ["lower", "a–z"],
+      ["upper", "A–Z"], ["digit", "0–9"], ["punct", "punctuation"],
+      ["other", "control / extended"]]
+      .map(([k, lbl]) => `<span class="emb-key"><i style="background:${COL[k]}"></i>${lbl}</span>`)
+      .join("");
+  }
+
+  // -- word embedding space: frequent words through the trained encoder ------
+  async function renderWordEmbedding(id) {
+    const info = $("wemb-info"), cv = $("wemb-canvas");
+    if (!info || !cv) return;
+    let d;
+    try { d = await (await fetch(`/api/runs/${id}/words`)).json(); } catch (_) { d = null; }
+    if (!d || d.error || !d.points) {
+      info.textContent = "no word cloud available" + (d && d.error ? ` — ${d.error}` : "");
+      return;
+    }
+    const pct = d.explained.map((e) => (e * 100).toFixed(1) + "%").join(" / ");
+    const baseInfo = `${d.points.length} words · context_dim ${d.context_dim} · ` +
+      `PC1/2/3 explain ${pct} · effective rank ${d.effective_rank}`;
+    info.textContent = baseInfo;
+
+    const maxN = Math.max(...d.points.map((p) => p.n)) || 1;
+    const labeled = new Set(d.points.slice(0, 30).map((p) => p.w));   // freq-ordered
+    let yaw = 0.7, pitch = 0.35, drag = null, hovered = null;
+    const g = cv.getContext("2d");
+    let proj = [];
+
+    function draw() {
+      const dpr = window.devicePixelRatio || 1;
+      const w = cv.clientWidth || 600, h = cv.clientHeight || 380;
+      cv.width = w * dpr; cv.height = h * dpr;
+      g.setTransform(dpr, 0, 0, dpr, 0, 0);
+      g.clearRect(0, 0, w, h);
+      const cy = Math.cos(yaw), sy = Math.sin(yaw);
+      const cp = Math.cos(pitch), sp = Math.sin(pitch);
+      const R = Math.min(w, h) * 0.42;
+      proj = d.points.map((p) => {
+        const x1 = p.x * cy + p.z * sy, z1 = -p.x * sy + p.z * cy;
+        const y1 = p.y * cp - z1 * sp, z2 = p.y * sp + z1 * cp;
+        return { sx: w / 2 + x1 * R, sy: h / 2 - y1 * R, z: z2, w: p.w, n: p.n };
+      }).sort((a, b) => a.z - b.z);
+      for (const q of proj) {
+        const t = Math.max(0, Math.min(1, (q.z + 1.2) / 2.4));       // depth 0..1
+        g.globalAlpha = q === hovered ? 1 : 0.35 + 0.65 * t;
+        g.fillStyle = q === hovered ? "#e3b341" : "#4ea1ff";
+        g.beginPath();
+        g.arc(q.sx, q.sy, 1.5 + 2.5 * Math.sqrt(q.n / maxN) + 1.5 * t, 0, 7);
+        g.fill();
+      }
+      g.globalAlpha = 1; g.font = "11px monospace";
+      for (const q of proj) {
+        if (q === hovered || labeled.has(q.w)) {
+          g.fillStyle = q === hovered ? "#e3b341" : "#c7d0dc";
+          g.fillText(q.w, q.sx + 5, q.sy - 4);
+        }
+      }
+    }
+
+    cv.style.cursor = "grab";
+    cv.onmousedown = (e) => { drag = { x: e.clientX, y: e.clientY }; e.preventDefault(); };
+    window.addEventListener("mousemove", (e) => {
+      if (drag) {
+        yaw += (e.clientX - drag.x) * 0.01;
+        pitch = Math.max(-1.5, Math.min(1.5, pitch + (e.clientY - drag.y) * 0.01));
+        drag = { x: e.clientX, y: e.clientY };
+        draw();
+      }
+    });
+    window.addEventListener("mouseup", () => { drag = null; });
+    cv.addEventListener("mousemove", (e) => {
+      if (drag) return;
+      const r = cv.getBoundingClientRect();
+      const mx = e.clientX - r.left, my = e.clientY - r.top;
+      let best = null, bd = 14 * 14;   // 14px pick radius, front-most wins ties
+      for (const q of proj) {
+        const dd = (q.sx - mx) ** 2 + (q.sy - my) ** 2;
+        if (dd <= bd) { bd = dd; best = q; }
+      }
+      if (best !== hovered) {
+        hovered = best;
+        info.textContent = best
+          ? `${baseInfo} · "${best.w}" — ${best.n.toLocaleString()}× in corpus`
+          : baseInfo;
+        draw();
+      }
+    });
+    cv.addEventListener("mouseleave", () => {
+      if (hovered) { hovered = null; info.textContent = baseInfo; draw(); }
+    });
+    draw();
   }
 
   // -- export: download every detail of a run as one JSON file ---------------
@@ -357,12 +717,25 @@
   }
 
   $("runs-refresh").addEventListener("click", load);
-  load().then(() => {
-    // deep-link: /runs#<run-id> opens that run (used by sweep tables)
-    const rid = location.hash.slice(1);
+  if (searchEl) searchEl.addEventListener("input", renderTree);
+  if (statusEl) statusEl.addEventListener("change", renderTree);
+  if (sortEl) sortEl.addEventListener("change", renderTree);
+  if (favBtn) favBtn.addEventListener("click", () => {
+    favOnly = !favOnly;
+    favBtn.classList.toggle("on", favOnly);
+    renderTree();
+  });
+  // deep-link: /runs#<run-id> opens that run (sweep tables, Agent panel).
+  // Handles both initial load and hash changes while already on the page;
+  // reloads the run list if the id isn't known yet (a just-finished run).
+  async function openFromHash() {
+    const rid = decodeURIComponent(location.hash.slice(1));
     if (!rid) return;
-    const run = runs.find((r) => r.id === rid);
+    let run = runs.find((r) => r.id === rid);
+    if (!run) { await load(); run = runs.find((r) => r.id === rid); }
     if (run) { currentEnv = run.environment; renderTabs(); renderTree(); }
     showDetail(rid);
-  });
+  }
+  window.addEventListener("hashchange", openFromHash);
+  load().then(openFromHash);
 })();

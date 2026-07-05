@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>GENREG — DiffEvo</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='vendor/xterm.css') }}" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+</head>
+<body class="tlm-body">
+  <header class="topbar">
+    <div class="brand">GENREG<span class="brand-sub">diffevo · denoising diffusion by neuroevolution</span></div>
+    <div class="status">
+      <span class="dot" id="dv-dot"></span>
+      <span id="dv-conn">connecting…</span>
+      <a class="runs-link" href="/" title="Back to the build interface">Build ↗</a>
+      <a class="runs-link" href="/tree" title="Tree-of-Models text prediction">Tree LM ↗</a>
+      <a class="runs-link" href="/animation" title="Animation program">Animation ↗</a>
+      <a class="runs-link" href="/runs" title="Runs &amp; checkpoints">Runs ↗</a>
+      <a class="runs-link" href="/docs" title="Project documentation">Docs ↗</a>
+    </div>
+  </header>
+
+  <div class="tlm-layout">
+    <!-- ── config sidebar ─────────────────────────────── -->
+    <aside class="sidebar left tlm-side">
+      <div class="side-head">Configuration</div>
+      <div class="side-body control-panel">
+        <div class="field">
+          <label for="dv-levels">Noise levels (K)</label>
+          <input type="number" id="dv-levels" value="8" min="2" max="16" />
+          <span class="field-hint">reverse-diffusion steps; one independent population per level, cleanest→noisiest</span>
+        </div>
+        <div class="field">
+          <label for="dv-mode">Process mode</label>
+          <select id="dv-mode">
+            <option value="diffuse" selected>Diffuse — noise → image, step by step</option>
+            <option value="denoise">Denoise — one-shot to clean</option>
+          </select>
+          <span class="field-hint"><b>Diffuse</b> (the diffusion reverse process): each champion learns ONE small step (noise level k→k−1), so no single genome can finish and the reverse walk starts from noise and moves visibly closer to the image each step — every genome doing an easy job. <b>Denoise</b>: each champion jumps straight to clean from its level; use single-shot (below) — sharper final, but no step-by-step process.</span>
+        </div>
+        <div class="field" id="dv-unrolled-field">
+          <label class="check"><input type="checkbox" id="dv-unrolled" checked /> Unrolled training</label>
+          <span class="field-hint">(diffuse mode) train each champion on the ACTUAL output of the champions above it — the real image the walk hands it at inference — instead of a freshly-noised image. Removes the train/inference mismatch so the walk stays monotonic to the end instead of drifting back up. Measured: final L1 0.23→0.12, improvement +25%→+49%. Slightly slower (each step runs the partial walk).</span>
+        </div>
+        <div class="field" id="dv-sampler-field">
+          <label for="dv-sampler">Denoise sampler <span class="tlm-card-sub">(denoise mode)</span></label>
+          <select id="dv-sampler">
+            <option value="single" selected>Single-shot — matched denoiser (best)</option>
+            <option value="ddim">DDIM — deterministic multi-step</option>
+            <option value="ancestral">Ancestral — renoise each step (collapses)</option>
+          </select>
+          <span class="field-hint">only used in Denoise mode. <b>Single-shot</b> applies just the denoiser matched to the input's noise level — optimal there: only that step sees the true observation. DDIM carries the residual (rescaled) so multi-step at least doesn't collapse; Ancestral injects fresh noise each step → a chain of local averagers regresses to a grey blob.</span>
+        </div>
+        <div class="field">
+          <label for="dv-window">Window half-width</label>
+          <input type="number" id="dv-window" value="1" min="1" max="5" />
+          <span class="field-hint">the "really easy task": each genome sees a (2h+1)² local patch and predicts the clean centre pixel. 1 → 3×3</span>
+        </div>
+        <div class="field">
+          <label for="dv-hidden">Hidden units</label>
+          <input type="number" id="dv-hidden" value="8" min="2" max="32" />
+          <span class="field-hint">tiny MLP width — genome is patch → tanh(H) → 1</span>
+        </div>
+        <div class="field">
+          <label for="dv-pop">Population</label>
+          <input type="number" id="dv-pop" value="48" min="4" max="400" />
+        </div>
+        <div class="field">
+          <label for="dv-minibatch">Minibatch (samples/gen)</label>
+          <input type="number" id="dv-minibatch" value="16" min="1" max="128" />
+          <span class="field-hint">fitness = denoising MSE over a FRESH minibatch each generation — this stochastic averaging is what makes the population generalize instead of memorizing one image</span>
+        </div>
+        <div class="field">
+          <label for="dv-maxgens">Max generations / level</label>
+          <input type="number" id="dv-maxgens" value="120" min="5" max="1000" />
+        </div>
+        <div class="field">
+          <label for="dv-patience">Plateau patience</label>
+          <input type="number" id="dv-patience" value="18" min="3" max="500" />
+          <span class="field-hint">stop a level once its best MSE hasn't improved for this many generations</span>
+        </div>
+        <div class="field">
+          <label for="dv-elite">Elite fraction</label>
+          <input type="number" id="dv-elite" value="0.25" min="0.05" max="0.9" step="0.05" />
+        </div>
+        <div class="field">
+          <label class="check"><input type="checkbox" id="dv-sa" checked /> Self-adaptive mutation</label>
+          <span class="field-hint">each genome carries its own evolving step size (ES style)</span>
+        </div>
+        <div class="field">
+          <label for="dv-mut">Mutation (if not self-adaptive)</label>
+          <input type="number" id="dv-mut" value="0.06" min="0" max="1" step="0.01" />
+        </div>
+        <div class="field">
+          <label for="dv-seed">Seed</label>
+          <input type="number" id="dv-seed" value="1234" min="0" max="2147483647" />
+        </div>
+        <div class="tlm-actions">
+          <button id="dv-start" class="runs-btn tlm-primary">Start Training</button>
+          <button id="dv-stop" class="runs-btn" disabled>Stop</button>
+        </div>
+        <div class="tlm-status" id="dv-status">idle</div>
+      </div>
+    </aside>
+
+    <!-- ── visualizations ─────────────────────────────── -->
+    <main class="tlm-main">
+      <div class="tlm-tiles">
+        <div class="tlm-tile"><div class="tlm-tile-label">Level</div><div class="tlm-tile-value" id="st-level">—</div></div>
+        <div class="tlm-tile"><div class="tlm-tile-label">Best L1 (level)</div><div class="tlm-tile-value" id="st-mse">—</div></div>
+        <div class="tlm-tile"><div class="tlm-tile-label">Params / genome</div><div class="tlm-tile-value" id="st-params">—</div></div>
+        <div class="tlm-tile"><div class="tlm-tile-label">Noised input L1</div><div class="tlm-tile-value" id="st-in">—</div></div>
+        <div class="tlm-tile"><div class="tlm-tile-label">Denoised L1</div><div class="tlm-tile-value" id="st-out">—</div></div>
+        <div class="tlm-tile"><div class="tlm-tile-label">Test improvement</div><div class="tlm-tile-value" id="st-improve">—</div></div>
+      </div>
+
+      <!-- reconstruction: clean / noised / final + the reverse chain filmstrip -->
+      <section class="tlm-card">
+        <div class="tlm-card-head">
+          <h2>Reconstruction <span class="tlm-card-sub">a held-out test image, noised to the top level, then walked back toward the target one step per level</span></h2>
+          <div class="tlm-legend" id="recon-mse"></div>
+        </div>
+        <div class="dv-recon">
+          <figure class="dv-fig"><canvas id="dv-clean" width="120" height="120"></canvas><figcaption>target image</figcaption></figure>
+          <figure class="dv-fig"><canvas id="dv-noisy" width="120" height="120"></canvas><figcaption>start · noise</figcaption></figure>
+          <figure class="dv-fig"><canvas id="dv-final" width="120" height="120"></canvas><figcaption>final output</figcaption></figure>
+        </div>
+        <div class="dv-strip-label">reverse process — start from noise (left), one denoise step per level toward the image (right)</div>
+        <div class="dv-strip" id="dv-chain"></div>
+      </section>
+
+      <div class="tlm-two-col">
+        <!-- per-level evolution fitness -->
+        <section class="tlm-card">
+          <div class="tlm-card-head">
+            <h2>Evolution — <span id="fit-level" class="tlm-card-sub">no level yet</span></h2>
+            <div class="tlm-legend">
+              <span class="tlm-chip"><i style="background:var(--tlm-s1)"></i>best L1</span>
+              <span class="tlm-chip"><i style="background:var(--tlm-s2)"></i>population mean</span>
+            </div>
+          </div>
+          <div class="tlm-chart-wrap"><svg id="fitness" role="img" aria-label="Best and mean denoising L1 error per generation"></svg></div>
+        </section>
+
+        <!-- best L1 achieved per noise level -->
+        <section class="tlm-card">
+          <div class="tlm-card-head">
+            <h2>Best L1 by noise level <span class="tlm-card-sub">harder (noisier) levels plateau at a higher floor — each still does an "average job"</span></h2>
+          </div>
+          <div class="tlm-chart-wrap"><svg id="levelbars" role="img" aria-label="Best denoising L1 error achieved at each noise level"></svg></div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <script src="{{ url_for('static', filename='diff.js') }}"></script>
+  <script src="{{ url_for('static', filename='cfgpersist.js') }}"></script>
+  <!-- shared daemon-backed terminal dock (same terminals as the build page) -->
+  <script src="{{ url_for('static', filename='vendor/xterm.js') }}"></script>
+  <script src="{{ url_for('static', filename='vendor/addon-fit.js') }}"></script>
+  <script src="{{ url_for('static', filename='termdock.js') }}"></script>
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
+  <script src="{{ url_for('static', filename='agentpanel.js') }}"></script>
+  <script src="{{ url_for('static', filename='configpanel.js') }}"></script>
+</body>
+</html>

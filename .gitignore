@@ -1,2 +1,29 @@
 __pycache__/
 *.pyc
+# admin PRIVATE key for signed remote pushes — never commit
+i2_admin_key.json
+_backup/
+corpora/
+
+# runtime state / artifacts (regenerable or machine-local)
+runs/
+agent_store/
+.claude/
+
+# I2 program — excluded from the public GENREG-LAB repository (user decision)
+i2_service.py
+i2_node.py
+i2_child.py
+i2_admin.py
+i2_admin.pub
+package_i2.py
+push_to_primary.py
+i2_store/
+dist/
+static/i2.js
+static/i2_codec.js
+templates/i2.html
+templates/i2_node_browser.html
+i2_bench.py
+documentation/I2_COMPRESSION_GENOME_FINDINGS.pdf
+documentation/changelogs/CHANGELOG_I2.md

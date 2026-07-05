@@ -10,6 +10,28 @@ let activeId = null;
 let ws = null;
 let wsReady = false;
 
+// Each page remembers which terminal tab it had focused (keyed by pathname),
+// so switching between project pages doesn't lose "your" terminal.
+const ACTIVE_TAB_KEY = "genreg_term_tab:" + location.pathname;
+function rememberActiveTab(id) {
+  try { localStorage.setItem(ACTIVE_TAB_KEY, String(id)); } catch (_) {}
+}
+function recallActiveTab() {
+  try {
+    const v = localStorage.getItem(ACTIVE_TAB_KEY);
+    if (v == null) return null;
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  } catch (_) { return null; }
+}
+
+// The connection dot/text live in the topbar (build/I2) or the injected dock
+// header (other pages); guard so a page without them still gets terminals.
+function setConn(cls, text) {
+  if (connDot) connDot.className = cls;
+  if (connText) connText.textContent = text;
+}
+
 const THEME = {
   background: "#0d1117", foreground: "#d7dde5", cursor: "#4ea1ff",
   selectionBackground: "#264f78",
@@ -33,7 +55,7 @@ function connect() {
   ws = new WebSocket(`${proto}://${location.host}/ws`);
   ws.onopen = () => {
     wsReady = true;
-    connDot.className = "dot ok"; connText.textContent = "connected";
+    setConn("dot ok", "connected");
     // Re-send sizes for any terminals restored from a snapshot.
     for (const t of terms.values()) fitAndReport(t);
   };
@@ -42,7 +64,7 @@ function connect() {
   };
   ws.onclose = () => {
     wsReady = false;
-    connDot.className = "dot bad"; connText.textContent = "reconnecting…";
+    setConn("dot bad", "reconnecting…");
     setTimeout(connect, 1500);
   };
   ws.onerror = () => { try { ws.close(); } catch (_) {} };
@@ -98,6 +120,7 @@ function refreshTab(t) {
 
 function setActive(id) {
   activeId = id;
+  rememberActiveTab(id);
   for (const t of terms.values()) {
     const on = t.id === id;
     t.tabEl.classList.toggle("active", on);
@@ -141,13 +164,17 @@ function fitAndReport(t) {
 // -- event handling --------------------------------------------------------
 function handleEvent(ev) {
   switch (ev.type) {
-    case "snapshot":
+    case "snapshot": {
+      const want = recallActiveTab();   // read BEFORE ensureTerm auto-activates tab 1
       for (const meta of ev.terminals) {
         const t = ensureTerm(meta);
         t.term.reset();
         if (meta.data) t.term.write(meta.data);
       }
+      // Restore this page's remembered tab (if it still exists).
+      if (want != null && want !== activeId && terms.has(want)) setActive(want);
       return;
+    }
     case "terminal_created": {
       const t = ensureTerm(ev);
       // A tab we requested via the Claude button: focus it and start claude
@@ -201,13 +228,40 @@ document.getElementById("btn-stop").addEventListener("click", () => activeId != 
   const btn = document.getElementById("btn-changelog");
   const closeBtn = document.getElementById("changelog-close");
   if (!overlay || !body || !btn || !closeBtn) return;   // markup absent -> skip
-  const open = () => {
-    overlay.hidden = false;
+
+  // per-project changelog: pages default to THEIR project's log
+  // (documentation/changelogs/CHANGELOG_<X>.md), toggleable to the main log
+  const PROJECT = { "/": "BUILD", "/tree": "TREE", "/diff": "DIFFEVO",
+                    "/animation": "ANIMATION", "/i2": "I2" }[location.pathname] || null;
+  let scope = PROJECT ? "project" : "main";
+  const title = document.getElementById("changelog-title");
+  let toggle = null;
+  const head = overlay.querySelector(".modal-head");
+  if (PROJECT && head) {
+    toggle = document.createElement("button");
+    toggle.className = "clg-scope";
+    toggle.title = "Switch between this project's changelog and the main (all-projects) changelog";
+    head.insertBefore(toggle, closeBtn);
+    toggle.addEventListener("click", () => {
+      scope = scope === "project" ? "main" : "project";
+      load();
+    });
+  }
+  const load = () => {
     body.textContent = "Loading…";
-    fetch("/changelog")
-      .then((r) => r.text())
+    if (toggle) toggle.textContent = scope === "project" ? "show all projects" : "show this project only";
+    if (title) title.textContent = scope === "project" ? "Changelog — this project" : "Changelog — all projects";
+    const url = scope === "project"
+      ? `/api/docs/file/changelogs/CHANGELOG_${PROJECT}.md`
+      : "/changelog";
+    fetch(url)
+      .then((r) => (r.ok ? r.text() : Promise.reject(new Error(String(r.status)))))
       .then((t) => (body.textContent = t))
       .catch(() => (body.textContent = "Failed to load changelog."));
+  };
+  const open = () => {
+    overlay.hidden = false;
+    load();
   };
   const close = () => (overlay.hidden = true);
   btn.addEventListener("click", open);

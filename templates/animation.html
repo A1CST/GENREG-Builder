@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>GENREG — Animation</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='vendor/xterm.css') }}" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+</head>
+<body class="tlm-body">
+  <header class="topbar">
+    <div class="brand">GENREG<span class="brand-sub">animation · evolved shape recognition</span></div>
+    <div class="status">
+      <span class="dot" id="av-dot"></span>
+      <span id="av-conn">connecting…</span>
+      <a class="runs-link" href="/" title="Back to the build interface">Build ↗</a>
+      <a class="runs-link" href="/tree" title="Tree-of-Models text prediction">Tree LM ↗</a>
+      <a class="runs-link" href="/diff" title="DiffEvo — denoising diffusion by neuroevolution">DiffEvo ↗</a>
+      <a class="runs-link" href="/runs" title="Runs &amp; checkpoints">Runs ↗</a>
+      <a class="runs-link" href="/docs" title="Project documentation">Docs ↗</a>
+    </div>
+  </header>
+
+  <div class="tlm-layout">
+    <!-- ── config sidebar ─────────────────────────────── -->
+    <aside class="sidebar left tlm-side">
+      <div class="side-head">Configuration</div>
+      <div class="side-body control-panel">
+        <div class="field">
+          <span class="field-hint">A VERY simple evolutionary model — <b>mutation only, no crossover</b>. Each genome is frame(4096) → tanh(encoder) → tanh(hidden) → shape logits. <b>One clip per generation</b>: the population sees a single clip's 24 frames (in temporal order), clip order shuffled each epoch — never all 240 at once. Fitness = accuracy on just that clip. Deliberately basic; a plateau is an expected, honest result.</span>
+        </div>
+        <div class="field">
+          <label for="av-enc">Encoder dims</label>
+          <input type="number" id="av-enc" value="12" min="2" max="64" />
+          <span class="field-hint">bottleneck the 64×64 frame is squeezed through</span>
+        </div>
+        <div class="field">
+          <label for="av-hidden">Hidden units</label>
+          <input type="number" id="av-hidden" value="24" min="2" max="128" />
+        </div>
+        <div class="field">
+          <label for="av-pop">Population</label>
+          <input type="number" id="av-pop" value="48" min="4" max="400" />
+        </div>
+        <div class="field">
+          <label for="av-elite">Elite fraction</label>
+          <input type="number" id="av-elite" value="0.25" min="0.05" max="0.9" step="0.05" />
+          <span class="field-hint">kept unchanged; children = mutated copies of single elite parents</span>
+        </div>
+        <div class="field">
+          <label for="av-mut">Mutation step</label>
+          <input type="number" id="av-mut" value="0.05" min="0.0001" max="1" step="0.01" />
+          <span class="field-hint">fixed Gaussian step applied to every weight of every child</span>
+        </div>
+        <div class="field">
+          <label for="av-maxgens">Max generations</label>
+          <input type="number" id="av-maxgens" value="500" min="5" max="5000" />
+        </div>
+        <div class="field">
+          <label for="av-patience">Plateau patience</label>
+          <input type="number" id="av-patience" value="100" min="5" max="2000" />
+          <span class="field-hint">stop when best accuracy hasn't improved for this many generations</span>
+        </div>
+        <div class="field">
+          <label for="av-seed">Seed</label>
+          <input type="number" id="av-seed" value="1234" min="0" max="2147483647" />
+        </div>
+        <div class="tlm-actions">
+          <button id="av-start" class="runs-btn tlm-primary">Start Training</button>
+          <button id="av-stop" class="runs-btn" disabled>Stop</button>
+        </div>
+        <div class="tlm-status" id="av-status">idle</div>
+      </div>
+    </aside>
+
+    <!-- ── visualizations ─────────────────────────────── -->
+    <main class="tlm-main">
+      <div class="tlm-tiles">
+        <div class="tlm-tile"><div class="tlm-tile-label">Generation</div><div class="tlm-tile-value" id="st-gen">—</div></div>
+        <div class="tlm-tile"><div class="tlm-tile-label">This clip</div><div class="tlm-tile-value" id="st-clip">—</div></div>
+        <div class="tlm-tile"><div class="tlm-tile-label">Rolling acc (epoch)</div><div class="tlm-tile-value" id="st-roll">—</div></div>
+        <div class="tlm-tile"><div class="tlm-tile-label">Pop mean · clip</div><div class="tlm-tile-value" id="st-mean">—</div></div>
+        <div class="tlm-tile"><div class="tlm-tile-label">Params / genome</div><div class="tlm-tile-value" id="st-params">—</div></div>
+        <div class="tlm-tile"><div class="tlm-tile-label">Champion · all clips</div><div class="tlm-tile-value" id="st-result">—</div></div>
+      </div>
+
+      <!-- fitness -->
+      <section class="tlm-card">
+        <div class="tlm-card-head">
+          <h2>Evolution <span class="tlm-card-sub">one clip presented per generation (shuffled order); fitness is accuracy on that clip's 24 frames</span></h2>
+          <div class="tlm-legend">
+            <span class="tlm-chip"><i style="background:var(--tlm-s1)"></i>rolling epoch avg</span>
+            <span class="tlm-chip"><i style="background:var(--tlm-s2)"></i>this-clip fitness</span>
+          </div>
+        </div>
+        <div class="tlm-chart-wrap"><svg id="av-fitness" role="img" aria-label="Best and mean classification accuracy per generation"></svg></div>
+      </section>
+
+      <!-- dataset + live champion predictions -->
+      <section class="tlm-card">
+        <div class="tlm-card-head">
+          <h2>Dataset · live predictions <span class="tlm-card-sub">10 clips · 24 frames · 64×64 — the highlighted tile is the clip being presented this generation; each label is the champion's call on the frame shown</span></h2>
+        </div>
+        <div class="anim-grid" id="anim-grid"></div>
+      </section>
+
+      <!-- final champion report -->
+      <section class="tlm-card" id="av-report" hidden>
+        <div class="tlm-card-head">
+          <h2>Champion report <span class="tlm-card-sub" id="av-report-sub"></span></h2>
+        </div>
+        <div class="av-report-grid">
+          <div>
+            <div class="dv-strip-label">confusion — true shape (row) vs predicted (column)</div>
+            <table class="doc-table" id="av-confusion"></table>
+          </div>
+          <div>
+            <div class="dv-strip-label">encoder space — 12-dim activations, PCA to 2D, colour = true shape</div>
+            <canvas id="av-pca" width="260" height="200"></canvas>
+            <div class="tlm-legend" id="av-pca-legend"></div>
+          </div>
+          <div>
+            <div class="dv-strip-label">accuracy per clip</div>
+            <table class="doc-table" id="av-perclip"></table>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="{{ url_for('static', filename='animation.js') }}"></script>
+  <script src="{{ url_for('static', filename='cfgpersist.js') }}"></script>
+  <!-- shared daemon-backed terminal dock (same terminals as the build page) -->
+  <script src="{{ url_for('static', filename='vendor/xterm.js') }}"></script>
+  <script src="{{ url_for('static', filename='vendor/addon-fit.js') }}"></script>
+  <script src="{{ url_for('static', filename='termdock.js') }}"></script>
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
+  <script src="{{ url_for('static', filename='agentpanel.js') }}"></script>
+  <script src="{{ url_for('static', filename='configpanel.js') }}"></script>
+</body>
+</html>

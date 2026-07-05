@@ -31,7 +31,7 @@
   // ── websocket ────────────────────────────────────────────
   function connect() {
     ws = new WebSocket(`${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/treelm`);
-    ws.onopen = () => setConn(true);
+    ws.onopen = () => { setConn(true); send({ op: "encoders" }); };
     ws.onclose = () => { setConn(false); running = false; setButtons(); setTimeout(connect, 1500); };
     ws.onmessage = (e) => { try { handle(JSON.parse(e.data)); } catch (_) {} };
   }
@@ -60,16 +60,29 @@
         break;
       case "tree": onTree(ev); break;
       case "node_start": onNodeStart(ev); break;
-      case "node_gen": onNodeGen(ev); break;
+      case "node_gen":
+        onNodeGen(ev);
+        if (String(ev.id).startsWith("encoder"))
+          $("enc-status").textContent =
+            `evolving ${ev.id} — gen ${ev.gen}, best ${(+ev.best).toFixed(3)}` +
+            (ev.dim ? `, dim ${ev.dim}` : "");
+        break;
       case "node_done": onNodeDone(ev); break;
       case "eval": showEval(ev); break;
       case "done":
-        running = false; modelReady = true; setButtons();
-        $("tlm-status").textContent = `done in ${ev.seconds}s` + (ev.saved ? " — model saved" : "");
+        running = false;
+        if (!ev.encoder_only) modelReady = true;
+        setButtons();
+        $("tlm-status").textContent = `done in ${ev.seconds}s` + (ev.saved ? (ev.encoder_only ? " — encoder saved" : " — model saved") : "");
+        if (ev.encoder_only) $("enc-status").textContent = `done in ${ev.seconds}s — saved as ${ev.run_id}`;
         break;
       case "stopped":
         running = false; setButtons();
-        $("tlm-status").textContent = `stopped after ${ev.trained_nodes} nodes`;
+        $("tlm-status").textContent = ev.encoder_only ? "encoder training stopped" : `stopped after ${ev.trained_nodes} nodes`;
+        if (ev.encoder_only) $("enc-status").textContent = "stopped";
+        break;
+      case "encoders":
+        renderEncoders(ev.list || []);
         break;
       case "error":
         running = false; setButtons();
@@ -396,28 +409,108 @@
     $("tlm-stop").disabled = !running;
     $("gen-btn").disabled = !modelReady || running;
     $("tr-btn").disabled = !modelReady || running;
+    $("enc-train").disabled = running || !ws || ws.readyState !== 1;
+    $("enc-stop").disabled = !running;
+  }
+
+  // ── encoder trainer modal ────────────────────────────────
+  $("enc-modal-open").addEventListener("click", () => { $("enc-modal").hidden = false; });
+  $("enc-modal-close").addEventListener("click", () => { $("enc-modal").hidden = true; });
+  $("enc-modal").addEventListener("click", (e) => { if (e.target === $("enc-modal")) $("enc-modal").hidden = true; });
+
+  $("enc-train").addEventListener("click", () => {
+    running = true; setButtons();
+    $("enc-status").textContent = "starting…";
+    const cfg = gatherConfig();
+    delete cfg.encoder_id;                 // always trains a fresh encoder
+    send(Object.assign({ op: "train_encoder", notes: "standalone encoder" }, cfg));
+  });
+  $("enc-stop").addEventListener("click", () => send({ op: "stop" }));
+
+  function renderEncoders(list) {
+    const sel = $("cf-encoder-id");
+    const keep = sel.value;
+    sel.innerHTML = '<option value="">evolve fresh each run</option>';
+    list.forEach((e) => {
+      const o = document.createElement("option");
+      o.value = e.id;
+      o.textContent = `${e.id} · dim ${e.context_dim} · acc ${e.nc_accuracy != null ? (e.nc_accuracy * 100).toFixed(1) + "%" : "?"}`;
+      sel.appendChild(o);
+    });
+    if ([...sel.options].some((o) => o.value === keep)) sel.value = keep;
+
+    const box = $("enc-list");
+    if (!list.length) { box.textContent = "none saved yet"; return; }
+    box.innerHTML = "";
+    const tbl = document.createElement("table");
+    tbl.className = "tlm-sweep-table";
+    tbl.innerHTML = "<tr><th>encoder</th><th>NC acc</th><th>dim</th><th>window</th><th>embed</th><th>flags</th><th></th></tr>";
+    list.forEach((e) => {
+      const tr = document.createElement("tr");
+      const flags = [e.time_constrained ? "time" : null, e.diversity ? "div" : null,
+                     e.evolve_dims ? "dims" : null].filter(Boolean).join("+") || "—";
+      tr.innerHTML =
+        `<td></td><td>${e.nc_accuracy != null ? (e.nc_accuracy * 100).toFixed(1) + "%" : "?"}</td>` +
+        `<td>${e.context_dim ?? "?"}</td><td>${e.context_window ?? "?"}</td>` +
+        `<td>${e.embed_dim ?? "?"}</td><td>${flags}</td><td></td>`;
+      tr.children[0].textContent = e.id;
+      const use = document.createElement("button");
+      use.className = "runs-btn";
+      use.textContent = sel.value === e.id ? "selected" : "use";
+      use.addEventListener("click", () => {
+        sel.value = e.id;
+        $("enc-modal").hidden = true;
+        $("tlm-status").textContent = `encoder ${e.id} selected — Start Training will reuse it`;
+      });
+      tr.children[6].appendChild(use);
+      tbl.appendChild(tr);
+    });
+    box.appendChild(tbl);
   }
 
   function gatherConfig() {
     const v = (id) => parseFloat($(id).value);
     return {
+      token_mode: $("cf-tokenmode") ? $("cf-tokenmode").value : "byte",
+      vocab_size: $("cf-vocab") ? v("cf-vocab") || 2048 : 2048,
       branching_factor: v("cf-branch"), context_window: v("cf-ctxwin"),
       cluster_tokens: $("cf-cluster").checked,
       device: $("cf-device").value,
+      ridge_seed: $("cf-ridge").checked,
+      encoder_fitness: $("cf-encfit").value,
+      sa_mutation: $("cf-sa").checked,
+      node_resample: $("cf-resample").checked,
+      encoder_split_rotate: $("cf-encrotate").checked,
+      encoder_depth: parseInt($("cf-encdepth").value, 10) || 1,
+      encoder_hidden: v("cf-enchidden") || 0,
       embed_dim: v("cf-embed"), context_dim: v("cf-ctxdim"),
       routing_layers: v("cf-layers"), max_samples: v("cf-samples"),
       encoder_generations: v("cf-encgens"),
       encoder_pop_size: v("cf-encpop") || 0,
+      encoder_samples: v("cf-encsamples") || 2000,
+      encoder_id: $("cf-encoder-id").value || undefined,
       encoder_speed_generations: $("cf-encspeed-on").checked ? v("cf-encspeed") : 0,
       encoder_time_budget: v("cf-encbudget"),
       encoder_time_constrained: $("cf-enctime").checked,
       encoder_evolve_dims: $("cf-encdims").checked,
       encoder_diversity: $("cf-encdiv").checked,
       encoder_diversity_budget: v("cf-encdivbudget"),
+      encoder_novelty: $("cf-encnov").checked,
+      encoder_novelty_strength: v("cf-encnovstr"),
+      encoder_seed_embeddings: $("cf-encseed").checked,
       pop_size: v("cf-pop"), generations: v("cf-gens"),
       mutation_rate: v("cf-mut"), elite_frac: v("cf-elite"),
     };
   }
+
+  // token-mode selector: show the vocab-size field only in word mode
+  (() => {
+    const mode = $("cf-tokenmode"), field = $("cf-vocab-field");
+    if (!mode || !field) return;
+    const sync = () => { field.hidden = mode.value !== "word"; };
+    mode.addEventListener("change", sync);
+    sync();
+  })();
 
   $("tlm-start").addEventListener("click", () => {
     running = true; setButtons();
@@ -431,6 +524,9 @@
     { key: "routing_layers", label: "routing layers", suggest: "0,1,2" },
     { key: "branching_factor", label: "branching", suggest: "4,16" },
     { key: "cluster_tokens", label: "cluster token split (0/1)", suggest: "0,1" },
+    { key: "ridge_seed", label: "ridge seed (0/1)", suggest: "0,1" },
+    { key: "encoder_split_rotate", label: "rotate ridge split (0/1)", suggest: "0,1" },
+    { key: "sa_mutation", label: "self-adaptive mutation (0/1)", suggest: "0,1" },
     { key: "context_dim", label: "context dim", suggest: "64,128,256" },
     { key: "embed_dim", label: "embed dim", suggest: "32,64" },
     { key: "context_window", label: "context window", suggest: "8,16,32" },
@@ -442,6 +538,10 @@
     { key: "encoder_time_budget", label: "speed budget", suggest: "0.15,0.5,1" },
     { key: "encoder_time_constrained", label: "time-constrained encoder (0/1)", suggest: "0,1" },
     { key: "encoder_diversity", label: "encoder head diversity (0/1)", suggest: "0,1" },
+    { key: "encoder_novelty", label: "encoder novelty bonus (0/1)", suggest: "0,1" },
+    { key: "encoder_seed_embeddings", label: "seed embeddings (0/1)", suggest: "0,1" },
+    { key: "encoder_depth", label: "encoder depth (1/2)", suggest: "1,2" },
+    { key: "encoder_novelty_strength", label: "novelty strength", suggest: "0.25,0.5,1" },
     { key: "encoder_evolve_dims", label: "evolve context dim (0/1)", suggest: "0,1" },
     { key: "encoder_diversity_budget", label: "diversity budget", suggest: "0.15,0.5,1" },
   ];

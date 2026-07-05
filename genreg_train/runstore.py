@@ -89,6 +89,46 @@ def finalize(run, done, genome):
         json.dump(cfg, f, indent=2)
 
 
+# ---------------------------------------------------------------- user metadata
+# Dashboard organization (label / favorite / group / tags) lives in its own
+# meta.json so it never races the trainer's config.json/summary.json writes.
+def _read_meta(d):
+    m = _read_json(os.path.join(d, "meta.json")) or {}
+    return {
+        "label": str(m.get("label", ""))[:80],
+        "favorite": bool(m.get("favorite", False)),
+        "group": str(m.get("group", ""))[:80],
+        "tags": [str(t)[:24] for t in m.get("tags", []) if str(t).strip()][:12],
+    }
+
+
+def set_meta(rid, patch):
+    """Merge a partial update into a run's meta.json. Returns the new meta,
+    or None if the run doesn't exist. Unknown keys are ignored; strings are
+    trimmed and length-capped so the dashboard can't wedge the store."""
+    d = _run_dir(rid)
+    if not d:
+        return None
+    meta = _read_meta(d)
+    for key in ("label", "group"):
+        if key in patch:
+            meta[key] = str(patch[key] or "").strip()[:80]
+    if "favorite" in patch:
+        meta["favorite"] = bool(patch["favorite"])
+    if "tags" in patch:
+        tags = patch["tags"]
+        if isinstance(tags, str):
+            tags = tags.split(",")
+        if isinstance(tags, list):
+            meta["tags"] = [str(t).strip()[:24] for t in tags if str(t).strip()][:12]
+    try:
+        with open(os.path.join(d, "meta.json"), "w", encoding="utf-8") as f:
+            json.dump(meta, f, indent=2)
+    except OSError:
+        return None
+    return meta
+
+
 # ---------------------------------------------------------------- reads for the API
 def _run_dir(rid):
     if not os.path.isdir(RUNS_DIR):
@@ -113,6 +153,7 @@ def list_runs():
             if not cfg:
                 continue
             summ = _read_json(os.path.join(envd, rid, "summary.json")) or {}
+            meta = _read_meta(os.path.join(envd, rid))
             runs.append({
                 "id": rid, "environment": env, "created": cfg.get("created"),
                 "status": summ.get("status", cfg.get("status", "running")),
@@ -122,9 +163,94 @@ def list_runs():
                 "constraints": cfg.get("config", {}).get("constraints", []),
                 "best": summ.get("best"),
                 "has_checkpoint": bool(summ.get("checkpoint")),
+                "label": meta["label"], "favorite": meta["favorite"],
+                "group": meta["group"], "tags": meta["tags"],
             })
     runs.sort(key=lambda r: r.get("created") or "", reverse=True)
     return runs
+
+
+# env dirs that are NOT engine environments (for the "build" page scope)
+_NON_ENGINE_ENVS = {"tree", "encoder", "diffevo"}
+
+
+def latest_run(envs=None):
+    """Newest run among the given env dirs (None = engine envs only, i.e.
+    everything except tree/encoder/diffevo). Run ids start with their
+    YYYYmmdd-HHMMSS stamp, so lexicographic max = newest. Reads only that one
+    run's files — cheap enough for the run-config panel to poll.
+
+    Returns {id, environment, created, status, config, summary, last_metric}
+    (summary None while running; last_metric = newest history.jsonl line)."""
+    if not os.path.isdir(RUNS_DIR):
+        return None
+    cand = []
+    for env in os.listdir(RUNS_DIR):
+        envd = os.path.join(RUNS_DIR, env)
+        if not os.path.isdir(envd):
+            continue
+        if envs is None:
+            if env in _NON_ENGINE_ENVS:
+                continue
+        elif env not in envs:
+            continue
+        for rid in os.listdir(envd):
+            if os.path.isdir(os.path.join(envd, rid)):
+                cand.append((rid, env))
+    for rid, env in sorted(cand, reverse=True)[:5]:   # skip stray non-run dirs
+        d = os.path.join(RUNS_DIR, env, rid)
+        cfg = _read_json(os.path.join(d, "config.json"))
+        if not cfg:
+            continue
+        summ = _read_json(os.path.join(d, "summary.json"))
+        last = None
+        try:
+            with open(os.path.join(d, "history.jsonl"), "rb") as f:
+                f.seek(0, 2)
+                f.seek(max(0, f.tell() - 4096))
+                lines = f.read().decode("utf-8", "replace").strip().splitlines()
+            if lines:
+                last = json.loads(lines[-1])
+        except (OSError, ValueError):
+            pass
+        return {"id": rid, "environment": env, "created": cfg.get("created"),
+                "status": (summ or {}).get("status", cfg.get("status", "running")),
+                "config": cfg.get("config") or {},
+                "summary": summ, "last_metric": last}
+    return None
+
+
+def recent_runs(limit=10):
+    """Newest `limit` runs across ALL environments (config-panel history).
+    Same lightweight strategy as latest_run: sort dir names (timestamp-
+    prefixed ids), then read only the chosen runs' files."""
+    try:
+        limit = max(1, min(int(limit), 50))
+    except (TypeError, ValueError):
+        limit = 10
+    if not os.path.isdir(RUNS_DIR):
+        return []
+    cand = []
+    for env in os.listdir(RUNS_DIR):
+        envd = os.path.join(RUNS_DIR, env)
+        if not os.path.isdir(envd):
+            continue
+        for rid in os.listdir(envd):
+            if os.path.isdir(os.path.join(envd, rid)):
+                cand.append((rid, env))
+    out = []
+    for rid, env in sorted(cand, reverse=True):
+        if len(out) >= limit:
+            break
+        d = os.path.join(RUNS_DIR, env, rid)
+        cfg = _read_json(os.path.join(d, "config.json"))
+        if not cfg:
+            continue                          # stray non-run dir
+        summ = _read_json(os.path.join(d, "summary.json"))
+        out.append({"id": rid, "environment": env, "created": cfg.get("created"),
+                    "status": (summ or {}).get("status", cfg.get("status", "running")),
+                    "config": cfg.get("config") or {}, "summary": summ})
+    return out
 
 
 def get_run(rid):
@@ -142,7 +268,8 @@ def get_run(rid):
                     history.append(json.loads(line))
     except (OSError, ValueError):
         pass
-    return {"id": rid, "config": cfg, "summary": summ, "history": history}
+    return {"id": rid, "config": cfg, "summary": summ, "history": history,
+            "meta": _read_meta(d)}
 
 
 def get_traces(rid):
@@ -174,6 +301,26 @@ def load_checkpoint(rid):
     if not os.path.exists(path):
         return None
     return load_genome(path)
+
+
+def embedding(rid):
+    """PCA-3D cloud of a run's byte embeddings (tree or encoder runs)."""
+    d = _run_dir(rid)
+    if not d:
+        return None
+    from genreg_train import tree_service
+    meta = _read_json(os.path.join(d, "config.json")) or {}
+    return tree_service.embedding_cloud(d, meta.get("config") or {})
+
+
+def word_embedding(rid):
+    """PCA-3D cloud of frequent-word context vectors through the run's encoder."""
+    d = _run_dir(rid)
+    if not d:
+        return None
+    from genreg_train import tree_service
+    meta = _read_json(os.path.join(d, "config.json")) or {}
+    return tree_service.word_cloud(d, meta.get("config") or {})
 
 
 def infer(rid):

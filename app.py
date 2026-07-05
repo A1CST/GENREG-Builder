@@ -21,7 +21,7 @@ import sys
 import threading
 import time
 
-from flask import Flask, render_template, jsonify, send_from_directory
+from flask import Flask, render_template, jsonify, request, send_from_directory
 from flask_sock import Sock
 
 app = Flask(__name__)
@@ -45,6 +45,34 @@ try:
     TREE_OK, TREE_ERR = True, None
 except Exception as _e:                       # pragma: no cover
     TREE_OK, TREE_ERR = False, str(_e)
+
+# I2 latent-content node (separate program; shares this server).
+try:
+    import i2_service
+    I2_OK, I2_ERR = True, None
+except Exception as _e:                       # pragma: no cover
+    I2_OK, I2_ERR = False, str(_e)
+
+# DiffEvo — denoising diffusion by neuroevolution (separate program).
+try:
+    from genreg_train import diffuse_service
+    DIFF_OK, DIFF_ERR = True, None
+except Exception as _e:                       # pragma: no cover
+    DIFF_OK, DIFF_ERR = False, str(_e)
+
+# Animation Evo — mutation-only shape classifier on the animation dataset.
+try:
+    from genreg_train import animation_evo
+    ANIM_OK, ANIM_ERR = True, None
+except Exception as _e:                       # pragma: no cover
+    ANIM_OK, ANIM_ERR = False, str(_e)
+
+# Agent board — shared notice feed for the floating Agent panel (all pages).
+try:
+    import agent_board
+    BOARD_OK = True
+except Exception:                             # pragma: no cover
+    agent_board, BOARD_OK = None, False
 
 DAEMON_HOST = "127.0.0.1"
 DAEMON_PORT = 5001
@@ -180,11 +208,89 @@ def api_run(rid):
     return (jsonify(r), 200) if r else (jsonify({"error": "not found"}), 404)
 
 
+# page scope -> run env dirs (None = engine envs) for the run-config panel
+RUN_SCOPES = {"build": None, "tree": ("tree", "encoder"), "diff": ("diffevo",)}
+
+
+@app.route("/api/active-run")
+def api_active_run():
+    """Newest run for a page's project scope — feeds the run-config panel."""
+    if not TRAIN_OK:
+        return jsonify(None)
+    scope = request.args.get("scope", "")
+    if scope not in RUN_SCOPES:
+        return jsonify(None)
+    return jsonify(runstore.latest_run(RUN_SCOPES[scope]))
+
+
+@app.route("/api/run-history")
+def api_run_history():
+    """Newest runs across all projects — the config panel's history list."""
+    if not TRAIN_OK:
+        return jsonify([])
+    return jsonify(runstore.recent_runs(request.args.get("limit", 10)))
+
+
+@app.route("/api/agent/notices")
+def api_agent_notices():
+    """Notice feed for the Agent panel (newest first)."""
+    if not BOARD_OK:
+        return jsonify([])
+    return jsonify(agent_board.list_notices(
+        since=request.args.get("since", 0), limit=request.args.get("limit", 100)))
+
+
+@app.route("/api/agent/notices", methods=["POST"])
+def api_agent_post():
+    """Post a notice (AIs/tools; also reachable via agent_notify.py offline)."""
+    if not BOARD_OK:
+        return jsonify({"error": "agent board unavailable"}), 503
+    data = request.get_json(silent=True) or {}
+    if not str(data.get("title", "")).strip():
+        return jsonify({"error": "title required"}), 400
+    return jsonify(agent_board.post(
+        data.get("title"), data.get("body", ""), kind=data.get("kind", "info"),
+        source=data.get("source", "http"), run_id=data.get("run_id")))
+
+
+@app.route("/api/runs/<rid>/meta", methods=["POST"])
+def api_run_meta(rid):
+    """Update a run's dashboard metadata (label / favorite / group / tags)."""
+    if not TRAIN_OK:
+        return jsonify({"error": "training unavailable"}), 503
+    patch = request.get_json(silent=True) or {}
+    meta = runstore.set_meta(rid, patch)
+    return (jsonify(meta), 200) if meta is not None else (jsonify({"error": "not found"}), 404)
+
+
 @app.route("/api/runs/<rid>/traces")
 def api_traces(rid):
     if not TRAIN_OK:
         return jsonify([])
     return jsonify(runstore.get_traces(rid))
+
+
+@app.route("/api/runs/<rid>/embedding")
+def api_embedding(rid):
+    if not TRAIN_OK:
+        return jsonify({"error": "training unavailable"}), 503
+    try:
+        r = runstore.embedding(rid)
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+    return (jsonify(r), 200) if r else (jsonify({"error": "no encoder saved for this run"}), 404)
+
+
+@app.route("/api/runs/<rid>/words")
+def api_word_embedding(rid):
+    """Word-level context-vector cloud (tree/encoder runs)."""
+    if not TRAIN_OK:
+        return jsonify({"error": "training unavailable"}), 503
+    try:
+        r = runstore.word_embedding(rid)
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+    return (jsonify(r), 200) if r else (jsonify({"error": "no encoder saved for this run"}), 404)
 
 
 @app.route("/api/runs/<rid>/replay")
@@ -198,11 +304,202 @@ def api_replay(rid):
     return (jsonify(r), 200) if r else (jsonify({"error": "no checkpoint"}), 404)
 
 
+@app.route("/i2")
+def i2_page():
+    """I2 — separate program sharing this server: canvas + the same terminals."""
+    resp = app.make_response(render_template("i2.html"))
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
+
+
+@app.route("/api/i2/genome")
+def api_i2_genome():
+    """Current genome (decoder weights included) — the browser's auto-update."""
+    if not I2_OK:
+        return jsonify({"error": f"i2 unavailable: {I2_ERR}"}), 503
+    return jsonify(i2_service.genome())
+
+
+@app.route("/api/i2/pages")
+def api_i2_pages():
+    if not I2_OK:
+        return jsonify({"error": f"i2 unavailable: {I2_ERR}"}), 503
+    return jsonify(i2_service.list_pages())
+
+
+@app.route("/api/i2/page/<name>")
+def api_i2_page(name):
+    """One latent document. The server never sends readable page text."""
+    if not I2_OK:
+        return jsonify({"error": f"i2 unavailable: {I2_ERR}"}), 503
+    doc = i2_service.get_page(name)
+    return (jsonify(doc), 200) if doc else (jsonify({"error": "no such page"}), 404)
+
+
+@app.route("/api/i2/publish", methods=["POST"])
+def api_i2_publish():
+    if not I2_OK:
+        return jsonify({"error": f"i2 unavailable: {I2_ERR}"}), 503
+    data = request.get_json(silent=True) or {}
+    try:
+        meta = i2_service.publish(
+            str(data.get("name", "")), str(data.get("title", "")),
+            str(data.get("content", "")), origin=str(data.get("origin", "local")))
+    except (ValueError, RuntimeError) as exc:
+        return jsonify({"error": str(exc)}), 400
+    return jsonify(meta)
+
+
 @app.route("/tree")
 def tree_page():
     resp = app.make_response(render_template("tree.html"))
     resp.headers["Cache-Control"] = "no-store"
     return resp
+
+
+@app.route("/diff")
+def diff_page():
+    """DiffEvo — denoising diffusion by neuroevolution (separate program)."""
+    resp = app.make_response(render_template("diff.html"))
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
+
+
+@app.route("/animation")
+def animation_page():
+    """Animation — new program page (blank scaffold for now)."""
+    resp = app.make_response(render_template("animation.html"))
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
+
+
+@app.route("/api/animations")
+def api_animations():
+    """The ten procedural shape-motion clips (24 x 64 x 64 each), rendered on
+    demand. `data` is base64 of the raw uint8 frames (frames*size*size bytes,
+    row-major) — the page decodes it straight into canvas ImageData."""
+    import base64
+
+    from genreg_train import animation_data
+
+    shape_of_clip = {name: shape.__name__
+                     for name, _, shape in animation_data.ANIMATIONS}
+    out = []
+    for name, frames in animation_data.generate_all().items():
+        u8 = (frames * 255.0 + 0.5).astype("uint8")
+        out.append({
+            "name": name,
+            "shape": shape_of_clip[name],
+            "frames": int(u8.shape[0]),
+            "size": int(u8.shape[1]),
+            "data": base64.b64encode(u8.tobytes()).decode("ascii"),
+        })
+    return jsonify(out)
+
+
+@sock.route("/animevo")
+def animevo(ws):
+    """Animation Evo socket — same viewer-onto-hub shape as /diffuse: training
+    runs in animation_evo.HUB and survives navigation; (re)connecting replays
+    the journal snapshot.
+
+    Browser -> server: {"op":"start", ...config} | {"op":"stop"}.
+    Server -> browser: JSON events (started / gen / sample / done / error).
+    """
+    send_lock = threading.Lock()
+
+    def emit(ev):
+        payload = json.dumps(ev)
+        with send_lock:
+            ws.send(payload)
+
+    if not ANIM_OK:
+        try:
+            emit({"type": "error", "message": f"animevo unavailable: {ANIM_ERR}"})
+        except Exception:
+            pass
+        return
+
+    hub = animation_evo.HUB
+    try:
+        for ev in hub.snapshot():          # rebuild mid-run state
+            emit(ev)
+        emit({"type": "job", "running": hub.running()})
+    except Exception:
+        return
+    hub.subscribe(emit)
+
+    try:
+        while True:
+            msg = ws.receive()
+            if msg is None:
+                break
+            try:
+                data = json.loads(msg)
+            except (ValueError, TypeError):
+                continue
+            op = data.get("op")
+            if op == "start":
+                hub.start(data, animation_evo.AnimEvoTrainer)
+            elif op == "stop":
+                hub.stop()
+    except Exception:
+        pass
+    finally:
+        hub.unsubscribe(emit)              # detach only — training keeps going
+
+
+@sock.route("/diffuse")
+def diffuse(ws):
+    """DiffEvo socket — a viewer onto the server-side job hub, same shape as
+    /treelm: training runs in the hub and survives navigation; (re)connecting
+    replays the journal snapshot so the page rebuilds mid-run.
+
+    Browser -> server: {"op":"start", ...config} | {"op":"stop"}.
+    Server -> browser: JSON events (started / level_start / gen / level_done /
+    sample / done / error), every message tagged with `type`.
+    """
+    send_lock = threading.Lock()
+
+    def emit(ev):
+        payload = json.dumps(ev)
+        with send_lock:                    # hub thread + handler thread both send
+            ws.send(payload)
+
+    if not DIFF_OK:
+        try:
+            emit({"type": "error", "message": f"diffevo unavailable: {DIFF_ERR}"})
+        except Exception:
+            pass
+        return
+
+    hub = diffuse_service.HUB
+    try:
+        for ev in hub.snapshot():          # rebuild mid-run state
+            emit(ev)
+        emit({"type": "job", "running": hub.running()})
+    except Exception:
+        return
+    hub.subscribe(emit)
+
+    try:
+        while True:
+            msg = ws.receive()
+            if msg is None:
+                break
+            try:
+                data = json.loads(msg)
+            except (ValueError, TypeError):
+                continue
+            op = data.get("op")
+            if op == "start":
+                hub.start(data, diffuse_service.DiffuseTrainer)
+            elif op == "stop":
+                hub.stop()
+    except Exception:
+        pass
+    finally:
+        hub.unsubscribe(emit)              # detach only — training keeps going
 
 
 @sock.route("/treelm")
@@ -258,6 +555,13 @@ def treelm(ws):
                 hub.start(data, tree_service.TreeLMTrainer)
             elif op == "sweep":
                 hub.start(data, tree_service.TreeSweeper)
+            elif op == "train_encoder":
+                hub.start(data, tree_service.EncoderTrainer)
+            elif op == "encoders":
+                try:
+                    emit({"type": "encoders", "list": tree_service.list_encoders()})
+                except Exception:
+                    pass
             elif op == "stop":
                 hub.stop()
             elif op == "generate":
@@ -331,6 +635,14 @@ def train(ws):
                 elif t == "done" and run_ref["run"]:
                     champ = holder["trainer"].champion() if holder.get("trainer") else None
                     runstore.finalize(run_ref["run"], ev, champ)
+                    if BOARD_OK:   # end-of-run alarm for the Agent panel
+                        agent_board.post_run_event(
+                            cfg.get("environment", "engine"),
+                            {**ev, "run_id": run_ref["run"]["id"]})
+                elif t == "error" and BOARD_OK:   # crash alarm (run may not exist yet)
+                    agent_board.post_run_event(
+                        cfg.get("environment", "engine"),
+                        {**ev, "run_id": (run_ref["run"] or {}).get("id")})
             except Exception:
                 pass
             emit(ev)
