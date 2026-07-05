@@ -1,2 +1,0 @@
-{"gen": 0, "node": "encoder", "kind": "encoder", "fitness": {"best": 0.3585, "mean": 0.3585}}
-{"gen": 1, "node": "R", "kind": "leaf", "fitness": {"best": 0.2833, "mean": 0.3209}}

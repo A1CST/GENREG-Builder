@@ -1,5 +1,0 @@
-{"gen": 1, "node": "R.0", "kind": "leaf", "fitness": {"best": 0.6854, "mean": 0.6854}}
-{"gen": 2, "node": "R.1", "kind": "leaf", "fitness": {"best": 0.1258, "mean": 0.4056}}
-{"gen": 3, "node": "R.2", "kind": "leaf", "fitness": {"best": 0.8025, "mean": 0.5379}}
-{"gen": 4, "node": "R.3", "kind": "leaf", "fitness": {"best": 0.9481, "mean": 0.6404}}
-{"gen": 5, "node": "R", "kind": "router", "fitness": {"best": 0.7496, "mean": 0.6623}}
