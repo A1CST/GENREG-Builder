@@ -131,3 +131,20 @@ saturated); (2) attention's environment lever (longer / repeat-rich windows
 so the copy channel can pay rent — α-gate makes it free to carry);
 (3) meta-optimizer (component plan #3) to buy back wall-clock across every
 run; (4) per-neuron activation audit (are the 8 functions being used?).
+
+## 2026-07-05 — encoder separation (enc_char_v1): three rounds, verdict = parity
+
+| variant | standalone h1 | composed held-out | rollout closed (R=8) | gap |
+|---|---|---|---|---|
+| monolith (ref) | — | 31.9% | 27.2% | 0.17 nats |
+| equal horizons | 29.7% | 30.71% | — | — |
+| weighted 0.7/0.2/0.1 | 31.49% | 31.78% | **27.32%** | 0.21 nats |
+
+Lessons: (1) at fixed H=64, equal multi-horizon pressure robs next-char
+sharpness — weighting recovers it; (2) the weighted state carries h2/h4
+future information the monolith never encoded, at zero performance cost;
+(3) the composed model reaches full parity with the encoder FROZEN — the
+readout alone can absorb the whole rollout adaptation. Separation = free
+modularity, not free accuracy. Kept as the component option; capacity growth
+for the encoder (deliberate design, not plateau-patching) is the flagged
+follow-up if richer state is ever demanded by longer rollouts.

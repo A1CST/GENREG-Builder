@@ -373,6 +373,16 @@ def animation_page():
     return resp
 
 
+@app.route("/pure")
+def pure_page():
+    """PURE — the baseline model: a plain GA with nothing added, the control
+    that every GENREG bell and whistle gets measured against. Blank scaffold
+    (terminal dock + layout) for now."""
+    resp = app.make_response(render_template("pure.html"))
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
+
+
 @app.route("/api/animations")
 def api_animations():
     """The ten procedural shape-motion clips (24 x 64 x 64 each), rendered on

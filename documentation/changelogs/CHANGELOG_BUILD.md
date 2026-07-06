@@ -6,6 +6,17 @@ Seeded 2026-07-05 from the main changelog (keyword split, best effort).
 
 ---
 
+- **[2026-07-05] (Claude)** — **Fixed the Claude terminal button** — it typed
+  `[?1;2cclaude --dangerously-skip-permissions` (PowerShell "Missing type name after '['"
+  parse error). Cause: the button blind-fired on a 600 ms timer, racing the terminal's
+  device-attributes handshake — the shell queries ESC[c during startup, xterm.js auto-replies
+  ESC[?1;2c, and that reply landed on the not-yet-ready command line as literal text, then our
+  command concatenated onto it. Fix (app.js): the command now waits for the actual PowerShell
+  PROMPT in the terminal output (ANSI-stripped tail match, 5 s blind fallback), sends Escape
+  first (PSReadLine RevertLine clears any stray reply chars), then types the command. Verified
+  in a DOM harness: no input before the prompt, escape-then-command after it, fallback fires.
+  Static-only — reload the browser.
+
 - **[2026-07-05] (Claude)** — **Published to GitHub: A1CST/GENREG-LAB (private).** Full program
   snapshot pushed — engine, Tree LM, DiffEvo, Animation, LM campaign, panels, docs — with the
   I2 program excluded per user decision (also caught + fixed a real hazard: the old .gitignore

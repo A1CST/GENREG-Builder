@@ -1,7 +1,7 @@
 /* GENREG — Tree-of-Models page.
  * One WebSocket (/treelm) carries config → training events → generation.
- * All charts are hand-rolled SVG: an icicle map of the routing tree (x = byte
- * range 0–255, y = depth), a live fitness line chart for the node currently
+ * All charts are hand-rolled SVG: an icicle map of the routing tree (x =
+ * vocabulary — bytes 0–255 or the word vocab, y = depth), a live fitness chart
  * evolving, and grouped bars of mean accuracy per depth.
  */
 (() => {
@@ -149,7 +149,7 @@
     $("fit-node").textContent = ev.kind === "encoder"
       ? (ev.id === "encoder-speed"
         ? `context encoder — phase 2: speed/time constraint (fitness ÷ cost), ${ev.samples.toLocaleString()} samples`
-        : `context encoder — nearest-centroid next-byte fitness, ${ev.samples.toLocaleString()} samples`)
+        : `context encoder — next-token fitness (ridge / nearest-centroid), ${ev.samples.toLocaleString()} samples`)
       : `${ev.kind} ${ev.id} — ${ev.tokens} token${ev.tokens > 1 ? "s" : ""}, ${ev.samples.toLocaleString()} samples (${ev.coverage.toFixed(1)}%)`;
     drawFitness(); queueIcicle();
   }
@@ -208,7 +208,11 @@
     const H = (maxDepth + 1) * ROW + PAD;
     svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
     svg.style.height = H + "px";
-    const x = (t) => (t / 256) * (W - 2) + 1;
+    // vocabulary span = widest node (256 in byte mode, the word-vocab size in
+    // word mode) — derived from the data so word-mode trees fill the axis
+    const vocab = Math.max(256, ...nodeOrder.map((id) => nodes.get(id).t1 || 0));
+    const x = (t) => (t / vocab) * (W - 2) + 1;
+    const unit = vocab <= 256 ? "byte" : "token";
 
     nodeOrder.forEach((id) => {
       const n = nodes.get(id);
@@ -237,17 +241,17 @@
       }
     });
 
-    // byte-range axis under the last row
+    // vocabulary axis under the last row (byte 0–255, or token 0–vocab)
     const ax = document.createElementNS(NS, "text");
     ax.setAttribute("x", 1); ax.setAttribute("y", H - 4);
     ax.setAttribute("class", "tlm-axis-label");
-    ax.textContent = "byte 0";
+    ax.textContent = `${unit} 0`;
     svg.appendChild(ax);
     const ax2 = document.createElementNS(NS, "text");
     ax2.setAttribute("x", W - 1); ax2.setAttribute("y", H - 4);
     ax2.setAttribute("text-anchor", "end");
     ax2.setAttribute("class", "tlm-axis-label");
-    ax2.textContent = "byte 255";
+    ax2.textContent = `${unit} ${vocab - 1}`;
     svg.appendChild(ax2);
   }
 
@@ -255,7 +259,7 @@
     const kind = n.leaf ? "leaf" : "router";
     const acc = n.acc === null ? "—" : (n.acc * 100).toFixed(1) + "%";
     const accName = n.leaf ? "prediction acc" : "routing acc";
-    const span = n.sample ? n.sample : `bytes ${n.t0}–${n.t1 - 1}`;
+    const span = n.sample ? n.sample : `tokens ${n.t0}–${n.t1 - 1}`;
     return `<b>${kind} ${n.id}</b><br>${span} (${n.tokens} token${n.tokens > 1 ? "s" : ""})<br>` +
       `${n.samples ? n.samples.toLocaleString() + " samples (" + n.coverage.toFixed(1) + "%)<br>" : ""}` +
       `${accName}: ${acc} · ${n.status}`;

@@ -6,6 +6,49 @@ Seeded 2026-07-05 from the main changelog (keyword split, best effort).
 
 ---
 
+- **[2026-07-06] (Claude)** — **Word-level recurrent LM** added to genreg_lm (push toward
+  sentence/grammar structure). The synthesis: real word tokens (Tree LM tokenizer) + the
+  recurrent sequential substrate + prev-token (genreg_lm) + the blended rollout-survival
+  landscape at WORD horizons — so a genome must keep producing grammatically-plausible next
+  words to survive its own generation (grammar = what long-horizon rollout rewards). Engine
+  changes: token_mode "char"|"word"; per-run vocab (V dynamic); <unk> never a scored target or
+  emitted (mask in evaluate/rollout/generate); word bigram/trigram baselines (dict-based
+  trigram — a dense table is TB-scale at word vocab); word-mode generation detokenizes via the
+  persisted vocab. Two rules-endorsed fixes made word-vocab evolvable (naive V=2048 stalled at
+  0% — the giant W_out genome diffuses selection): **weight-tied readout** (collapse the ~V·H
+  W_out into a tiny H→D projection scored against the shared embedding table) and **bigram-SVD
+  embedding seed** (§VI's endorsed init — words in similar contexts start near each other).
+  Smoke: 0.9%→8.4% held-out in 200 gens. Bars: word-bigram 17.6%, word-trigram 22.7% (the
+  grammar reference). Chain running (2 substrate sweeps + blended rollout R=6 words).
+
+- **[2026-07-05] (Claude)** — **Encoder separation: final verdict = parity, kept as
+  optionality.** The frozen-encoder composed model under the blended rollout landscape ties
+  the monolith on every metric (open 31.45% vs 31.3 · closed R=8 27.32% vs 27.2 · gap 0.21 vs
+  0.17 nats) — notably reaching parity with the encoder FROZEN (only the readout evolved).
+  Per the pre-committed decision rule: separation is a validated non-regressing component —
+  same performance, measurably richer state (h2/h4 future decodable), cleaner modularity
+  (reusable frozen encoder) — not a breakthrough. enc_char_v1 stays available; the monolith
+  remains co-champion. Full 3-round trail in LM_STAGE1_FINDINGS.md.
+
+- **[2026-07-05] (Claude)** — Encoder component rounds 1–2 + the decisive rollout test
+  (running). Equal-weight horizons: h1 fell to 29.7%, composed 30.71% — under the bar (state
+  budget robbed next-char sharpness). **Weighted horizons (0.7/0.2/0.1): h1 recovered to
+  31.49%, composed 31.78% — parity with the monolith within eval noise (bar 31.9% not
+  passed), with future-decodability (h2/h4) the monolith never had.** The value hypothesis is
+  now testable exactly where richer state should pay: the blended rollout-survival landscape —
+  frozen-encoder composed model vs monolith benchmarks (open 31.3 / closed 27.2 / gap 0.17
+  nats). `horizon_weights` config added to genreg_enc.py.
+
+- **[2026-07-05] (Claude)** — **Encoder separated into its own model: `enc_char_v1`**
+  (`genreg_train/genreg_enc.py`, card `documentation/LM_ENCODER_COMPONENT.md`) — per user +
+  §X component-first. Fitness = evolved-head decodability at horizons {1,2,4} from the hidden
+  state (equal weight — h=1 specialists sink), breeding the STATE rather than the prediction;
+  heads are scaffolding, the frozen deliverable is (E, W_in, b_h, act). Skip-gram baselines
+  measured first (skip2 22.5%, skip4 20.1%). genreg_lm gained composed mode
+  (`encoder_ckpt` → tensors copied + FROZEN; mutation excludes encoder incl. act ids — §X
+  freeze-and-compose, never retrained). Warm-start smoke: h1 preserved at 31.3%, h4 at its
+  bar in 30 gens. Encoder sweep → composition pipeline running; composed bar > 31.9%.
+
 - **[2026-07-05] (Claude)** — **Stage 4 VALIDATED — blended rollout-survival landscape.** Pure
   rollout fitness bred hedging (open-loop 31.9%→23.1%; new §XI reward-hack: flatten toward
   marginals to score safely on drifted context). Blended fitness (teacher + own-output

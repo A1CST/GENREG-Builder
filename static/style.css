@@ -30,8 +30,10 @@ body { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
 .brand { font-weight: 700; letter-spacing: 1px; color: var(--accent); }
 .brand-sub { color: var(--muted); font-weight: 400; margin-left: 8px; letter-spacing: 0; }
 .status { margin-left: auto; display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; }
-.runs-link { margin-left: 10px; color: var(--accent); text-decoration: none; font-size: 12px; padding: 3px 8px; border: 1px solid var(--border); border-radius: 6px; }
+.runs-link { margin-left: 6px; color: var(--accent); text-decoration: none; font-size: 12px; padding: 3px 8px; border: 1px solid var(--border); border-radius: 6px; }
 .runs-link:hover { border-color: var(--accent); }
+.runs-link.active { background: var(--accent); color: var(--bg); border-color: var(--accent); cursor: default; font-weight: 600; }
+.runs-link.active:hover { border-color: var(--accent); }
 .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--amber); }
 .dot.ok { background: var(--green); }
 .dot.bad { background: var(--red); }
@@ -569,6 +571,76 @@ table.cfg td:last-child { color: var(--text); word-break: break-word; }
 }
 .tlm-layout { flex: 1 1 auto; min-height: 0; display: flex; }
 .tlm-side { overflow-y: auto; }
+
+/* PURE — node-graph model assembler */
+.pg-main { padding: 0 !important; display: flex; flex-direction: column; }
+.pg-toolbar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  padding: 8px 10px; background: var(--panel); border-bottom: 1px solid var(--border); }
+.pg-tb-label { font-size: 10px; letter-spacing: 0.6px; text-transform: uppercase; color: var(--muted); margin: 0 2px 0 6px; }
+.pg-tb-label.pg-tb-con { color: #e0a02a; }
+.pg-add { --pg-accent: var(--accent); font-size: 11px; color: var(--text); cursor: pointer;
+  background: var(--panel-2); border: 1px solid var(--border); border-left: 3px solid var(--pg-accent);
+  border-radius: 5px; padding: 3px 8px; }
+.pg-add:hover { border-color: var(--pg-accent); }
+
+.pg-genome-panel { flex: 0 0 auto; height: 220px; border-top: 1px solid var(--border);
+  background: var(--panel); padding: 8px 14px 10px; overflow: hidden;
+  display: flex; flex-direction: column; }
+.pg-genome-head { flex: 0 0 auto; font-size: 12px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+.pg-genome-head .tlm-card-sub { font-weight: 400; }
+#pure-genome-viz { flex: 1 1 auto; min-height: 0; }
+#pure-genome-viz svg { width: 100%; height: 100%; }
+
+/* drag-resizers: col = between side panels and centre; row = graph/genome split */
+.pg-resizer-col { flex: 0 0 auto; width: 6px; cursor: col-resize; background: var(--border); opacity: 0.45; }
+.pg-resizer-row { flex: 0 0 auto; height: 6px; cursor: row-resize; background: var(--border); opacity: 0.45; }
+.pg-resizer-col:hover, .pg-resizer-row:hover, .pg-resizing { opacity: 1; background: var(--accent); }
+
+.pg-canvas { position: relative; flex: 1 1 auto; min-height: 0; overflow: hidden;
+  background-color: var(--bg); cursor: grab;
+  background-image: radial-gradient(var(--tlm-grid) 1px, transparent 1px);
+  background-size: 22px 22px; }
+.pg-canvas:active { cursor: grabbing; }
+.pg-world { position: absolute; left: 0; top: 0; width: 0; height: 0; }
+.pg-svg { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }
+.pg-wire { fill: none; stroke: var(--muted); stroke-width: 2; }
+.pg-wire-temp { stroke: var(--accent); stroke-dasharray: 5 4; }
+.pg-wire-hit { fill: none; stroke: transparent; stroke-width: 12; pointer-events: stroke; cursor: pointer; }
+
+.pg-node { position: absolute; background: var(--panel); border: 1px solid var(--border);
+  border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.35); user-select: none; }
+.pg-node.selected { border-color: var(--pg-accent); box-shadow: 0 0 0 2px var(--pg-accent); }
+.pg-node-head { display: flex; justify-content: space-between; align-items: center; gap: 6px;
+  height: 30px; padding: 0 10px; border-radius: 7px 7px 0 0; cursor: grab;
+  font-size: 12px; font-weight: 600; color: #0d1117; }
+.pg-node-head:active { cursor: grabbing; }
+.pg-node-badge { font-size: 10px; font-weight: 400; opacity: 0.85; white-space: nowrap; }
+.pg-port { position: absolute; width: 12px; height: 12px; border-radius: 50%;
+  background: var(--panel-2); border: 2px solid var(--pg-accent); cursor: crosshair; }
+.pg-port.pg-in { left: -6px; }
+.pg-port.pg-out { right: -6px; }
+.pg-port:hover { background: var(--pg-accent); }
+.pg-port-label { position: absolute; font-size: 10px; color: var(--muted); pointer-events: none; }
+.pg-in-label { left: 12px; }
+.pg-out-label { right: 12px; }
+
+.pg-props-side { width: 232px; }
+.pg-props-side .side-head { display: flex; justify-content: space-between; align-items: center; }
+.pu-con-count { font-size: 10px; letter-spacing: 0.5px; color: var(--accent);
+  border: 1px solid var(--border); border-radius: 4px; padding: 0 5px; line-height: 1.5; text-transform: none; }
+.pg-prop-id { font-size: 11px; color: var(--muted); letter-spacing: 0.5px; padding-bottom: 6px;
+  border-bottom: 1px solid var(--border); margin-bottom: 4px; }
+.pg-preview { padding: 6px 0 2px; }
+.pg-preview-svg { display: block; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; }
+.pg-preview-canvas { display: block; width: 128px; height: 128px; image-rendering: pixelated;
+  border: 1px solid var(--border); border-radius: 6px; background: var(--bg); }
+.pg-preview-cap { font-size: 10px; color: var(--muted); margin-top: 4px; }
+.pu-metric { font-size: 11px; color: var(--accent); font-family: var(--mono, monospace); margin-bottom: 4px; }
+.pu-chart { width: 100%; height: auto; background: var(--bg); border: 1px solid var(--border);
+  border-radius: 6px; display: block; margin-top: 4px; }
+.pu-chart-cap { font-size: 10px; color: var(--muted); margin: 2px 0 6px; }
+.pg-del { color: var(--red); border-color: var(--border); margin-top: 6px; }
+.pg-del:hover { border-color: var(--red); }
 .tlm-side .side-body { overflow-y: visible; }
 .tlm-actions { display: flex; gap: 8px; }
 .tlm-primary { border-color: var(--accent); color: var(--accent); }

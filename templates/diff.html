@@ -13,11 +13,7 @@
     <div class="status">
       <span class="dot" id="dv-dot"></span>
       <span id="dv-conn">connecting…</span>
-      <a class="runs-link" href="/" title="Back to the build interface">Build ↗</a>
-      <a class="runs-link" href="/tree" title="Tree-of-Models text prediction">Tree LM ↗</a>
-      <a class="runs-link" href="/animation" title="Animation program">Animation ↗</a>
-      <a class="runs-link" href="/runs" title="Runs &amp; checkpoints">Runs ↗</a>
-      <a class="runs-link" href="/docs" title="Project documentation">Docs ↗</a>
+      {% set nav_active = 'diff' %}{% include '_nav.html' %}
     </div>
   </header>
 

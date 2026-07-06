@@ -10,6 +10,259 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-06] (Claude)** — Animation shape classifier **SOLVED** — identifies all 10 shapes
+  regardless of motion pattern/position, gradient-free (mutation-only evolution). Recipe:
+  **centroid normalization** (crop a fixed 20×20 window around each frame's white-pixel centroid —
+  generic translation-invariance operator, tracks the shape as it moves, removes position while
+  keeping all arrangement) + an **evolved MLP** (400→24→10, soft geo-mean fitness, self-adaptive
+  mutation, per-neuron activations). VERIFIED §VII across 3 random 80/20 per-clip splits:
+  held-out 1.00 / 0.96 / 1.00, every shape, train→heldout drop ~0% (majority baseline 0.10),
+  converges <150 gens (~15s). Saved: `animations/anim_shape_evo_SOLVED.py`, `_verify.py`,
+  `anim_shape_evo_card.md`. Findings: plain per-frame MLP memorizes position (train 0.8/heldout 0.15);
+  evolved conv+global-maxpool generalizes but plateaus ~2-4 shapes (global pool discards arrangement);
+  the per-clip energy optimizer is the weak link (0.44 even on separable features) vs full-batch
+  elitist. NOTE: uses full-batch + centroid preprocessor, not the one-clip-per-gen energy regime;
+  /animation page not yet updated with the winning pipeline (pending approach confirmation).
+
+- **[2026-07-06] (Claude)** — **Word-level recurrent LM** added to genreg_lm (push toward
+  sentence/grammar structure). The synthesis: real word tokens (Tree LM tokenizer) + the
+  recurrent sequential substrate + prev-token (genreg_lm) + the blended rollout-survival
+  landscape at WORD horizons — so a genome must keep producing grammatically-plausible next
+  words to survive its own generation (grammar = what long-horizon rollout rewards). Engine
+  changes: token_mode "char"|"word"; per-run vocab (V dynamic); <unk> never a scored target or
+  emitted (mask in evaluate/rollout/generate); word bigram/trigram baselines (dict-based
+  trigram — a dense table is TB-scale at word vocab); word-mode generation detokenizes via the
+  persisted vocab. Two rules-endorsed fixes made word-vocab evolvable (naive V=2048 stalled at
+  0% — the giant W_out genome diffuses selection): **weight-tied readout** (collapse the ~V·H
+  W_out into a tiny H→D projection scored against the shared embedding table) and **bigram-SVD
+  embedding seed** (§VI's endorsed init — words in similar contexts start near each other).
+  Smoke: 0.9%→8.4% held-out in 200 gens. Bars: word-bigram 17.6%, word-trigram 22.7% (the
+  grammar reference). Chain running (2 substrate sweeps + blended rollout R=6 words).
+
+- **[2026-07-06] (Claude)** — Tree LM page: **copy refresh to reflect byte AND word/token level**
+  (user: "reflect what we are actually doing now"). The page was live and functional but its
+  copy was byte-only and outdated. Fixed: brand subtitle "byte-level" → "byte & word-level";
+  "Context window (bytes)" → "(bytes / tokens)" with a word-mode hint; routing-layers hint
+  generalized (hardcoded "256 bytes" → "vocab / branch^layers", + the word-level layers-0
+  collapse warning); cluster-split, generate, routing-inspector, and icicle card copy updated
+  to say token/vocabulary not byte. treelm.js: the icicle x-axis was hardcoded to /256 (word-
+  mode trees rendered off the right edge) — now derives the vocab span from the widest node
+  and labels the axis "byte 0..255" or "token 0..N" by mode; encoder status "next-byte" →
+  "next-token (ridge / nearest-centroid)"; tooltip "bytes" → "tokens". No functional/training
+  change; the page still does live GPU training, generation, sweeps, and the routing inspector.
+  Static+template only — reload the browser.
+
+- **[2026-07-06] (Claude)** — **PURE: Template button (correctly-wired example).** Toolbar gains a
+  **Template** button that loads the canonical graph so the correct wiring is visible: Synthetic →
+  Input → Layer → Output → **Fitness** (Output feeds Fitness so its objective can score the model),
+  with an **Energy** constraint wired into a Fitness input port to show the constraint→fitness
+  pattern. Laid out spatially (Fitness below Output, constraint below the layer) so the wires read
+  clearly. `templateGraph()` + `window.PureGraph.template()`; `seedDefault` now delegates to it.
+  Confirm-guarded (replaces current graph). Headless-verified: all 5 edges present, fitness
+  dynamic ports dense, buildSpec accepts (arch 16→24→10, constraint reported). Ready on next Flask
+  restart.
+
+- **[2026-07-06] (Claude)** — **PURE fix: unwired layers no longer appear connected / get trained.**
+  Both the genome visual (`orderedStructure`) and the engine (`buildSpec`) were collecting ALL
+  input/layer/output nodes by type and sorting by x, so a Layer dropped on the canvas but never
+  wired still showed as a column (with connections) and would be built into the network. New
+  shared `wiredPath()` follows the actual edges Input → hidden layers → Output and returns only
+  the connected chain in true data-flow order; both consumers now build from it. Engine also
+  errors clearly ("wire Input → … → Output") when the chain doesn't reach the Output instead of
+  training a disconnected graph. Bonus: layer order now follows wiring, not canvas x-position.
+  Headless-verified: floating layer excluded from visual + arch; wiring order 6→8→5→6 honored over
+  x-order; broken chain errors. Ready on next Flask restart.
+
+- **[2026-07-06] (Claude)** — **PURE: neurons colored by saturation.** During a run the genome
+  neurons now color yellow (barely used, |activation|≈0) → red (near full saturation, |activation|≈1)
+  instead of the teal firing ramp. Uses the ABSOLUTE activation (clamped to 1), so "saturated"
+  means genuinely near ±1 rather than merely high relative to its column (`satColor` replaces
+  `fireColor`; dropped the per-column max normalization for fill). Panel caption updated. Verified
+  ramp (t=0 yellow → t=1 red). Ready on next Flask restart.
+
+- **[2026-07-06] (Claude)** — **PURE: k-sparsity on Layer nodes (fixed or evolvable).** Layer node
+  Properties gain a **k-sparsity** checkbox; when on, a **k (active units)** number field appears,
+  or check **Evolve k** to make k a per-genome evolved gene instead of fixed (the k field hides
+  when evolving). Implemented in the engine: after a layer's activation, `topK` keeps the k
+  largest-magnitude units and zeros the rest. Fixed k reads the node value; evolve-k appends one
+  gene per evolving layer past the weights, initialized to the set k, mutated in ~unit steps
+  (`mutScale`), clamped to [1, units] per forward pass. Also generalized the property `when`
+  mechanism to accept an array of conditions (all must hold) and made checkbox toggles re-render
+  dependent fields. Layer badge shows `k4` / `k*` (evolving). Headless-verified: fixed k=3 learns
+  to a higher error floor than unconstrained (6.2e-2 vs 3.0e-2 — the constraint genuinely bites),
+  evolve-k adds 1 gene and still converges (84% lower). Not deployed live (user has a run in
+  progress); ready on next Flask restart.
+
+- **[2026-07-06] (Claude)** — **PURE: genome neurons now show their connections.** The genome
+  visual draws the edges between consecutive layers' neurons (fully-connected). Idle = faint
+  structural skeleton (all connections, grey). During a run the engine exposes the best genome's
+  weight matrices per layer (`wLayers` in the tick sample), and each connection is colored by
+  weight sign (blue positive / red negative), opacity by |weight| strength, and brightened when
+  its source neuron is firing — so you watch the actual evolved wiring change live. Connections
+  drawn behind the neurons; capped columns connect their shown units by real unit index.
+  Headless-verified: 120 faint lines idle → 120 weight-colored (81 blue / 39 red) mid-run → faint
+  again after Reset. Live after the next Flask restart (not urgent — user has a run in progress).
+
+- **[2026-07-06] (Claude)** — **PURE: Reset button + real-time genome firing.** Run panel gains a
+  **Reset** (stops the engine, clears charts/metric, returns the genome visual to static, keeps the
+  graph). The genome dot-columns now **fire in real time during a run**: the engine exposes the
+  best genome's per-layer activations each generation (`activate()`, added to the tick sample),
+  and `renderGenome(activations)` colors each dot by |activation| (dark→bright teal via
+  `fireColor`), mapped to the correct unit even in capped/gap columns (`colLayoutG` now returns
+  per-dot unit indices). `orderedStructure` reordered to data-flow order (input → layers-by-x →
+  output) so columns align with the activation arrays. Headless-verified: dots color with 22
+  distinct intensities mid-run; Reset returns them static. Live after the next Flask restart.
+
+- **[2026-07-06] (Claude)** — **PURE: engine wired up + Fitness node (the baseline GA runs).**
+  Run/Stop now drive a real in-browser plain GA over the assembled graph: Synthetic data feeds
+  the Input, flows through the hidden Layer(s) to the Output, and the population evolves toward
+  the Fitness node's objective. New **Fitness node** (new "Objective" toolbar group) with a
+  DYNAMIC input port set — it always keeps one open port, growing as you wire constraints in
+  (wire the model Output into it plus any constraints; the engine finds nodes by type so exact
+  placement is free). Implemented general dynamic-port support (`nodeInputs`/`normalizeDynamic` —
+  incoming edges densify, spare "＋" port at the end) + selection-preserving `renderAll`.
+  Engine (`Engine` in pure.js, exposed as `window.PureEngine`): seeded RNG, builds an MLP from
+  input dims → layer units/activations → output classes, generates a dataset from the Synthetic
+  node (waveforms windowed; images flattened), fitness = −MSE/MAE for objective reconstruct or
+  predict_next, plain (μ,elite) GA with fixed mutation — NO energy/self-adaptation/evolved-acts
+  yet (those are the constraints, added later and measured against this). Constraints wired into
+  Fitness are collected and reported but do NOT yet affect the fitness math (baseline first).
+  Left panel gains a live training readout: gen/best/mean-error, a best-fitness sparkline, and a
+  best-output-vs-target plot. Seed graph now ships the full runnable flow
+  (Synthetic→Input→Layer→Output→Fitness). Headless-verified: **error 1.29→0.10 (92% lower) over
+  150 gens**; buildSpec + constraint collection correct. Live after the next Flask restart.
+
+- **[2026-07-06] (Claude)** — **PURE: Synthetic data-source node.** New "Synthetic" node (new
+  "Data" toolbar group) that produces synthetic data to feed the model. Configured in Properties:
+  a `kind` selector (sine · square · ramp · noise · image) whose parameters swap per kind —
+  waveforms get frequency/amplitude/phase/samples, image gets pattern
+  (gradient/checker/circle/stripes)/size/loop. Added a conditional-field mechanism (`when` on a
+  prop) so only the relevant params show, and a **live preview** in the Properties panel (waveform
+  sparkline or rendered image pattern) that updates as you edit. The Input node gained a `data`
+  input port so Synthetic.out wires into it (Synthetic → Input). Toolbar generalized to render
+  groups (Data/Structure/Constraints). Config + preview only — no engine consuming it yet.
+  Headless-tested (node/ports, per-kind fields, groups). Live after the next Flask restart.
+
+- **[2026-07-06] (Claude)** — **Standardized top navigation across the whole Flask app** (per
+  user — nav buttons changed places / went missing per page). New shared Jinja partial
+  `templates/_nav.html` renders ONE canonical set + order on every page:
+  Build · Tree LM · DiffEvo · Animation · PURE · I2 · Runs · Docs. Each page includes it with
+  `{% set nav_active = '<key>' %}` so the current page's link is marked active (highlighted,
+  `aria-current`). Replaced the divergent hand-written nav in index/tree/diff/animation/pure/i2
+  and added it to runs/docs (which had no project nav, only a Refresh button — kept). Dropped the
+  inconsistent `target="_blank"` (index/i2 opened new tabs, others didn't) so switching is
+  in-place everywhere; removed the ↗ arrows. Added `.runs-link.active` CSS. Verified: all 8
+  templates render the identical 8-link nav in identical order with exactly one active. Live after
+  the user's next Flask restart.
+
+- **[2026-07-06] (Claude)** — **PURE: resizable panels.** Drag-resizers on `/pure` — a column
+  resizer on each side (Run panel width, Properties panel width) and a row resizer on the
+  graph/genome split (drag to trade space between the node canvas and the genome visual). The
+  graph canvas grows/shrinks as its neighbors move; the genome SVG now scales to fill its panel
+  (flex column). Sizes clamp (sidebars 150-620px; genome min 60px, max = main height - 130) and
+  persist to localStorage (`pure.size.left/right/genome`), reapplied on load. Handles highlight
+  accent on hover/drag. `initResizers()` in `pure.js`, `.pg-resizer-col/.pg-resizer-row` CSS.
+  Headless-tested (saved-size apply, drag delta, persistence). Live after the next Flask restart.
+
+- **[2026-07-06] (Claude)** — **PURE: genome visual re-added, now derived from the graph.** Split
+  the `/pure` main area — node graph on top, a Genome dot-column panel below it (`renderGenome`
+  in `pure.js`, `.pg-genome-panel` CSS). One column per dimensional structure node
+  (Input/Layer/Output), left-to-right by position, node-dot style, colored to match the nodes;
+  oversized layers cap with an ellipsis gap-marker while the caption shows the true unit count.
+  Re-renders live on every node add/remove/resize (hooked into `save()`), so editing a node's
+  units/dims updates the organism immediately. Headless-tested (seed columns, live layer add,
+  ordering). Live after the user's next Flask restart.
+
+- **[2026-07-06] (Claude)** — **PURE pivot: node-graph model assembler.** Rebuilt `/pure` as a
+  drag-and-drop node editor (`static/pure.js` rewritten, `pure.html` restructured, graph CSS in
+  style.css). You assemble a model by dropping nodes and wiring ports: left panel reduced to
+  Run/Stop + global run settings (population/generations/seed); centre is the graph canvas
+  (pan by dragging background, drag node headers to move, drag output→input port to wire, click a
+  wire to delete); right panel is the Properties of the selected node. Dims/units/activation and
+  every constraint's settings live INSIDE their nodes. Node catalog is data-driven: structure
+  nodes (Input·Layer·Genome·Output) + the 12 constraint nodes from the user's canonical list —
+  Energy, Temporal Budget, Consequential Drive, Capacity Cost, Observation Cost, Prediction Error,
+  Information Gradient, Stimulus Stagnation, Predictive Variance, Homeostatic Proximity,
+  Consolidation Threshold, Hazard Signal — each with typed, editable properties (e.g. Energy:
+  cost-per-action / recover-on-consequence / decay / floor / ceiling). Constraints are wireable
+  but NOT yet backed by any engine (per user: don't wire them up yet). Graph persists to
+  localStorage; `window.PureGraph.getGraph()` serializes it for the eventual GA. Supersedes the
+  previous non-wired genome viz + checkbox constraints panel (those were placeholders). Headless
+  tested. Live after the user's next Flask restart.
+
+- **[2026-07-06] (Claude)** — ~~PURE: slim right-hand constraints panel~~ (SUPERSEDED same day by
+  the node-graph pivot; the checkbox list was replaced by constraint nodes with the correct list). New right
+  sidebar on `/pure` listing the GENREG mechanisms that separate the framework from a plain GA,
+  each an activatable checkbox, grouped: Fitness landscape (soft fitness, multiplicative,
+  EMA smoothing, position-varying ground truth), Metabolism & selection (energy homeostasis,
+  tournament+maturation gate, self-adaptive mutation, mutation floor, late anneal), Architecture
+  primitives (per-neuron evolved activation, structural mutation, bootstrap/two-phase), Landscape
+  design (basin/constraint deformation, novelty/fitness-sharing). 14 toggles, all OFF by default
+  (PURE = the naked baseline). Data-driven render in `pure.js`, per-checkbox hint tooltips,
+  state persisted to localStorage, header badge shows "baseline"/"N active", and a
+  `pure:constraints` DOM event + `window.PureConstraints` API (`get/isActive/active/list`) expose
+  the active set for the eventual wiring into the GA. CSS added for the slim panel (214px).
+  Headless-tested (render, toggle, persist, count, API). Live after the user's next Flask restart.
+
+- **[2026-07-06] (Claude)** — **PURE: genome visualizer, stage 1 (non-wired FFN skeleton)**
+  (per user — wants a visual of the best genome when building models). New `static/pure.js` +
+  `templates/pure.html` main card: renders the genome as three columns of circle "neurons" —
+  Encoder · Hidden · Output, one column per layer — in the classic node-dot style, NO edges yet
+  (wiring + per-genome weight coloring are the next stages; node geometry is retained on
+  `host._nodes` for that). SVG, theme-var colored (encoder=tlm-s1, hidden=accent, output=tlm-s2),
+  scales to container. Layer sizes are live-editable from three sidebar inputs
+  (`PureGenome.setShape({encoder,hidden,output})`); oversized layers cap at ~21 visible dots with
+  a centered ellipsis gap-marker while the caption still reports the true unit count (a 4096-input
+  layer draws ~20 dots, not 4096). Headless render-tested (node counts, gap-marker, single-x
+  columns, ascending y, captions). Live after the user's next Flask restart.
+
+- **[2026-07-05] (Claude)** — **Encoder separation: final verdict = parity, kept as
+  optionality.** The frozen-encoder composed model under the blended rollout landscape ties
+  the monolith on every metric (open 31.45% vs 31.3 · closed R=8 27.32% vs 27.2 · gap 0.21 vs
+  0.17 nats) — notably reaching parity with the encoder FROZEN (only the readout evolved).
+  Per the pre-committed decision rule: separation is a validated non-regressing component —
+  same performance, measurably richer state (h2/h4 future decodable), cleaner modularity
+  (reusable frozen encoder) — not a breakthrough. enc_char_v1 stays available; the monolith
+  remains co-champion. Full 3-round trail in LM_STAGE1_FINDINGS.md.
+
+- **[2026-07-05] (Claude)** — Encoder component rounds 1–2 + the decisive rollout test
+  (running). Equal-weight horizons: h1 fell to 29.7%, composed 30.71% — under the bar (state
+  budget robbed next-char sharpness). **Weighted horizons (0.7/0.2/0.1): h1 recovered to
+  31.49%, composed 31.78% — parity with the monolith within eval noise (bar 31.9% not
+  passed), with future-decodability (h2/h4) the monolith never had.** The value hypothesis is
+  now testable exactly where richer state should pay: the blended rollout-survival landscape —
+  frozen-encoder composed model vs monolith benchmarks (open 31.3 / closed 27.2 / gap 0.17
+  nats). `horizon_weights` config added to genreg_enc.py.
+
+- **[2026-07-05] (Claude)** — **Fixed the Claude terminal button** — it typed
+  `[?1;2cclaude --dangerously-skip-permissions` (PowerShell "Missing type name after '['"
+  parse error). Cause: the button blind-fired on a 600 ms timer, racing the terminal's
+  device-attributes handshake — the shell queries ESC[c during startup, xterm.js auto-replies
+  ESC[?1;2c, and that reply landed on the not-yet-ready command line as literal text, then our
+  command concatenated onto it. Fix (app.js): the command now waits for the actual PowerShell
+  PROMPT in the terminal output (ANSI-stripped tail match, 5 s blind fallback), sends Escape
+  first (PSReadLine RevertLine clears any stray reply chars), then types the command. Verified
+  in a DOM harness: no input before the prompt, escape-then-command after it, fallback fires.
+  Static-only — reload the browser.
+
+- **[2026-07-05] (Claude)** — **PURE: new program page scaffold** (per user — pivot to a
+  baseline-first campaign). `/pure` route in `app.py` + `templates/pure.html`: blank page in the
+  house style (topbar + nav, config sidebar placeholder, empty main card) with the shared
+  daemon-backed terminal dock (xterm/termdock/app.js/agentpanel). PURE will hold the very first
+  baseline model — a textbook GA with nothing added — that every GENREG bell and whistle gets
+  measured against, added one at a time. No model/WS backend yet, deliberately (user: blank page
+  then stop). PURE link added to the build page nav. Live after the user's next Flask restart.
+
+- **[2026-07-05] (Claude)** — **Encoder separated into its own model: `enc_char_v1`**
+  (`genreg_train/genreg_enc.py`, card `documentation/LM_ENCODER_COMPONENT.md`) — per user +
+  §X component-first. Fitness = evolved-head decodability at horizons {1,2,4} from the hidden
+  state (equal weight — h=1 specialists sink), breeding the STATE rather than the prediction;
+  heads are scaffolding, the frozen deliverable is (E, W_in, b_h, act). Skip-gram baselines
+  measured first (skip2 22.5%, skip4 20.1%). genreg_lm gained composed mode
+  (`encoder_ckpt` → tensors copied + FROZEN; mutation excludes encoder incl. act ids — §X
+  freeze-and-compose, never retrained). Warm-start smoke: h1 preserved at 31.3%, h4 at its
+  bar in 30 gens. Encoder sweep → composition pipeline running; composed bar > 31.9%.
+
 - **[2026-07-05] (Claude)** — **Published to GitHub: A1CST/GENREG-LAB (private).** Full program
   snapshot pushed — engine, Tree LM, DiffEvo, Animation, LM campaign, panels, docs — with the
   I2 program excluded per user decision (also caught + fixed a real hazard: the old .gitignore

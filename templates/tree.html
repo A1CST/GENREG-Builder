@@ -9,15 +9,11 @@
 </head>
 <body class="tlm-body">
   <header class="topbar">
-    <div class="brand">GENREG<span class="brand-sub">tree-of-models · byte-level text prediction</span></div>
+    <div class="brand">GENREG<span class="brand-sub">tree-of-models · byte &amp; word-level text prediction</span></div>
     <div class="status">
       <span class="dot" id="tlm-dot"></span>
       <span id="tlm-conn">connecting…</span>
-      <a class="runs-link" href="/" title="Back to the build interface">Build ↗</a>
-      <a class="runs-link" href="/diff" title="DiffEvo — denoising diffusion by neuroevolution">DiffEvo ↗</a>
-      <a class="runs-link" href="/animation" title="Animation program">Animation ↗</a>
-      <a class="runs-link" href="/runs" title="Runs &amp; checkpoints">Runs ↗</a>
-      <a class="runs-link" href="/docs" title="Project documentation">Docs ↗</a>
+      {% set nav_active = 'tree' %}{% include '_nav.html' %}
     </div>
   </header>
 
@@ -66,11 +62,12 @@
         </div>
         <div class="field">
           <label class="check"><input type="checkbox" id="cf-cluster" checked /> Cluster token split</label>
-          <span class="field-hint">group bytes by context co-occurrence (balanced k-means per node) instead of sequential byte-ID ranges — so ␣, e, t can land in different branches. Icicle x-axis becomes cluster order; tooltips show the actual tokens</span>
+          <span class="field-hint">group tokens by context co-occurrence (balanced k-means per node) instead of sequential ID ranges — so related symbols/words share a branch (byte mode: ␣, e, t split apart; word mode: groups by usage). Icicle x-axis becomes cluster order; tooltips show the actual tokens</span>
         </div>
         <div class="field">
-          <label for="cf-ctxwin">Context window (bytes)</label>
+          <label for="cf-ctxwin">Context window (bytes / tokens)</label>
           <input type="number" id="cf-ctxwin" value="16" min="2" max="64" />
+          <span class="field-hint">how many prior symbols the encoder sees — bytes in byte mode, whole words in word mode (16 words ≈ 70 bytes of context)</span>
         </div>
         <div class="field">
           <label for="cf-embed">Embed dim</label>
@@ -84,7 +81,7 @@
         <div class="field">
           <label for="cf-layers">Routing layers</label>
           <input type="number" id="cf-layers" value="1" min="0" max="8" />
-          <span class="field-hint">router depth; 0 = one flat specialist over all 256 bytes (no routers); leaf size = 256 / branch^layers</span>
+          <span class="field-hint">router depth; leaf size = vocab / branch^layers (vocab = 256 in byte mode, the word-vocab size in word mode). 0 = one flat specialist over the whole vocabulary — note: at word level layers 0 collapses (GA can't hold a 2048-way leaf), use routed trees</span>
         </div>
         <div class="field">
           <label for="cf-samples">Training samples</label>
@@ -139,7 +136,7 @@
       <!-- routing tree icicle -->
       <section class="tlm-card">
         <div class="tlm-card-head">
-          <h2>Routing tree <span class="tlm-card-sub">byte range 0–255 across, depth down — each block is one evolved genome</span></h2>
+          <h2>Routing tree <span class="tlm-card-sub">vocabulary across (bytes 0–255, or the word vocab), depth down — each block is one evolved genome</span></h2>
           <div class="tlm-legend" id="icicle-legend">
             <span class="tlm-chip"><i style="background:var(--tlm-idle)"></i>untrained</span>
             <span class="tlm-chip"><i style="background:var(--tlm-active)"></i>evolving</span>
@@ -178,7 +175,7 @@
 
       <!-- generation -->
       <section class="tlm-card">
-        <div class="tlm-card-head"><h2>Generate text <span class="tlm-card-sub">route each byte through the frozen tree</span></h2></div>
+        <div class="tlm-card-head"><h2>Generate text <span class="tlm-card-sub">route each token (byte or word) through the frozen tree; word mode detokenizes to readable text, &lt;unk&gt; never emitted</span></h2></div>
         <div class="tlm-genrow">
           <input type="text" id="gen-prompt" placeholder="prompt, e.g.  the old man " value="the " />
           <label>len <input type="number" id="gen-len" value="300" min="1" max="2000" /></label>
@@ -204,7 +201,7 @@
       <!-- routing inspector -->
       <section class="tlm-card">
         <div class="tlm-card-head">
-          <h2>Routing inspector <span class="tlm-card-sub">trace a generation, then click any byte to see every router's decision on its path</span></h2>
+          <h2>Routing inspector <span class="tlm-card-sub">trace a generation, then click any token to see every router's decision on its path</span></h2>
         </div>
         <div class="tlm-genrow">
           <input type="text" id="tr-prompt" placeholder="prompt to trace" value="the " />

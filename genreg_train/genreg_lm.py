@@ -52,9 +52,54 @@ def load_char_corpus():
     return ids
 
 
+def load_word_corpus(vocab_size):
+    """Word-token corpus + vocabulary (reuses the Tree LM tokenizer). id 0 =
+    <unk>, never a scored target or emitted. Returns (ids, WordVocab)."""
+    from .tree_service import load_word_tokens
+    ids, _src, vocab = load_word_tokens(int(vocab_size))
+    return ids.astype(np.int64), vocab
+
+
 def sample_windows(ids, n, seq_len, rng):
     starts = rng.choice(len(ids) - seq_len - 1, size=n, replace=False)
     return ids[starts[:, None] + np.arange(seq_len + 1)[None, :]]   # (n, T+1)
+
+
+def word_baselines(ids, seq_len, rng, vocab, n_train=200000, n_test=20000):
+    """Word-mode §VII bars — <unk>(0) excluded from targets. Trigram is
+    dict-based (a dense V×V×V table is TB-scale at word vocab)."""
+    import collections
+    W = sample_windows(ids, n_train + n_test, seq_len, rng)
+    tr, te = W[:n_train], W[n_train:]
+    V = vocab
+    big = np.zeros((V, V), np.int64)
+    p_tr, y_tr = tr[:, :-1].ravel(), tr[:, 1:].ravel()
+    np.add.at(big, (p_tr, y_tr), 1)
+    big[:, 0] = 0                                   # never predict <unk>
+    tri = collections.defaultdict(collections.Counter)
+    for a, b, c in zip(tr[:, :-2].ravel(), tr[:, 1:-1].ravel(), tr[:, 2:].ravel()):
+        if c != 0:
+            tri[(int(a), int(b))][int(c)] += 1
+    tri_pred = {k: cnt.most_common(1)[0][0] for k, cnt in tri.items()}
+    big_arg = big.argmax(1)
+
+    p_te, y_te = te[:, :-1].ravel(), te[:, 1:].ravel()
+    m = y_te != 0
+    maj = int(np.bincount(y_tr[y_tr != 0], minlength=V).argmax())
+    out = {"majority": float(np.mean(y_te[m] == maj)),
+           "bigram_top1": float(np.mean(big_arg[p_te[m]] == y_te[m]))}
+    big5 = np.argsort(big, axis=1)[:, -5:]
+    out["bigram_top5"] = float(np.mean((big5[p_te[m]] == y_te[m][:, None]).any(1)))
+    a2, b2, y3 = te[:, :-2].ravel(), te[:, 1:-1].ravel(), te[:, 2:].ravel()
+    m3 = y3 != 0
+    hit = 0
+    for a, b, c in zip(a2[m3], b2[m3], y3[m3]):
+        pred = tri_pred.get((int(a), int(b)))
+        if pred is None:
+            pred = big_arg[int(b)]                  # backoff to bigram
+        hit += (pred == c)
+    out["trigram_top1"] = float(hit / max(m3.sum(), 1))
+    return out
 
 
 def baselines(ids, seq_len, rng, n_train=200000, n_test=20000):
@@ -95,13 +140,25 @@ class LMPopulation:
         self.cfg = cfg
         self.dev = device
         P, D, H = cfg["pop"], cfg["embed"], cfg["hidden"]
+        # vocabulary size: 38 chars (default) or the word-vocab in word mode.
+        # unk_id (0) in word mode is masked from scored targets + sampling.
+        self.V = int(cfg.get("vocab", V))
+        self.unk = cfg.get("unk_id", None)
+        Vv = self.V
         g = torch.Generator(device="cpu").manual_seed(cfg["seed"])
         mk = lambda *s, scale=1.0: (torch.randn(*s, generator=g) * scale).to(device)
-        self.E = mk(P, V, D, scale=0.1)
+        self.E = mk(P, Vv, D, scale=0.1)
         self.W_in = mk(P, 2 * D + H, H, scale=1.0 / np.sqrt(2 * D + H))
         self.b_h = torch.zeros(P, H, device=device)
-        self.W_out = mk(P, H, V, scale=1.0 / np.sqrt(H))
-        self.b_out = torch.zeros(P, V, device=device)
+        # readout: full (H,V) matrix, OR (tie_readout) a tiny (H,D) projection
+        # scored against the shared embedding table — collapses a ~V·H genome
+        # to ~D·H so mutation can actually evolve it at word vocab.
+        self.tie = bool(cfg.get("tie_readout"))
+        if self.tie:
+            self.W_po = mk(P, H, D, scale=1.0 / np.sqrt(H))
+        else:
+            self.W_out = mk(P, H, Vv, scale=1.0 / np.sqrt(H))
+        self.b_out = torch.zeros(P, Vv, device=device)
         self.act = torch.randint(0, N_ACT, (P, H), generator=g).to(device)
         self.mut_rate = torch.full((P,), 0.05, device=device)
         self.mut_scale = torch.full((P,), 0.05, device=device)
@@ -138,6 +195,14 @@ class LMPopulation:
         out = t.where(a == 7, pre.abs().clamp(max=4.0), out)     # 7 abs
         return out
 
+    def _readout(self, h):
+        """(P,B,H) hidden -> (P,B,V) logits. Tied: project to D, score vs E."""
+        t = self.t
+        if self.tie:
+            z = t.einsum("pbh,phd->pbd", h, self.W_po)           # (P,B,D)
+            return t.einsum("pbd,pvd->pbv", z, self.E) + self.b_out[:, None, :]
+        return t.einsum("pbh,phv->pbv", h, self.W_out) + self.b_out[:, None, :]
+
     def evaluate(self, windows, warmup):
         """windows: (B, T+1) numpy. Returns (fitness, top1, top5) per genome."""
         t = self.t
@@ -149,7 +214,7 @@ class LMPopulation:
             logp_sum = t.zeros(self.P, device=self.dev)
             top1 = t.zeros(self.P, device=self.dev)
             top5 = t.zeros(self.P, device=self.dev)
-            steps = 0
+            nvalid = 0.0
             if self.attention:                     # precompute keys per char
                 E_all = self.E[:, w[:, :T], :]                  # (P,B,T,D)
                 K_all = t.einsum("pbtd,pda->pbta", E_all, self.Wk_a)
@@ -165,8 +230,7 @@ class LMPopulation:
                               + self.b_h[:, None, :])
                 if i < warmup:
                     continue
-                logits = (t.einsum("pbh,phv->pbv", h, self.W_out)
-                          + self.b_out[:, None, :])
+                logits = self._readout(h)
                 if self.attention and i > 0:
                     # keys/values over j ≤ i−1 ONLY: the value at j is char
                     # j+1, so including j=i would hand the model its target
@@ -180,15 +244,24 @@ class LMPopulation:
                     ctx = t.einsum("pbj,pbjd->pbd", att, E_next[:, :, :i])
                     copy_logits = t.einsum("pbd,pvd->pbv", ctx, self.E)
                     logits = logits + self.alpha[:, None, None] * copy_logits
+                if self.unk is not None:                        # never predict <unk>
+                    logits[:, :, self.unk] = -1e9
                 lp = logits.log_softmax(dim=2)
                 tgt = w[:, i + 1]                               # (B,)
+                # word mode: <unk> targets are context, not scored predictions
+                vmask = (tgt != self.unk).float() if self.unk is not None \
+                    else t.ones(B, device=self.dev)
+                nv = vmask.sum()
+                if nv < 1:
+                    continue
                 lp_t = lp[:, t.arange(B, device=self.dev), tgt] # (P, B)
-                logp_sum += lp_t.mean(dim=1)
+                logp_sum += (lp_t * vmask[None, :]).sum(dim=1) / nv
                 pred5 = logits.topk(5, dim=2).indices           # (P, B, 5)
-                top1 += (pred5[:, :, 0] == tgt[None, :]).float().mean(dim=1)
-                top5 += (pred5 == tgt[None, :, None]).any(dim=2).float().mean(dim=1)
-                steps += 1
-            return (logp_sum / steps), (top1 / steps), (top5 / steps)
+                top1 += ((pred5[:, :, 0] == tgt[None, :]).float() * vmask[None, :]).sum(dim=1) / nv
+                top5 += ((pred5 == tgt[None, :, None]).any(dim=2).float() * vmask[None, :]).sum(dim=1) / nv
+                nvalid += 1
+            nvalid = max(nvalid, 1)
+            return (logp_sum / nvalid), (top1 / nvalid), (top5 / nvalid)
 
     def evaluate_rollout(self, windows, warmup, R, temperature=0.8, seed=None):
         """Closed-loop fitness (stage 4, the DiffEvo unrolled-training lesson):
@@ -220,8 +293,9 @@ class LMPopulation:
                 x = t.cat([e_cur, e_prev, t.tanh(h)], dim=2)
                 h = self._act(t.einsum("pbi,pih->pbh", x, self.W_in)
                               + self.b_h[:, None, :])
-                logits = (t.einsum("pbh,phv->pbv", h, self.W_out)
-                          + self.b_out[:, None, :])
+                logits = self._readout(h)
+                if self.unk is not None:
+                    logits[:, :, self.unk] = -1e9                # never predict <unk>
                 tgt = w[:, i + 1]                               # TRUE next char
                 # BLENDED objective: score the teacher-forced segment too
                 # (after a short state-fill) — pure-rollout fitness bred
@@ -230,13 +304,17 @@ class LMPopulation:
                 # must pay simultaneously.
                 score_now = i >= min(4, warmup)
                 if score_now:
-                    lp = logits.log_softmax(dim=2)
-                    lp_t = lp[:, t.arange(B, device=self.dev), tgt]
-                    logp_sum += lp_t.mean(dim=1)
-                    pred5 = logits.topk(5, dim=2).indices
-                    top1 += (pred5[:, :, 0] == tgt[None, :]).float().mean(dim=1)
-                    top5 += (pred5 == tgt[None, :, None]).any(dim=2).float().mean(dim=1)
-                    steps += 1
+                    vmask = (tgt != self.unk).float() if self.unk is not None \
+                        else t.ones(B, device=self.dev)
+                    nv = vmask.sum()
+                    if nv >= 1:
+                        lp = logits.log_softmax(dim=2)
+                        lp_t = lp[:, t.arange(B, device=self.dev), tgt]
+                        logp_sum += (lp_t * vmask[None, :]).sum(dim=1) / nv
+                        pred5 = logits.topk(5, dim=2).indices
+                        top1 += ((pred5[:, :, 0] == tgt[None, :]).float() * vmask[None, :]).sum(dim=1) / nv
+                        top5 += ((pred5 == tgt[None, :, None]).any(dim=2).float() * vmask[None, :]).sum(dim=1) / nv
+                        steps += 1
                 if i >= warmup:                                 # rollout zone
                     # next input = the genome's OWN sample (experience)
                     probs = (logits / max(temperature, 1e-6)).softmax(dim=2)
@@ -250,8 +328,8 @@ class LMPopulation:
 
     # -- reproduction --------------------------------------------------------
     def _genome_tensors(self):
-        names = ["E", "W_in", "b_h", "W_out", "b_out", "act",
-                 "mut_rate", "mut_scale"]
+        names = ["E", "W_in", "b_h", "W_po" if self.tie else "W_out", "b_out",
+                 "act", "mut_rate", "mut_scale"]
         if self.attention:
             names += ["Wq_a", "Wk_a", "B_rel", "alpha"]
         return names
@@ -270,10 +348,15 @@ class LMPopulation:
                                * t.exp(0.2 * t.randn(len(idx), device=self.dev))
                                ).clamp(0.02, 0.5)
         weighted = [("E", 1.0), ("W_in", 1.0), ("b_h", 0.5),
-                    ("W_out", 1.0), ("b_out", 0.5)]
+                    ("W_po" if self.tie else "W_out", 1.0), ("b_out", 0.5)]
         if self.attention:
             weighted += [("Wq_a", 1.0), ("Wk_a", 1.0), ("B_rel", 0.5),
                          ("alpha", 0.3)]
+        if getattr(self, "frozen_encoder", False):
+            # composed mode (§X freeze-and-compose): the encoder component is
+            # never re-trained — only the readout (+ attention) evolves
+            frozen = {"E", "W_in", "b_h"}
+            weighted = [(n, s) for n, s in weighted if n not in frozen]
         for name, per in weighted:
             ten = getattr(self, name)
             sub = ten[idx]
@@ -283,10 +366,11 @@ class LMPopulation:
                      * self.mut_scale[idx].view(-1, *([1] * (sub.dim() - 1))) * per)
             ten[idx] = sub + mask * noise
         # activation ids: rare reassignment
-        am = (t.rand(self.act[idx].shape, device=self.dev)
-              < (self.mut_rate[idx] / 4).view(-1, 1))
-        rnd = t.randint(0, N_ACT, self.act[idx].shape, device=self.dev)
-        self.act[idx] = t.where(am, rnd, self.act[idx])
+        if not getattr(self, "frozen_encoder", False):   # act ids are encoder
+            am = (t.rand(self.act[idx].shape, device=self.dev)
+                  < (self.mut_rate[idx] / 4).view(-1, 1))
+            rnd = t.randint(0, N_ACT, self.act[idx].shape, device=self.dev)
+            self.act[idx] = t.where(am, rnd, self.act[idx])
 
     def step_selection(self, fitness, cfg):
         """Energy update -> cull -> tournament refill (maturation-gated).
@@ -332,14 +416,24 @@ DEFAULTS = dict(pop=400, embed=24, hidden=64, seq_len=64, batch=96,
                 energy_decay=0.90, energy_gain=8.0, energy_floor=0.20,
                 energy_max=1.5, tournament_k=3, anneal_after=0.8,
                 log_every=25,
-                rollout_len=0, rollout_temp=0.8)   # stage 4: closed loop
+                rollout_len=0, rollout_temp=0.8,   # stage 4: closed loop
+                token_mode="char", vocab_size=2048)
 
 
 def run(cfg=None, log=print, resume=None):
     import torch
     cfg = {**DEFAULTS, **(cfg or {})}
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    ids = load_char_corpus()
+    word_mode = str(cfg.get("token_mode", "char")).lower() == "word"
+    vocab_obj = None
+    if word_mode:
+        ids, vocab_obj = load_word_corpus(cfg["vocab_size"])
+        cfg["vocab"] = vocab_obj.size
+        cfg["unk_id"] = 0
+    else:
+        ids = load_char_corpus()
+        cfg["vocab"] = V
+    the_V = cfg["vocab"]
     rng = np.random.default_rng(cfg["seed"])
 
     ts = datetime.datetime.now()
@@ -348,24 +442,54 @@ def run(cfg=None, log=print, resume=None):
     run_dir = os.path.join(LM_RUNS, run_id)
     os.makedirs(run_dir, exist_ok=True)
 
-    bl = baselines(ids, cfg["seq_len"], np.random.default_rng(999))
-    log(f"[{run_id}] device={device} V={V} baselines={json.dumps({k: round(v, 4) for k, v in bl.items()})}")
+    if word_mode:
+        bl = word_baselines(ids, cfg["seq_len"], np.random.default_rng(999), the_V)
+    else:
+        bl = baselines(ids, cfg["seq_len"], np.random.default_rng(999))
+    log(f"[{run_id}] device={device} mode={cfg['token_mode']} V={the_V} "
+        f"baselines={json.dumps({k: round(v, 4) for k, v in bl.items()})}")
 
     with open(os.path.join(run_dir, "config.json"), "w", encoding="utf-8") as f:
         json.dump({"id": run_id, "environment": "lm",
                    "created": ts.isoformat(timespec="seconds"),
-                   "config": {**cfg, "device": device, "population": cfg["pop"],
-                              "vocab": V, "baselines": bl},
+                   "config": {**{k: v for k, v in cfg.items() if k != "unk_id"},
+                              "device": device, "population": cfg["pop"],
+                              "vocab": the_V, "baselines": bl},
                    "started": {"population": cfg["pop"],
                                "generations": cfg["generations"],
-                               "notes": "lm_char_v1 substrate (model card: LM_STAGE1_SUBSTRATE.md)"},
+                               "notes": f"genreg_lm {cfg['token_mode']}-level "
+                               "(card: LM_STAGE1_SUBSTRATE.md)"},
                    "status": "running"}, f, indent=2)
     open(os.path.join(run_dir, "history.jsonl"), "w").close()
 
     pop = LMPopulation(cfg, device)
+    pop.vocab_obj = vocab_obj
+    if word_mode and cfg.get("seed_embeddings", True) and not resume:
+        # §VI: SVD-of-bigram-matrix embedding init — words used in similar
+        # contexts start near each other, so evolution refines linguistic
+        # geometry instead of organizing a neutral random table from scratch.
+        Wc = sample_windows(ids, 200000, cfg["seq_len"], np.random.default_rng(7))
+        C = np.zeros((the_V, the_V), np.float32)
+        np.add.at(C, (Wc[:, :-1].ravel(), Wc[:, 1:].ravel()), 1.0)
+        Cn = np.sqrt(C / np.maximum(C.sum(1, keepdims=True), 1.0))    # Hellinger rows
+        Cn -= Cn.mean(0)
+        _u, _s, Vt = np.linalg.svd(Cn, full_matrices=False)
+        Emb = Cn @ Vt[:cfg["embed"]].T                               # (V, D)
+        Emb = (Emb / (np.linalg.norm(Emb, axis=1, keepdims=True).mean() + 1e-9)) * 0.3
+        pop.E[:] = torch.as_tensor(Emb, device=device)[None].expand_as(pop.E)
+        log("word mode: embeddings seeded from bigram-SVD (§VI)")
     if resume:                                   # bootstrap, don't relearn
         load_population(pop, resume)
         log(f"resumed population from {resume}")
+    if cfg.get("encoder_ckpt"):
+        # composed mode (§X): copy the encoder component's tensors in and
+        # FREEZE them — only readout (+ attention) evolves from here
+        data = np.load(cfg["encoder_ckpt"])
+        for name in ("E", "W_in", "b_h", "act"):
+            getattr(pop, name).copy_(
+                torch.as_tensor(data[name], device=pop.dev))
+        pop.frozen_encoder = True
+        log(f"composed: encoder frozen from {cfg['encoder_ckpt']}")
 
     best_hist = []
     annealed = False
@@ -412,16 +536,19 @@ def run(cfg=None, log=print, resume=None):
                       "top5": round(float(top5_ro[br]), 4), "R": R}
         log(f"HELD-OUT rollout(R={R}): soft {ro_summary['soft']} "
             f"top1 {ro_summary['top1']*100:.2f}% top5 {ro_summary['top5']*100:.2f}%")
-    save_population(pop, os.path.join(run_dir, "checkpoint.npz"), gen=cfg["generations"])
+    save_population(pop, os.path.join(run_dir, "checkpoint.npz"),
+                    gen=cfg["generations"], vocab_obj=vocab_obj)
     summary = {"id": run_id, "environment": "lm", "status": "finished",
                "finished": datetime.datetime.now().isoformat(timespec="seconds"),
-               "gen": cfg["generations"],
+               "gen": cfg["generations"], "token_mode": cfg["token_mode"],
                "best": {"score": round(float(top1_ho[b]), 4),
                         "top5": round(float(top5_ho[b]), 4),
                         "soft": round(float(fit_ho[b]), 4)},
                "baselines": bl, "checkpoint": "checkpoint.npz",
                "rollout": ro_summary,
                "vs_bigram_pts": round((float(top1_ho[b]) - bl["bigram_top1"]) * 100, 2)}
+    if "trigram_top1" in bl:
+        summary["vs_trigram_pts"] = round((float(top1_ho[b]) - bl["trigram_top1"]) * 100, 2)
     with open(os.path.join(run_dir, "summary.json"), "w", encoding="utf-8") as f:
         json.dump(summary, f, indent=2)
     cfgj = json.load(open(os.path.join(run_dir, "config.json"), encoding="utf-8"))
@@ -440,31 +567,48 @@ def run(cfg=None, log=print, resume=None):
     return run_id, run_dir, pop, summary
 
 
-def save_population(pop, path, gen=0):
-    """ALL state (§IX): tensors, act ids, energy, mutation params, age, gen."""
+def save_population(pop, path, gen=0, vocab_obj=None):
+    """ALL state (§IX): tensors, act ids, energy, mutation params, age, gen.
+    Word-mode checkpoints also persist the vocabulary so generation from a
+    reloaded checkpoint can detokenize."""
     names = pop._genome_tensors() + ["energy", "age", "fit_ema"]
+    extra = {}
+    if vocab_obj is not None:
+        extra["vocab_words"] = np.array("\x00".join(vocab_obj.words))
     np.savez_compressed(path, gen=gen, **{
-        name: getattr(pop, name).cpu().numpy() for name in names})
+        name: getattr(pop, name).cpu().numpy() for name in names}, **extra)
 
 
 def load_population(pop, path):
     import torch
-    data = np.load(path)
+    data = np.load(path, allow_pickle=True)
     names = pop._genome_tensors() + ["energy", "age", "fit_ema"]
     for name in names:
         # substrate checkpoints lack the attention tensors — those keep
         # their transparent no-op init (alpha 0), which is the point
         if name in data:
             getattr(pop, name).copy_(torch.as_tensor(data[name], device=pop.dev))
+    if "vocab_words" in data:                    # word-mode checkpoint
+        from .tree_service import WordVocab
+        pop.vocab_obj = WordVocab(str(data["vocab_words"]).split("\x00"))
+        pop.unk = 0
 
 
 def generate(pop, idx, prompt, length=200, temperature=0.8, seed=None):
-    """Sample a continuation from one genome (inspect-actual-predictions duty)."""
+    """Sample a continuation from one genome (inspect-actual-predictions duty).
+    Char mode returns characters; word mode detokenizes to readable text and
+    never emits <unk>."""
     import torch
     t = torch
     rng = np.random.default_rng(seed)
-    lut = {c: i for i, c in enumerate(CHARS)}
-    seq = [lut.get(c, RARE) for c in prompt.lower()] or [0]
+    vocab = getattr(pop, "vocab_obj", None)
+    unk = getattr(pop, "unk", None)
+    Vv = pop.V
+    if vocab is not None:                        # word mode
+        seq = vocab.encode_text(prompt) or [0]
+    else:
+        lut = {c: i for i, c in enumerate(CHARS)}
+        seq = [lut.get(c, RARE) for c in prompt.lower()] or [0]
     n_prompt = len(seq)
     with t.inference_mode():
         h = t.zeros(1, 1, pop.H, device=pop.dev)
@@ -478,11 +622,21 @@ def generate(pop, idx, prompt, length=200, temperature=0.8, seed=None):
                          + pop.b_h[idx:idx + 1, None, :],
                          act=pop.act[idx:idx + 1])
             if i >= n_prompt - 1:                      # start emitting
-                logits = (t.einsum("pbh,phv->pbv", h, pop.W_out[idx:idx + 1])
-                          + pop.b_out[idx:idx + 1, None, :])[0, 0]
+                if pop.tie:
+                    z = t.einsum("pbh,phd->pbd", h, pop.W_po[idx:idx + 1])
+                    logits = (t.einsum("pbd,pvd->pbv", z, pop.E[idx:idx + 1])
+                              + pop.b_out[idx:idx + 1, None, :])[0, 0]
+                else:
+                    logits = (t.einsum("pbh,phv->pbv", h, pop.W_out[idx:idx + 1])
+                              + pop.b_out[idx:idx + 1, None, :])[0, 0]
+                if unk is not None:
+                    logits[unk] = -1e9                 # never emit <unk>
                 p = (logits / max(temperature, 1e-6)).softmax(0).cpu().numpy()
-                seq.append(int(rng.choice(V, p=p / p.sum())))
-        return "".join(CHARS[i] if i < len(CHARS) else "¿" for i in seq[n_prompt:])
+                seq.append(int(rng.choice(Vv, p=p / p.sum())))
+    out = seq[n_prompt:]
+    if vocab is not None:
+        return vocab.decode(out)
+    return "".join(CHARS[i] if i < len(CHARS) else "¿" for i in out)
 
 
 if __name__ == "__main__":

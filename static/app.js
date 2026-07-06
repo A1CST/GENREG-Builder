@@ -177,13 +177,18 @@ function handleEvent(ev) {
     }
     case "terminal_created": {
       const t = ensureTerm(ev);
-      // A tab we requested via the Claude button: focus it and start claude
-      // once the shell has had a moment to come up (input sent too early can
-      // be swallowed during PowerShell startup).
+      // A tab we requested via the Claude button: focus it, then type the
+      // command only once the PowerShell PROMPT has actually appeared.
+      // (A blind timer raced the terminal's device-attributes reply —
+      // xterm.js answers ESC[c with ESC[?1;2c, and that response landed on
+      // the command line as literal "[?1;2c" garbage before our command.)
       if (pendingClaude > 0 && ev.title === "Claude") {
         pendingClaude--;
+        t.waitPrompt = true;
+        t.promptBuf = "";
+        // fallback: if we never recognize a prompt, fire anyway after 5s
+        t.promptTimer = setTimeout(() => launchClaude(t), 5000);
         setActive(t.id);
-        setTimeout(() => send({ op: "input", id: t.id, data: "claude --dangerously-skip-permissions\r" }), 600);
       }
       return;
     }
@@ -193,9 +198,30 @@ function handleEvent(ev) {
   if (!t) return;
   switch (ev.type) {
     case "output":
-    case "system": t.term.write(ev.data); break;
+    case "system":
+      t.term.write(ev.data);
+      if (t.waitPrompt && ev.type === "output") {
+        t.promptBuf = (t.promptBuf + ev.data).slice(-2000);
+        // strip ANSI escapes, then look for a shell prompt at the tail
+        const clean = t.promptBuf
+          .replace(/\x1b\][^\x07]*(\x07|\x1b\\)/g, "")   // OSC sequences
+          .replace(/\x1b\[[0-9;?]*[ -\/]*[@-~]/g, "")     // CSI sequences
+          .replace(/\r/g, "");
+        if (/PS [^>\n]*> ?$/.test(clean.trimEnd())) launchClaude(t);
+      }
+      break;
     case "clear": t.term.reset(); break;
   }
+}
+
+// Type the claude command into a ready shell: Escape first (PSReadLine
+// RevertLine wipes any stray escape-reply characters), then the command.
+function launchClaude(t) {
+  if (!t.waitPrompt) return;
+  t.waitPrompt = false;
+  clearTimeout(t.promptTimer);
+  send({ op: "input", id: t.id, data: "\x1b" });
+  setTimeout(() => send({ op: "input", id: t.id, data: "claude --dangerously-skip-permissions\r" }), 150);
 }
 
 // -- buttons + resize ------------------------------------------------------

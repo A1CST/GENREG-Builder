@@ -6,6 +6,19 @@ Seeded 2026-07-05 from the main changelog (keyword split, best effort).
 
 ---
 
+- **[2026-07-06] (Claude)** — Tree LM page: **copy refresh to reflect byte AND word/token level**
+  (user: "reflect what we are actually doing now"). The page was live and functional but its
+  copy was byte-only and outdated. Fixed: brand subtitle "byte-level" → "byte & word-level";
+  "Context window (bytes)" → "(bytes / tokens)" with a word-mode hint; routing-layers hint
+  generalized (hardcoded "256 bytes" → "vocab / branch^layers", + the word-level layers-0
+  collapse warning); cluster-split, generate, routing-inspector, and icicle card copy updated
+  to say token/vocabulary not byte. treelm.js: the icicle x-axis was hardcoded to /256 (word-
+  mode trees rendered off the right edge) — now derives the vocab span from the widest node
+  and labels the axis "byte 0..255" or "token 0..N" by mode; encoder status "next-byte" →
+  "next-token (ridge / nearest-centroid)"; tooltip "bytes" → "tokens". No functional/training
+  change; the page still does live GPU training, generation, sweeps, and the routing inspector.
+  Static+template only — reload the browser.
+
 - **[2026-07-05] (Claude)** — Tree LM evolve-embed: **mixed-dimension seeding — NEW BEST
   word-level result, −1.67 pts vs bigram.** The drift problem (64→66 in 100 gens) is fixed by
   seeding the population with REAL heuristic genomes at several capacity levels ([start/2,

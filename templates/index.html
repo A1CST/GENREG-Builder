@@ -13,12 +13,7 @@
     <div class="status">
       <span id="conn-dot" class="dot"></span>
       <span id="conn-text">connecting…</span>
-      <a class="runs-link" href="/runs" target="_blank" title="Open runs &amp; checkpoints (new tab)">Runs ↗</a>
-      <a class="runs-link" href="/tree" target="_blank" title="Tree-of-Models text prediction (new tab)">Tree LM ↗</a>
-      <a class="runs-link" href="/diff" target="_blank" title="DiffEvo — denoising diffusion by neuroevolution (new tab)">DiffEvo ↗</a>
-      <a class="runs-link" href="/animation" target="_blank" title="Animation program interface (new tab)">Animation ↗</a>
-      <a class="runs-link" href="/docs" target="_blank" title="Project documentation (new tab)">Docs ↗</a>
-      <a class="runs-link" href="/i2" target="_blank" title="I2 program interface (new tab)">I2 ↗</a>
+      {% set nav_active = 'build' %}{% include '_nav.html' %}
     </div>
   </header>
 
