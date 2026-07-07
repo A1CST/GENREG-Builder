@@ -10,6 +10,268 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-07] (Claude)** — `/docs` browser: favorite (star toggle) and archive per document,
+  sort by name or recently-updated, and a NEW badge for files modified in the last 3 days.
+  Favorite/archive state is client-side (localStorage, single-user local tool) so no server or
+  `/api/docs` schema change was needed — archived docs are hidden from the default view and
+  surfaced via an "Archived" toggle; a "Favorites" toggle narrows to starred docs only.
+
+- **[2026-07-07] (Claude)** — `/images` reverse-tab polish: caption length ceiling raised 75->200
+  tokens; BLIP was hitting its own early-stop well under budget regardless, so `_caption()` now
+  passes `min_new_tokens` + sampling (top_p, temperature, repetition_penalty, no_repeat_ngram_size)
+  to actually force the extra length instead of silently truncating. Noted in the UI that >~75-100
+  tokens degrades into stock-photo-metadata noise (BLIP's real ceiling, not a bug). Gallery UX:
+  "Process" now appends each run's frames under a job header instead of clearing the canvas, and
+  each frame renders as an index/thumbnail/prompt row stacked in a single column (was a wrapping
+  card grid).
+
+- **[2026-07-07] (Claude)** — `/images` reverse tab: image/video -> prompt via BLIP captioning +
+  CLIP-ranked medium/style/lighting/quality tags — `genreg_train/reverse_service.py`,
+  `POST /api/images/reverse` (single image or video, frames extracted with imageio/ffmpeg),
+  `GET /api/images/file/<path>` to serve results. Output lands in a structured job folder
+  `runs/images/reverse/<job_id>/{frames,prompts}/frame_NNNNN.{png,txt}` + `manifest.json`.
+  Caption length and modifier-tags-per-category are adjustable from the sidebar.
+
+- **[2026-07-07] (Claude)** — `/images` text-to-image: wired a pretrained Stable Diffusion 1.5
+  pipeline (diffusers) into the blank Images page — `genreg_train/sd_service.py` (lazy-loaded
+  singleton pipeline, GPU if available), `POST /api/images/generate`, prompt/negative-prompt/
+  steps/guidance/size/seed controls in the sidebar, generated PNGs saved under `runs/images/`.
+  Not evolved — a plain pretrained-checkpoint generation utility, unlike the rest of GENREG.
+
+- **[2026-07-07] (Claude)** — New project page `/images` — blank scaffold (terminals, run-config
+  panel, agent-alerts panel) added to the nav, no canvas content yet.
+
+- **[2026-07-07] (Claude)** — **WordPipe Track A — comma / internal-punctuation genome** (+ two
+  make-or-break diagnostics that said "don't build"). Comma specialist: per-position P(comma) from
+  (class, clause-position), same shape as boundary; beats base rate (val log-prob −0.159 vs −0.264,
+  comma rate 8.1%). Wired into generation + the /evolang page (new **Commas** toggle) + the demo;
+  retrained `demo/genomes.pkl` to include it. `build_comma_corpus`, `run_comma`. **Diagnostics
+  (caution paid off):** (1) **continuity/topic-memory** idea killed — a running topic-average never
+  beats the global mean and is identical on shuffled text (no exploitable continuity in a static
+  corpus); (2) **local agreement** skipped — det-noun number agreement already subsumed by selection
+  (pipeline gap +0.338 ≥ real +0.199), subject-verb isn't a local adjacent signal (+0.026 even in
+  real text → needs parsing). The local producer is near its honest ceiling; the next *capability*
+  (memory/coherence) lives in a conversational environment (Track B). WORDPIPE_FINDINGS.md.
+
+- **[2026-07-07] (Claude)** — **/evolang page replaced with the WordPipe specialist pipeline**
+  (the current evolution-native LM). Retired the outdated char-model page; new interactive page toggles
+  each evolved genome (Vocabulary, Order, Selection prev/both, Boundary, Chunks) and generates live
+  over the trained genomes. Backend `genreg_train/wordpipe_service.py` (lazy-loads corpus + `demo/
+  genomes.pkl`), REST `/api/evolang/status` + `/api/evolang/generate`; rewrote `templates/evolang.html`
+  + `static/evolang.js`. **Needs a Flask restart.** Also validated Track A: **bidirectional selection**
+  beats prev-word-only (adj 0.767→0.777, distinct 0.219→0.231, logprob −0.940→−0.911 — kept), and the
+  **chunk/phrase genome** is the biggest local-fluency win yet (adj 0.776→**0.851**, +7.5 pts; small
+  repetition cost). `build_chunk_index`, `gen_chunked`, `run_gate7`, `run_gate_chunks`.
+
+- **[2026-07-07] (Claude)** — **Visual demo** (`demo/demo.py`, pygame) — watch the language build up
+  genome by genome. Trains each specialist live (fitness sparklines emerge) then lets you toggle
+  layers and see the output transform in real time: nothing → letter-gibberish, +Vocabulary → real
+  words, +Order → grammatical class skeleton, +Selection (prev-word or Bidirectional) → context-fit
+  words, +Boundary → sentences. First run trains ~4 min then caches to `demo/genomes.pkl` (instant
+  after); `demo/build_cache.py` pre-builds headless. `demo/README.md`.
+
+- **[2026-07-07] (Claude)** — **WordPipe Track A — bidirectional selection.** Word choice depends on
+  BOTH neighbours; new specialist scores a candidate against the previous WORD and the next CLASS
+  (known from the order skeleton) — two bilinear heads (~1150 params), dense in-class-negative fitness,
+  purely local. `BiSelPop`, `class_centroids`, `run_biselection`, `run_gate7`. Framing correction
+  (user): local production is NOT a ceiling — memory isn't required by a non-conversational corpus
+  world (P1); it belongs to a conversational environment (Track B) where it's forced.
+
+- **[2026-07-07] (Claude)** — **EEC memory investigation** (`genreg_train/eec_memory.py`, mirrors
+  `project/EEC-main/engine/mind.py`): survival=lifespan on energy, memory-rent, occlusion/entropy as
+  memory-forcing laws, graded by emergent STATE (recurrent gain, horizon) not accuracy. Confirms **P1
+  (reachability)**: memory ~5× stronger where it pays (long-range: gain 0.55, M 6, horizon 3.3) than
+  our language stream (gain 0.12, M 2, horizon ~1) — the language world is local. Lesson: don't grade
+  by loss-vs-baseline; read the state; a capability emerges only in the environment that requires it.
+
+- **[2026-07-07] (Claude)** — **WordPipe G5 — sentence-boundary specialist; the pipeline makes
+  SENTENCES.** Fifth specialist: per-position P(sentence ends) from (word's class, sentence-position),
+  dense binary-prediction fitness, ~577 params. Beats base-rate boundary prediction (val log-prob
+  −0.119 vs −0.174) and learned the corpus rhythm (5.4% boundary rate ≈ 18.6-word sentences). **Full
+  4-specialist generation** (order + selection + boundary): produces real sentences (periods, caps),
+  **gen sentence length 17.0 vs real 18.6**. Sample: "…the good rich and him news we rested for more
+  they would free tea cruel and mad. … she was long graceful. And good the dress and easily free…".
+  Real local bigrams + sentence structure from 5 tiny gradient-free genomes (~7K params, ~140 KB).
+  Honest limits: heavy "more/good" repetition (dominant induced class + high-freq fill) = the
+  repetitive-collapse the EvoLang novelty constraint fights (next lever); no long-range grammar.
+  Chose punctuation over agreement (agreement largely subsumed by selection; its distinct long-range
+  part needs parsing). `BoundaryPop`, `build_boundary_corpus`, `run_boundary`, `run_gate5`.
+  WORDPIPE_FINDINGS.md.
+
+- **[2026-07-07] (Claude)** — **WordPipe G4 — word-selection specialist; +15 pts fluency.** Third
+  specialist: fill each class slot with the word that fits the PREVIOUS word (not class-random).
+  Applied both G2 lessons — the 4000-word representation is FIXED (SVD of distributional
+  co-occurrence, out of the search space) so only a tiny **bilinear head M (24×24 ≈ 577 params)**
+  evolves; fitness is DENSE predictive (log-prob of the true word among in-class negatives).
+  Standalone beats the frequency baseline (val log-prob −0.931 vs −0.981; top-1 0.688 vs 0.666). In
+  the pipeline it **compounds: adj-pair-hit 0.610 → 0.761 (+15 pts)** — selection output is full of
+  real bigrams ("he was", "the eyes", "and quickly") where random-fill jars ("is are", "gay health").
+  Deploy size now ~140 KB int8 (dominated by the 4000×24 feature table; genomes ~6.6K params total).
+  Not fluent yet (no agreement/punctuation/long-range) but each specialist visibly closes the gap —
+  the decomposition compounds. `WordSelPop`, `word_features`, `run_selection`, `run_gate34`.
+  WORDPIPE_FINDINGS.md.
+
+- **[2026-07-06] (Claude)** — **WordPipe G3 — the two specialists COMPOSE into text.** Chained the
+  proven order genome (emits a class skeleton) + vocabulary component (fills each class slot with a
+  freq-weighted real word). Decisive test isolates class order: pipeline vs a unigram-class baseline
+  using the IDENTICAL fillers. **Pipeline 0.604 vs unigram 0.558** on adjacent-word-pair corpus-hit
+  (local English-likeness), and the gap GREW as the order genome trained (0.582/0.561 @300 gens →
+  0.604/0.558 @3000) — so the evolved class order drives it, not the fillers. Output is real-words-
+  in-a-grammatical-skeleton ("clear of my world", "he up and active"), measurably better than the
+  unordered salad, not yet fluent (32-class skeleton coarse; slots filled class-randomly — next
+  specialist = word-selection-given-neighbours). **Deploy size as-is ~50 KB** (genomes ~6K params /
+  ~24 KB; lexicon ~38 KB — the word list outweighs the net; ~0.005% of GPT-2). `run_gate3`,
+  `gen_class_seq`, `build_class_words`. Pipeline vision validated end-to-end; WORDPIPE_FINDINGS.md.
+
+- **[2026-07-06] (Claude)** — **WordPipe G2 CORRECTION — the order specialist DOES evolve.** Prior
+  entry's "gradient-free wall / evolution can't" was wrong (and un-GENREG: it blamed the tool for a
+  badly-shaped space). Two design errors, fixed in order: **(1) space ballooned** — 4000-word
+  embedding (40k params); shrank to **~32 induced POS-like classes** (`induce_word_classes`, k-means
+  on anchor-context; classes come out clean: past-participles, past-tense verbs, adjectives),
+  embedding → ~256 params. Still chance. **(2) fitness wrong SHAPE** — discriminative "is this window
+  real?" is one holistic bit, no per-position gradient → flat landscape (margin fitness didn't help
+  either). Reframed the order specialist as a **PREDICTOR** (next-class LM, dense log-prob fitness):
+  **climbs, val_ppl 30.9 → 12.75, beats unigram 13.4** (count-based ceiling 10.06; longer run
+  pending). Lesson (pure GENREG): when a specialist won't evolve, **shrink the space AND reshape the
+  fitness until the landscape is dense** — don't conclude evolution can't. Both levers were needed.
+  `run_class_lm`, `run_disc_on(fitness=...)`, `OrderPop.fitness_all`. Updated WORDPIPE_FINDINGS.md.
+
+- **[2026-07-06] (Claude)** — **WordPipe — specialist-pipeline experiment** (`genreg_train/wordpipe.py`,
+  user's vision: "the constraint IS the genome's reason for existing"; decompose English into
+  components, evolve a specialist per component). Built + gated three specialists, each proven before
+  the next: **(G1) vocabulary/speller** — char genome rewarded for lexicon coverage (real words),
+  char-prediction-scaffolded so it bootstraps; **(G2) order discriminator** — genome evolved to tell
+  real corpus word-order from *within-window shuffled* order (a grammaticality LANDSCAPE, not an
+  n-gram table — fakes share the bag-of-words so only ORDER distinguishes them); **(G3) orderer** —
+  word generator scored ONLY by the frozen discriminator's P(real), never next-word accuracy (which
+  would rebuild the table). Lexicon (20,676 words) + word corpus built from the Gutenberg dump. All
+  gradient-free (shared tournament/elitism/energy-homeostasis `ga_step`). **Results
+  (`documentation/WORDPIPE_FINDINGS.md`): G1 PASS** — vocabulary genome raises valid tokens 18.9% →
+  **52.4%** vs a plain char LM (coverage is an evolvable specialist). **G2 FAIL** — the order
+  discriminator stayed at chance (51.9%) across 2500 gens, yet a bigram probe separates real/shuffled
+  at **69.2%**, so the signal exists — the discriminator just can't evolve a 4000-word embedding
+  (~40k params) by mutation: the gradient-free representation wall. G3 skipped. **Boundary mapped:** a
+  specialist is evolvable gradient-free only if its representation is small (chars ✓) or scaffolded;
+  word-level order is too big. Fix points where linguistics does — **order over ~30 POS categories,
+  not 4000 words.** The pipeline vision holds; the evolvable-specialist line is now sharp.
+
+- **[2026-07-06] (Claude)** — EvoLang: **autonomous experiment battery + findings** (ran while user
+  away). Held-out `val_ppl` throughout. (1) Capacity sweep K∈{4,6,8}×H∈{32,48}: **K4/H48 wins
+  (val 13.84)**; bigger context does NOT help this tiny genome (K6/K8·H48 overfit) — spend capacity
+  on hidden width, not window length. (2) Novelty A/B on the winner: novelty **monotonically hurts
+  perplexity** (off 13.19 → w0.3 13.67 → w0.6 14.21 → w1.0 18.11, collapsed) — it's a variety
+  (anti-collapse) lever, a Goodhart trade against accuracy, NOT a ppl improver; keep off by default.
+  (3) Long run (6000 gens) → **val 12.25** (train 8.99): more gens buy memorisation, not
+  generalisation — the bottleneck is model class, not budget. Next levers: composition of specialised
+  genomes / recurrent evolved state / landscape shaping (not gradients, not tables). Updated `/evolang`
+  defaults to the winner (K4 H48 E12). Full writeup: `documentation/EVOLANG_FINDINGS.md`.
+
+- **[2026-07-06] (Claude)** — EvoLang: **held-out validation split.** Training now samples windows
+  only from the first `(1 - holdout_frac)` (default 0.9) of the corpus; the champion's perplexity is
+  also measured every 100 gens on a fixed 4096-window sample from the reserved tail. `gen`/`done`
+  events carry `val_ppl` alongside train `ppl`; the ppl tile shows "train / val". Makes every EvoLang
+  number honest about generalisation (early runs show train 15 / val 19). genreg_train/evolang.py.
+
+- **[2026-07-06] (Claude)** — EvoLang: **swapped the toy corpus for the Gutenberg book dump.**
+  Removed the 642-char hand-written string; EvoLang now trains on
+  `project/EEC-main/engine/corpus.txt` (~48.6M chars of real English). Fixed small charset (37:
+  space + lowercase + basic punctuation, digits→'#', other→space) so the genome stays tiny. Windows
+  are sampled **on the fly** per generation — the ~49M (context→next-char) pairs are never
+  materialised (that'd be GBs); only the flat int16 id array (97 MB) is cached, lazily on first run
+  so Flask import stays ~0.3s. The page shows a **preview** slice, not the whole file (never ships
+  49 MB over the socket); `started` now carries `corpus_chars`. Perplexity is honestly higher than
+  the toy (real text is far more varied; needs more generations). ~58 ms/gen. genreg_train/evolang.py.
+
+- **[2026-07-06] (Claude)** — EvoLang: **novelty constraint (opt-in, pure reward).** A landscape
+  lever that fights repetitive collapse ("the the and and"). Each genome is sampled for a short
+  passage (batched across the whole population — one forward per char step, no per-genome loop) and
+  a novelty scalar on a 0.00–1.00 scale accrues from its words: each step the scalar decays by
+  `decay` (0.005 default); a word pays `gain` (0.15) × a cooldown ramp that goes 0→full over
+  `cooldown` (40) words since it was last used — so "the" hammered constantly stays on cooldown → ~0,
+  a long-unseen word like "normandy" pays full. Only ever gained, capped at 1.0, never a penalty.
+  It **multiplies** the genome's own soft fitness by `(1 + weight × novelty)` (0.5 default → up to
+  ×1.5) — a scaled boost done in log-space (`base + log1p(weight×novelty)`), so the absolute lift is
+  proportional to how well the genome already predicts. Checkbox to enable + fields for gain / decay
+  / cooldown / weight / rollout-length. Perplexity tile stays honest (from raw log-prob, not the
+  bonus); new champion-novelty tile. Verified: repeated "the"×12 → 0.136, distinct words → 1.00;
+  ~1.5× per-gen cost when on. genreg_train/evolang.py, templates/evolang.html, static/evolang.js.
+
+- **[2026-07-06] (Claude)** — **PIVOT: archived the entire n-gram / LM / Tree line, started EvoLang.**
+  Per the user: stop chasing n-gram tables (they're the 1990s, and the distillation verdict proved
+  you can't gradient-free-train them away). We are NOT building attention, an optimizer, or a
+  distilled table — we're building a new *type* of evolution-native LM. Archived
+  `genreg_lm/attn/enc/trustmix/distill`, `lm_sample`, `genreg_rerank`, `pure_engine`, `tree_service`,
+  `tree_lm` → `archive/lm_and_tree/` (README included); moved `lm/attn/enc/encoder/tree/distill/pure`
+  run dirs → `runs/_archive/`. New **`/evolang`** page + `genreg_train/evolang.py`: one small fixed
+  corpus, a tiny neural next-char predictor per genome (context → evolved embedding → tanh → V
+  logits), evolved by tournament + elitism + mandatory energy homeostasis, self-adaptive mutation,
+  **soft** log-prob fitness — no gradients, no lookup table. Minimal by design ("do nothing else").
+  Nav Tree LM → EvoLang; guarded `runstore.py`'s archived `tree_service` imports so `/runs` still
+  loads legacy runs. Rationale: `documentation/EVOLANG_PIVOT.md`.
+
+- **[2026-07-06] (Claude)** — LM: **distillation verdict — you can't gradient-free-train away
+  the n-gram tables** (honest negative, maps the boundary). Distilled the 56.4% trust-mix
+  teacher into a table-free evolved feedforward neural n-gram (soft-teacher + hard-target hybrid
+  fitness, 12k gens). Result: student top-5 **58.0%** (matches/beats the teacher's distribution
+  SHAPE) but top-1 only **24.7%** (recovered 44% of the teacher; generation is gibberish). The
+  split IS the finding — evolution learns *which chars are plausible* (top-5) but not *which is
+  most likely per context* (top-1), and generation needs the latter. Compressing corpus
+  statistics into weights is directed high-dim optimization = gradient's job; undirected
+  mutation can't do it at precision. Boundary: table-free+gradient-free 34.6% gibberish · n-gram
+  tables 56% readable (but 1990s lookup) · table-free+gradients = real LMs (violates rule #1).
+  The no-gradient LM sits where BOTH good-LM mechanisms are excluded; evolution's edge is where
+  gradients can't go (Intelligence Engine), not raw next-token stats. genreg_train/genreg_distill.py.
+
+- **[2026-07-06] (Claude)** — **TRUST-MIX breakthrough: readable English, held-out top-1 55.2%
+  / top-5 84.7%** — passes both docs usability bars (top-1≥30, top-5≥60) the A-series never
+  reached. The composition path (not one model doing everything): exact char n-gram channels
+  (uni..5g dense + 6g/7g hashed) + the evolved neural model, combined by an EVOLVED
+  context-conditional backoff GATE (trust + per-channel evidence κ, Witten-Bell style,
+  gradient-free ES). Accuracy climbed with orders+gate: neural-alone 34.6 → 4g-mix 47.2 →
+  5g-gated 53.5 → 7g-gated **55.2**. Generation is real English with phrases/punctuation and
+  the PROMPT STEERS ("the old man "→"stood the first, by all the other … for his nose and the
+  surface is not the same"; picks up Moby Dick vocab whale/jonah/fast-fish) — vs the
+  neural-alone gibberish ("dod wing fas coltill carm"). Honest: coherence = high-order n-gram
+  statistics; the EVOLVED part is the backoff gate (the neural is ~4% trust, near dead weight —
+  count tables win accuracy AND coherence, exactly as the stack notes predicted). A real
+  gradient-free char LM. genreg_train/genreg_trustmix.py; full progression in
+  LM_STAGE1_FINDINGS.md.
+
+- **[2026-07-06] (Claude)** — LM: **trigram interaction channel = best char result yet,
+  34.61% top-1 / 68.78% top-5** (two-phase bootstrap from the 31.9% substrate). +2.7pp over the
+  substrate, matching the documented A_101 benchmark (34.00/69.70), closing 37% of the
+  substrate→char-trigram-ceiling gap (31.9→39.2, bigram 27.3). The §VI multiplicative gate
+  OPENED and paid fitness where the additive copy-attention channel never did — confirming
+  multiplicative>additive for pair interaction the recurrent state can't express. Generation
+  (t=0.7) shows real words + word-shapes but not sentences (expected at 34%; top-5 barely
+  moved). Full table in LM_STAGE1_FINDINGS.md. Next: rollout landscape on top (accuracy is up;
+  generation coherence / space-collapse is the exposure gap, still open).
+
+- **[2026-07-06] (Claude)** — LM: **low-rank trigram interaction channel (§VI)** added to
+  genreg_lm — the documented word/char-pair primitive, targeting the big untapped gap (char
+  substrate 31.9% sits far below the char-TRIGRAM count ceiling 39.2%). Gated multiplicative
+  channel `logits += a_lr·(bigram[c_t] + (E1[c_t] ⊙ E2[c_prev]) @ O)` — captures the pair
+  interaction the additive prev-char concat structurally cannot (§VI). Wired into
+  evaluate/rollout/generate; `trigram_only` flag freezes the substrate for two-phase bootstrap
+  (evolve the channel alone, then unfreeze). Gate `a_lr` init 0 (transparent — verified gen-0
+  identical to substrate). Two-phase chain running from the 31.9% checkpoint: phase-1 channel
+  already opening and climbing (31.8%→32.3% by gen 800, soft improving), vs the copy-attention
+  channel which never opened — multiplicative interaction pays rent where additive copy didn't.
+
+- **[2026-07-06] (Claude)** — **PER-LAYER ("tissue") constraints — new engine + validated.**
+  User's idea: evaluate each constraint against its WIRED LAYER'S activations instead of the
+  whole network, so layers face different survival conditions like tissues — same tournament /
+  energy / whole-organism reproduction, landscape just becomes locally uneven. Built
+  `genreg_train/pure_engine.py` (multi-layer evolved MLP, per-neuron activations, energy
+  homeostasis; the evolving backend PURE's node graph will feed). Decisive 4-condition A/B
+  (next-char, matched compute): Energy→L1 crushes L1 power to 0.039 (8x below control) while L2
+  stays 0.34; SWAP the wire (Energy→L2) and the collapse follows to L2 (0.103) while L1 stays
+  high — differentiation is CAUSAL, controlled by the wiring. Global eval compresses both
+  layers uniformly (no differentiation). Held-out top-1 preserved at 20.8% across all
+  constrained runs (cooperation intact). Consequential Drive holds a wired layer's dead-neuron
+  fraction at 0%; its absence + energy starvation grows 18.8% dead (constraints compose as
+  predicted). Card + full table: documentation/PURE_PER_LAYER_CONSTRAINTS.md.
+
 - **[2026-07-06] (Claude)** — Animation shape classifier **SOLVED** — identifies all 10 shapes
   regardless of motion pattern/position, gradient-free (mutation-only evolution). Recipe:
   **centroid normalization** (crop a fixed 20×20 window around each frame's white-pixel centroid —
@@ -52,6 +314,88 @@ log below; don't rewrite existing entries.
   change; the page still does live GPU training, generation, sweeps, and the routing inspector.
   Static+template only — reload the browser.
 
+- **[2026-07-06] (Claude)** — **PURE: server-side video decode — ANY format (mkv/avi/mov/…).** The
+  browser `<video>` element only decodes mp4/webm/ogg, so the user's MKV failed with "zero
+  dimensions". Added a Flask endpoint `POST /api/pure/frames` that decodes server-side via
+  **imageio + bundled ffmpeg** (installed `imageio`, `imageio-ffmpeg`; added to requirements.txt) —
+  handles essentially any format. Extracts frames per the Data node's size/start/skip/max/gray and
+  returns 0-255 pixel arrays. Client `acquireFrames` tries the server first, falls back to browser
+  decode if the route is 404 (server not restarted), and caches results per File+params so a big
+  video isn't re-uploaded each Run. Broadened the Data node's file picker to accept any video.
+  Verified end-to-end: an MKV → `/api/pure/frames` → 6×16×16 grayscale frames with real content
+  (not black). **Requires a Flask restart** (new route) — until then MP4 still works via the
+  browser fallback.
+
+- **[2026-07-06] (Claude)** — **PURE: fix black-frame video decode + Data-node frame preview.**
+  User reported every target frame decoded black. Root cause: `drawImage` ran before the video
+  painted the seeked frame (and a `t=0` seek never fires `seeked`). Rewrote `grabFrame` to wait for
+  the frame to actually present (`requestVideoFrameCallback`, else double-rAF), nudge the seek so an
+  event always fires, append the video (hidden) to the DOM and use a `willReadFrequently` context,
+  and decode on `loadeddata`. Critically, if every decoded frame is uniform/black the decode now
+  **errors clearly** ("frames decoded but every one is uniform/black…") instead of silently feeding
+  black frames. Added a **Preview frame** button in the Data node Properties that decodes + shows
+  the first frame so you can verify the video feeds correctly without running training. Browser-
+  only path (not headless-testable); module load + synthetic path verified intact. Ready on next
+  Flask restart.
+
+- **[2026-07-06] (Claude)** — **PURE: per-frame Reconstruction panel (all frames, not just one).**
+  New bottom panel (resizable, `data-resize="recon"`) that shows the best prediction for EVERY
+  frame: targets on the top row, the model's reconstruction on the bottom row, aligned as N×N
+  images — so there are as many output frames as input frames. `sampleModel` now computes the
+  best genome's output for every dataset frame (cap 48) when the model's output is a square frame
+  (the decoder; a latent-output encoder shows nothing meaningful). `drawRecon` renders the grid
+  in a horizontally-scrollable canvas; cleared on Reset. Headless-verified: 2-model autoencoder on
+  32 image frames → the decoder's grid drew all 32 frame reconstructions. Ready on next Flask
+  restart.
+
+- **[2026-07-06] (Claude)** — **PURE: video Data node now feeds REAL frames (was mock).** Fixed the
+  trust gap the user flagged — a Data (video) node previously did nothing; the engine trained on a
+  synthetic sine fallback regardless. Now `extractVideoFrames` actually decodes the selected video
+  (seek → draw into an N×N canvas → grayscale/RGB pixels in [-1,1]) and those frames become the
+  training dataset. `Engine.start` is async: if the source is a Data node it decodes first
+  (status "decoding video frames…"), and errors clearly ("no video file selected" / "could not
+  decode") instead of silently falling back to mock. The run status now says **"training on REAL
+  video"** vs **"training on synthetic data"** so it's never ambiguous. Output plot upgraded: when
+  the output is a square frame it renders **target vs reconstruction as side-by-side images** so
+  you can watch the model actually rebuild the frame. Verified headlessly: synthetic path intact +
+  labeled; video-without-file gives a clear error, no silent mock. NOTE: the actual browser video
+  decode (video/canvas APIs) can't be headless-tested — that path is verified in-browser only.
+  STILL TODO (deferred, acknowledged): genome visual showing ALL models in a chain; saving PURE
+  runs to the Runs page with playback.
+
+- **[2026-07-06] (Claude)** — **PURE: Autoencoder template + template picker.** The toolbar
+  Template button is now a picker (select) with two options: **Basic model** (the single
+  Synthetic→Input→Layer→Output→Fitness + Energy example) and **Autoencoder** — a wired
+  encoder→decoder chain (16→12→**4** latent, reconstruct → **4**→12→16, reconstruct_source) so the
+  decoder rebuilds the original through the bottleneck. `templateGraph(kind)` +
+  `window.PureGraph.template(kind)`. Verified both load and parse (autoencoder → 2 models with the
+  right per-model objectives). Ready on next Flask restart.
+
+- **[2026-07-06] (Claude)** — **PURE: `reconstruct_source` fitness objective (real autoencoder
+  chains).** Added a third Fitness objective, `reconstruct_source`, plus carrying the ORIGINAL
+  pre-encoder input (`x0`) through the model chain unchanged. So a decoder wired after an encoder
+  can be scored against the source input rather than the latent it receives — making encoder(D→L)
+  → decoder(L→D) a true autoencoder. `makeTarget()` centralizes target selection; every sample now
+  carries `x0` (= x at model 0, preserved through pass-throughs). Headless-verified: encoder
+  8→6→3 (reconstruct) then decoder 3→6→8 (reconstruct_source) reconstructs the original 8-dim
+  input through the 3-dim bottleneck to 0.026 error. Ready on next Flask restart.
+
+- **[2026-07-06] (Claude)** — **PURE: Data (video) source node + multi-model chains via Fitness
+  pass-through.** (1) New **Data** node (Data group): pick an mp4/webm/ogg file in Properties, set
+  Assumed FPS / Start frame / Skip (stride) / Max frames / Frame size / Grayscale, and it shows
+  the computed total frames live (source ≈ duration×fps → after stride → after max cap). File kept
+  in a runtime map (not persisted); duration read from video metadata. (2) **Fitness node now has
+  a pass-through `data` output** (was `fit`) that forwards the model's Output onward, so you can
+  chain multiple models — each Input→…→Output→Fitness segment is its own model with its OWN
+  fitness objective/metric. Engine rewritten for this: `parseModels` walks the chain into ordered
+  segments; models train **sequentially**, each with its own population/genes/data — model k>0's
+  inputs are the previous model's trained outputs (freeze-and-compose, GENREG-style). Readout shows
+  `model i/N`; the genome visual fires the active segment (engine supplies its columns). Headless-
+  verified: 2-model chain trained both (model 1 mse→0.069, model 2 mae→0.164, different fitness
+  each), single-model unchanged, frame math correct. NOTE: the engine still generates training data
+  from the Synthetic node / a default; feeding actual decoded video frames from the Data node is
+  the next step (async decode). Ready on next Flask restart.
+
 - **[2026-07-06] (Claude)** — **PURE: Template button (correctly-wired example).** Toolbar gains a
   **Template** button that loads the canonical graph so the correct wiring is visible: Synthetic →
   Input → Layer → Output → **Fitness** (Output feeds Fitness so its objective can score the model),
@@ -79,6 +423,26 @@ log below; don't rewrite existing entries.
   means genuinely near ±1 rather than merely high relative to its column (`satColor` replaces
   `fireColor`; dropped the per-column max normalization for fill). Panel caption updated. Verified
   ramp (t=0 yellow → t=1 red). Ready on next Flask restart.
+
+- **[2026-07-06] (Claude)** — **PURE: genome visual shows evolved layer width live.** The engine
+  now reports each layer's effective active-neuron count for the best genome (`dims` in the tick
+  sample); `renderGenome` renders an evolve-units column at that effective width, so the column
+  physically shrinks/grows during a run and the caption shows `N / max` (accent) when below max.
+  Connections only touch the active units. Also improved the GA: integer genes (width, k) now seed
+  the initial population across [1, units] instead of all pinning at max, so the width/k dimension
+  is explored from generation 0. Headless-verified: layer column varied 3→6→4 / 12 across a run,
+  back to 12 idle. Ready on next Flask restart.
+
+- **[2026-07-06] (Claude)** — **PURE: evolvable hidden-neuron count on Layer nodes.** Layer
+  Properties gain an **Evolve unit count** checkbox; the Units field becomes the max (labeled
+  "Units (max if evolving)"). Implemented as a width gene: weights are allocated up to the max, and
+  a per-genome gene picks how many units are active — the rest are masked (output 0, contribute
+  nothing to the next layer). Generalized the gene machinery so a layer can carry a width gene
+  and/or a k gene (both mutate in ~unit steps, clamp in the forward pass); `layerOut` centralizes
+  the per-layer path (activation → width mask → k-sparsity). Badge shows `≤N` when evolving.
+  Headless-verified: fixed units 95% lower error, evolve-units 93%, evolve-units+evolve-k 76%,
+  evolve-units+fixed-k 91% — all learn, genes compose. Ready on next Flask restart. (Note: genome
+  visual still shows the max-width column; masked units read 0 → yellow.)
 
 - **[2026-07-06] (Claude)** — **PURE: k-sparsity on Layer nodes (fixed or evolvable).** Layer node
   Properties gain a **k-sparsity** checkbox; when on, a **k (active units)** number field appears,

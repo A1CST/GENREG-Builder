@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>GENREG — Images</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='vendor/xterm.css') }}" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+</head>
+<body class="tlm-body">
+  <header class="topbar">
+    <div class="brand">GENREG<span class="brand-sub">images · text-to-image and reverse (Stable Diffusion 1.5 + BLIP/CLIP, pretrained)</span></div>
+    <div class="status">
+      {% set nav_active = 'images' %}{% include '_nav.html' %}
+    </div>
+  </header>
+
+  <div class="tlm-layout">
+    <!-- ── config sidebar ─────────────────────────────── -->
+    <aside class="sidebar left tlm-side">
+      <div class="side-head side-tabs" id="im-tabs">
+        <button class="side-tab active" data-tab="gen">Generate</button>
+        <button class="side-tab" data-tab="rev">Reverse</button>
+      </div>
+
+      <!-- text -> image -->
+      <div class="side-body control-panel" data-panel="gen">
+        <div class="field">
+          <span class="field-hint">Pretrained SD1.5 (diffusers), not evolved — a plain generation
+          utility for this page. First run lazy-loads the checkpoint on the GPU (a few seconds).</span>
+        </div>
+        <div class="field">
+          <label for="im-prompt">Prompt</label>
+          <textarea id="im-prompt" rows="4" placeholder="a small red fox sitting in a snowy forest, digital art"></textarea>
+        </div>
+        <div class="field">
+          <label for="im-neg">Negative prompt</label>
+          <textarea id="im-neg" rows="2" placeholder="blurry, low quality"></textarea>
+        </div>
+        <div class="field">
+          <label for="im-steps">Steps</label>
+          <input type="number" id="im-steps" value="25" min="1" max="100" />
+        </div>
+        <div class="field">
+          <label for="im-guidance">Guidance scale</label>
+          <input type="number" id="im-guidance" value="7.5" min="0" max="20" step="0.5" />
+        </div>
+        <div class="field">
+          <label for="im-width">Width</label>
+          <input type="number" id="im-width" value="512" min="64" max="1024" step="64" />
+        </div>
+        <div class="field">
+          <label for="im-height">Height</label>
+          <input type="number" id="im-height" value="512" min="64" max="1024" step="64" />
+        </div>
+        <div class="field">
+          <label for="im-seed">Seed <span class="tlm-card-sub">(blank = random)</span></label>
+          <input type="number" id="im-seed" min="0" max="2147483647" />
+        </div>
+        <div class="tlm-actions">
+          <button id="im-generate" class="runs-btn tlm-primary">Generate</button>
+        </div>
+        <div class="tlm-status" id="im-status">idle</div>
+      </div>
+
+      <!-- image/video -> prompt -->
+      <div class="side-body control-panel" data-panel="rev" hidden>
+        <div class="field">
+          <span class="field-hint">BLIP caption + CLIP-ranked medium/style/lighting/quality tags —
+          an approximation of the prompt that would've produced this frame. Single image or a
+          video (frames extracted server-side, any format).</span>
+        </div>
+        <div class="field">
+          <label for="rev-file">Image or video file</label>
+          <input type="file" id="rev-file" accept="image/*,video/*" />
+        </div>
+        <div class="field">
+          <label for="rev-stride">Frame stride <span class="tlm-card-sub">(video only)</span></label>
+          <input type="number" id="rev-stride" value="1" min="1" max="100" />
+          <span class="field-hint">1 = every frame, 5 = every 5th frame</span>
+        </div>
+        <div class="field">
+          <label for="rev-maxframes">Max frames <span class="tlm-card-sub">(video only)</span></label>
+          <input type="number" id="rev-maxframes" value="30" min="1" max="300" />
+        </div>
+        <div class="field">
+          <label for="rev-maxside">Max side (px)</label>
+          <input type="number" id="rev-maxside" value="768" min="128" max="2048" step="64" />
+          <span class="field-hint">frames are downscaled to this before saving</span>
+        </div>
+        <div class="field">
+          <label for="rev-tokens">Caption length (tokens)</label>
+          <input type="number" id="rev-tokens" value="40" min="5" max="200" />
+          <span class="field-hint">BLIP is a small model trained on short captions — past ~75-100
+          tokens it tends to degrade into repeated stock-photo-metadata noise rather than genuinely
+          more description. 30-60 is usually the sweet spot.</span>
+          <span class="field-hint">how long the BLIP-generated caption is allowed to run</span>
+        </div>
+        <div class="field">
+          <label for="rev-topk">Modifier tags per category</label>
+          <input type="number" id="rev-topk" value="1" min="0" max="4" />
+          <span class="field-hint">CLIP-ranked medium/style/lighting/quality tags appended to the
+          caption; 0 = caption only, higher = more (and noisier) detail</span>
+        </div>
+        <div class="tlm-actions">
+          <button id="rev-run" class="runs-btn tlm-primary">Process</button>
+        </div>
+        <div class="tlm-status" id="rev-status">idle</div>
+      </div>
+    </aside>
+
+    <!-- ── output ─────────────────────────────── -->
+    <main class="tlm-main">
+      <section class="tlm-card" data-panel="gen">
+        <div class="tlm-card-head">
+          <h2>Output <span class="tlm-card-sub" id="im-meta"></span></h2>
+        </div>
+        <div class="im-canvas-wrap">
+          <img id="im-output" class="im-output" alt="generated image" hidden />
+          <div class="im-placeholder" id="im-placeholder">no image yet</div>
+        </div>
+      </section>
+
+      <section class="tlm-card" data-panel="rev" hidden>
+        <div class="tlm-card-head">
+          <h2>Extracted prompts <span class="tlm-card-sub" id="rev-meta"></span></h2>
+        </div>
+        <div class="im-rev-grid" id="rev-grid">
+          <div class="im-placeholder">no results yet</div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="{{ url_for('static', filename='images.js') }}"></script>
+  <script src="{{ url_for('static', filename='cfgpersist.js') }}"></script>
+  <!-- shared daemon-backed terminal dock (same terminals as the build page) -->
+  <script src="{{ url_for('static', filename='vendor/xterm.js') }}"></script>
+  <script src="{{ url_for('static', filename='vendor/addon-fit.js') }}"></script>
+  <script src="{{ url_for('static', filename='termdock.js') }}"></script>
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
+  <script src="{{ url_for('static', filename='agentpanel.js') }}"></script>
+  <script src="{{ url_for('static', filename='configpanel.js') }}"></script>
+</body>
+</html>

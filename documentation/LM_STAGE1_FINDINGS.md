@@ -148,3 +148,104 @@ readout alone can absorb the whole rollout adaptation. Separation = free
 modularity, not free accuracy. Kept as the component option; capacity growth
 for the encoder (deliberate design, not plateau-patching) is the flagged
 follow-up if richer state is ever demanded by longer rollouts.
+
+## 2026-07-06 — low-rank trigram interaction (§VI): best char result yet, 34.61%
+
+Two-phase bootstrap from the 31.9% substrate: phase 1 evolves ONLY the gated
+multiplicative channel `a_lr·(bigram[c_t] + (E1[c_t]⊙E2[c_prev])@O)` (substrate
+frozen), phase 2 unfreezes all.
+
+| stage | held-out top-1 |
+|---|---|
+| substrate (recurrent + prev-char) | 31.9% |
+| + trigram channel, phase 1 (channel only) | 33.9% |
+| + phase 2 (unfreeze all) | **34.61%** / top5 68.78% |
+
+- **+2.7 pp over the substrate**, matching the documented A_101 char benchmark
+  (34.00% / 69.70%). Closes 37% of the substrate→char-trigram-ceiling gap
+  (31.9 → 39.2). Bigram bar 27.3.
+- **The channel EARNS its keep** — unlike the copy-attention channel (α pinned
+  at 0), the multiplicative trigram gate opened and paid fitness in phase 1.
+  Confirms §VI: multiplicative interaction > additive concat for pair
+  structure the recurrent state alone couldn't express.
+- Generation (t=0.7): "…hand py ow an aner fhand i theed poarer i he thon
+  polhat was the wor as as led she tee a" — real words + word-shapes. Still
+  word-shapes, not sentences (expected at 34% per the docs; top-5 barely moved,
+  the documented "sharpens top guess, not the tail" pattern).
+
+**Next levers**: (1) apply the blended rollout-survival landscape ON TOP of the
+trigram model — the +2.7pp is accuracy; rollout targets generation coherence
+(the space-collapse attractor is the exposure gap, unaddressed here);
+(2) push toward the 39.2% trigram ceiling with more channel capacity / gens.
+
+## 2026-07-06 — TRUST-MIX: readable English, top-1 55% / top-5 85% (held-out)
+
+The composition path (A_66-style) — NOT one model doing everything. Channels:
+exact char n-grams (uni/bi/tri/4g/5g dense, 6g/7g hashed) + the evolved neural
+model, combined by an EVOLVED context-conditional backoff gate (trust + per-
+channel evidence κ, Witten-Bell style; gradient-free ES).
+
+Accuracy climb (held-out top-1) as orders + gate were added:
+| config | top-1 |
+|---|---|
+| neural alone (our best evolved model) | 34.6% |
+| + n-grams to 4g, global trust | 47.2% |
+| + 5g, evidence-gated backoff | 53.5% |
+| + 6g/7g (hashed), gated | **55.2% (top-5 84.7%)** |
+
+Per-channel alone: 4g 47.4, 5g 52.8, 6g 54.9, 7g 53.5 (hash collisions bite);
+the gate mixes them by evidence and beats any single order. **Passes both docs
+usability bars** (top-1≥30, top-5≥60) the A-series never hit.
+
+Generation (t=0.5), prompt → continuation:
+- "the old man " → "stood the first, by all the other an in the same me for
+  his nose and the surface is not the same"
+- "she was very " → "probability of the weather when he had been seen him a
+  short silence of the whale as jonah."
+- "he opened the door and " → "strain the chapter. fast-fish par was in the
+  thing as well as i was the word with some time"
+
+Real words, phrases, punctuation, quotes/question-marks at higher temp, corpus
+vocabulary (whale/jonah/fast-fish = Moby Dick). **The prompt steers.** Night-
+and-day vs the neural-alone gibberish ("dod wing fas coltill carm").
+
+HONEST framing: the coherence is high-order n-gram statistics; the EVOLVED part
+is the backoff GATE (which order to trust by evidence) — gradient-free and what
+makes the mixture optimal. The neural net is ~4% trust (near dead weight — the
+count tables win accuracy AND coherence, exactly as the stack notes predicted).
+This is a real gradient-free char LM: many parts, evolved composition, readable
+output. Files: genreg_train/genreg_trustmix.py, genome runs/pure/trustmix_genome.npy.
+
+Next lever: even longer context (8-9g) reduces drift; word-level n-gram channels
+for phrase grammar; the gate is where evolution keeps earning.
+
+## 2026-07-06 — Distillation verdict: you can't gradient-free-train away the tables
+
+Distilled the 56.4% n-gram trust-mix TEACHER into a table-free evolved
+feedforward neural n-gram (last-6-chars → MLP → V), soft-teacher + hard-target
+hybrid fitness, 12k generations.
+
+| | top-1 | top-5 |
+|---|---|---|
+| teacher (n-gram mix) | 56.4% | — |
+| table-free student, final | **24.7%** | 58.0% |
+| (recovered) | 44% of teacher | matches/beats teacher's shape |
+
+The split is the whole finding: the student learns the distribution SHAPE
+excellently (top-5 58% — as good as the teacher) but **cannot recover the
+argmax** (top-1 stuck ~25%, generation is gibberish). It knows *which chars are
+plausible*; it can't nail *which is most likely per context* — and generation
+needs exactly that.
+
+**Conclusion (maps the boundary of the whole LM arc):** compressing corpus
+statistics into weights is a directed high-dimensional optimization — the thing
+gradient descent is *for*. Undirected mutation can learn the coarse shape (top-5)
+but not the precise per-context mode (top-1). So:
+- table-free + gradient-free (best recurrent net): 34.6%, gibberish
+- explicit n-gram tables: 56%, readable — but 1990s lookup
+- table-free + gradients (real neural LMs): works — but violates the no-gradient rule
+
+The no-gradient LM sits in the corner where BOTH mechanisms that make good LMs
+are excluded. Evolution's edge is where gradients CAN'T go (discrete structure,
+programs, survival dynamics — the Intelligence Engine), NOT raw next-token
+statistics. genreg_train/genreg_distill.py.

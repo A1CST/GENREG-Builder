@@ -20,6 +20,20 @@
   // Property types: number | text | select(options) | checkbox.
   const C = "#e0a02a";                 // shared "constraint" accent (the GENREG spice)
   const NODE_TYPES = {
+    // ── data source: a video file, sampled into frames ───────────────────
+    data: {
+      group: "data", title: "Data", color: "#d98b34", inputs: [], outputs: ["data"],
+      badge: (p) => p.filename ? (p.filename.length > 11 ? p.filename.slice(0, 10) + "…" : p.filename) : "no file",
+      props: [
+        { key: "fps", type: "number", label: "Assumed FPS", default: 30, min: 1, max: 240 },
+        { key: "start_frame", type: "number", label: "Start frame", default: 0, min: 0, max: 1000000 },
+        { key: "skip", type: "number", label: "Skip frames (stride−1)", default: 0, min: 0, max: 1000 },
+        { key: "max_frames", type: "number", label: "Max frames", default: 64, min: 1, max: 100000 },
+        { key: "size", type: "number", label: "Frame size (NxN)", default: 32, min: 4, max: 256 },
+        { key: "grayscale", type: "checkbox", label: "Grayscale", default: true },
+      ],
+    },
+
     // ── data source: feeds the Input node ────────────────────────────────
     synthetic: {
       group: "data", title: "Synthetic", color: "#4bbf9a", inputs: [], outputs: ["data"],
@@ -51,9 +65,10 @@
     },
     layer: {
       group: "structure", title: "Layer", color: "var(--accent)", inputs: ["in"], outputs: ["out"],
-      badge: (p) => `${p.units} · ${p.activation}` + (p.k_sparsity ? ` · k${p.evolve_k ? "*" : p.k}` : ""),
+      badge: (p) => `${p.evolve_units ? "≤" + p.units : p.units} · ${p.activation}` + (p.k_sparsity ? ` · k${p.evolve_k ? "*" : p.k}` : ""),
       props: [
-        { key: "units", type: "number", label: "Units", default: 24, min: 1, max: 8192 },
+        { key: "units", type: "number", label: "Units (max if evolving)", default: 24, min: 1, max: 8192 },
+        { key: "evolve_units", type: "checkbox", label: "Evolve unit count", default: false },
         { key: "activation", type: "select", label: "Activation", default: "tanh",
           options: ["identity", "tanh", "relu", "sigmoid", "evolved"] },
         { key: "bias", type: "checkbox", label: "Bias", default: true },
@@ -171,12 +186,14 @@
 
     // ── objective: what the model evolves toward. Wire the model Output in,
     //    plus any constraints. Dynamic — always keeps one spare input port. ──
+    // Passes the model's Output data through its "data" output so another model
+    // can be chained after it (each model scored by its own Fitness).
     fitness: {
-      group: "objective", title: "Fitness", color: "#d0679a", inputs: [], outputs: ["fit"],
+      group: "objective", title: "Fitness", color: "#d0679a", inputs: [], outputs: ["data"],
       dynamicInputs: true, badge: (p) => p.objective,
       props: [
         { key: "objective", type: "select", label: "Objective", default: "reconstruct",
-          options: ["reconstruct", "predict_next"] },
+          options: ["reconstruct", "reconstruct_source", "predict_next"] },
         { key: "metric", type: "select", label: "Error", default: "mse", options: ["mse", "mae"] },
       ],
     },
@@ -194,6 +211,103 @@
 
   const nodeById = (id) => graph.nodes.find((n) => n.id === id);
   const typeOf = (n) => NODE_TYPES[n.type];
+  const dataFiles = {};                 // nodeId → selected File (runtime only, not persisted)
+
+  // Frame math for a Data node: source frames from duration×fps, then start
+  // offset, stride (skip), and the max cap. Returns the pieces for display.
+  function dataFrames(p) {
+    const src = Math.max(0, Math.floor((p.duration || 0) * (p.fps || 30)));
+    const afterStart = Math.max(0, src - (p.start_frame || 0));
+    const stride = (p.skip || 0) + 1;
+    const afterSkip = Math.ceil(afterStart / stride);
+    const eff = Math.min(p.max_frames || 0, afterSkip);
+    return { src, afterStart, stride, afterSkip, eff };
+  }
+
+  // Actually DECODE the selected video into frame vectors (this is what makes
+  // the Data node real, not mock). Seeks the video to each timestamp, WAITS for
+  // the frame to actually paint (requestVideoFrameCallback, else a double rAF),
+  // draws into an NxN canvas, reads pixels → grayscale/RGB in [-1,1]. If every
+  // frame comes out uniform/black it errors instead of feeding black frames.
+  function grabFrame(v, t, N, ctx) {
+    return new Promise((resolve) => {
+      let settled = false;
+      const paint = () => { if (settled) return; settled = true;
+        ctx.drawImage(v, 0, 0, N, N); resolve(ctx.getImageData(0, 0, N, N).data); };
+      const afterSeek = () => { v.removeEventListener("seeked", afterSeek);
+        if (v.requestVideoFrameCallback) v.requestVideoFrameCallback(() => paint());
+        else requestAnimationFrame(() => requestAnimationFrame(() => paint())); };
+      v.addEventListener("seeked", afterSeek);
+      const dur = v.duration || 0.001, tgt = Math.min(Math.max(t, 0), Math.max(0, dur - 1e-3));
+      // nudge so a seek event always fires (t=0 on an already-at-0 video won't)
+      v.currentTime = (Math.abs(v.currentTime - tgt) < 1e-3) ? tgt + 1e-3 : tgt;
+      setTimeout(() => { if (!settled) { settled = true; ctx.drawImage(v, 0, 0, N, N); resolve(ctx.getImageData(0, 0, N, N).data); } }, 800); // safety
+    });
+  }
+  // Acquire frames for a Data node: try the SERVER (imageio+ffmpeg — handles any
+  // format incl. mkv/avi/mov) first; fall back to browser decode (mp4/webm/ogg)
+  // if the server route is unavailable. Returns normalized frames in [-1,1].
+  const frameCache = new WeakMap();     // File → {key, result} (avoid re-decoding each Run)
+  async function acquireFrames(p, file) {
+    if (!file) return { error: "no video file selected on the Data node" };
+    const key = [p.size, p.start_frame, p.skip, p.max_frames, p.grayscale ? 1 : 0].join(",");
+    const cached = frameCache.get(file);
+    if (cached && cached.key === key) return cached.result;
+    let result = null;
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("size", p.size); fd.append("start", p.start_frame);
+      fd.append("skip", p.skip); fd.append("max", p.max_frames);
+      fd.append("gray", p.grayscale ? "1" : "0");
+      const r = await fetch("/api/pure/frames", { method: "POST", body: fd });
+      if (r.ok) {
+        const d = await r.json();
+        if (d.error) result = { error: d.error };
+        else if (d.frames && d.frames.length) result = { frames: d.frames.map((f) => f.map((v) => v / 255 * 2 - 1)), size: d.size, gray: d.gray, source: "server" };
+      } else if (r.status !== 404) {
+        try { const d = await r.json(); if (d.error) result = { error: d.error }; } catch (_) {}
+      }
+    } catch (_) { /* network error → browser fallback below */ }
+    if (!result) result = await extractVideoFrames(p, file);   // browser fallback (mp4/webm/ogg)
+    if (result.frames) frameCache.set(file, { key, result });
+    return result;
+  }
+  function extractVideoFrames(p, file) {
+    return new Promise((resolve) => {
+      if (!file) { resolve({ error: "no video file selected on the Data node" }); return; }
+      const N = Math.max(2, p.size | 0), url = URL.createObjectURL(file);
+      const v = document.createElement("video");
+      v.muted = true; v.playsInline = true; v.preload = "auto";
+      v.style.position = "fixed"; v.style.left = "-9999px"; v.style.width = "2px"; v.style.height = "2px";
+      document.body.appendChild(v);
+      const cv = document.createElement("canvas"); cv.width = N; cv.height = N;
+      const ctx = cv.getContext("2d", { willReadFrequently: true });
+      let done = false;
+      const finish = (r) => { if (done) return; done = true; try { URL.revokeObjectURL(url); } catch (_) {} try { v.remove(); } catch (_) {} resolve(r); };
+      v.addEventListener("error", () => finish({ error: "could not decode this video (" + ((v.error && v.error.message) || "unsupported format") + ")" }));
+      v.addEventListener("loadeddata", async () => {
+        try {
+          if (!v.videoWidth) { finish({ error: "video has no visual track (zero dimensions)" }); return; }
+          const dur = v.duration || 0, fps = p.fps || 30, stride = (p.skip || 0) + 1, maxF = p.max_frames || 64, start = p.start_frame || 0;
+          const frames = []; let anyVariation = false;
+          for (let i = 0; i < maxF; i++) {
+            const t = (start + i * stride) / fps; if (dur && t >= dur) break;
+            const img = await grabFrame(v, t, N, ctx);
+            const vec = []; let mn = Infinity, mx = -Infinity;
+            if (p.grayscale) for (let k = 0; k < img.length; k += 4) { const g = (0.299 * img[k] + 0.587 * img[k + 1] + 0.114 * img[k + 2]) / 255 * 2 - 1; vec.push(g); if (g < mn) mn = g; if (g > mx) mx = g; }
+            else for (let k = 0; k < img.length; k += 4) { const rr = img[k] / 255 * 2 - 1, gg = img[k + 1] / 255 * 2 - 1, bb = img[k + 2] / 255 * 2 - 1; vec.push(rr, gg, bb); mn = Math.min(mn, rr, gg, bb); mx = Math.max(mx, rr, gg, bb); }
+            if (mx - mn > 0.02) anyVariation = true;
+            frames.push(vec);
+          }
+          if (!frames.length) { finish({ error: "no frames decoded — check FPS / start frame vs the video's duration" }); return; }
+          if (!anyVariation) { finish({ error: "frames decoded but every one is uniform/black — the browser couldn't paint this video's frames (try a smaller/re-encoded mp4)" }); return; }
+          finish({ frames, size: N, gray: !!p.grayscale });
+        } catch (e) { finish({ error: "frame decode failed: " + e.message }); }
+      });
+      v.src = url; v.load();
+    });
+  }
 
   // The chain ACTUALLY wired from Input → hidden layers → Output, in data-flow
   // order. Nodes not on this path (e.g. a Layer dropped on the canvas but never
@@ -470,6 +584,8 @@
     const shown = (d) => !d.when || (Array.isArray(d.when) ? d.when.every(condOk) : condOk(d.when));
     const controls = (key) => t.props.some((x) => x.when &&
       (Array.isArray(x.when) ? x.when.some((c) => c.key === key) : x.when.key === key));
+
+    if (n.type === "data") renderDataFile(n);        // video picker at the top
     for (const d of t.props) {
       if (!shown(d)) continue;                     // conditional field (e.g. kind-specific)
       const field = document.createElement("div");
@@ -519,7 +635,7 @@
       propsHost.appendChild(field);
     }
 
-    synthPreviewHost = null;
+    synthPreviewHost = null; dataFramesOut = null; dataFramesSub = null;
     if (n.type === "synthetic") {
       const cap = document.createElement("div");
       cap.className = "pg-prop-id"; cap.style.marginTop = "8px"; cap.textContent = "Preview";
@@ -529,6 +645,7 @@
       propsHost.appendChild(synthPreviewHost);
       drawSynthPreview(n);
     }
+    if (n.type === "data") renderDataFrames(n);      // computed total-frames readout
 
     const del = document.createElement("button");
     del.className = "runs-btn pg-del";
@@ -537,10 +654,81 @@
     propsHost.appendChild(del);
   }
 
+  // ── Data node: video picker + computed total-frames readout ─────────────────
+  function renderDataFile(n) {
+    const wrap = document.createElement("div"); wrap.className = "field";
+    const lab = document.createElement("label"); lab.textContent = "Video file";
+    wrap.appendChild(lab);
+    const file = document.createElement("input");
+    file.type = "file"; file.accept = "video/*,.mkv,.avi,.mov,.flv,.wmv,.m4v,.mpg,.mpeg,.webm";
+    file.style.fontSize = "11px"; file.style.color = "var(--muted)";
+    file.addEventListener("change", () => {
+      const f = file.files && file.files[0];
+      if (!f) return;
+      dataFiles[n.id] = f;
+      n.props.filename = f.name;
+      updateBadge(n); save();
+      const url = URL.createObjectURL(f);
+      const v = document.createElement("video");
+      v.preload = "metadata"; v.muted = true;
+      v.addEventListener("loadedmetadata", () => { n.props.duration = v.duration || 0; try { URL.revokeObjectURL(url); } catch (_) {} save(); if (selected === n) renderProps(); });
+      v.addEventListener("error", () => { n.props.duration = 0; if (selected === n) renderProps(); });
+      v.src = url;
+    });
+    wrap.appendChild(file);
+    if (n.props.filename) {
+      const cur = document.createElement("div"); cur.className = "field-hint";
+      cur.textContent = "selected: " + n.props.filename + (n.props.duration ? ` · ${n.props.duration.toFixed(1)}s` : "");
+      wrap.appendChild(cur);
+    }
+    propsHost.appendChild(wrap);
+  }
+  let dataFramesOut = null, dataFramesSub = null;
+  function updateDataFrames(n) {
+    if (!dataFramesOut) return;
+    if (!n.props.filename) { dataFramesOut.textContent = "select a video to compute frames"; if (dataFramesSub) dataFramesSub.textContent = ""; return; }
+    if (!n.props.duration) { dataFramesOut.textContent = "reading video…"; return; }
+    const fr = dataFrames(n.props);
+    dataFramesOut.textContent = `source ~${fr.src.toLocaleString()} · stride ${fr.stride} → ${fr.afterSkip.toLocaleString()} · using ${fr.eff.toLocaleString()}`;
+    if (dataFramesSub) dataFramesSub.textContent = `${fr.eff.toLocaleString()} frames of ${n.props.size}×${n.props.size}${n.props.grayscale ? " grayscale" : ""} → the model`;
+  }
+  function renderDataFrames(n) {
+    const box = document.createElement("div");
+    box.className = "pg-prop-id"; box.style.marginTop = "8px"; box.textContent = "Frames";
+    propsHost.appendChild(box);
+    dataFramesOut = document.createElement("div"); dataFramesOut.className = "pu-metric";
+    propsHost.appendChild(dataFramesOut);
+    dataFramesSub = document.createElement("div"); dataFramesSub.className = "pg-chart-cap";
+    propsHost.appendChild(dataFramesSub);
+    updateDataFrames(n);
+
+    if (n.props.filename && dataFiles[n.id]) {       // verify decode without training
+      const btn = document.createElement("button");
+      btn.className = "runs-btn"; btn.textContent = "Preview frame"; btn.style.marginTop = "6px";
+      const pv = document.createElement("canvas"); pv.width = 96; pv.height = 96;
+      pv.className = "pg-preview-canvas"; pv.style.marginTop = "6px";
+      const pmsg = document.createElement("div"); pmsg.className = "pg-chart-cap";
+      btn.addEventListener("click", async () => {
+        pmsg.style.color = "var(--muted)"; pmsg.textContent = "decoding first frame…";
+        const res = await acquireFrames(Object.assign({}, n.props, { start_frame: 0, skip: 0, max_frames: 1 }), dataFiles[n.id]);
+        if (res.error) { pmsg.textContent = res.error; pmsg.style.color = "var(--red)"; return; }
+        const N = res.size, f = res.frames[0], c = 96 / N, ctx = pv.getContext("2d");
+        for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+          const idx = res.gray ? (y * N + x) : (y * N + x) * 3;
+          const g = Math.max(0, Math.min(255, Math.round((f[idx] + 1) / 2 * 255)));
+          ctx.fillStyle = `rgb(${g},${g},${g})`; ctx.fillRect(x * c, y * c, Math.ceil(c), Math.ceil(c));
+        }
+        pmsg.textContent = `decoded ${N}×${N} OK — this is what feeds the model`;
+      });
+      propsHost.appendChild(btn); propsHost.appendChild(pmsg); propsHost.appendChild(pv);
+    }
+  }
+
   // ── synthetic data preview (waveform sparkline or image pattern) ────────────
   let synthPreviewHost = null;
   function updatePreview() {
     if (selected && selected.type === "synthetic" && synthPreviewHost) drawSynthPreview(selected);
+    if (selected && selected.type === "data") updateDataFrames(selected);
   }
   function synthSamples(p) {
     const n = Math.max(2, Math.min(4096, p.length | 0));
@@ -660,10 +848,10 @@
   // live activation. wLayers: optional weight matrices per column-transition —
   // connection lines are colored by weight sign/strength (and brightened from
   // firing neurons). Both absent = static skeleton with faint connections.
-  function renderGenome(activations, wLayers) {
+  function renderGenome(activations, wLayers, dims, columns) {
     if (!genomeHost) return;
     genomeHost.replaceChildren();
-    const cols = orderedStructure();
+    const cols = columns || orderedStructure();   // engine may supply the active model's columns
     if (!cols.length) {
       const hint = document.createElement("div");
       hint.className = "tlm-status";
@@ -677,8 +865,11 @@
     svg.style.display = "block";
     const colX = cols.map((_, i) => (GVW * (i + 1)) / (cols.length + 1));
     const layouts = cols.map((col, ci) => {
-      const L = colLayoutG(col.n);
-      return { col, cx: colX[ci], dots: L.dots, gap: L.gap, r: L.r, vals: activations && activations[ci] };
+      // during a run an evolve-units layer reports fewer active units → the
+      // column shrinks to its effective width.
+      const effN = (dims && dims[ci] != null) ? Math.min(col.n, Math.max(1, dims[ci] | 0)) : col.n;
+      const L = colLayoutG(effN);
+      return { col, cx: colX[ci], dots: L.dots, gap: L.gap, r: L.r, effN, vals: activations && activations[ci] };
     });
 
     // 1) connections (drawn first, behind the neurons)
@@ -702,7 +893,7 @@
 
     // 2) neurons + captions
     layouts.forEach((Lo) => {
-      const { col, cx, dots, gap, r, vals } = Lo;
+      const { col, cx, dots, gap, r, effN, vals } = Lo;
       dots.forEach((d) => {
         let fill = "var(--panel-2)";
         if (vals && d.idx < vals.length) fill = satColor(Math.min(1, Math.abs(vals[d.idx])));   // yellow→red by saturation
@@ -716,36 +907,55 @@
         fill: "var(--text)", "font-size": 13, "font-weight": 600, "font-family": "var(--mono, monospace)" });
       cap.textContent = col.label;
       svg.appendChild(cap);
+      const evolving = effN < col.n;                 // showing fewer than the max → evolved width
       const sub = svgn("text", { x: cx, y: GVH - GM_BOT + 26, "text-anchor": "middle",
-        fill: "var(--muted)", "font-size": 11, "font-family": "var(--mono, monospace)" });
-      sub.textContent = col.n === 1 ? "1 unit" : `${col.n} units`;
+        fill: evolving ? "var(--accent)" : "var(--muted)", "font-size": 11, "font-family": "var(--mono, monospace)" });
+      sub.textContent = (effN === 1 ? "1 unit" : `${effN} units`) + (evolving ? ` / ${col.n}` : "");
       svg.appendChild(sub);
     });
     genomeHost.appendChild(svg);
   }
 
-  // The canonical, correctly-wired graph. Data flows left-to-right through the
-  // model; the Output feeds the Fitness node (so its objective can score the
-  // model), and a constraint is wired into Fitness to show the pattern.
-  //   Synthetic → Input → Layer → Output → Fitness
-  //                                Energy ─┘  (constraint into a Fitness port)
-  function templateGraph() {
-    graph = { nodes: [], edges: [], pan: { x: 40, y: 30 } }; uid = 1; selected = null;
+  const wire = (a, ai, b, bi) => graph.edges.push({ from: { node: a.id, idx: ai }, to: { node: b.id, idx: bi } });
+
+  // Basic single model: Synthetic → Input → Layer → Output → Fitness, with an
+  // Energy constraint wired into Fitness to show the constraint→fitness pattern.
+  function tmplBasic() {
     const sy = addNode("synthetic", 20, 100);
     const inp = addNode("input", 250, 100);
     const lay = addNode("layer", 480, 100);
     const out = addNode("output", 710, 100);
     const fit = addNode("fitness", 710, 320);
     const en = addNode("energy", 480, 340);
-    graph.edges.push(
-      { from: { node: sy.id, idx: 0 }, to: { node: inp.id, idx: 0 } },   // synthetic → input.data
-      { from: { node: inp.id, idx: 0 }, to: { node: lay.id, idx: 0 } },  // input → hidden
-      { from: { node: lay.id, idx: 0 }, to: { node: out.id, idx: 0 } },  // hidden → output
-      { from: { node: out.id, idx: 0 }, to: { node: fit.id, idx: 0 } },  // output → fitness (scored)
-      { from: { node: en.id, idx: 0 }, to: { node: fit.id, idx: 1 } });  // energy constraint → fitness
+    wire(sy, 0, inp, 0); wire(inp, 0, lay, 0); wire(lay, 0, out, 0);
+    wire(out, 0, fit, 0); wire(en, 0, fit, 1);
+  }
+
+  // Autoencoder: encoder (16→4 latent, scored by reconstruct) then decoder
+  // (4→16, scored by reconstruct_source — against the ORIGINAL input, so it
+  // truly reconstructs the source through the bottleneck).
+  function tmplAutoencoder() {
+    const sy = addNode("synthetic", 20, 100);
+    const in1 = addNode("input", 230, 100); in1.props.dims = 16;
+    const l1 = addNode("layer", 440, 100); l1.props.units = 12;
+    const out1 = addNode("output", 650, 100); out1.props.classes = 4;      // latent
+    const fit1 = addNode("fitness", 650, 320); fit1.props.objective = "reconstruct";
+    const in2 = addNode("input", 880, 100); in2.props.dims = 4;            // = latent
+    const l2 = addNode("layer", 1090, 100); l2.props.units = 12;
+    const out2 = addNode("output", 1300, 100); out2.props.classes = 16;    // back to original
+    const fit2 = addNode("fitness", 1300, 320); fit2.props.objective = "reconstruct_source";
+    wire(sy, 0, in1, 0); wire(in1, 0, l1, 0); wire(l1, 0, out1, 0); wire(out1, 0, fit1, 0);
+    wire(fit1, 0, in2, 0);                                                 // latent passes through
+    wire(in2, 0, l2, 0); wire(l2, 0, out2, 0); wire(out2, 0, fit2, 0);
+    [in1, l1, out1, fit1, in2, l2, out2, fit2].forEach(updateBadge);
+  }
+
+  function templateGraph(kind) {
+    graph = { nodes: [], edges: [], pan: { x: 40, y: 30 } }; uid = 1; selected = null;
+    if (kind === "autoencoder") tmplAutoencoder(); else tmplBasic();
     renderAll(); renderGenome(); save();
   }
-  function seedDefault() { templateGraph(); }
+  function seedDefault() { templateGraph("basic"); }
 
   // ════════════════════════════════════════════════════════════════════════════
   // Engine — the PURE baseline: a plain GA over the assembled network. Synthetic
@@ -761,26 +971,52 @@
     const act = (k, x) => k === "identity" ? x : k === "relu" ? (x > 0 ? x : 0) : k === "sigmoid" ? 1 / (1 + Math.exp(-x)) : Math.tanh(x);
     const fitLen = (a, n) => { if (a.length === n) return a.slice(); const o = []; for (let i = 0; i < n; i++) o.push(a[Math.floor(i * a.length / n)] || 0); return o; };
 
-    function buildSpec() {
-      const inp = graph.nodes.find((n) => n.type === "input");
-      const out = graph.nodes.find((n) => n.type === "output");
-      if (!inp || !out) return { error: "add an Input and an Output node" };
-      const path = wiredPath();
-      if (path[path.length - 1] !== out) return { error: "wire Input → … → Output (the chain isn't connected)" };
-      const layers = path.filter((n) => n.type === "layer");   // only wired-in layers, in flow order
-      const synth = graph.nodes.find((n) => n.type === "synthetic");
-      const fit = graph.nodes.find((n) => n.type === "fitness");
-      const D = Math.max(1, inp.props.dims | 0), O = Math.max(1, out.props.classes | 0);
+    // Build the spec for ONE model segment (input → its layers → output → fitness).
+    function segSpec(input, layers, output, fit, source) {
+      const D = Math.max(1, input.props.dims | 0), O = Math.max(1, output.props.classes | 0);
       const specs = layers.map((l) => { const u = Math.max(1, l.props.units | 0);
-        return { units: u, kSparse: !!l.props.k_sparsity, evolveK: !!(l.props.k_sparsity && l.props.evolve_k),
-          k: Math.max(1, Math.min(u, (l.props.k | 0) || 1)), geneOff: null }; });
+        return { units: u, evolveUnits: !!l.props.evolve_units,
+          kSparse: !!l.props.k_sparsity, evolveK: !!(l.props.k_sparsity && l.props.evolve_k),
+          k: Math.max(1, Math.min(u, (l.props.k | 0) || 1)), geneOff: null, uGeneOff: null }; });
       const arch = [D, ...specs.map((s) => s.units), O];
       const acts = [...layers.map((l) => l.props.activation === "evolved" ? "tanh" : l.props.activation), "identity"];
-      const sparsity = [...specs, null];             // one per net transition; last (→output) has none
-      return { D, O, arch, acts, sparsity, synth: synth ? synth.props : null,
+      const columns = [{ label: "Input", color: NODE_TYPES.input.color, n: D },
+        ...layers.map((l) => ({ label: "Layer", color: NODE_TYPES.layer.color, n: Math.max(1, l.props.units | 0) })),
+        { label: "Output", color: NODE_TYPES.output.color, n: O }];
+      return { D, O, arch, acts, sparsity: [...specs, null], columns,
+        synth: source && source.type === "synthetic" ? source.props : null,
         objective: fit ? fit.props.objective : "reconstruct", metric: fit ? fit.props.metric : "mse",
         constraints: fit ? graph.edges.filter((e) => e.to.node === fit.id).map((e) => { const s = nodeById(e.from.node); return s && s.type !== "output" ? s.type : null; }).filter(Boolean) : [] };
     }
+    // Parse the graph into an ordered chain of model segments. A segment runs
+    // Input → layers → Output → Fitness; the Fitness "data" output passes through
+    // to the next Input, so several models can be trained in one chain, each with
+    // its own fitness.
+    function parseModels() {
+      const source = graph.nodes.find((n) => n.type === "synthetic" || n.type === "data");
+      let input = null;
+      if (source) input = graph.edges.filter((e) => e.from.node === source.id).map((e) => nodeById(e.to.node)).find((x) => x && x.type === "input");
+      if (!input) input = graph.nodes.find((n) => n.type === "input");
+      if (!input) return { error: "add an Input node (and a Synthetic/Data source)" };
+      const specs = [], seenIn = new Set();
+      while (input && !seenIn.has(input.id)) {
+        seenIn.add(input.id);
+        const layers = []; let cur = input, output = null; const seen = new Set([input.id]);
+        for (let g = 0; g < graph.nodes.length + 2; g++) {
+          const targets = graph.edges.filter((e) => e.from.node === cur.id).map((e) => nodeById(e.to.node)).filter(Boolean);
+          const nextLayer = targets.find((t) => t.type === "layer" && !seen.has(t.id));
+          if (nextLayer) { layers.push(nextLayer); seen.add(nextLayer.id); cur = nextLayer; continue; }
+          output = targets.find((t) => t.type === "output") || null; break;
+        }
+        if (!output) return specs.length ? { error: `model ${specs.length + 1}: wire Input → … → Output` } : { error: "wire Input → … → Output (the chain isn't connected)" };
+        const fit = graph.edges.filter((e) => e.from.node === output.id).map((e) => nodeById(e.to.node)).find((x) => x && x.type === "fitness");
+        specs.push(segSpec(input, layers, output, fit, specs.length === 0 ? source : null));
+        input = fit ? graph.edges.filter((e) => e.from.node === fit.id).map((e) => nodeById(e.to.node)).find((x) => x && x.type === "input") : null;
+      }
+      return { source, specs };
+    }
+    // Back-compat: the first model's spec (for single-model callers/tests).
+    function buildSpec() { const m = parseModels(); return m.error ? { error: m.error } : m.specs[0]; }
     function makeNet(arch) { const layers = []; let off = 0;
       for (let i = 0; i < arch.length - 1; i++) { const inn = arch[i], outn = arch[i + 1];
         layers.push({ inn, outn, wOff: off, bOff: off + inn * outn }); off += inn * outn + outn; }
@@ -796,24 +1032,30 @@
       if (!sp || !sp.kSparse) return null;
       return sp.evolveK ? Math.max(1, Math.min(sp.units, Math.round(w[sp.geneOff]))) : Math.min(sp.k, sp.units);
     }
+    // evolvable hidden-neuron count: units allocated up to the max; a gene picks
+    // how many are active — the rest are masked (output 0, contribute nothing).
+    function layerUnits(sp, w) {
+      if (!sp || !sp.evolveUnits) return null;
+      return Math.max(1, Math.min(sp.units, Math.round(w[sp.uGeneOff])));
+    }
+    function layerOut(net, spec, w, a, li) {
+      const L = net.layers[li], o = new Float32Array(L.outn);
+      for (let j = 0; j < L.outn; j++) { let s = w[L.bOff + j];
+        for (let i = 0; i < L.inn; i++) s += w[L.wOff + i * L.outn + j] * a[i];
+        o[j] = act(spec.acts[li], s); }
+      const sp = spec.sparsity[li];
+      const u = layerUnits(sp, w); if (u != null) for (let j = u; j < o.length; j++) o[j] = 0;   // width mask
+      const k = layerK(sp, w); if (k != null) topK(o, k);
+      return o;
+    }
     function forward(net, spec, w, x) { let a = x;
-      for (let li = 0; li < net.layers.length; li++) { const L = net.layers[li], o = new Float32Array(L.outn);
-        for (let j = 0; j < L.outn; j++) { let s = w[L.bOff + j];
-          for (let i = 0; i < L.inn; i++) s += w[L.wOff + i * L.outn + j] * a[i];
-          o[j] = act(spec.acts[li], s); }
-        const k = layerK(spec.sparsity[li], w); if (k != null) topK(o, k);
-        a = o; }
+      for (let li = 0; li < net.layers.length; li++) a = layerOut(net, spec, w, a, li);
       return a;
     }
     // per-layer activations for the firing visual: [input, layer1, …, output].
     function activate(net, spec, w, x) {
       const outs = [Array.from(x)]; let a = x;
-      for (let li = 0; li < net.layers.length; li++) { const L = net.layers[li], o = new Float32Array(L.outn);
-        for (let j = 0; j < L.outn; j++) { let s = w[L.bOff + j];
-          for (let i = 0; i < L.inn; i++) s += w[L.wOff + i * L.outn + j] * a[i];
-          o[j] = act(spec.acts[li], s); }
-        const k = layerK(spec.sparsity[li], w); if (k != null) topK(o, k);
-        a = o; outs.push(Array.from(o)); }
+      for (let li = 0; li < net.layers.length; li++) { a = layerOut(net, spec, w, a, li); outs.push(Array.from(a)); }
       return outs;
     }
     function synth1D(p, n, r) { const amp = p.amplitude != null ? p.amplitude : 1, out = [];
@@ -823,23 +1065,35 @@
         else if (p.kind === "noise") v = r() * 2 - 1; else v = Math.sin(x);
         out.push(v * amp); } return out;
     }
+    // Target for a sample: reconstruct = this model's own input; reconstruct_source
+    // = the ORIGINAL pre-encoder input carried down the chain (so a decoder is
+    // scored against the source, not the latent it receives).
+    function makeTarget(objective, x, x0, O) {
+      return objective === "reconstruct_source" ? fitLen(x0, O) : fitLen(x, O);
+    }
+    // Every sample carries x0 = the original source features (= x at model 0),
+    // preserved unchanged as it passes through later models.
     function buildData(spec, r) {
       const D = spec.D, O = spec.O, B = 32, data = [];
+      if (state.frames) {                            // REAL decoded video frames, not mock
+        return state.frames.frames.map((f) => { const x = fitLen(f, D);
+          return { x: Float32Array.from(x), x0: Float32Array.from(x), y: Float32Array.from(makeTarget(spec.objective, x, x, O)) }; });
+      }
       const p = spec.synth || { kind: "sine", frequency: 3, amplitude: 1, phase: 0, length: 64 };
       if (p.kind === "image") {
         const N = Math.max(2, p.size | 0), base = [];
         for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) base.push(imagePixel(p.pattern, x / (N - 1 || 1), y / (N - 1 || 1), N));
         const vec = fitLen(base, D);
         for (let b = 0; b < B; b++) { const x = vec.map((v) => v + (p.loop ? (r() * 0.06 - 0.03) : 0));
-          data.push({ x: Float32Array.from(x), y: Float32Array.from(fitLen(x, O)) }); }
+          data.push({ x: Float32Array.from(x), x0: Float32Array.from(x), y: Float32Array.from(makeTarget(spec.objective, x, x, O)) }); }
       } else {
         const L = Math.max(D + O + 8, (p.length | 0) || 64), sig = synth1D(p, L, r);
         for (let b = 0; b < B; b++) { const start = Math.floor(r() * L), x = [];
           for (let i = 0; i < D; i++) x.push(sig[(start + i) % L]);
           let y;
           if (spec.objective === "predict_next") { y = []; for (let i = 0; i < O; i++) y.push(sig[(start + D + i) % L]); }
-          else y = fitLen(x, O);
-          data.push({ x: Float32Array.from(x), y: Float32Array.from(y) }); }
+          else y = makeTarget(spec.objective, x, x, O);
+          data.push({ x: Float32Array.from(x), x0: Float32Array.from(x), y: Float32Array.from(y) }); }
       }
       return data;
     }
@@ -848,55 +1102,99 @@
         for (let j = 0; j < o.length; j++) { const e = o[j] - s.y[j]; tot += metric === "mae" ? Math.abs(e) : e * e; cnt++; } }
       return -(tot / Math.max(1, cnt));
     }
-    function step() {
-      const st = state, scored = st.pop.map((g) => ({ g, f: evalFit(st.net, st.spec, g, st.data, st.spec.metric) })).sort((a, b) => b.f - a.f);
-      const elite = Math.max(1, Math.floor(st.P * st.survive));
-      st.best = scored[0].g; st.bestFit = scored[0].f;
-      const mean = scored.reduce((s, x) => s + x.f, 0) / st.P;
+    // Build one runnable model (net + genes + population + its dataset). For
+    // model 0 the data comes from the source; for later models it's derived from
+    // the previous model's trained output (the pass-through).
+    function initModel(spec, prev) {
+      const net = makeNet(spec.arch);
+      let geneOff = net.paramCount; const genes = [];
+      spec.sparsity.forEach((sp) => { if (!sp) return;
+        if (sp.evolveUnits) { sp.uGeneOff = geneOff; genes.push({ off: geneOff, units: sp.units }); geneOff++; }
+        if (sp.kSparse && sp.evolveK) { sp.geneOff = geneOff; genes.push({ off: geneOff, units: sp.units }); geneOff++; } });
+      const paramCount = geneOff;
+      const mutScale = new Float32Array(paramCount).fill(state.mut);
+      genes.forEach((gg) => { mutScale[gg.off] = Math.max(state.mut, gg.units * 0.2); });
+      let data;
+      if (prev) {                                    // pass-through: prev outputs → this input;
+        data = prev.data.map((s) => {                // x0 (original source) carried unchanged
+          const o = forward(prev.net, prev.spec, prev.best, s.x), x = fitLen(Array.from(o), spec.D);
+          return { x: Float32Array.from(x), x0: s.x0, y: Float32Array.from(makeTarget(spec.objective, x, Array.from(s.x0), spec.O)) };
+        });
+      } else {
+        data = buildData(spec, state.r);
+      }
+      const pop = [];
+      for (let i = 0; i < state.P; i++) { const g = new Float32Array(paramCount);
+        for (let k = 0; k < net.paramCount; k++) g[k] = randn(state.r) * 0.5;
+        genes.forEach((gg) => { g[gg.off] = 1 + Math.floor(state.r() * gg.units); }); pop.push(g); }
+      return { spec, net, mutScale, data, pop, gens: state.gensPerModel, gen: 0, best: null, bestFit: -Infinity, hist: [] };
+    }
+    function stepModel(m) {
+      const scored = m.pop.map((g) => ({ g, f: evalFit(m.net, m.spec, g, m.data, m.spec.metric) })).sort((a, b) => b.f - a.f);
+      const elite = Math.max(1, Math.floor(state.P * state.survive));
+      m.best = scored[0].g; m.bestFit = scored[0].f;
+      const mean = scored.reduce((s, x) => s + x.f, 0) / state.P;
       const next = [];
       for (let i = 0; i < elite; i++) next.push(scored[i].g);
-      while (next.length < st.P) { const parent = scored[Math.floor(st.r() * elite)].g, child = Float32Array.from(parent);
-        for (let k = 0; k < child.length; k++) if (st.r() < 0.5) child[k] += randn(st.r) * st.mutScale[k]; next.push(child); }
-      st.pop = next; st.gen++; st.hist.push(st.bestFit);
-      return { gen: st.gen, best: st.bestFit, mean };
+      while (next.length < state.P) { const parent = scored[Math.floor(state.r() * elite)].g, child = Float32Array.from(parent);
+        for (let k = 0; k < child.length; k++) if (state.r() < 0.5) child[k] += randn(state.r) * m.mutScale[k]; next.push(child); }
+      m.pop = next; m.gen++; m.hist.push(m.bestFit);
+      return { gen: m.gen, best: m.bestFit, mean };
     }
-    function sampleOutput() { const st = state; if (!st.best || !st.data.length) return null;
-      const s = st.data[0], acts = activate(st.net, st.spec, st.best, s.x);
-      // weight matrices per layer transition (column k → column k+1), for the
-      // genome visual's connection lines.
-      const wLayers = st.net.layers.map((L) => ({ inn: L.inn, outn: L.outn,
-        w: st.best.subarray(L.wOff, L.wOff + L.inn * L.outn) }));
-      return { y: Array.from(s.y), o: acts[acts.length - 1], activations: acts, wLayers };
+    function sampleModel(m) { if (!m.best || !m.data.length) return null;
+      const s = m.data[0], acts = activate(m.net, m.spec, m.best, s.x);
+      const wLayers = m.net.layers.map((L) => ({ inn: L.inn, outn: L.outn, w: m.best.subarray(L.wOff, L.wOff + L.inn * L.outn) }));
+      const dims = [m.spec.D];
+      m.net.layers.forEach((L, li) => { const u = layerUnits(m.spec.sparsity[li], m.best); dims.push(u != null ? u : L.outn); });
+      // per-frame reconstruction grid: best prediction for EVERY frame (only
+      // when the output is a square frame — the decoder, not a latent encoder).
+      const N = Math.round(Math.sqrt(m.spec.O));
+      const recon = { N: (N >= 2 && N * N === m.spec.O) ? N : 0, frames: [] };
+      if (recon.N) {
+        const K = Math.min(48, m.data.length);
+        for (let i = 0; i < K; i++) { const d = m.data[i], o = forward(m.net, m.spec, m.best, d.x);
+          recon.frames.push({ y: Array.from(d.y), o: Array.from(o) }); }
+      }
+      return { y: Array.from(s.y), o: acts[acts.length - 1], activations: acts, wLayers, dims, columns: m.spec.columns, recon };
     }
     function loop() {
       if (!running || !state) return;
-      let t = { gen: state.gen, best: state.bestFit, mean: 0 };
-      for (let i = 0; i < 3 && state.gen < state.gens; i++) t = step();
-      state.onTick(t, sampleOutput(), state.hist);
-      if (state.gen >= state.gens) { running = false; state.onDone(); return; }
+      const m = state.models[state.cur];
+      let t = { gen: m.gen, best: m.bestFit, mean: 0 };
+      for (let i = 0; i < 3 && m.gen < m.gens; i++) t = stepModel(m);
+      state.onTick(t, sampleModel(m), m.hist, { cur: state.cur, total: state.specs.length });
+      if (m.gen >= m.gens) {
+        if (state.cur + 1 < state.specs.length) {    // freeze, move to the next model
+          state.cur++;
+          state.models[state.cur] = initModel(state.specs[state.cur], m);
+          raf = requestAnimationFrame(loop); return;
+        }
+        running = false; state.onDone(); return;
+      }
       raf = requestAnimationFrame(loop);
     }
-    function start(opts) {
-      const spec = buildSpec();
-      if (spec.error) { opts.onError(spec.error); return; }
-      const r = rng(opts.seed || 1234), net = makeNet(spec.arch), data = buildData(spec, r);
-      // append one gene per evolving-k layer, past the weight params.
-      let geneOff = net.paramCount; const kGenes = [];
-      spec.sparsity.forEach((sp) => { if (sp && sp.kSparse && sp.evolveK) { sp.geneOff = geneOff; kGenes.push({ off: geneOff, units: sp.units, k0: Math.min(sp.k, sp.units) }); geneOff++; } });
-      const paramCount = geneOff, mut = 0.08;
-      const mutScale = new Float32Array(paramCount).fill(mut);
-      kGenes.forEach((kg) => { mutScale[kg.off] = Math.max(mut, kg.units * 0.2); });   // k moves in unit steps
-      const P = Math.max(4, opts.pop || 200), pop = [];
-      for (let i = 0; i < P; i++) { const g = new Float32Array(paramCount);
-        for (let k = 0; k < net.paramCount; k++) g[k] = randn(r) * 0.5;
-        kGenes.forEach((kg) => { g[kg.off] = kg.k0; }); pop.push(g); }
-      state = { spec, net, data, r, P, pop, gens: opts.gens || 1000, gen: 0, mut, mutScale, survive: 0.2,
-        best: null, bestFit: -Infinity, hist: [], onTick: opts.onTick, onDone: opts.onDone };
-      opts.onStart && opts.onStart(spec);
+    async function start(opts) {
+      const parsed = parseModels();
+      if (parsed.error) { opts.onError(parsed.error); return; }
+      // if the source is a Data (video) node, decode its frames NOW so training
+      // runs on the real video, not synthetic fallback.
+      let frames = null;
+      if (parsed.source && parsed.source.type === "data") {
+        opts.onStatus && opts.onStatus("decoding video frames…");
+        const res = await acquireFrames(parsed.source.props, dataFiles[parsed.source.id]);
+        if (res.error) { opts.onError(res.error); return; }
+        frames = res;
+        opts.onStatus && opts.onStatus(`decoded ${res.frames.length} frames (${res.size}×${res.size}${res.gray ? " gray" : ""}) — training on the real video`);
+      }
+      state = { specs: parsed.specs, models: [], cur: 0, r: rng(opts.seed || 1234), frames,
+        P: Math.max(4, opts.pop || 200), gensPerModel: opts.gens || 1000, mut: 0.08, survive: 0.2,
+        onTick: opts.onTick, onDone: opts.onDone };
+      state.models[0] = initModel(parsed.specs[0], null);
+      opts.onStart && opts.onStart(parsed.specs[0], parsed.specs.length, !!frames);
       running = true; loop();
     }
     function stop() { running = false; if (raf) cancelAnimationFrame(raf); }
-    return { start, stop, isRunning: () => running, buildSpec };
+    return { start, stop, isRunning: () => running, buildSpec, parseModels };
   })();
 
   // ── training readout: fitness sparkline + best-output-vs-target plot ─────────
@@ -916,12 +1214,51 @@
     const ctx = cv.getContext("2d"); if (!ctx) return; const W = cv.width, H = cv.height;
     ctx.clearRect(0, 0, W, H);
     if (!sample) return;
+    // if the output is a square frame (video/image), show target vs reconstruction
+    // as side-by-side images — so you can actually SEE the model working.
+    const N = Math.round(Math.sqrt(sample.o.length));
+    if (N >= 4 && N * N === sample.o.length) {
+      const drawImg = (arr, ox) => {
+        const cell = H / N;
+        for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+          const g = Math.max(0, Math.min(255, Math.round((arr[y * N + x] + 1) / 2 * 255)));
+          ctx.fillStyle = `rgb(${g},${g},${g})`; ctx.fillRect(ox + x * cell, y * cell, Math.ceil(cell), Math.ceil(cell));
+        }
+      };
+      drawImg(sample.y, 0);              // target (left)
+      drawImg(sample.o, W - H);          // reconstruction (right)
+      ctx.fillStyle = "#7d8794"; ctx.font = "9px monospace";
+      ctx.fillText("target", 2, H - 2); ctx.fillText("output", W - H + 2, H - 2);
+      return;
+    }
     const all = sample.y.concat(sample.o), mn = Math.min(...all), mx = Math.max(...all), rng = (mx - mn) || 1;
     const line = (arr, color) => { ctx.strokeStyle = color; ctx.lineWidth = 1.5; ctx.beginPath();
       arr.forEach((v, i) => { const x = arr.length === 1 ? W / 2 : (i / (arr.length - 1)) * W, y = H - ((v - mn) / rng) * (H - 4) - 2;
         i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }); ctx.stroke(); };
     line(sample.y, "#7d8794");     // target
     line(sample.o, "#3fb950");     // best output
+  }
+  // Reconstruction grid: for every frame, target (top row) and the model's best
+  // reconstruction (bottom row), as N×N images.
+  function drawRecon(sample) {
+    const cv = document.getElementById("pu-recon"); if (!cv || !cv.getContext) return;
+    const ctx = cv.getContext("2d"); if (!ctx) return;
+    const rec = sample && sample.recon;
+    if (!rec || !rec.N || !rec.frames.length) { cv.width = 10; cv.height = 10; ctx.clearRect(0, 0, 10, 10); return; }
+    const N = rec.N, F = rec.frames.length, cell = 52, pad = 5, labelH = 13;
+    cv.width = pad + F * (cell + pad);
+    cv.height = labelH + cell + pad + labelH + cell + pad;
+    ctx.clearRect(0, 0, cv.width, cv.height);
+    const drawFrame = (arr, ox, oy) => { const c = cell / N;
+      for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+        const g = Math.max(0, Math.min(255, Math.round((arr[y * N + x] + 1) / 2 * 255)));
+        ctx.fillStyle = `rgb(${g},${g},${g})`; ctx.fillRect(ox + x * c, oy + y * c, Math.ceil(c), Math.ceil(c));
+      } };
+    ctx.fillStyle = "#7d8794"; ctx.font = "10px monospace";
+    ctx.fillText("targets", 2, labelH - 2);
+    rec.frames.forEach((f, i) => drawFrame(f.y, pad + i * (cell + pad), labelH));
+    ctx.fillStyle = "#3fb950"; ctx.fillText("reconstruction", 2, labelH + cell + pad + labelH - 2);
+    rec.frames.forEach((f, i) => drawFrame(f.o, pad + i * (cell + pad), labelH + cell + pad + labelH));
   }
 
   // ── public API for later GA wiring ──────────────────────────────────────────
@@ -931,7 +1268,7 @@
       edges: graph.edges,
     })),
     clear: () => { graph = { nodes: [], edges: [], pan: { x: 40, y: 30 } }; uid = 1; selectNode(null); renderAll(); save(); },
-    template: () => { templateGraph(); selectNode(null); },
+    template: (kind) => { templateGraph(kind); selectNode(null); },
     addNode,
     types: () => NODE_TYPES,
   };
@@ -961,11 +1298,16 @@
       keys.forEach((t) => addButton(bar, t));
     });
     const spacer = document.createElement("span"); spacer.style.flex = "1"; bar.appendChild(spacer);
-    const tmpl = document.createElement("button");
-    tmpl.className = "runs-btn"; tmpl.textContent = "Template";
-    tmpl.title = "Load a correctly-wired example: Synthetic → Input → Layer → Output → Fitness";
-    tmpl.addEventListener("click", () => { if (confirm("Load the wired example? This replaces the current graph.")) { templateGraph(); selectNode(null); } });
-    bar.appendChild(tmpl);
+    const tsel = document.createElement("select");
+    tsel.className = "runs-btn"; tsel.title = "Load a correctly-wired example graph";
+    [["", "Template…"], ["basic", "Basic model"], ["autoencoder", "Autoencoder"]].forEach(([v, l]) => {
+      const o = document.createElement("option"); o.value = v; o.textContent = l; tsel.appendChild(o);
+    });
+    tsel.addEventListener("change", () => {
+      const k = tsel.value; tsel.value = "";
+      if (k && confirm(`Load the ${k} template? This replaces the current graph.`)) { templateGraph(k); selectNode(null); }
+    });
+    bar.appendChild(tsel);
     const clear = document.createElement("button");
     clear.className = "runs-btn"; clear.textContent = "Clear";
     clear.addEventListener("click", () => { if (confirm("Clear the whole graph?")) window.PureGraph.clear(); });
@@ -980,6 +1322,8 @@
       left: { el: layout.querySelector("aside.sidebar.left"), dim: "width", dir: 1, min: 150, max: 560, key: "pure.size.left" },
       right: { el: layout.querySelector("aside.sidebar.right"), dim: "width", dir: -1, min: 170, max: 620, key: "pure.size.right" },
       genome: { el: document.querySelector(".pg-genome-panel"), dim: "height", dir: -1, min: 60, key: "pure.size.genome",
+                maxFn: (el) => (el.parentElement ? el.parentElement.clientHeight - 130 : 600) },
+      recon: { el: document.querySelector(".pg-recon-panel"), dim: "height", dir: -1, min: 50, key: "pure.size.recon",
                 maxFn: (el) => (el.parentElement ? el.parentElement.clientHeight - 130 : 600) },
     };
     // apply saved sizes
@@ -1064,24 +1408,27 @@
     if (runBtn) runBtn.addEventListener("click", () => {
       if (Engine.isRunning()) return;
       const gens = numVal("pu-gens", 1000);
+      setRunning(true);
       Engine.start({
         pop: numVal("pu-pop", 200), gens, seed: numVal("pu-seed", 1234),
-        onStart: (spec) => { setRunning(true); if (statusEl) statusEl.textContent =
-          `running — network ${spec.arch.join("→")}, objective ${spec.objective}` + (spec.constraints.length ? `, constraints: ${spec.constraints.join(", ")}` : ""); },
-        onError: (msg) => { if (statusEl) statusEl.textContent = "cannot run: " + msg; },
-        onTick: (t, sample, hist) => {
-          if (metricEl) metricEl.textContent = `gen ${t.gen}/${gens} · best ${(-t.best).toExponential(2)} · mean ${(-t.mean).toExponential(2)} err`;
-          drawFitChart(hist); drawOutPlot(sample);
-          renderGenome(sample && sample.activations, sample && sample.wLayers);   // fires + connections
+        onStatus: (msg) => { if (statusEl) statusEl.textContent = msg; },
+        onStart: (spec, nModels, realVideo) => { setRunning(true); if (statusEl) statusEl.textContent =
+          (realVideo ? "training on REAL video · " : "training on synthetic data · ") + (nModels > 1 ? `${nModels} models — ` : "") + `network ${spec.arch.join("→")}, objective ${spec.objective}` + (spec.constraints.length ? `, constraints: ${spec.constraints.join(", ")}` : ""); },
+        onError: (msg) => { setRunning(false); if (statusEl) statusEl.textContent = "cannot run: " + msg; },
+        onTick: (t, sample, hist, prog) => {
+          const modelTag = prog && prog.total > 1 ? `model ${prog.cur + 1}/${prog.total} · ` : "";
+          if (metricEl) metricEl.textContent = `${modelTag}gen ${t.gen}/${gens} · best ${(-t.best).toExponential(2)} · mean ${(-t.mean).toExponential(2)} err`;
+          drawFitChart(hist); drawOutPlot(sample); drawRecon(sample);
+          renderGenome(sample && sample.activations, sample && sample.wLayers, sample && sample.dims, sample && sample.columns);   // active model fires
         },
-        onDone: () => { setRunning(false); if (statusEl) statusEl.textContent = "run complete — best genome converged; edit the graph and Run again."; },
+        onDone: () => { setRunning(false); if (statusEl) statusEl.textContent = "run complete — all models trained; edit the graph and Run again."; },
       });
     });
     if (stopBtn) stopBtn.addEventListener("click", () => { Engine.stop(); setRunning(false); if (statusEl) statusEl.textContent = "stopped — press Run to resume from a fresh population, or Reset to clear."; });
     if (resetBtn) resetBtn.addEventListener("click", () => {
       Engine.stop(); setRunning(false);
       if (metricEl) metricEl.textContent = "idle";
-      drawFitChart([]); drawOutPlot(null); renderGenome();   // clear charts + static genome
+      drawFitChart([]); drawOutPlot(null); drawRecon(null); renderGenome();   // clear charts + static genome
       if (statusEl) statusEl.textContent = "reset — the graph is kept; press Run to train a fresh population.";
     });
   });

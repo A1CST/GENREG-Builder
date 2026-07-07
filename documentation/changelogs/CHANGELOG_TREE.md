@@ -6,6 +6,12 @@ Seeded 2026-07-05 from the main changelog (keyword split, best effort).
 
 ---
 
+- **[2026-07-06] (Claude)** — **ARCHIVED.** Tree LM (`tree_service.py`, `tree_lm.py`) moved to
+  `archive/lm_and_tree/`; run dirs to `runs/_archive/`; `/tree` route and nav link removed,
+  replaced by `/evolang`. Reason: the Tree-of-Models converged on the same n-gram-table object as
+  the LM line, and the pivot retires that whole approach. See `documentation/EVOLANG_PIVOT.md`.
+  Code is preserved, not deleted.
+
 - **[2026-07-06] (Claude)** — Tree LM page: **copy refresh to reflect byte AND word/token level**
   (user: "reflect what we are actually doing now"). The page was live and functional but its
   copy was byte-only and outdated. Fixed: brand subtitle "byte-level" → "byte & word-level";

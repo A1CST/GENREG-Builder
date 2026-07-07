@@ -1,13 +1,14 @@
 {#- Standard top navigation — the SAME set and order on every page.
     Include with the current page key set, e.g.:
       {% set nav_active = 'pure' %}{% include '_nav.html' %}
-    Keys: build, tree, diff, animation, pure, i2, runs, docs -#}
+    Keys: build, evolang, diff, animation, pure, images, i2, runs, docs -#}
 {%- set _nav = [
   ('/', 'build', 'Build'),
-  ('/tree', 'tree', 'Tree LM'),
+  ('/evolang', 'evolang', 'EvoLang'),
   ('/diff', 'diff', 'DiffEvo'),
   ('/animation', 'animation', 'Animation'),
   ('/pure', 'pure', 'PURE'),
+  ('/images', 'images', 'Images'),
   ('/i2', 'i2', 'I2'),
   ('/runs', 'runs', 'Runs'),
   ('/docs', 'docs', 'Docs')

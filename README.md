@@ -22,40 +22,30 @@ feed) and **Run-Config panel** (live view of the current run + history).
 | Page          | What it is |
 |---------------|------------|
 | `/`  Build    | The neuroevolution **engine** — evolve tiny nets on Snake, 2048, CartPole, Humanoid, Language, under composable EEC constraints (energy, mortality, occlusion, scarcity, non-stationarity…). Live game board, microscope (watch a genome mutate), PO-metrics. |
-| `/tree`  Tree LM | **Tree-of-Models** text prediction — a routing tree of tiny evolved genomes over **byte or word/token** vocabularies. Live icicle map of the tree, per-node fitness, generation, config sweeps, routing inspector. |
+| `/evolang`  EvoLang | **Evolution-native language model** — a small fixed corpus, a tiny neural next-char predictor per genome, bred by tournament + elitism + energy homeostasis on soft log-prob fitness. No gradients, no attention, no n-gram tables. The fresh start after the LM/Tree line was archived (see [`documentation/EVOLANG_PIVOT.md`](documentation/EVOLANG_PIVOT.md)). |
 | `/diff`  DiffEvo | **Denoising diffusion by neuroevolution** — one shared population of ~90-param per-pixel denoisers per noise level; the reverse walk composes them. |
 | `/animation`  | Procedural animation / shape-evolution experiments. |
 | `/pure`       | **PURE** — assemble a model from a node graph (drag nodes onto the canvas and wire them). |
 | `/runs`       | **Runs dashboard** — every training run (filter, label, favorite, group, tag), metrics, embedding clouds, and per-run generation/replay. |
 | `/docs`       | Browsable project documentation (model cards, findings, changelogs). |
 
-## The LM autoregressive campaign (`genreg_train/genreg_lm.py` + `genreg_attn.py` + `genreg_enc.py`)
+## The language line — archived, and why (the EvoLang pivot)
 
-A staged, component-first push toward true autoregressive text — script-driven
-(results land in `runs/lm`, `runs/attn`, `runs/enc`; browse them on `/runs`):
+The earlier autoregressive campaign (`genreg_lm` / `genreg_attn` / `genreg_enc` /
+`genreg_trustmix` / `genreg_distill`) and the Tree-of-Models (`tree_service`)
+kept converging on the **same object — an n-gram lookup table** (1990s tech). We
+then proved the boundary honestly: you *cannot* gradient-free-train the tables
+away (the distillation verdict — top-5 recovered, top-1 not; generation
+gibberish). Compressing corpus statistics into weights at per-context precision
+is what gradients are for, and rule #1 forbids them.
 
-1. **Substrate** (`lm_char_v1`) — recurrent char model (embed + prev-char +
-   `tanh(h_prev)` → per-neuron evolved activations → readout), soft
-   multiplicative fitness, mandatory energy homeostasis, tournament + maturation
-   gate. Evolved **above the char-bigram ceiling** (held-out 31.9% vs 27.3%).
-2. **Attention** (`attn_copy_v1`) — evolved selective retrieval; **100%** on
-   the offset-k copy bar via a mastery-gated curriculum.
-3. **Encoder** (`enc_char_v1`) — the recurrent encoder as its own component,
-   bred for multi-horizon state; freeze-and-composes to parity.
-4. **Rollout survival** — the model is scored while consuming *its own* sampled
-   output (learn by experience); the blended landscape cut the train/inference
-   "exposure gap" from 0.72 → 0.17 nats.
-
-Sample from any checkpoint:
-
-```powershell
-python -m genreg_train.lm_sample --list
-python -m genreg_train.lm_sample --prompt "the old man " --temp 0.7 --len 200
-```
-
-Findings: [`documentation/LM_STAGE1_FINDINGS.md`](documentation/LM_STAGE1_FINDINGS.md),
-[`documentation/LM_STAGE1_SUBSTRATE.md`](documentation/LM_STAGE1_SUBSTRATE.md),
-[`documentation/LM_ENCODER_COMPONENT.md`](documentation/LM_ENCODER_COMPONENT.md).
+So the whole line was **archived** (to `archive/lm_and_tree/`, nothing deleted)
+and replaced by **EvoLang** (`/evolang`, `genreg_train/evolang.py`) — an
+evolution-native LM that does not chase next-token statistics at all. The
+mapping of the boundary is preserved in the findings docs
+([`LM_STAGE1_FINDINGS.md`](documentation/LM_STAGE1_FINDINGS.md),
+[`LM_ENCODER_COMPONENT.md`](documentation/LM_ENCODER_COMPONENT.md)) and the full
+rationale in [`documentation/EVOLANG_PIVOT.md`](documentation/EVOLANG_PIVOT.md).
 
 ## Browser terminals (the GUI infrastructure)
 
@@ -89,7 +79,7 @@ campaign was run on an RTX 4080) and falls back to CPU.
 |------|---------|
 | `app.py` | Flask server, routes, WebSocket relays; auto-starts the daemon. |
 | `terminal_daemon.py` | Owns the ConPTY shells + scrollback; survives Flask restarts. |
-| `genreg_train/` | Training engines: `trainer.py` (engine), `tree_service.py` (Tree LM), `diffuse_service.py` (DiffEvo), `genreg_lm.py`/`genreg_attn.py`/`genreg_enc.py` (LM campaign), `runstore.py` (run persistence). |
+| `genreg_train/` | Training engines: `trainer.py` (engine), `evolang.py` (EvoLang), `diffuse_service.py` (DiffEvo), `runstore.py` (run persistence). The archived LM/Tree engines live in `archive/lm_and_tree/`. |
 | `agent_board.py`, `agent_notify.py` | The Agent-panel notice feed (post from Python or the CLI). |
 | `templates/`, `static/` | Pages + front-end (vendored xterm.js, no CDN at runtime). |
 | `documentation/` | Rules, model cards, findings, per-project changelogs. |

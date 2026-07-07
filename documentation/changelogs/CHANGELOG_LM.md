@@ -6,6 +6,63 @@ Seeded 2026-07-05 from the main changelog (keyword split, best effort).
 
 ---
 
+- **[2026-07-06] (Claude)** — **ARCHIVED — line retired by the EvoLang pivot.** `genreg_lm.py`,
+  `genreg_attn.py`, `genreg_enc.py`, `genreg_trustmix.py`, `genreg_distill.py`, `lm_sample.py`,
+  `genreg_rerank.py`, `pure_engine.py` moved to `archive/lm_and_tree/`; `lm/attn/enc/encoder/distill`
+  run dirs to `runs/_archive/`. The campaign mapped a real boundary (distillation verdict: can't
+  gradient-free-train away n-gram tables) and that boundary is exactly why we pivoted. Findings docs
+  (`LM_STAGE1_*`, `LM_ENCODER_COMPONENT.md`) kept. Successor: `/evolang`. See
+  `documentation/EVOLANG_PIVOT.md`. Code preserved, not deleted.
+
+- **[2026-07-06] (Claude)** — LM: **distillation verdict — you can't gradient-free-train away
+  the n-gram tables** (honest negative, maps the boundary). Distilled the 56.4% trust-mix
+  teacher into a table-free evolved feedforward neural n-gram (soft-teacher + hard-target hybrid
+  fitness, 12k gens). Result: student top-5 **58.0%** (matches/beats the teacher's distribution
+  SHAPE) but top-1 only **24.7%** (recovered 44% of the teacher; generation is gibberish). The
+  split IS the finding — evolution learns *which chars are plausible* (top-5) but not *which is
+  most likely per context* (top-1), and generation needs the latter. Compressing corpus
+  statistics into weights is directed high-dim optimization = gradient's job; undirected
+  mutation can't do it at precision. Boundary: table-free+gradient-free 34.6% gibberish · n-gram
+  tables 56% readable (but 1990s lookup) · table-free+gradients = real LMs (violates rule #1).
+  The no-gradient LM sits where BOTH good-LM mechanisms are excluded; evolution's edge is where
+  gradients can't go (Intelligence Engine), not raw next-token stats. genreg_train/genreg_distill.py.
+
+- **[2026-07-06] (Claude)** — **TRUST-MIX breakthrough: readable English, held-out top-1 55.2%
+  / top-5 84.7%** — passes both docs usability bars (top-1≥30, top-5≥60) the A-series never
+  reached. The composition path (not one model doing everything): exact char n-gram channels
+  (uni..5g dense + 6g/7g hashed) + the evolved neural model, combined by an EVOLVED
+  context-conditional backoff GATE (trust + per-channel evidence κ, Witten-Bell style,
+  gradient-free ES). Accuracy climbed with orders+gate: neural-alone 34.6 → 4g-mix 47.2 →
+  5g-gated 53.5 → 7g-gated **55.2**. Generation is real English with phrases/punctuation and
+  the PROMPT STEERS ("the old man "→"stood the first, by all the other … for his nose and the
+  surface is not the same"; picks up Moby Dick vocab whale/jonah/fast-fish) — vs the
+  neural-alone gibberish ("dod wing fas coltill carm"). Honest: coherence = high-order n-gram
+  statistics; the EVOLVED part is the backoff gate (the neural is ~4% trust, near dead weight —
+  count tables win accuracy AND coherence, exactly as the stack notes predicted). A real
+  gradient-free char LM. genreg_train/genreg_trustmix.py; full progression in
+  LM_STAGE1_FINDINGS.md.
+
+- **[2026-07-06] (Claude)** — LM: **trigram interaction channel = best char result yet,
+  34.61% top-1 / 68.78% top-5** (two-phase bootstrap from the 31.9% substrate). +2.7pp over the
+  substrate, matching the documented A_101 benchmark (34.00/69.70), closing 37% of the
+  substrate→char-trigram-ceiling gap (31.9→39.2, bigram 27.3). The §VI multiplicative gate
+  OPENED and paid fitness where the additive copy-attention channel never did — confirming
+  multiplicative>additive for pair interaction the recurrent state can't express. Generation
+  (t=0.7) shows real words + word-shapes but not sentences (expected at 34%; top-5 barely
+  moved). Full table in LM_STAGE1_FINDINGS.md. Next: rollout landscape on top (accuracy is up;
+  generation coherence / space-collapse is the exposure gap, still open).
+
+- **[2026-07-06] (Claude)** — LM: **low-rank trigram interaction channel (§VI)** added to
+  genreg_lm — the documented word/char-pair primitive, targeting the big untapped gap (char
+  substrate 31.9% sits far below the char-TRIGRAM count ceiling 39.2%). Gated multiplicative
+  channel `logits += a_lr·(bigram[c_t] + (E1[c_t] ⊙ E2[c_prev]) @ O)` — captures the pair
+  interaction the additive prev-char concat structurally cannot (§VI). Wired into
+  evaluate/rollout/generate; `trigram_only` flag freezes the substrate for two-phase bootstrap
+  (evolve the channel alone, then unfreeze). Gate `a_lr` init 0 (transparent — verified gen-0
+  identical to substrate). Two-phase chain running from the 31.9% checkpoint: phase-1 channel
+  already opening and climbing (31.8%→32.3% by gen 800, soft improving), vs the copy-attention
+  channel which never opened — multiplicative interaction pays rent where additive copy didn't.
+
 - **[2026-07-06] (Claude)** — **Word-level recurrent LM** added to genreg_lm (push toward
   sentence/grammar structure). The synthesis: real word tokens (Tree LM tokenizer) + the
   recurrent sequential substrate + prev-token (genreg_lm) + the blended rollout-survival

@@ -39,12 +39,20 @@ try:
 except Exception as _e:                       # pragma: no cover
     TRAIN_OK, TRAIN_ERR = False, str(_e)
 
-# Tree-of-Models text prediction (separate program from the build interface).
+# EvoLang — evolution-native language model. The page now shows the WordPipe
+# specialist pipeline (composed gradient-free genomes: order/selection/boundary/
+# chunks). The old char-model `evolang` backend is kept importable but unused.
 try:
-    from genreg_train import tree_service
-    TREE_OK, TREE_ERR = True, None
+    from genreg_train import evolang
+    EVOLANG_OK, EVOLANG_ERR = True, None
 except Exception as _e:                       # pragma: no cover
-    TREE_OK, TREE_ERR = False, str(_e)
+    EVOLANG_OK, EVOLANG_ERR = False, str(_e)
+
+try:
+    from genreg_train import wordpipe_service
+    WP_OK, WP_ERR = True, None
+except Exception as _e:                       # pragma: no cover
+    WP_OK, WP_ERR = False, str(_e)
 
 # I2 latent-content node (separate program; shares this server).
 try:
@@ -66,6 +74,20 @@ try:
     ANIM_OK, ANIM_ERR = True, None
 except Exception as _e:                       # pragma: no cover
     ANIM_OK, ANIM_ERR = False, str(_e)
+
+# Images — pretrained Stable Diffusion text-to-image (separate program).
+try:
+    from genreg_train import sd_service
+    SD_OK, SD_ERR = True, None
+except Exception as _e:                       # pragma: no cover
+    SD_OK, SD_ERR = False, str(_e)
+
+# Images — reverse direction: image/video -> prompt (BLIP + CLIP).
+try:
+    from genreg_train import reverse_service
+    REV_OK, REV_ERR = True, None
+except Exception as _e:                       # pragma: no cover
+    REV_OK, REV_ERR = False, str(_e)
 
 # Agent board — shared notice feed for the floating Agent panel (all pages).
 try:
@@ -350,11 +372,39 @@ def api_i2_publish():
     return jsonify(meta)
 
 
-@app.route("/tree")
-def tree_page():
-    resp = app.make_response(render_template("tree.html"))
+@app.route("/evolang")
+def evolang_page():
+    """EvoLang — the WordPipe specialist pipeline (current evolution-native LM)."""
+    resp = app.make_response(render_template("evolang.html"))
     resp.headers["Cache-Control"] = "no-store"
     return resp
+
+
+@app.route("/api/evolang/status")
+def api_evolang_status():
+    """Pipeline load status (lazy-loads genomes + corpus on first hit)."""
+    if not WP_OK:
+        return jsonify({"ready": False, "err": WP_ERR or "wordpipe unavailable"})
+    wordpipe_service.SERVICE.ensure()
+    return jsonify(wordpipe_service.SERVICE.status())
+
+
+@app.route("/api/evolang/generate")
+def api_evolang_generate():
+    """Generate text with a subset of specialist layers enabled."""
+    if not WP_OK:
+        return jsonify({"text": "", "err": WP_ERR or "wordpipe unavailable"})
+    a = request.args
+    en = {"vocab": a.get("vocab") == "1", "order": a.get("order") == "1",
+          "bound": a.get("bound") == "1", "chunks": a.get("chunks") == "1",
+          "commas": a.get("commas") == "1", "sel": a.get("sel", "off")}
+    try:
+        seed = int(a.get("seed", 0))
+    except (TypeError, ValueError):
+        seed = 0
+    wordpipe_service.SERVICE.ensure()
+    text = wordpipe_service.SERVICE.generate(en, seed=seed)
+    return jsonify({"text": text, "ready": wordpipe_service.SERVICE.ready})
 
 
 @app.route("/diff")
@@ -373,6 +423,88 @@ def animation_page():
     return resp
 
 
+@app.route("/images")
+def images_page():
+    """Images — new program page (blank scaffold for now)."""
+    resp = app.make_response(render_template("images.html"))
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
+
+
+@app.route("/api/images/generate", methods=["POST"])
+def api_images_generate():
+    """Text -> image via the pretrained SD1.5 pipeline (lazy-loaded, singleton)."""
+    if not SD_OK:
+        return jsonify({"error": f"stable diffusion unavailable: {SD_ERR}"}), 503
+    data = request.get_json(silent=True) or {}
+    prompt = str(data.get("prompt", "")).strip()
+    if not prompt:
+        return jsonify({"error": "prompt required"}), 400
+    try:
+        result = sd_service.HUB.generate(
+            prompt,
+            negative_prompt=data.get("negative_prompt", ""),
+            steps=data.get("steps", 25),
+            guidance=data.get("guidance", 7.5),
+            seed=data.get("seed"),
+            width=data.get("width", 512),
+            height=data.get("height", 512),
+        )
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+    return jsonify(result)
+
+
+@app.route("/api/images/reverse", methods=["POST"])
+def api_images_reverse():
+    """Image/video -> the prompt a diffusion model would've used, per frame.
+    Uploads an image or video; results (frames + prompt .txt files) land in
+    a structured job folder under runs/images/reverse/<job_id>/."""
+    if not REV_OK:
+        return jsonify({"error": f"reverse interrogation unavailable: {REV_ERR}"}), 503
+    f = request.files.get("file")
+    if not f:
+        return jsonify({"error": "no file uploaded"}), 400
+    import tempfile
+    ext = os.path.splitext(f.filename or "")[1].lower()
+    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=ext or ".bin")
+    tmp.close()
+    try:
+        f.save(tmp.name)
+        try:
+            max_side = int(request.form.get("max_side", 768))
+            max_new_tokens = int(request.form.get("max_new_tokens", 40))
+            top_k = int(request.form.get("top_k", 1))
+            if ext in reverse_service.IMAGE_EXTS:
+                manifest = reverse_service.HUB.process_image_file(
+                    tmp.name, f.filename, max_side=max_side,
+                    max_new_tokens=max_new_tokens, top_k=top_k)
+            else:
+                stride = int(request.form.get("stride", 1))
+                max_frames = int(request.form.get("max_frames", 30))
+                manifest = reverse_service.HUB.process_video_file(
+                    tmp.name, f.filename, stride=stride, max_frames=max_frames, max_side=max_side,
+                    max_new_tokens=max_new_tokens, top_k=top_k)
+        except (TypeError, ValueError):
+            return jsonify({"error": "bad parameters"}), 400
+        except Exception as exc:
+            return jsonify({"error": str(exc)}), 500
+        return jsonify(manifest)
+    finally:
+        try:
+            os.unlink(tmp.name)
+        except OSError:
+            pass
+
+
+@app.route("/api/images/file/<path:relpath>")
+def api_images_file(relpath):
+    """Serve a frame/prompt file from a reverse-interrogation job folder."""
+    if not REV_OK:
+        return jsonify({"error": f"reverse interrogation unavailable: {REV_ERR}"}), 503
+    return send_from_directory(reverse_service.OUT_DIR, relpath)
+
+
 @app.route("/pure")
 def pure_page():
     """PURE — the baseline model: a plain GA with nothing added, the control
@@ -381,6 +513,60 @@ def pure_page():
     resp = app.make_response(render_template("pure.html"))
     resp.headers["Cache-Control"] = "no-store"
     return resp
+
+
+@app.route("/api/pure/frames", methods=["POST"])
+def pure_frames():
+    """Server-side video → frames for the PURE Data node. Uses imageio's bundled
+    ffmpeg, so ANY format works (mkv, avi, mov, mp4, …) — the browser's <video>
+    only handles mp4/webm/ogg. Returns flat 0-255 pixel arrays per frame."""
+    f = request.files.get("file")
+    if not f:
+        return jsonify({"error": "no video file uploaded"}), 400
+    try:
+        size = max(2, min(256, int(request.form.get("size", 32))))
+        start = max(0, int(request.form.get("start", 0)))
+        skip = max(0, int(request.form.get("skip", 0)))
+        maxf = max(1, min(4000, int(request.form.get("max", 64))))
+        gray = request.form.get("gray", "1") == "1"
+    except (TypeError, ValueError):
+        return jsonify({"error": "bad frame params"}), 400
+    import tempfile
+    ext = os.path.splitext(f.filename or "video")[1] or ".bin"
+    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=ext)
+    tmp.close()
+    try:
+        f.save(tmp.name)
+        try:
+            import imageio
+            import numpy as np
+            from PIL import Image
+        except Exception as exc:
+            return jsonify({"error": f"server missing video libs ({exc}); pip install imageio imageio-ffmpeg"}), 500
+        reader = imageio.get_reader(tmp.name, "ffmpeg")
+        stride = skip + 1
+        frames = []
+        try:
+            for i, frame in enumerate(reader):
+                if i < start or (i - start) % stride != 0:
+                    continue
+                img = Image.fromarray(frame).resize((size, size))
+                img = img.convert("L") if gray else img.convert("RGB")
+                frames.append(np.asarray(img).reshape(-1).astype(int).tolist())
+                if len(frames) >= maxf:
+                    break
+        finally:
+            reader.close()
+        if not frames:
+            return jsonify({"error": "no frames decoded — check the start frame vs the video length"}), 400
+        return jsonify({"size": size, "gray": gray, "count": len(frames), "frames": frames})
+    except Exception as exc:
+        return jsonify({"error": f"could not decode this video: {exc}"}), 400
+    finally:
+        try:
+            os.unlink(tmp.name)
+        except OSError:
+            pass
 
 
 @app.route("/api/animations")
@@ -462,7 +648,7 @@ def animevo(ws):
 @sock.route("/diffuse")
 def diffuse(ws):
     """DiffEvo socket — a viewer onto the server-side job hub, same shape as
-    /treelm: training runs in the hub and survives navigation; (re)connecting
+    /evolang: training runs in the hub and survives navigation; (re)connecting
     replays the journal snapshot so the page rebuilds mid-run.
 
     Browser -> server: {"op":"start", ...config} | {"op":"stop"}.
@@ -512,39 +698,33 @@ def diffuse(ws):
         hub.unsubscribe(emit)              # detach only — training keeps going
 
 
-@sock.route("/treelm")
-def treelm(ws):
-    """Tree-of-Models socket — a *viewer* onto the server-side job hub.
+@sock.route("/evolang")
+def evolang_ws(ws):
+    """EvoLang socket — a viewer onto the evolution-native LM job hub.
 
-    Browser -> server: {"op":"start"|"sweep", ...config} | {"op":"stop"} |
-                       {"op":"generate"|"trace", prompt, length, temperature}.
-    Server -> browser: JSON events (corpus / tree / node_* / eval / sweep_* /
-    done / generated / trace / error).
-
-    Training runs in the hub (tree_service.HUB) and is NOT tied to this
-    socket: navigating away only detaches the viewer; re-connecting replays
-    the journal snapshot so the page rebuilds mid-run. Stopping is explicit
-    (stop op or starting a new job).
+    Browser -> server: {"op":"start", ...config} | {"op":"stop"} |
+                       {"op":"generate", prompt, length}.
+    Server -> browser: JSON events (corpus / gen / done / generated / error).
+    Training runs in the hub and survives navigation (same pattern as DiffEvo).
     """
     send_lock = threading.Lock()
 
     def emit(ev):
         payload = json.dumps(ev)
-        with send_lock:                    # hub thread + handler thread both send
+        with send_lock:
             ws.send(payload)
 
-    if not TREE_OK:
+    if not EVOLANG_OK:
         try:
-            emit({"type": "error", "message": f"tree-of-models unavailable: {TREE_ERR}"})
+            emit({"type": "error", "message": f"evolang unavailable: {EVOLANG_ERR}"})
         except Exception:
             pass
         return
 
-    hub = tree_service.HUB
+    hub = evolang.HUB
     try:
-        emit({"type": "model", "available": tree_service.has_model(),
-              "info": tree_service.model_info()})
-        for ev in hub.snapshot():          # rebuild mid-run state
+        emit({"type": "corpus", "text": evolang.CORPUS, "vocab": evolang.VOCAB})
+        for ev in hub.snapshot():
             emit(ev)
         emit({"type": "job", "running": hub.running()})
     except Exception:
@@ -562,41 +742,20 @@ def treelm(ws):
                 continue
             op = data.get("op")
             if op == "start":
-                hub.start(data, tree_service.TreeLMTrainer)
-            elif op == "sweep":
-                hub.start(data, tree_service.TreeSweeper)
-            elif op == "train_encoder":
-                hub.start(data, tree_service.EncoderTrainer)
-            elif op == "encoders":
-                try:
-                    emit({"type": "encoders", "list": tree_service.list_encoders()})
-                except Exception:
-                    pass
+                hub.start(data, evolang.EvoTrainer)
             elif op == "stop":
                 hub.stop()
             elif op == "generate":
                 try:
-                    text = tree_service.generate_text(
-                        str(data.get("prompt", "")),
-                        length=int(data.get("length", 300)),
-                        temperature=float(data.get("temperature", 0.0)))
-                    emit({"type": "generated", "prompt": data.get("prompt", ""),
-                          "text": text})
-                except Exception as exc:
-                    emit({"type": "error", "message": str(exc)})
-            elif op == "trace":
-                try:
-                    tr = tree_service.trace_generate(
-                        str(data.get("prompt", "")),
-                        length=int(data.get("length", 48)),
-                        temperature=float(data.get("temperature", 0.8)))
-                    emit({"type": "trace", **tr})
+                    text = evolang.generate(str(data.get("prompt", "")),
+                                            length=int(data.get("length", 200)))
+                    emit({"type": "generated", "prompt": data.get("prompt", ""), "text": text})
                 except Exception as exc:
                     emit({"type": "error", "message": str(exc)})
     except Exception:
         pass
     finally:
-        hub.unsubscribe(emit)              # detach only — training keeps going
+        hub.unsubscribe(emit)
 
 
 @sock.route("/train")

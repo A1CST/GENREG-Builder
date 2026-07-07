@@ -339,7 +339,10 @@ def infer(rid):
 
     if env_name == "tree":
         # tree-of-models run: "replay" = generate a text sample from the model
-        from genreg_train import tree_service
+        try:
+            from genreg_train import tree_service
+        except Exception:
+            return None   # tree_service archived
         d = _run_dir(rid)
         model_path = os.path.join(d, "model.npz") if d else None
         if not model_path or not os.path.exists(model_path):

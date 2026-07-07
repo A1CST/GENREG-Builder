@@ -27,3 +27,9 @@ templates/i2_node_browser.html
 i2_bench.py
 documentation/I2_COMPRESSION_GENOME_FINDINGS.pdf
 documentation/changelogs/CHANGELOG_I2.md
+
+# Regeneratable / large data (not part of the code baseline)
+demo/genomes.pkl
+project/conversational/cornell.zip
+project/conversational/cornell movie-dialogs corpus/
+copyies/

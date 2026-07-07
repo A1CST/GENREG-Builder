@@ -20,6 +20,14 @@
     <aside class="runs-tree">
       <div class="env-tabs" id="type-tabs"></div>
       <div class="docs-search"><input id="docs-filter" type="text" placeholder="filter files…" spellcheck="false" /></div>
+      <div class="docs-toolbar">
+        <select id="docs-sort" title="Sort order">
+          <option value="name">Name (A-Z)</option>
+          <option value="recent">Recently updated</option>
+        </select>
+        <button id="docs-fav-toggle" class="env-tab" title="Show only favorites">Favorites</button>
+        <button id="docs-arch-toggle" class="env-tab" title="Show archived">Archived</button>
+      </div>
       <div class="tree" id="doc-list"><div class="tree-empty">Loading documentation…</div></div>
     </aside>
     <main class="runs-detail" id="doc-detail">

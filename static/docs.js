@@ -13,13 +13,33 @@
   const $tabs = document.getElementById("type-tabs");
   const $detail = document.getElementById("doc-detail");
   const $filter = document.getElementById("docs-filter");
+  const $sort = document.getElementById("docs-sort");
+  const $favToggle = document.getElementById("docs-fav-toggle");
+  const $archToggle = document.getElementById("docs-arch-toggle");
 
   let files = [];            // [{path,name,ext,size,mtime}]
   let activeTab = "all";     // all | md | pdf | json | other
   let selected = null;       // path of the open doc
+  let sortMode = "name";     // name | recent
+  let favOnly = false;
+  let archView = false;
 
   const TAB_ORDER = ["all", "md", "pdf", "json", "other"];
   const TAB_LABEL = { all: "All", md: "Markdown", pdf: "PDF", json: "JSON", other: "Other" };
+
+  // ------------------------------------------------------ per-doc metadata
+  // Favorite/archive flags live client-side (this is a single-user local
+  // tool) keyed by doc path, so they survive refreshes without a server change.
+  const META_KEY = "genreg_docs_meta";
+  let meta = {};
+  try { meta = JSON.parse(localStorage.getItem(META_KEY) || "{}"); } catch (e) { meta = {}; }
+  const getMeta = (p) => meta[p] || { fav: false, arch: false };
+  const setMeta = (p, patch) => {
+    meta[p] = { ...getMeta(p), ...patch };
+    try { localStorage.setItem(META_KEY, JSON.stringify(meta)); } catch (e) { /* ignore */ }
+  };
+  const NEW_WINDOW_SECS = 3 * 86400;   // mtime within this window gets a NEW badge
+  const isNew = (f) => (Date.now() / 1000 - f.mtime) < NEW_WINDOW_SECS;
 
   const kind = (f) => {
     if (f.ext === "md" || f.ext === "markdown" || f.ext === "txt") return "md";
@@ -53,9 +73,21 @@
     }
   }
 
+  // Files in the current archive/favorites scope, before type-tab + search
+  // narrow it further — tab counts and the list are both built from this.
+  function scopedFiles() {
+    return files.filter((f) => {
+      const m = getMeta(f.path);
+      if (archView ? !m.arch : m.arch) return false;
+      if (favOnly && !m.fav) return false;
+      return true;
+    });
+  }
+
   function renderTabs() {
-    const counts = { all: files.length, md: 0, pdf: 0, json: 0, other: 0 };
-    files.forEach((f) => counts[kind(f)]++);
+    const scope = scopedFiles();
+    const counts = { all: scope.length, md: 0, pdf: 0, json: 0, other: 0 };
+    scope.forEach((f) => counts[kind(f)]++);
     $tabs.innerHTML = "";
     TAB_ORDER.forEach((t) => {
       if (t !== "all" && !counts[t]) return;
@@ -69,33 +101,52 @@
 
   function visibleFiles() {
     const q = ($filter.value || "").trim().toLowerCase();
-    return files.filter((f) =>
+    const vis = scopedFiles().filter((f) =>
       (activeTab === "all" || kind(f) === activeTab) &&
       (!q || f.name.toLowerCase().includes(q)));
+    vis.sort(sortMode === "recent" ? (a, b) => b.mtime - a.mtime
+                                    : (a, b) => a.name.localeCompare(b.name));
+    return vis;
   }
 
   function renderList() {
     const vis = visibleFiles();
     $list.innerHTML = "";
     if (!vis.length) {
-      $list.innerHTML = '<div class="tree-empty">No documents match.</div>';
+      $list.innerHTML = `<div class="tree-empty">No ${archView ? "archived " : ""}documents match.</div>`;
       return;
     }
     const root = document.createElement("div");
     root.className = "tree-root";
-    root.textContent = "documentation/";
+    root.textContent = archView ? "documentation/ — archived" : "documentation/";
     $list.appendChild(root);
     const wrap = document.createElement("div");
     wrap.className = "tree-branches";
     vis.forEach((f) => {
+      const m = getMeta(f.path);
       const n = document.createElement("div");
       n.className = "tree-node" + (f.path === selected ? " selected" : "");
       n.innerHTML =
         `<span class="doc-ext ${kind(f)}">${f.ext || "?"}</span>` +
         `<div class="tn-main"><div class="tn-title"></div>` +
-        `<div class="tn-sub">${fmtSize(f.size)} · ${fmtDate(f.mtime)}</div></div>`;
+        `<div class="tn-sub">${fmtSize(f.size)} · ${fmtDate(f.mtime)}` +
+        `${isNew(f) ? ' · <span class="doc-new">NEW</span>' : ""}</div></div>` +
+        `<div class="tn-actions">` +
+        `<button class="tn-act${m.fav ? " active" : ""}" data-act="fav" title="Favorite">${m.fav ? "★" : "☆"}</button>` +
+        `<button class="tn-act${m.arch ? " active" : ""}" data-act="arch" title="${m.arch ? "Restore" : "Archive"}">${m.arch ? "Restore" : "Archive"}</button>` +
+        `</div>`;
       n.querySelector(".tn-title").textContent = f.name;
       n.onclick = () => open(f.path);
+      n.querySelector('[data-act="fav"]').onclick = (e) => {
+        e.stopPropagation();
+        setMeta(f.path, { fav: !getMeta(f.path).fav });
+        renderTabs(); renderList();
+      };
+      n.querySelector('[data-act="arch"]').onclick = (e) => {
+        e.stopPropagation();
+        setMeta(f.path, { arch: !getMeta(f.path).arch });
+        renderTabs(); renderList();
+      };
       wrap.appendChild(n);
     });
     $list.appendChild(wrap);
@@ -258,6 +309,17 @@
   // ---------------------------------------------------------------- wiring
   document.getElementById("docs-refresh").onclick = load;
   $filter.addEventListener("input", renderList);
+  $sort.addEventListener("change", () => { sortMode = $sort.value; renderList(); });
+  $favToggle.addEventListener("click", () => {
+    favOnly = !favOnly;
+    $favToggle.classList.toggle("active", favOnly);
+    renderTabs(); renderList();
+  });
+  $archToggle.addEventListener("click", () => {
+    archView = !archView;
+    $archToggle.classList.toggle("active", archView);
+    renderTabs(); renderList();
+  });
   window.addEventListener("hashchange", () => {
     const p = decodeURIComponent(location.hash.slice(1));
     if (p && p !== selected && files.some((f) => f.path === p)) open(p);

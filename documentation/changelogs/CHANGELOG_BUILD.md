@@ -6,6 +6,20 @@ Seeded 2026-07-05 from the main changelog (keyword split, best effort).
 
 ---
 
+- **[2026-07-06] (Claude)** — **PER-LAYER ("tissue") constraints — new engine + validated.**
+  User's idea: evaluate each constraint against its WIRED LAYER'S activations instead of the
+  whole network, so layers face different survival conditions like tissues — same tournament /
+  energy / whole-organism reproduction, landscape just becomes locally uneven. Built
+  `genreg_train/pure_engine.py` (multi-layer evolved MLP, per-neuron activations, energy
+  homeostasis; the evolving backend PURE's node graph will feed). Decisive 4-condition A/B
+  (next-char, matched compute): Energy→L1 crushes L1 power to 0.039 (8x below control) while L2
+  stays 0.34; SWAP the wire (Energy→L2) and the collapse follows to L2 (0.103) while L1 stays
+  high — differentiation is CAUSAL, controlled by the wiring. Global eval compresses both
+  layers uniformly (no differentiation). Held-out top-1 preserved at 20.8% across all
+  constrained runs (cooperation intact). Consequential Drive holds a wired layer's dead-neuron
+  fraction at 0%; its absence + energy starvation grows 18.8% dead (constraints compose as
+  predicted). Card + full table: documentation/PURE_PER_LAYER_CONSTRAINTS.md.
+
 - **[2026-07-05] (Claude)** — **Fixed the Claude terminal button** — it typed
   `[?1;2cclaude --dangerously-skip-permissions` (PowerShell "Missing type name after '['"
   parse error). Cause: the button blind-fired on a 600 ms timer, racing the terminal's
