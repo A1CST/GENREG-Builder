@@ -339,20 +339,27 @@ def induce_word_classes(n_classes=32, n_anchors=40, vocab_n=4000, seed=0):
     mr = (r >= 1) & (r <= n_anchors)
     np.add.at(feat, (c[mr], n_anchors + r[mr] - 1), 1.0)   # right-neighbour anchor
     feat /= (feat.sum(1, keepdims=True) + 1e-6)            # row-normalise
-    # simple k-means
+    # simple k-means over the REAL words only — <unk> (id 0) is ~1/3 of the corpus
+    # and, left in, forms a mega-class the order genome over-emits and selection
+    # fills with the class's top real words ("more"/"good"). Give it its own class.
     rng = np.random.default_rng(seed)
-    cen = feat[rng.choice(Vw, n_classes, replace=False)].copy()
-    lab = np.zeros(Vw, np.int64)
+    real = np.arange(1, Vw)
+    fr = feat[real]
+    cen = fr[rng.choice(len(real), n_classes, replace=False)].copy()
+    rl = np.zeros(len(real), np.int64)
     for _ in range(30):
-        d = ((feat[:, None, :] - cen[None, :, :]) ** 2).sum(-1)
-        lab = d.argmin(1)
+        d = ((fr[:, None, :] - cen[None, :, :]) ** 2).sum(-1)
+        rl = d.argmin(1)
         for j in range(n_classes):
-            m = lab == j
+            m = rl == j
             if m.any():
-                cen[j] = feat[m].mean(0)
-    word2class = lab.astype(np.int64)
+                cen[j] = fr[m].mean(0)
+    word2class = np.zeros(Vw, np.int64)
+    word2class[real] = rl
+    word2class[0] = n_classes                              # reserved <unk> class
+    nc = n_classes + 1
     class_ids = word2class[ids]
-    _CLASSCACHE[key] = (word2class, class_ids, n_classes, vocab)
+    _CLASSCACHE[key] = (word2class, class_ids, nc, vocab)
     return _CLASSCACHE[key]
 
 
