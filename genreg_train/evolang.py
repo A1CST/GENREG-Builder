@@ -44,14 +44,23 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 RUNS_DIR = os.path.join(ROOT, "runs")
 
 # --------------------------------------------------------------------------
-# The corpus — the Gutenberg book dump (project/EEC-main/engine/corpus.txt,
-# ~49 MB of real English). We DON'T hold every training window in RAM; the flat
+# The corpus — SWAPPED 2026-07-08 (user directive: "modern corpus") from the
+# Gutenberg book dump (project/EEC-main/engine/corpus.txt, 19th-century
+# novels — "thou"/"shalt"/archaic vocabulary) to the Wikipedia dump already
+# built for the relation genomes (corpora/wikipedia/wiki_corpus.txt, 316MB).
+# Every genome that depends on this corpus's vocab/word-classes/distributional
+# features (Order/Selection/Bidirectional/Boundary/Comma/Agreement/
+# Alternation/Semantic/No-repeat/Opener/Closer) was retrained on it
+# (genreg_train/run_retrain_wiki.py, on the I2 primary — see genomes.txt).
+# The old Gutenberg path is kept below, commented, for anyone who needs to
+# revert or compare. We DON'T hold every training window in RAM; the flat
 # character-id array is cached once and windows are sampled on the fly per
 # generation. The vocabulary is a fixed small charset (not derived from the
 # text) so the genome stays tiny: lowercase letters + space + basic punctuation,
 # digits folded to '#', everything else folded to space.
 # --------------------------------------------------------------------------
-CORPUS_PATH = os.path.join(ROOT, "project", "EEC-main", "engine", "corpus.txt")
+# CORPUS_PATH = os.path.join(ROOT, "project", "EEC-main", "engine", "corpus.txt")  # old: Gutenberg
+CORPUS_PATH = os.path.join(ROOT, "corpora", "wikipedia", "wiki_corpus.txt")
 
 CHARS = " abcdefghijklmnopqrstuvwxyz.,;:'\"!?-#"
 VOCAB = list(CHARS)

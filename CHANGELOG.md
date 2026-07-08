@@ -10,6 +10,42 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-08] (Claude)** — Corpus swap: Gutenberg -> Wikipedia, per user directive
+  ("modern corpus" — the pipeline was trained on 19th-century Gutenberg novels, source of
+  every "thou"/"shalt"/"grushenka" in generated output). `genreg_train/evolang.py`'s
+  `CORPUS_PATH` repointed to `corpora/wikipedia/wiki_corpus.txt` (316MB, already on disk).
+  Retrained all 11 core genomes (Order/Selection/Bidirectional/Boundary/Comma/Agreement/
+  Alternation/Semantic/No-repeat/Opener/Closer) entirely on the I2 primary per explicit
+  no-local-heavy-compute constraint (user was gaming) — `run_retrain_wiki.py`, job
+  `5b3f26a088661145`, ~39 min, all stages clean. `demo/genomes.pkl` swapped to the
+  wiki-trained champions; archaic-corpus original preserved at
+  `demo/genomes_archaic_backup.pkl`. Verified with 10 real generated samples (also
+  dispatched remotely, `run_verify_wiki.py`): vocabulary is genuinely modern now, zero
+  archaic words. Grammar is at least as broken as before — heavy "of the X of the Y"
+  chains, because the Wikipedia corpus is dominated by short formulaic geography/biography
+  stub articles, MORE repetitive than the novel prose was. Vocabulary fixed; fluency did
+  not improve — see "Grammar investigation" in `genomes.txt` for next steps. Flagged: this
+  session's SVD-feature-dependent artifacts (collocation/parallelism/coherence champions,
+  none ever wired) and `battery_round1.py`'s guardrail baselines are now stale relative to
+  the new corpus — real follow-up, not done in this pass. Requires a Flask restart to take
+  effect (not restarted here, per standing instruction).
+
+- **[2026-07-08] (Claude)** — MNIST-Pipe **round 5: 98.21% test** (from 97.63) — the
+  optimisation-gap campaign paid off. What worked, in order: (r3) fixed 16k pool — first
+  climb past the warm start but the population MEMORISED the pool (champion NLL on pool
+  ~-0.009 vs -0.086 on full train; flat test). (r4) user's **magnitude-scaled mutation**
+  (`ga_step(mag_scale=True)`: each gene perturbed proportionally to its own |w| + 5%-of-mean
+  floor) — found lighter better-fitting genomes (|W|^2 451->327) but same memorised pool, flat
+  test. (r5) **full-55k deterministic landscape** (`--joint-pool 0`; the exact objective the
+  98.53 closed-form probe optimises, GA as the only traversal): steady honest climb 98.24 ->
+  98.50 val, TEST joint 97.83, +pairwise referees (re-gated margin 1.5) **98.21**. Val->test
+  gap collapsed 0.95 -> 0.41. Also: joint fitness einsum -> single GEMM (32x faster/gen;
+  55k-pool gen ~0.7s). Backups: `demo/mnist_genomes_r{2,5}.pkl`. 0.29 from the user's 98.5
+  gradient-free record. ROUND 6 launched: **evolved per-neuron precision** (user's directive):
+  `JointQPop` — 10 bit-width genes (3..16), symmetric linear quantisation INSIDE the fitness
+  (straight-through latents), bit_cost 0.01 so precision must pay for itself; champion saved
+  as the quantised model + per-neuron bits + effective KB (`--quant`). 12-bit warm start
+  already holds val 98.50 (quantisation is free at 12 bits).
 - **[2026-07-08] (Claude)** — Meaning-first generation: user-directed architecture flip.
   Diagnosis: the pipeline has been structure-first this whole time (Order picks a class
   skeleton blind, Fill picks whatever word fits, meaning is bolted on afterward as a

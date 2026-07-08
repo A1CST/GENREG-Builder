@@ -1,5 +1,43 @@
 # WordPipe Genome Roadmap
 
+## Corpus swap: Gutenberg -> Wikipedia (2026-07-08) — user directive: "modern corpus"
+
+The entire pipeline was trained on `project/EEC-main/engine/corpus.txt` — 49MB of
+19th-century Gutenberg novels (Brothers Karamazov, Don Quixote, Les Misérables), which is
+where "thou"/"shalt"/"grushenka"/"ivanovna"/"enjolras" came from in every sample. No genome
+can fix that; it's baked into the vocabulary and word classes themselves. Swapped
+`genreg_train/evolang.py`'s `CORPUS_PATH` to `corpora/wikipedia/wiki_corpus.txt` (316MB,
+already on disk for the relation genomes) and retrained everything downstream:
+`genreg_train/run_retrain_wiki.py`, dispatched entirely to the I2 primary (job
+`5b3f26a088661145`, ~39 min, all 11 GA stages completed cleanly) — Order, Selection,
+Bidirectional, Boundary, Comma, Agreement, Alternation, Semantic, No-repeat, Opener, Closer.
+`demo/genomes.pkl` swapped to the wiki-trained champions; the original archaic-corpus
+version is preserved at `demo/genomes_archaic_backup.pkl` for revert/comparison.
+
+**Verified with real generated samples** (`genreg_train/run_verify_wiki.py`, 10 samples,
+also dispatched to the primary — see the log for full text): vocabulary is genuinely
+modern now (tournament, album, television, football, district, california, aircraft — zero
+archaic words). **Grammar is at least as broken as before, arguably worse** — heavy
+"of the X of the Y", "by the X in the Y" chains, because `wiki_corpus.txt` is dominated by
+short, formulaic geography/biography stub articles ("X is a town and arrondissement in...
+population census... according to..."), which is MORE repetitive/templated than the novel
+prose was. Fixing the vocabulary did not fix the fluency problem — that's still open, see
+"Grammar investigation" below.
+
+**Known staleness from this corpus swap:** genomes trained this session on the OLD corpus's
+24-d SVD distributional features (`self.feat`, corpus-specific — NOT the same latent space
+across different corpora) are now misaligned with the new corpus: `collocation.py`,
+`parallelism.py`, `coherence.py` (sem_coh_local/theme). None of these were ever wired into
+live generation (all cut/partial/unwired already), so no live behavior changes — but their
+saved champion `.pkl` files are stale and would need retraining on the new corpus if
+revisited. Genomes using STRUCTURAL features instead (`sent_type`, `sent_lenplan` — function-
+type features, not corpus-SVD) remain conceptually valid post-swap, though their tuned
+numbers (corpus question-rate, corpus long-sentence-rate) were measured on the old corpus
+and haven't been re-measured on the new one. `battery_round1.py`'s guardrail numbers
+(adj-hit/distinct/dangling baselines) are also now stale for the same reason — the corpus
+those baselines described no longer exists as the live corpus. Re-running the battery on
+the new corpus is a real follow-up, not done in this pass.
+
 ## Meaning-first generation (NEW, 2026-07-08) — user-directed architecture flip
 
 User's diagnosis: the pipeline has been STRUCTURE-first this whole time — Order picks a
