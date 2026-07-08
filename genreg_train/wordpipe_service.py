@@ -24,6 +24,22 @@ from genreg_train import sent_lenplan as sl
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CACHE = os.path.join(ROOT, "demo", "genomes.pkl")
 NCL, C, D = 32, 4, 24
+# DECOMPOSED Bidirectional-selection (2026-07-08). The trained "bisel"
+# champion (ML, MR, beta) already sums THREE conceptually separate scores
+# into one number: how well a candidate fits the PREVIOUS word (ML), how
+# well it fits the UPCOMING class (MR), and how common the candidate is
+# overall regardless of context (beta * logfreq). Exposing them as three
+# independently-weighted terms (instead of one fixed-ratio champion) gives
+# observability — each can be dialed or toggled off to see its individual
+# contribution — matching this project's decompose-the-compound-question
+# discipline, applied to an already-shipped genome instead of a new one.
+# Swept on the I2 primary (run_selection_decompose.py): dialing the
+# frequency term down raises vocabulary diversity but costs local
+# plausibility (adj-hit) — a real trade-off, not a free win, so defaults
+# below reproduce the ORIGINAL trained ratio (all three at weight 1.0).
+SEL_BACKWARD_GAMMA = 1.0  # fit vs the previous word (ML term)
+SEL_FORWARD_GAMMA = 1.0   # fit vs the upcoming class (MR term)
+SEL_FREQ_GAMMA = 1.0      # global word-commonality bias (beta * logfreq term)
 AGREE_GAMMA = 2.5         # weight of the agreement re-rank vs the selection score
 ALTERN_GAMMA = 3.0        # weight of content-function alternation at word-selection
 ORDER_ALTERN_GAMMA = 2.0  # weight of content-function alternation on the ORDER skeleton
@@ -258,6 +274,25 @@ class Service:
             return "comma"
         return None
 
+    def _fill_bisel_decomposed(self, prev_w, cl, next_cls, rng, temp=0.7, reranks=None, bonus=None):
+        """DECOMPOSED Bidirectional selection — see SEL_BACKWARD_GAMMA/
+        SEL_FORWARD_GAMMA/SEL_FREQ_GAMMA above. Same math as wp._fill_bisel,
+        but the three summed terms are independently weighted instead of
+        fixed at their trained ratio."""
+        ML, MR, beta = self.champs["bisel"]
+        mem = self.table[cl][0]
+        cf = self.feat[mem]
+        backward = (self.feat[prev_w] @ ML) @ cf.T
+        forward = cf @ (MR @ self.cents[next_cls])
+        freq_term = beta * self.logfreq[mem]
+        s = (SEL_BACKWARD_GAMMA * backward + SEL_FORWARD_GAMMA * forward
+            + SEL_FREQ_GAMMA * freq_term)
+        s = wp._apply_reranks(s, prev_w, mem, reranks)
+        if bonus is not None:
+            s = s + bonus
+        s = s / temp; s -= s.max(); p = np.exp(s); p /= p.sum()
+        return int(rng.choice(mem, p=p))
+
     def generate(self, en, n=260, seed=0):
         if not self.ready:
             return ""
@@ -364,9 +399,8 @@ class Service:
                     if en.get("sel") == "bi" and "bisel" in self.champs and prev is not None:
                         nxt = next((int(cls_seq[k]) for k in range(j + 1, len(cls_seq))
                                     if int(cls_seq[k]) in self.table), cl)
-                        w = wp._fill_bisel(prev, cl, nxt, self.table, self.feat, self.logfreq,
-                                           self.cents, self.champs["bisel"], rng,
-                                           reranks=reranks, bonus=bonus)
+                        w = self._fill_bisel_decomposed(prev, cl, nxt, rng,
+                                                        reranks=reranks, bonus=bonus)
                     elif en.get("sel") in ("uni", "bi") and "sel" in self.champs and prev is not None:
                         w = wp._fill_selected(prev, cl, self.table, self.feat, self.logfreq,
                                               self.champs["sel"], rng, reranks=reranks, bonus=bonus)
@@ -598,9 +632,8 @@ class Service:
                 if en.get("sel") == "bi" and "bisel" in self.champs and prev is not None:
                     nxt = next((int(cls_seq[k]) for k in range(j + 1, len(cls_seq))
                                if int(cls_seq[k]) in self.table), cl)
-                    w = wp._fill_bisel(prev, cl, nxt, self.table, self.feat, self.logfreq,
-                                       self.cents, self.champs["bisel"], rng,
-                                       reranks=reranks, bonus=bonus)
+                    w = self._fill_bisel_decomposed(prev, cl, nxt, rng,
+                                                    reranks=reranks, bonus=bonus)
                 elif en.get("sel") in ("uni", "bi") and "sel" in self.champs and prev is not None:
                     w = wp._fill_selected(prev, cl, self.table, self.feat, self.logfreq,
                                           self.champs["sel"], rng, reranks=reranks, bonus=bonus)
