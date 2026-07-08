@@ -29,6 +29,31 @@ evolution learns one relation inside it.
 
 **Total: ~9,554 params + chunk lookup. Deploy ~140-450 KB.**
 
+## Wired, but OFF by default (experimental toggles)
+
+Everything below is real code in `wordpipe_service.py`, callable right now via its
+`/evolang` toggle — just not trusted enough yet to ship ON by default. See the per-genome
+verdicts above/below for the evidence behind each one.
+
+| Genome | Toggle | One Thing | Status | Label |
+|---|---|---|---|---|
+| Hypernym | `hyper` | is-a bias (dog→animal) | EXPERIMENTAL - 10/10 probes, untested in generation | abstraction |
+| Meronym | `mero` | part-of bias (wheel→car) | EXPERIMENTAL - 9/10 probes, untested in generation | abstraction |
+| Synonym/Antonym | `synant` | same/opposite-meaning bias | PARTIAL - 11/14 probes, untested in generation | abstraction |
+| Sentence type | `sent_type` | question vs statement opener + "?" | VALIDATED + WIRED - real generation effect measured | structural |
+| Sentence length plan | `lenplan` | long vs short sentence opener | WIRED, WEAK PROBE - no measured generation effect | structural |
+| Pronominalization | `pronominal` | repeated noun → "it" | VALIDATED + WIRED - real generation effect measured | semantic (passage) |
+
+**Revision stage** (`generate_revision()` / "Best-of-N (Revision)" button, not a toggle —
+a separate generation mode): Best-of-N over a Whole-sentence scorer composed from the
+already-evolved champions above. No new training. Verified mechanically, not yet battery-
+tested.
+
+Full roadmap, every attempt (including the cuts), is in "Autonomous genome-testing run"
+below and in the live map at `/evolang/layers` (`static/evolang_layers.js` — source of
+truth for current status; this file is a running log, updated alongside it, not instead
+of it).
+
 ## Autonomous genome-testing run (2026-07-08 onward)
 
 Working systematically through the /evolang/layers roadmap (see `static/evolang_layers.js`
