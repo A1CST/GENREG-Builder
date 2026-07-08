@@ -45,20 +45,52 @@ resolves, not batched.
 | 3 | Sentence length plan | WIRED, NO MEASURED EFFECT | `genreg_train/sent_lenplan.py` + `run_sent_lenplan.py`. Probe passed but weak: mean long-sentence-opener score beat mean short-opener score (+0.53 vs -0.13, val_acc 0.605), but several openers tied on identical scores — the shared function-feature space is too coarse for a sharp cut here. Wired the same shape as Sentence type (opener bias + boundary-probability reshaping toward/away from the 14-word median) at safe gammas. Generation spot-check (20 samples x 260 words, on vs off): median/mean/stdev sentence length came back essentially IDENTICAL (13.37 vs 13.27 mean, 11.06 vs 10.28 stdev) — the wiring exists and the toggle works, but at gammas that don't wreck fluency the effect doesn't show up in the aggregate. `lenplan` toggle, OFF by default. Honest verdict: technically wired, practically inert — would need either a much sharper genome (see Collocation's same coarse-feature problem) or a fundamentally different mechanism (explicit length countdown state, not a per-word score) to actually plan length. |
 | 4 | Clause count | CUT | `genreg_train/clause_count.py` + `run_clause_count.py`. Positive = opener of a sentence containing a mid-sentence coordinating conjunction (", and/but/or/so/yet"), negative = opener of a sentence with none. val_acc 0.575 (barely above the 0.73 majority-class rate — never actually beat the base rate). Decisive probe (data-driven, not hand-picked words): Spearman rank correlation between the genome's opener score and each word's TRUE empirical compound-rate = **-0.009**, i.e. no learnable signal at all — the genome's top-ranked words are subordinators (as/if/because/since/although, which open subordinate clauses) that show no real relationship to whether a coordinating conjunction shows up later. Diagnosis: genuinely unlearnable from the opener word alone, not a compound question to decompose — whether a sentence goes on to coordinate is a downstream planning decision that the first word can't predict; would need real lookahead/planning state (Revision-stage territory), not a per-word Skeleton genome. |
 
-**Round 1 summary (genomes #1-4, 2026-07-08):** 1 clean win (Sentence type), 1 wired-but-inert
-(Sentence length plan — same lesson as Collocation: a weak probe rarely survives into a
-measurable generation effect once gammas are kept fluency-safe), 1 real-but-unclean signal
-left deliberately unwired (Collocation strength), 1 clean cut (Clause count — no signal at
-all, not a decomposition candidate). Remaining Fill-stage roadmap items (Definiteness,
-Transitivity) both require inferring something the pipeline has no machinery to mine cleanly
-from a single word in isolation — Definiteness needs entity-recency tracking across a
-passage (no coreference/discourse-state exists anywhere in this pipeline), Transitivity
-needs a verb/object relationship (no POS tags, and the earlier class-level "Verb argument"
-genome already failed on a related problem). Building either as a naive unary opener-style
-genome would likely repeat Clause count's failure mode for the same underlying reason:
-these are downstream, context-dependent decisions, not lexical properties of a single word.
-They need a real design idea (a genuinely per-context feature, not per-word) before another
-training run is worth spending on them — flagged, not attempted this round.
+| 5 | Sentence coherence (local) | CUT | `genreg_train/coherence.py` + `run_coherence.py`. Positive = (mean feature vector of the last 8 content words, the actual next content word), hard negative = same centroid vs a content word teleported from >=500 words away. val_acc 0.525 — barely above the 0.5 chance floor. Diagnosis: NOT "no such thing as local coherence" — averaging several content words' features into one mean-centroid vector likely destroys the exact information a linear bilinear head would need (a sentence with "dog... park... ball" averages to a topic-less blob). Would need nearest-neighbor-style pooling against the individual recent words, not mean pooling — a different architecture, not attempted this round. |
+| 6 | Theme consistency | CUT | Same file/run as #5, THEME_WIN=50 (absorbs what a separate "Domain purity" genome would have measured). val_acc 0.531 — also barely above chance. Same mean-pooling diagnosis as Sentence coherence, at a larger window. |
+| 7 | List parallelism | PARTIAL | `genreg_train/parallelism.py` + `run_parallelism.py`, trained on I2 primary (job `ee31014e562aeca6`). Mined 35,780 (content, content) pairs directly coordinated by "and"/"or". val_acc=0.768. Probe: 8/10 correct (80%) — fails on two of the most canonical same-type pairs in the language ("dog"/"cat", "king"/"queen", both classic word-analogy examples), which is a concerning place for it to fail. Real signal, majority-correct, but the specific failures make it hard to trust — left UNWIRED, same treatment as Collocation strength. |
+| 8 | Definiteness | CUT | No training run — a corpus-fact check first (`run_definite_check.py`) found the pipeline's word-level vocabulary (`wordpipe.build_lexicon(min_len=2)`) drops single-letter words, so **"a" is not in the 4000-word pipeline vocabulary at all** (166,554 real occurrences in the corpus, all silently mapped to `<unk>`). The pipeline currently cannot choose between "a" and "the" as distinct words — there is no signal to learn or wire, because one side of the distinction doesn't exist in the selectable vocabulary. This is a vocabulary-construction gap, not a learnability gap, and also affects "I" (also 1-char). Not fixed here — raising `min_len` would shift the top-4000 cutoff and likely require retraining every genome that depends on the corpus/vocab caches; flagged as a real, separate fix worth considering, not something to do as a side effect of testing one genome. |
+| 9 | Transitivity | CUT (redundant) | No training run — design analysis only (`genreg_train/transitivity_analysis.md`). Without POS tags, "does this word need a following content word" collapses onto one of two things the pipeline already has: the already-shipped Closer genome (which already learns "is this word a plausible sentence-ender", i.e. the inverse of "needs completion"), or the exact ambiguity that already cut the class-level Verb argument genome (no way to isolate "verb governing an object" from any other reason a content word follows). Word-level framing doesn't add label information the class-level attempt didn't already have — cut as redundant, not attempted. |
+
+**Round 1 summary (genomes #1-9, 2026-07-08):** 1 clean win (Sentence type), 2 wired-but-weak/inert
+(Sentence length plan; and the Revision-stage Best-of-N/Whole-sentence scorer — see below, which
+works mechanically but has a length bias), 2 real-but-unclean signals left deliberately unwired
+(Collocation strength, List parallelism — notably both fail on some of their most canonical
+examples), 4 clean cuts each with a DISTINCT diagnosis: Clause count (no signal, genuinely
+unlearnable from the opener word), Sentence coherence + Theme consistency (mean-pooling likely
+too lossy a representation, not proof coherence itself is unlearnable), Definiteness (blocked by
+a vocabulary-construction gap — "a" isn't even in the selectable vocab), Transitivity (redundant
+with existing genomes, not attempted). See below for the new Revision pipeline stage
+(`generate_revision()` in `wordpipe_service.py`) and the Passage-stage assessment.
+
+## Revision stage (NEW pipeline stage, built 2026-07-08)
+
+`Service.generate_revision(en, n_sentences, n_candidates, seed)` in `wordpipe_service.py`
+implements both `whole_sent` and `best_of_n` from the map: for each sentence slot, generates
+several candidates with the **unchanged** existing pipeline (different seeds), scores each
+whole sentence with `_sentence_score()` (a composite of already-evolved champions — semantic
+adjacency, opener/closer fit, alternation-violation count, no-repeat-violation count, a
+degenerate-length guard), and keeps the best. No new training. Verified mechanically: given
+8 candidates, the scorer correctly rank-orders them from cleanest to most degenerate. Known
+bias: the composite score is roughly additive over word count, so it favors SHORTER sentences
+(fewer chances to accumulate violations) — not yet corrected for length, so treat this as a
+first working version, not a tuned one. Not yet exposed through the `/evolang` UI/API — it's
+a distinct generation mode (`generate_revision`, not the existing `generate`), callable
+directly but with no route/toggle wired up yet.
+
+## Passage stage (2026-07-08)
+
+`generate()` produces one flat token stream with no entity-identity tracking at all (a noun
+mentioned twice looks identical to two different nouns as far as the pipeline is concerned)
+— genuinely blocked for two of the three planned genomes, but not all three:
+
+| # | Genome | Verdict | Notes |
+|---|---|---|---|
+| 10 | Pronominalization | VALIDATED + WIRED | No new training — reuses the No-repeat genome's `recent` buffer as the entity-recency signal (data that already existed). A content word re-mentioned within the last 15 words is replaced by a generic pronoun ("it", no gender/number modeling) 60% of the time. Generation check (30 samples x 260 words, on vs off): "it" frequency rose 0.77%→1.11% of words (+44% relative) — a real, measurable change. `pronominal` toggle, OFF by default. |
+
+**Discourse relation** and **Information status** need actual cross-sentence semantic state
+(what was asserted, what's now presupposed) that nothing in this pipeline represents in any
+form — these need a real design (some kind of persistent entity/claim memory across the
+generation loop), not a training run, and remain out of scope until that exists.
 
 ## Semantic-relation genomes (standalone, Wikipedia-trained, wired 2026-07-07)
 

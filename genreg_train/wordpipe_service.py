@@ -8,6 +8,7 @@ composed — not one net trained on a loss. See documentation/WORDPIPE_FINDINGS.
 """
 import os
 import pickle
+import re
 import threading
 
 import numpy as np
@@ -65,6 +66,12 @@ LENPLAN_GAMMA = 2.0
 LENPLAN_LEN_GAMMA = 0.06
 LENPLAN_LONG_RATE = 207266 / (207266 + 217634)   # from sent_lenplan.log mining pass
 SENT_LENPLAN_CHAMP = os.path.join(ROOT, "genreg_train", "sent_lenplan_champ.pkl")
+# EXPERIMENTAL — Passage-stage pronominalization. No training, no new champion
+# file: reuses the No-repeat genome's `recent` buffer as the entity-recency
+# signal, substitutes a single generic pronoun ("it") for a content word
+# re-mentioned within PRONOM_WINDOW words, with probability PRONOM_PROB.
+PRONOM_WINDOW = 15
+PRONOM_PROB = 0.6
 
 
 class Service:
@@ -87,6 +94,7 @@ class Service:
         try:
             wp.build_word_corpus(4000); wp.induce_word_classes(NCL)
             self.table, self.w2c, self.vocab, self.nc, self.cids = wp.build_class_words(NCL)
+            self.stoi = {w: i for i, w in enumerate(self.vocab)}
             self.feat, _ = wp.word_features(4000, D)
             self.cents = wp.class_centroids(NCL, D)
             ids, _, _ = wp.build_word_corpus(4000)
@@ -158,6 +166,9 @@ class Service:
             else:
                 self.lenplan_scores = None
                 self.lenplan_median = 14.0
+            # EXPERIMENTAL pronominalization target word ("it" — generic, no
+            # gender/number modeling)
+            self.pronom_word = self.stoi.get("it")
             self.ready = True
         except Exception as exc:                       # pragma: no cover
             import traceback; traceback.print_exc()
@@ -280,6 +291,7 @@ class Service:
         use_oblig = en.get("oblig")
         use_sent_type = en.get("sent_type") and self.sent_type_scores is not None
         use_lenplan = en.get("lenplan") and self.lenplan_scores is not None
+        use_pronom = en.get("pronominal") and self.pronom_word is not None
         recent = []                                    # emitted word ids, for the rep genome
         parts, prev, cur, clause, j = [], None, 0, 0, 0
         oblig_depth = 0                                 # EXPERIMENTAL open-obligation tracker
@@ -360,7 +372,19 @@ class Service:
                                               self.champs["sel"], rng, reranks=reranks, bonus=bonus)
                     else:
                         w = int(rng.choice(mem, p=self.table[cl][1]))
-                    parts.append(self.vocab[w]); prev = w; recent.append(w)
+                    # EXPERIMENTAL Passage-stage pronominalization: a content word
+                    # that was already emitted recently gets replaced by a generic
+                    # pronoun instead of repeating the literal noun. Reuses the
+                    # No-repeat genome's `recent` buffer as the entity-recency
+                    # signal — no new training, no gender/number (single generic
+                    # pronoun only).
+                    if (use_pronom and self.pronom_word is not None and prev is not None
+                            and self.is_content[w] and w in recent[-PRONOM_WINDOW:]
+                            and rng.random() < PRONOM_PROB):
+                        w_out = self.pronom_word
+                        parts.append(self.vocab[w_out]); prev = w_out; recent.append(w)
+                    else:
+                        parts.append(self.vocab[w]); prev = w; recent.append(w)
                     _track_oblig(w)
                 emitted = 1; j += 1
             cur += emitted; clause += emitted
@@ -374,9 +398,82 @@ class Service:
                     is_long = use_lenplan and rng.random() < LENPLAN_LONG_RATE
                 elif mark == "comma":
                     parts.append(","); clause = 0
-        import re
         text = " ".join(parts).replace(" .", ".").replace(" ,", ",").replace(" ?", "?")
         return re.sub(r"(^|[.?] )([a-z])", lambda m: m.group(1) + m.group(2).upper(), text)
+
+    # ------------------------------------------------------------------
+    # EXPERIMENTAL Revision stage (genreg_train roadmap: whole_sent, best_of_n).
+    # Every genome above scores LOCALLY, word by word, during generation. This
+    # reads a COMPLETE sentence after the fact and scores it as a whole, then
+    # Best-of-N keeps the best of several independently-generated candidates.
+    # No new training — this is a composed judgment over already-evolved
+    # champions (Semantic, Closer, Opener, Alternation), hence abstraction-tier.
+    # ------------------------------------------------------------------
+    def _sentence_score(self, sent_text, en):
+        """Composite whole-sentence fitness from already-evolved champions.
+        Higher is better. Returns None if the sentence has no usable words."""
+        words = [w for w in sent_text.strip(" .?").split(" ") if w]
+        if not words:
+            return None
+        ids = [self.stoi.get(w.lower(), 0) for w in words]
+        score = 0.0
+        # semantic adjacency: consecutive content words should co-occur
+        if en.get("sem") and "sem" in self.champs and self.is_content is not None:
+            M = self.champs["sem"]
+            pairs = [(ids[i], ids[i + 1]) for i in range(len(ids) - 1)
+                     if ids[i] and ids[i + 1] and self.is_content[ids[i]] and self.is_content[ids[i + 1]]]
+            if pairs:
+                score += SEM_GAMMA * np.mean([self.feat[a] @ M @ self.feat[b] for a, b in pairs])
+        # opener fit
+        if en.get("open") and self.open_scores is not None and ids[0]:
+            score += OPEN_GAMMA * self.open_scores[ids[0]]
+        # closer fit (rate-preserving, centred)
+        if en.get("close") and self.close_scores is not None and ids[-1]:
+            score += CLOSE_GAMMA * (self.close_scores[ids[-1]] - self.close_center)
+        # alternation: penalize adjacent function-function runs
+        if en.get("altern") and self.is_content is not None:
+            ff_runs = sum(1 for i in range(len(ids) - 1)
+                         if ids[i] and ids[i + 1] and not self.is_content[ids[i]]
+                         and not self.is_content[ids[i + 1]])
+            score -= ALTERN_GAMMA * 0.3 * ff_runs
+        # no-repeat: penalize a content word reused within the sentence
+        if en.get("rep") and self.is_content is not None:
+            seen = set(); reps = 0
+            for wid in ids:
+                if wid and self.is_content[wid]:
+                    if wid in seen:
+                        reps += 1
+                    seen.add(wid)
+            score -= 0.5 * reps
+        # degenerate-length guard (too short reads as a fragment, too long rambles)
+        if len(words) < 3 or len(words) > 60:
+            score -= 5.0
+        return score
+
+    def generate_revision(self, en, n_sentences=6, n_candidates=6, seed=0):
+        """EXPERIMENTAL Best-of-N over the Whole-sentence scorer. For each
+        sentence slot, generate several independent candidates with the
+        UNCHANGED pipeline (same generate(), different seeds), score each
+        whole sentence, keep the best. No new training."""
+        if not self.ready:
+            return ""
+        rng = np.random.default_rng(seed)
+        kept = []
+        for s in range(n_sentences):
+            best_text, best_score = None, None
+            for c in range(n_candidates):
+                cand_seed = int(rng.integers(0, 2**31 - 1))
+                text = self.generate(en, n=48, seed=cand_seed)
+                m = re.match(r"^(.*?[.?])", text)
+                first = m.group(1) if m else text
+                sc = self._sentence_score(first, en)
+                if sc is None:
+                    continue
+                if best_score is None or sc > best_score:
+                    best_text, best_score = first, sc
+            if best_text:
+                kept.append(best_text)
+        return " ".join(kept)
 
 
 SERVICE = Service()

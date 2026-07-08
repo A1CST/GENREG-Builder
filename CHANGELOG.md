@@ -10,6 +10,30 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-08] (Claude)** — Autonomous genome-testing run: rest of the /evolang/layers
+  roadmap cleared (genomes #5-10), plus a new Revision pipeline stage built.
+  **Sentence coherence** + **Theme consistency**: CUT, both barely above chance
+  (val_acc 0.525/0.531) — diagnosis is mean-pooling content-word features into one
+  centroid likely destroys the signal a linear head needs, not proof coherence itself
+  is unlearnable. **List parallelism**: PARTIAL (val_acc 0.768, probe 8/10) — trained on
+  the I2 primary, fails on two of the most canonical same-type pairs ("dog"/"cat",
+  "king"/"queen"), left unwired. **Definiteness**: CUT before training — a corpus-fact
+  check found "a" isn't even in the pipeline's 4000-word vocabulary (`min_len=2` drops
+  single-letter words; 166,554 real occurrences silently mapped to `<unk>`), a
+  vocabulary-construction gap, not a learnability one. **Transitivity**: CUT as
+  redundant with the shipped Closer genome / already-cut Verb argument genome, design
+  analysis only, no training run. **Revision stage BUILT**: `Service.generate_revision()`
+  + `_sentence_score()` in `wordpipe_service.py` implement Whole-sentence scorer +
+  Best-of-N — generates several candidate sentences with the unchanged pipeline, scores
+  each from already-evolved champions, keeps the best; no new training; verified
+  mechanically (correctly rank-orders candidates); has a known length bias, not yet
+  exposed via UI/API. **Pronominalization VALIDATED + WIRED** — the first real
+  Passage-stage genome, needed no training at all (reuses the No-repeat genome's
+  `recent` buffer): re-mentioned content words get replaced by "it" 60% of the time;
+  measured 'it' frequency rose 0.77%→1.11% of words (+44% relative), a real effect.
+  Discourse relation / Information status remain genuinely blocked — no persistent
+  cross-sentence state exists anywhere in the pipeline. Full details in `genomes.txt`.
+
 - **[2026-07-08] (Claude)** — Autonomous genome-testing run, genome #4 resolved, round 1 wrap-up.
   **Clause count** (skeleton): CUT. val_acc 0.575 never beat the 0.73 majority-class rate;
   decisive probe (Spearman correlation between genome score and each word's TRUE empirical
