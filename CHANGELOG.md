@@ -10,6 +10,22 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-08] (Claude)** — Full guardrail battery run on round-1's experimental
+  genomes (`genreg_train/battery_round1.py`) — correcting an earlier overstatement that
+  "tested" meant fully validated. It didn't: earlier verdicts were probe + a lightweight
+  1-2-metric spot-check, not the 4-metric (adj-hit rate, distinct-word ratio, dangling-
+  ending rate, mean sentence length, 60-sample) battery the original 13 shipped genomes
+  went through. Ran that battery on all four wired toggles + the Revision stage — every
+  one regresses at least one guardrail, so none graduate to shipped:
+  **Sentence type**: dangling-ending rate 20.8%→24.8%. **Sentence length plan**: dangling
+  20.8%→26.0% — worse than Sentence type, and this CORRECTS the earlier "practically
+  inert" verdict, which only checked sentence length (unaffected) and missed the real
+  dangling-rate cost. **Pronominalization**: dangling 20.8%→24.0% — the "it"-substitution
+  effect is real but has a fluency cost the earlier spot-check didn't measure.
+  **Revision stage (Best-of-N)**: mean sentence length collapsed 14.7→7.8 words (-47%) —
+  confirms the length bias flagged at build time was severe, not a minor caveat.
+  `genomes.txt` and `static/evolang_layers.js` updated with the real numbers.
+
 - **[2026-07-08] (Claude)** — /evolang UI updated for the genomes wired this session.
   `sent_type`/`lenplan`/`pronominal` toggles now appear in the genome-stack sidebar
   (LAYERS array in `static/evolang.js`) and the pipeline description card (ARCH array).

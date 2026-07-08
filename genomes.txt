@@ -32,22 +32,41 @@ evolution learns one relation inside it.
 ## Wired, but OFF by default (experimental toggles)
 
 Everything below is real code in `wordpipe_service.py`, callable right now via its
-`/evolang` toggle — just not trusted enough yet to ship ON by default. See the per-genome
-verdicts above/below for the evidence behind each one.
+`/evolang` toggle — just not trusted enough yet to ship ON by default. **"Tested" here
+means probe + a lightweight spot-check (20-30 samples, 1-2 metrics) — that is NOT the
+same as the full guardrail battery (adj-hit rate, distinct-word ratio, dangling-ending
+rate, mean sentence length across 60 samples) the original 13 shipped genomes went
+through before earning default-ON. That full battery was run 2026-07-08
+(`genreg_train/battery_round1.py`, log in `battery_round1.log`) — every one of the five
+below REGRESSED at least one guardrail and stays experimental. Numbers below are from
+that run, not the earlier spot-checks.**
 
-| Genome | Toggle | One Thing | Status | Label |
+| Genome | Toggle | One Thing | Battery result | Label |
 |---|---|---|---|---|
-| Hypernym | `hyper` | is-a bias (dog→animal) | EXPERIMENTAL - 10/10 probes, untested in generation | abstraction |
-| Meronym | `mero` | part-of bias (wheel→car) | EXPERIMENTAL - 9/10 probes, untested in generation | abstraction |
-| Synonym/Antonym | `synant` | same/opposite-meaning bias | PARTIAL - 11/14 probes, untested in generation | abstraction |
-| Sentence type | `sent_type` | question vs statement opener + "?" | VALIDATED + WIRED - real generation effect measured | structural |
-| Sentence length plan | `lenplan` | long vs short sentence opener | WIRED, WEAK PROBE - no measured generation effect | structural |
-| Pronominalization | `pronominal` | repeated noun → "it" | VALIDATED + WIRED - real generation effect measured | semantic (passage) |
+| Hypernym | `hyper` | is-a bias (dog→animal) | EXPERIMENTAL - 10/10 probes, not yet battery-tested | abstraction |
+| Meronym | `mero` | part-of bias (wheel→car) | EXPERIMENTAL - 9/10 probes, not yet battery-tested | abstraction |
+| Synonym/Antonym | `synant` | same/opposite-meaning bias | PARTIAL - 11/14 probes, not yet battery-tested | abstraction |
+| Sentence type | `sent_type` | question vs statement opener + "?" | FAILS battery: dangling-ending rate 20.8%→24.8% (+0.040), mean-len +2.9%. Real question-rate effect confirmed, but costs fluency. | structural |
+| Sentence length plan | `lenplan` | long vs short sentence opener | FAILS battery: dangling-ending rate 20.8%→26.0% (+0.052, WORSE than sent_type). Corrects the earlier "practically inert" call — that was based on sentence-length alone, which didn't move, but the full battery shows a real fluency cost the narrower spot-check couldn't see. | structural |
+| Pronominalization | `pronominal` | repeated noun → "it" | FAILS battery: dangling-ending rate 20.8%→24.0% (+0.032), distinct -0.002, mean-len +1.4%. The "it"-substitution effect is real but has a fluency cost not caught by the earlier spot-check (which only measured "it" frequency). | semantic (passage) |
 
 **Revision stage** (`generate_revision()` / "Best-of-N (Revision)" button, not a toggle —
 a separate generation mode): Best-of-N over a Whole-sentence scorer composed from the
-already-evolved champions above. No new training. Verified mechanically, not yet battery-
-tested.
+already-evolved champions above. No new training. Battery result (2026-07-08, 15 samples,
+8 sentences x 6 candidates each): adj-hit -0.035, distinct +0.057 (both fine), dangling
+-0.045 (BETTER), but **mean sentence length collapsed 14.7→7.8 words (-47%)** — confirms
+the "length bias" flagged at build time as a caveat is actually severe. The scorer's
+penalties accumulate with word count, so Best-of-N systematically prefers short, safe
+sentences over longer, natural ones. Needs a length-normalized scorer (e.g. divide the
+composite by word count, or add a length-target term) before this is usable — stays
+experimental, not shipped.
+
+**Verdict: none of the round-1 genomes graduate to shipped.** Every one that had a real,
+measurable generation effect also had a real, measurable fluency cost once checked against
+the full battery instead of a narrow spot-check. This is useful data, not a failure of the
+round — it means the lightweight spot-check protocol used during the round systematically
+under-caught side effects, and the fix is running this battery as a required LAST step for
+any genome before it's called validated, not just probe + one spot-check metric.
 
 Full roadmap, every attempt (including the cuts), is in "Autonomous genome-testing run"
 below and in the live map at `/evolang/layers` (`static/evolang_layers.js` — source of
