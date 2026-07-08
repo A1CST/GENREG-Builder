@@ -10,6 +10,376 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-08] (Claude)** — `/evolang/layers`: split the "Sentence coherence"/"Theme
+  consistency" pair back out of the earlier grouping fix — their names overflowed the
+  sub-node box width sized for one-word Sentiment names. `groupSubWidth()` now sizes each
+  GROUP's sub-node width to its own longest member name (clamped 84-150px) instead of a
+  single global constant, so two-word names render cleanly without touching the Sentiment
+  cluster's sizing. Also added TWO NEW PIPELINE STAGES to the backbone/columns — **Revision**
+  (whole-sentence post-hoc scoring) and **Passage** (cross-sentence/discourse) — neither
+  exists in `wordpipe_service.py`'s `generate()` yet, so both render dashed/muted in the
+  backbone itself (not just as node status), honestly distinguishing "live pipeline stage"
+  from "planned future stage." Fixed two places that hardcoded the old 3-stage set
+  (`byLayer` init, `buildExport`'s `byStage`) to derive from `STAGES` generically instead,
+  so future stage additions don't require hunting for hardcoded assumptions again. Added 12
+  new PLANNED genomes from the user's gap analysis: Skeleton gets Sentence type/Sentence
+  length plan/Clause count (was only 3 genomes vs Fill's 20+); Fill gets
+  Definiteness/Verb-preposition/Transitivity; the new Revision stage gets a bundled
+  "Revision (composed)" pair (Whole-sentence scorer + Best-of-N — abstraction-tier, since
+  scoring a whole sentence composes judgments from other genomes); the new Passage stage
+  gets Pronominalization/Information status (semantic) and Discourse relation (abstraction
+  — explicitly the "evolved version" of the already-DEFERRED flat-rule Discourse connector
+  genome). No training code written — planning only, per explicit instruction. Verified with
+  the same throwaway-server + headless-Chrome method; live Flask untouched.
+- **[2026-07-08] (Claude)** — `/evolang/layers`: uplifted the Semantic band per user request
+  (adjacency alone "is not enough") — 6 new candidate genomes. Two are RE-SURFACED prior
+  battery results, labeled `cut` with their real numbers (Wider co-occurrence: marginal gain
+  at ±5 vs ±1, cut; Lexical bridge: baseline already exceeded corpus carryover rate, cut) —
+  not relabeled "experimental" despite the ask, since real evidence already exists on them and
+  that would misrepresent it. Four are genuinely new, untried ideas, labeled `planned`: Topical
+  drift (distance from a running content-word centroid), Collocation strength (specific-pair
+  fixed-phrase compatibility, tighter than loose window co-occurrence), List parallelism
+  (are coordinated list items the same distributional kind), Domain purity (passage-level
+  topic consistency, a different mining approach than the failed quote-span Register genome).
+  No training code written — this is the flow map being used as a planning tool ahead of any
+  build, per user's explicit ask. Verified with the same throwaway-server + headless-Chrome
+  method; live Flask untouched.
+- **[2026-07-08] (Claude)** — `/evolang/layers`: real hover tooltips (custom-styled div,
+  replaces the slow/unstyled native SVG `<title>`), an always-visible tiny one-line
+  description on every node (not just on hover), and a new `status: 'planned'` tier (dotted,
+  faint — design intent, not yet attempted, distinct from `cut` which was attempted and
+  rejected on evidence). Decomposed the monolithic CUT Sentiment genome into 4 PLANNED
+  sub-genomes (Good / Bad / Intensity / Emotion — matches the roadmap already in
+  `genomes.txt`'s battery note) — and per user feedback, these 4 render bundled into ONE
+  compact "Sentiment (composed)" 2×2 cluster with a labeled dashed boundary, not stacked as 4
+  separate full-size rows (which read as noise, not as one concept). New reusable `group`/
+  `groupLabel` fields in the node data model + grouped-cluster layout code in
+  `evolang_layers.js` — the map is now also where FUTURE genomes get planned before they're
+  built. Export JSON updated to include group membership. Verified with the same throwaway-
+  server + headless-Chrome-screenshot method as the initial build; live Flask untouched.
+- **[2026-07-08] (Claude)** — `/evolang/layers`: added an **Export JSON** button (top-right of
+  the card). Serializes the same data driving the diagram — layers, pipeline stages (with
+  each stage's genome-id list), and every genome (id/name/layer/stages/status/description,
+  cut genomes included) — to a downloaded `evolang_genome_layers.json`, for handing the
+  pipeline's current architecture to another AI/tool without a screenshot. Client-side only
+  (`Blob` + anchor download), no new backend route.
+- **[2026-07-08] (Claude)** — NEW `/evolang/layers`: a genome layer/flow map for the WordPipe
+  pipeline. Three horizontal bands (Structural / Semantic / Abstraction — per this session's
+  "layer" framework: form vs. built-meaning-space vs. relations composed on that space) each
+  positioned by which real generation-pipeline stage they wire into (Skeleton / Fill /
+  Boundary), with a backbone showing the actual flow (Skeleton → Fill → Boundary → Output) and
+  connector lines from each genome to its stage. Includes the 3 wired-but-experimental relation
+  genomes AND the cut ones (sentiment/polysemy/register/analogy/open-obligation) as
+  dashed/faded nodes with their one-line cut reason in the hover tooltip — same "report the cut
+  list too" discipline as the rest of this project. NEW `static/evolang_layers.js` (static
+  hand-authored data array + a lightweight hand-rolled SVG renderer, same pattern as
+  diff.js/animation.js — NOT the PURE node-graph editor, this is read-only) and
+  `templates/evolang_layers.html`; new route in `app.py` (`evolang_layers_page`); linked from
+  the main `/evolang` page next to the WORDPIPE_FINDINGS docs link; two new CSS tokens
+  (`--layer-semantic`, `--layer-abstraction`) in `style.css`. Verified end-to-end with a
+  temporary local server on a spare port + headless Chrome screenshot (both bands/columns and
+  the legend render correctly) — the live site's Flask process was never touched. **Flask
+  restart needed** to see this on the live site (new route in `app.py`).
+- **[2026-07-08] (Claude)** — MNIST-Pipe **rounds 2-3: 97.63% test shipped; the path to the
+  98.5% record is diagnosed**. Round 2 (deskew) TEST: centroid 90.95 -> detectors 96.97 ->
+  +mixer 97.06 -> +pairwise **97.63** (margin 6.0 on val; champions in `demo/mnist_genomes.pkl`,
+  served by /mnist). DIAGNOSTIC (closed-form logistic, ceiling probe only, per GENREG_RULES
+  baselines rule): the SAME v2 features support **98.53% test** — so the remaining gap is GA
+  optimisation, not representation. Round-3 attempts, all honestly gated and CUT so far:
+  (a) random-Fourier lift v3 (`rff_lift`, kept in code) — GA can't exploit the lifted
+  directions, minibatch noise dominates (cold 95.98; warm-start decays; L2 slows, doesn't cure).
+  (b) shifted-copy train augmentation (`--augment`, kept) — harder task, worse at equal gens
+  (95.81). (c) JOINT REFINE (`train_joint`, `--joint-only`): det+mixer folded algebraically
+  into one 677x10 genome (`fold_stack`), warm-started, evolved on joint log-softmax — no
+  regression (champion tracked on val) but the population drifts off the warm optimum: train
+  fitness climbs while val decays, even with fixed-minibatch rotation + 5e-4 sigma floor.
+  Diagnosis: mutation's random walk grows |W| (overfit); final probe of the night = L2 1e-4
+  (the exact term the closed-form ceiling needed) + |W|^2 logging ->
+  `demo/mnist_joint_probe.log`. `ga_step` gained sigma_lo/sigma_hi params.
+  **PROBE VERDICT (read the log): L2 1e-4 does NOT cure it** — fit0 declines -0.17 -> -0.27
+  across batch rotations while |W|^2 grows 478 -> 828 through the penalty. Mechanism
+  identified: SERIAL PER-BATCH OVERFITTING (each 25-gen window is a deterministic landscape
+  over one 4096 batch; the population climbs it, rotation invalidates the climb, repeat) —
+  not gen-to-gen noise. Next session's fix: hold ONE fixed ~16k train subset as the fitness
+  pool for the whole joint run (deterministic landscape, too large for a 6770-param linear
+  genome to overfit — the closed-form fit generalises at this ratio), pop ~60, sigma_lo 5e-4,
+  keep L2 1e-4; ~80 min CPU at 4000 gens. Then re-gate the pairwise margin (grid now to 12).
+- **[2026-07-07] (Claude)** — `/evolang`: **Chunks toggle now OFF by default** (per user: it was
+  causing more repeated tokens — the No-repeat genome only tracks single emitted words, so a
+  chunk-emitted multi-word phrase can reintroduce a content word No-repeat would otherwise have
+  blocked). Tooltip updated to say so. `static/evolang.js` only; no service/Python change, no
+  restart needed beyond a browser refresh.
+- **[2026-07-07] (Claude)** — Wired the standalone semantic-relation genomes (Hypernym, Meronym,
+  unified Synonym/Antonym) into `/evolang`. NEW `genreg_train/rel_wire.py`: crosswalks the 30K-word
+  Wikipedia vocab these were trained on into the pipeline's own 4000-word vocab by direct lookup
+  (~91% coverage; uncovered words get a zero feature row, same graceful-degradation pattern as
+  every other genome). Wired as selection re-ranks in `wordpipe_service.py` (same mechanism as
+  Semantic), gated behind new `hyper`/`mero`/`synant` toggles — **OFF by default**, since these are
+  validated as standalone relation detectors but haven't been through the generation-time battery
+  (real-effect + guardrail measurement) every other shipped genome went through; tooltips in the
+  GUI say so explicitly. New `corpora/wikipedia/build/{hypernym,meronym,synant}_export.py`:
+  standalone re-exports of each genome (same seed/mining recipe as the validated runs) that persist
+  the champion matrix to `.npz` — nothing was previously saved to disk from the validation-only
+  training scripts. **Found and fixed a real bug in the process**: `meronym_export.py`'s
+  consolidation accidentally reordered its two mining loops relative to the original validated
+  run — same seed AND same mined-pair COUNT (7857), but the mined pairs feed a `Counter` whose
+  iteration order becomes the training array's index order, and the GA samples by array position,
+  not pair identity — so the reordering silently produced a DIFFERENT trained genome (probes 7/10
+  instead of the original 9/10) despite looking deterministic. Fixed the loop order; re-running.
+  Hypernym reproduced bit-for-bit identical to its original validated probes (10/10); synant's
+  convergence trajectory also matched closely. Smoke-tested the full wiring locally (all three
+  genomes load, ~91% coverage, generation runs and visibly changes word choice with the toggles on
+  vs off, no exceptions) before any Flask restart. **Flask restart needed to see this on /evolang**
+  (never restarted automatically — see standing instruction).
+- **[2026-07-07] (Claude)** — MNIST-Pipe **round-1 RESULTS + round-2 launched**. Round 1
+  (raw-image statistics layer) on the untouched test 10k: centroid floor 88.93% ->
+  detectors(argmax) 95.57% -> +mixer 95.60% -> +pairwise referees **96.83%** (37.4K evolved
+  params total; every layer passed its gate; val->test drop 97.68->96.83, within the <10%
+  relative rule). The mixer barely moves top-1 but improves val log-prob -0.39->-0.24 —
+  calibration that the pairwise margin gate rides on. Round-1 champions backed up to
+  `demo/mnist_genomes_r1.pkl`. Round 2 per the thesis (enrich the ENVIRONMENT, not the
+  organism): new `deskew()` in `mnist_pipe.py` — moment-based shear correction, unsupervised,
+  vectorised bilinear remap — as statistics-layer v2 (`build_features(version=2)`, version
+  stamped into the champions pickle). Deskew alone lifts the no-evolution centroid floor
+  88.93% -> 90.95%. Full v2 battery running detached -> `demo/mnist_train_r2.log`.
+- **[2026-07-07] (Claude)** — NEW PROJECT + PAGE: **/mnist — MNIST-Pipe**, the
+  EvoLang/WordPipe specialist-pipeline recipe applied to images (user pivot: prove the
+  GA-abstraction thesis outside language; target the 99% range). Statistics layer BUILT
+  from the data (677 fixed dims: zone ink, profiles, gradient histograms, PCA — no labels,
+  never evolved) -> semantic layer EVOLVED (10 one-vs-rest detector genomes + 45 one-vs-one
+  pairwise disambiguators, each a tiny linear head with one clean survival condition, soft
+  BCE fitness) -> output layer EVOLVED (10x10 mixer genome, soft log-softmax fitness;
+  pairwise genomes referee close top-2 calls, margin tuned on val only). Gradient-free
+  throughout (shared tournament/elitism/starvation/self-adaptive-sigma machinery).
+  Baselines: majority 11.35%, nearest-centroid floor 88.93%. Files:
+  `genreg_train/mnist_pipe.py` (data/features/training/eval), `genreg_train/mnist_service.py`
+  (lazy web backend), `templates/mnist.html`, `static/mnist.js`, `/mnist` + `/api/mnist/*`
+  routes in `app.py`, nav entry, `style.css` additions. Data in `corpora/mnist/`, champions
+  in `demo/mnist_genomes.pkl`, training log `demo/mnist_train.log`. See
+  `documentation/changelogs/CHANGELOG_MNIST.md`. NOTE: needs a Flask restart to serve the
+  new routes (not restarted per standing rule).
+- **[2026-07-07] (Claude)** — NEW `documentation/GA_SCALING_FIELD_NOTES.pdf` — a generalized (not
+  language-specific) field-notes paper on scaling gradient-free genetic algorithms, drawn entirely
+  from this project's own measured results (structural + semantic genome batteries, the I2
+  job-dispatch work). Honest by request: reports the ~2/3 cut rate alongside the shipped wins, with
+  a dedicated failures section (validation-accuracy-is-not-the-verdict, label/mining quality as the
+  real bottleneck, the analogy "representation-altitude" diagnosis, a metric-saturation artifact)
+  and a 10-point extracted-principles list. Typeset PDF (reportlab; Candara/Constantia/Consolas,
+  a palette grounded in GA vocabulary — amber=selection, green=validated, rust=cut), 11 pages.
+  Explicitly flagged as an empirical log, not a controlled study (see its own Limitations section).
+- **[2026-07-07] (Claude)** — I2: **secondary node + signed job dispatch** (compute-only v1, per
+  user request to run multiple GA training jobs across machines instead of queueing on one). New
+  `--role secondary --primary <url>` on `i2_node.py`: a compute-only node (no content plumbing —
+  no pages/genome/ledger) that registers with a primary via a signed handshake and exposes
+  `POST /api/i2/admin/job/{submit,cancel}` + `GET /api/i2/admin/job/<id>/{status,log}` +
+  `GET /api/i2/admin/jobs`. Auth reuses the EXISTING Ed25519 admin-key trust model
+  (`verify_admin_doc`, same key `push_to_primary.py`/maintenance already use) with new domain-
+  separated prefixes `i2job\x00`/`i2reg\x00` — no new crypto. Submitted scripts must match
+  `JOB_WHITELIST` (mirrors `PUSH_WHITELIST`, now also covering `corpora/wikipedia/build/` and a new
+  `jobs/` dir) and must already be on the node's disk (deployed via the existing push mechanism) —
+  deliberately no inline/arbitrary-code channel. Jobs run one-at-a-time per node via a background
+  worker thread + FIFO queue (subprocess, log to `data_dir/jobs/<id>.log`); different NODES run in
+  parallel. New `run_job.py` (mirrors `push_to_primary.py`'s signing) to submit/watch/cancel jobs
+  from this machine. **This session**: job history now PERSISTS across node restarts
+  (`jobs_index.json` in the node's data dir; a job still `queued`/`running` at save time is marked
+  `interrupted` on reload, not silently dropped or left stuck). New **Jobs tab** in the primary's Tk
+  console GUI — lists all jobs (id/script/status/times/rc), streams the selected job's log, and can
+  cancel a running job, refreshed on the same 2s loop as the rest of the dashboard. Bumped
+  `NODE_VERSION` 1.3.0 -> 1.4.0. E2E verified locally (submit -> queued -> running -> log streams ->
+  done; unsigned submit correctly rejected; job survives a process restart) before pushing to the
+  real primary at 10.0.0.15 via `push_to_primary.py` (confirmed back up on v1.4.0 with the new
+  routes live). Scope explicitly OUT of v1 (see plan): no reputation-based auto-promotion of unknown
+  nodes (trust = admin key only, same boundary as code deploy), no automatic artifact pull-back, no
+  cross-node scheduling (the caller picks which node a job targets). Full content replication for
+  secondaries (pages/genome/ledger sync) deferred — this pass is compute-only per user's explicit
+  scope choice. See also `documentation/changelogs/CHANGELOG_I2.md`.
+- **[2026-07-07] (Claude)** — Semantic-relation genome battery, round 2: reran the in-flight
+  hypernym/synant work from RESUME.md and added 5 new relation attempts (meronym, synonym/antonym
+  UNIFIED reframe, sentiment, polysemy, analogy) — same discipline as every other battery in this
+  file: ship what earns its place on clean PROBES, cut what doesn't, log the honest reasoning.
+  Full logs: `corpora/wikipedia/build/{hypernym,synant,synant_unified,batch2,register}.log`.
+  **VALIDATED — Hypernym**: directional heldout-acc 0.86, probes 10/10 (dog->animal, france->country,
+  hammer->tool, etc. all rank correctly above their reverse). **PARTIAL — Synonym/Antonym UNIFIED**
+  (`synant_unified.py`, per user's reframe suggestion): training synonym and antonym as two SEPARATE
+  "related vs unrelated" detectors failed the decisive test (separate synonym genome ranked the
+  unrelated control `dog/car` ABOVE real synonyms; separate antonym genome failed its OWN flagship
+  example, `hot/cold` scored negative). Reframed as ONE genome, no unrelated pairs at all, asking
+  only "given a pair already known to be related, same-meaning or opposite-meaning?" Real
+  improvement: `hot/cold` flipped to +0.86 (correct), 11/14 probes correct overall, val_acc 0.77.
+  Residual: `big/large`/`small/little` (size-adjective synonym pairs) still misclassify as
+  antonym-leaning — likely genuine contamination (these words really do co-occur in coordination
+  contexts too, e.g. "big and small businesses"). Shipped as PARTIAL, not wired. **VALIDATED-weaker
+  — Meronym**: probes 9/10 (only leaf/tree failed), heldout-acc modest 0.35-0.41. **CUT — Sentiment**
+  (monolithic): seed-propagation drifted to generic frequent words; probes inverted (`war` +7.85,
+  `joy` -7.38 — backwards). **CUT — Polysemy**: val_acc looked strong (0.88) but probes failed
+  (bank/spring/bat/light/star/book all scored NEGATIVE) — Wikipedia's dominant-sense skew defeats
+  the nearest-neighbor-spread proxy (a word mostly used in ONE sense reads as monosemous regardless
+  of its dictionary polysemy). **CUT — Register**: quote-span dialogue/narration mining on the novel
+  corpus produced a weak, incoherent signal (val_acc 0.61; `shall`/`which` read informal, `sir`/
+  `nevertheless` read formal-negative). **CUT AS DESIGNED — Analogy** (chance-level 0.48-0.53 through
+  600+ gens, not a mining problem): per user's diagnosis, analogy is a LAYER-3 relation — "do pair
+  (A,B) and pair (C,D) instantiate the same relation?" is a question about layer-2 relation-genome
+  OUTPUTS, not a question askable from raw distributional offset vectors. Training it directly on
+  `feat(B)-feat(A)` asked a layer-3 question with layer-2 machinery; chance accuracy is the expected
+  result of that mismatch, not evidence the concept is wrong. Correct future recipe logged in
+  `genomes.txt`: score = agreement between `hypernym_genome(a1,b1)` and `hypernym_genome(a2,b2)`.
+  **Next proposed step** (not yet built, pending go-ahead): decompose sentiment the same way the
+  working pipeline was decomposed — instead of one "positive or negative?" genome, several tighter
+  binary genomes (Good, Bad, Intensity, Emotion), each with a cleaner, tighter corpus signal than the
+  monolithic attempt. Nothing from this pass is wired into the live generation pipeline — standalone
+  validation only, matching how the round-1 hypernym/synonym/antonym work was scoped. `genomes.txt`
+  and `RESUME.md` updated with full verdicts.
+- **[2026-07-07] (Claude)** — NEW `genreg_train/agreement.py`: an evolved subject/verb + modal/aux
+  AGREEMENT genome. 22 rule-based morphology features per word (suffix -s/-ed/-ing/-e, closed-class
+  finiteness/number: FIN_3SG is/was/has, FIN_NON3 are/were/am, BARE be/have/do, PARTICIPLE been/gone…,
+  pronoun number, "I"→am) × a tiny evolved 22×22 bilinear head (~480 params, gradient-free, ga_step).
+  Fitness = corrupted-pair discriminator with HARD contrastive negatives (same prev, candidate drawn
+  from the real next-word distribution — only agreement separates real from fake, so it learns the RULE
+  not a bigram table). Result: **12/12 on held-out minimal pairs** ("could be">"could is", "they are">
+  "they is", "he is">"he are", "i am">"i is", "has been">"has being", "she was">"she were", "he runs">
+  "he run", …). Global discriminator acc 0.587 (near-chance is correct here: most word pairs carry no
+  agreement constraint; the genome concentrates its power on the closed-class cases where agreement
+  actually decides). First attempt (uniform-random negatives + 17 features that couldn't tell be/is
+  apart) scored inflated 0.824 global but only 6/12 pairs — fixed by hard negatives + finiteness feats.
+- **[2026-07-07] (Claude)** — `/evolang` Params + Deploy-size tiles now computed LIVE from the loaded
+  genomes instead of hardcoded. Service `status()` gained `params` (sum of evolved-head array sizes),
+  `heads_kb` (evolved genomes) and `full_kb` (everything the pipeline needs at inference except vocab-
+  derived feats). Corrects the stale "~7K / ~140 KB": params is genuinely ~6.8K, but deploy is 27 KB
+  (heads) / ~1.3 MB (full pipeline — dominated by the chunk lexicon ~820 KB + SVD word-features ~375 KB),
+  not 140 KB. Tile now shows "6.8K" and "27 KB / 1.3 MB"; caption reworded off the false size. Also
+  shrank the genome-toggle list (smaller boxes, descriptions moved to hover tooltips — no more scrollbar).
+  Flask restart needed for the service change; template/js just need a browser refresh.
+- **[2026-07-07] (Claude)** — SEMANTIC-RELATION genomes: decompose "meaning" into tiny per-relation genomes
+  (thesis: build the distributional SPACE from corpus stats, evolution learns ONE relation inside it — see
+  memory `ga-abstraction-thesis`). Corpus upgrade for this: built `corpora/wikipedia/wiki_corpus.txt` (302MB,
+  106K clean articles, 51M words) from the 25GB dump via zetifile's stripper, and `wiki_feats.npz` (30K vocab,
+  128-d SVD features — NN check strong: king→queen/prince, france→germany/spain, hot→cold). Novels had no
+  Hearst/coordination signal; Wikipedia does (validated by mining). In-progress (see RESUME.md): hypernym
+  genome learns DIRECTIONAL type-of at 0.86 (dog→animal > animal→dog); synonym val_acc 0.86; antonym trained
+  over a concatenated paradigmatic+coordination-SVD environment (built so evolution can read the coordination
+  signal that separates hot/cold from big/large) — probes pending. Honest nuance: the space cleanly gives
+  similarity/relatedness; isolating synonym vs co-hyponym vs antonym is the hard part. Build scripts in
+  `corpora/wikipedia/build/`. Nothing wired/cached yet — pure validation. Open: keep semantics on Wikipedia
+  as a knowledge layer vs retrain whole pipeline on it.
+- **[2026-07-07] (Claude)** — New-batch stage 2 (cross-sentence tier): built + evaluated has-verb,
+  wider-cooc, lexical-bridge, discourse-connector (`genreg_train/stage2.py` + `corpus_reference()`).
+  ALL FOUR CUT/DEFERRED — the deficits mostly don't exist. Corpus refs: verb/sent 0.844, carryover 0.23,
+  connector-open 0.069. has-verb: baseline 83.7%≈corpus 84.4% (no deficit). bridge: baseline carryover
+  27.5% already EXCEEDS corpus 23%; boosting →58-74% = unnatural repetition (distinct 53→46). wider-cooc:
+  cpr 35.5→36.7 marginal, sem±1 already sufficient. connector: only real deficit (0.5% vs 6.9%) but my
+  version is a flat rule not the evolved previous-sentence-conditioned predictor the spec wants — deferred,
+  not shipped as a rule. META-FINDING: the cross-sentence coherence tier has NO measurable structural
+  deficit (baseline matches/exceeds corpus on verb-rate + carryover); the remaining gap is MEANINGFUL
+  coherence = semantic understanding, the same wall the conversational attempt hit. Structural sentence
+  genomes paid off (real deficits); coherence doesn't yield to boosts. Nothing wired; stage2.py kept for helpers.
+- **[2026-07-07] (Claude)** — FIXED the run-on-sentence bug (sentences were 54 words, hitting the 55-word
+  cap 43/45 samples). Root cause was NOT the Boundary genome (correctly calibrated: corpus base rate 0.0537
+  = 18.6-word sentences). The reserved `<unk>` class (class 32 after the unk-fix) carries most of the
+  sentence-boundary signal (rare sentence-final words fall into unk; corpus boundary-rate 0.182) and is
+  emitted ~38% of the time — but generation SKIPS unk (not in the word table) with a bare `continue`, which
+  also bypassed the boundary check, throwing the period away. Fix: when the fill loop skips an unk class,
+  still run the boundary check there (`wordpipe_service.generate`). Result: mean sentence length 54→~14
+  words (corpus target 18.6), capped-at-55 dropped 43/45→3/167. Output now reads as sentences, not one
+  run-on — and this unblocks the whole sentence-level tier (opener now visibly fires, closer can act).
+  Flask restart needed.
+- **[2026-07-07] (Claude)** — New-batch battery, stage 1 (sentence-level positional genomes). Added
+  `genelib.UnaryPop`/`train_unary` (linear word classifier). NEW `sent_open.py` + `sent_close.py`.
+  SHIPPED **Opener** (~14 params): unary classifier over function-type features, fires at each sentence
+  start (cur==0) — bad-opener% (sentence begins with of/to/is/aux) 22.9→19.3 at zero fluency cost. Wired
+  via the fill `bonus` hook (combined with rep penalty), cached, GUI toggle + `open` flag, arch entry
+  (OPEN_GAMMA=4.0). After the boundary bug was fixed (see the newer top-of-file entry) opener became a
+  strong win: bad-opener% 17.3→8.3 at zero cost. SHIPPED **Closer** too (`sent_close.py`, ~14 params):
+  reshapes WHERE periods land — modulates both boundary paths by exp(CLOSE_GAMMA·(close_score[last_word] −
+  emission-weighted-centre)), rate-preserving (sentence length holds), ends sentences after nouns/verbs not
+  dangling "of/the/to". bad-close% 65→33 at CLOSE_GAMMA=0.5, adj-hit up. Needed emission-weighted centring
+  (median-centring inflated length 14→29). Both cached/toggleable (`open`/`close` flags); params ~7.4K.
+  (This entry's original "sentences run ~47 words / Boundary under-firing" finding led to the boundary-bug
+  fix logged at the top of the file — root cause was the unk class being skipped, not the Boundary genome.)
+- **[2026-07-07] (Claude)** — Ran the constraint-genome battery (trained 8, evaluated each in generation).
+  SHIPPED 2, cut 6 — the battery did its job. **Semantic** (`sem_compat.py`, ~580 params): meaning-level
+  content co-occurrence, real content-adjacency 33%→40% with adj-hit holding — wired as a selection re-rank
+  over the 24-d SVD feats (SEM_GAMMA=2.5). **No-repeat** (`repetition.py`, ~10 params): stateful recency
+  penalty, content-word repetition 2.2%→0%, guards stable — wired via a new `bonus` hook on
+  `_fill_selected`/`_fill_bisel` (caller-computed per-candidate penalty) + a recent-words buffer in the
+  service (function words may recur; content may not). Both cached in genomes.pkl; GUI toggles "Semantic" +
+  "No-repeat" (on by default) + `sem`/`rep` query flags + arch entries. Params now ~7.4K. CUT (logged in
+  genomes.txt with reasons): prep_complete + det_bind (redundant with Alternation; det cut orphan-dets but
+  cost -6 adj-hit at every gamma — coarse feats pick the wrong noun), tense_consist (no effect on mixed-tense),
+  verb_arg + pron_ref (class-level windowed = same redundancy wall as clause; Order's C=4 subsumes them).
+  DEFER: clause_boundary (beats base rate but is a positional predictor, not wired; overlaps Comma). Cut
+  modules kept on disk, not wired/cached. Lesson: survivors enforce what Order/Selection/Alternation
+  STRUCTURALLY can't see — semantic content identity + exact-word state. Flask restart needed for app.py/service.
+- **[2026-07-07] (Claude)** — CUT the Clause-template genome (`clause.py`) — redundant with Order,
+  logged honestly. Trained fine (val_acc 0.61) but measured over 60 samples it can't help: the
+  order+alternation skeleton already emits only ~0.2% rare class-trigrams (Order's C=4 next-class
+  prediction already yields common 3-class sequences), and biasing with the clause head only LOWERS mean
+  trigram log-prob (-5.98→-6.36 at g=3). Root cause: class-level clause validity is subsumed by 4-context
+  next-class prediction; the "the at the"/"of and to" cases it targeted are WORD-level (common class-trigram,
+  rare word-trigram) which a class-level genome can't see, and the word-trigram space is the intractable one
+  we decomposed away from. Module kept (windowed machinery reused by verb_arg/pron_ref), not wired/cached.
+  NOTE: the earlier class-trigram-HIT metric read 100% for all gammas — a measurement bug (33 classes over
+  8.5M words = nearly every triple occurs ≥1×); switched to frequency-weighted log-prob + rare-rate.
+- **[2026-07-07] (Claude)** — Built out the constraint-genome battery from genomes.txt (roadmap), ready
+  to train but NOT run yet. NEW `genreg_train/genelib.py` — shared scaffolding: `BilinearPop` +
+  `train_pairwise` (pairwise discriminator over fixed features w/ hard negatives) and `WindowPop` +
+  `train_windowed`/`window_bias_tensor` (K-class windowed validity discriminator). NEW genome modules,
+  each one job, gradient-free, following the agreement/alternation pattern: `prep_complete.py` (prep needs
+  content object — trained only on preposition contexts), `det_bind.py` (determiner needs noun — trained
+  only on determiner contexts), `sem_compat.py` (adjacent content words co-occur in a ±4 window — first
+  meaning-level genome, bilinear over the 24-d SVD feats), `repetition.py` (stateful recency-penalty curve,
+  content-gated — don't repeat a content word within N), `verb_arg.py` (windowed, corrupt the subject slot),
+  `pron_ref.py` (windowed, corrupt the antecedent slot), `tense_consist.py` (pairwise over tense feats —
+  compatible tenses among sentence verbs), `clause_boundary.py` (class+position -> P(clause break), mirrors
+  Comma genome). Also NEW `clause.py` (clause-template windowed genome, currently under test). All import
+  clean. genomes.txt updated with a build-status table + battery plan. Global/dialogue genomes
+  (continuity, conversation/copy, recurrent) DEFERRED per priority (conversational route already rolled
+  back — see memory). Expectation logged: several may prove redundant (prep/det vs alternation, tense vs
+  agreement, clause-boundary vs comma) — the battery decides; cut and log any that don't earn their place.
+- **[2026-07-07] (Claude)** — Took AGREEMENT to the ORDER level too (same move; doesn't break the model).
+  Generalized `gen_class_seq`'s single `altern=` into a `reranks` LIST of (classfeat, M, gamma) so multiple
+  constraint genomes bias the next-CLASS logits and their biases sum. Service builds `agree_classfeat`
+  (freq-weighted gram_feats over each class's members) and applies it when `agree` on (ORDER_AGREE_GAMMA=1.0).
+  Verified over 60 samples on top of order+selection alternation: agreement violations (modal+finite,
+  he/they + wrong-number verb) roughly HALVED 13→7, fluency held (adj-hit 85.3→85.0), salad nudged further
+  down (ff 35.6%→31.3%), distinct 63.4→61.0 (still well above baseline 57). Both alternation and agreement
+  now act at the skeleton (their proper home) + selection. Flask restart needed for the service change.
+- **[2026-07-07] (Claude)** — Took content-function alternation to the ORDER level (does NOT break the
+  model — improves it). `gen_class_seq` now takes an optional `altern=(classfeat, M, gamma)`: the SAME
+  evolved alternation head lifted to per-class centroids in function-feature space, biasing the next-CLASS
+  logits so a function-heavy class is nudged toward a content-heavy successor. Service builds
+  `altern_classfeat` (freq-weighted func_feats over each class's members) and applies it when `altern` is
+  on (ORDER_ALTERN_GAMMA=2.0). SWEEP over 40 samples: selection-only alternation cut salad (ff 58%→37%)
+  but HURT local fluency (adj-hit 86.0→81.4) — because filling a function-class slot with a content word
+  means picking off-distribution words. Order-level fixes exactly that: when the SKELETON alternates,
+  selection picks natural high-freq words that occur in real bigrams — adj-hit recovers to 84.7, ff stays
+  ~37%, distinct 57→64. Strictly better than selection-only on all three axes; reads visibly cleaner
+  ("Many is he been to the man that was at at that could... of of that that" → "Many that know been to
+  his go as no reached them could how having room of the round the gold moment..."). Confirms the order
+  genome is the right home for the constraint. Flask restart needed for the service change.
+- **[2026-07-07] (Claude)** — NEW `genreg_train/altern.py` + wired into `/evolang`: CONTENT-FUNCTION
+  ALTERNATION genome — the biggest visible fix so far. 14 function-type features per word (CONTENT vs
+  article/prep/coord/subord/aux/modal/copula/pronoun/det/wh/to/neg, closed-class membership) × an evolved
+  14×14 bilinear head (~200 params, gradient-free). Fitness = real-vs-hard-negative discriminator (same
+  prev, candidate from the real next-word distribution). Learned the alternation RULE: 12/12 on held-out
+  minimal pairs with sharp margins (of→the +1.25 vs the→of −2.60, of→of −2.05, to→to −4.45, and→and −0.91,
+  in→and −2.19). WIRED as a selection re-rank (gamma=3.0) alongside agreement — refactored
+  `_fill_selected`/`_fill_bisel` to take a `reranks` LIST of (feats,M,gamma) via new `_apply_reranks`, so
+  genomes compose. MEASURED impact: function→function adjacency 57.5%→37.8% over 30 samples (−34%), clearly
+  visible in output ("The to not and had of those" → "The behind so and asked of our possibly have
+  nothing"). Honest: within-selection re-rank (can't restructure the order skeleton; ~38% residual is the
+  skeleton floor; not every seed improves — seed 2 was a wash). GUI: "Alternation" toggle (on by default)
+  + `altern=1` query param + arch-panel entry. Flask restart needed for app.py/service; evolang.js = refresh.
+- **[2026-07-07] (Claude)** — Cached + wired the Agreement genome into the `/evolang` pipeline. Trained
+  champion stored in `demo/genomes.pkl` (key `agree`). `wordpipe._fill_selected`/`_fill_bisel` take an
+  optional `agree=(gram_feats, M, gamma)` re-rank term (gamma=2.5) that adds the agreement score to the
+  selection score before softmax sampling — backward-compatible (None = old behaviour). `wordpipe_service`
+  precomputes gram_feats over the shared vocab and passes the re-rank when the `agree` flag is set; new
+  `agree=1` query param in the `/api/evolang/generate` route. GUI: new "Agreement" layer toggle (on by
+  default) + architecture-panel entry in `static/evolang.js`. HONEST pipeline impact: marginal so far —
+  modal+finite violations over 20 samples OFF=0 / ON=2 (noise), because the ORDER skeleton rarely emits
+  the modal→verb / aux→participle adjacencies where agreement decides. Validated standalone (12/12 pairs)
+  and ready to compose, but not a visible fluency win until the order genome produces those junctions.
+  NOTE: app.py + wordpipe_service.py changes need a Flask restart; evolang.js needs only a browser refresh.
 - **[2026-07-07] (Claude)** — `/docs` browser: favorite (star toggle) and archive per document,
   sort by name or recently-updated, and a NEW badge for files modified in the last 3 days.
   Favorite/archive state is client-side (localStorage, single-user local tool) so no server or

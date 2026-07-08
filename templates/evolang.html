@@ -26,7 +26,7 @@
           Not one network trained on a loss — a <b>pipeline of tiny gradient-free
           specialist genomes</b>, each with its own reason to exist, composed. Toggle
           a layer to watch its contribution appear. Full method + results:
-          <a href="/docs">WORDPIPE_FINDINGS</a>.
+          <a href="/docs">WORDPIPE_FINDINGS</a> · <a href="/evolang/layers">Layer map</a>.
         </p>
         <div id="ev-layers"></div>
         <div class="tlm-actions">
@@ -43,8 +43,8 @@
         <div class="tlm-tile"><div class="tlm-tile-label">Vocabulary</div><div class="tlm-tile-value" id="st-vocab">—</div></div>
         <div class="tlm-tile"><div class="tlm-tile-label">Classes</div><div class="tlm-tile-value" id="st-classes">—</div></div>
         <div class="tlm-tile"><div class="tlm-tile-label">Phrase lexicon</div><div class="tlm-tile-value" id="st-chunks">—</div></div>
-        <div class="tlm-tile"><div class="tlm-tile-label">Params (all genomes)</div><div class="tlm-tile-value">~7K</div></div>
-        <div class="tlm-tile"><div class="tlm-tile-label">Deploy size</div><div class="tlm-tile-value">~140 KB</div></div>
+        <div class="tlm-tile"><div class="tlm-tile-label">Params (all genomes)</div><div class="tlm-tile-value" id="st-params">—</div></div>
+        <div class="tlm-tile"><div class="tlm-tile-label">Deploy size</div><div class="tlm-tile-value" id="st-deploy">—</div></div>
       </div>
 
       <section class="tlm-card">
@@ -52,7 +52,8 @@
           <h2>Output <span class="tlm-card-sub" id="ev-stack">—</span></h2>
         </div>
         <pre class="ev-sample" id="ev-out" style="max-height:300px;font-family:georgia,serif;font-size:18px;line-height:1.7">—</pre>
-        <div class="field-hint" style="margin-top:8px">Toggle layers on the left, or hit Regenerate for a new sample. Gradient-free, ~140 KB, runs on a phone.</div>
+        <div id="ev-repstats" class="ev-repstats"></div>
+        <div class="field-hint" style="margin-top:8px">Repeated words are highlighted (brighter = more repeats). Toggle layers on the left, or hit Regenerate for a new sample. Gradient-free — a few thousand evolved params, runs on a phone.</div>
       </section>
 
       <section class="tlm-card">

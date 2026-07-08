@@ -1,0 +1,39 @@
+=== baseline: existing 24d in-pipeline features (word_features) ===
+baseline feat shape (4001, 24)
+
+=== building Wikipedia-crosswalked 128d features for this same vocab ===
+crosswalk coverage: 90.8% of 4001 pipeline words found in Wikipedia vocab
+
+=== training Selection over 24d (baseline reproduction) ===
+[sel-24d] building position pools…
+  [sel-24d] gen 1: val_logprob=-1.1431 (base -0.9948) top1=0.665 (freq-only base 0.665)
+  [sel-24d] gen 150: val_logprob=-0.9762 (base -0.9948) top1=0.672 (freq-only base 0.665)
+  [sel-24d] gen 300: val_logprob=-0.9638 (base -0.9948) top1=0.678 (freq-only base 0.665)
+  [sel-24d] gen 450: val_logprob=-0.9592 (base -0.9948) top1=0.680 (freq-only base 0.665)
+  [sel-24d] gen 600: val_logprob=-0.9577 (base -0.9948) top1=0.682 (freq-only base 0.665)
+  [sel-24d] gen 750: val_logprob=-0.9557 (base -0.9948) top1=0.682 (freq-only base 0.665)
+  [sel-24d] gen 900: val_logprob=-0.9547 (base -0.9948) top1=0.683 (freq-only base 0.665)
+  [sel-24d] gen 1050: val_logprob=-0.9537 (base -0.9948) top1=0.684 (freq-only base 0.665)
+  [sel-24d] gen 1200: val_logprob=-0.9519 (base -0.9948) top1=0.684 (freq-only base 0.665)
+  [sel-24d] gen 1350: val_logprob=-0.9510 (base -0.9948) top1=0.686 (freq-only base 0.665)
+  [sel-24d] gen 1500: val_logprob=-0.9491 (base -0.9948) top1=0.686 (freq-only base 0.665)
+24d  val_logprob=-0.9491  base=-0.9948
+
+=== training Selection over 128d Wikipedia crosswalk ===
+[sel-128d-wiki] building position pools…
+  [sel-128d-wiki] gen 1: val_logprob=-1.1579 (base -0.9948) top1=0.667 (freq-only base 0.665)
+  [sel-128d-wiki] gen 150: val_logprob=-0.9848 (base -0.9948) top1=0.671 (freq-only base 0.665)
+  [sel-128d-wiki] gen 300: val_logprob=-0.9817 (base -0.9948) top1=0.672 (freq-only base 0.665)
+  [sel-128d-wiki] gen 450: val_logprob=-0.9790 (base -0.9948) top1=0.672 (freq-only base 0.665)
+  [sel-128d-wiki] gen 600: val_logprob=-0.9760 (base -0.9948) top1=0.673 (freq-only base 0.665)
+  [sel-128d-wiki] gen 750: val_logprob=-0.9770 (base -0.9948) top1=0.674 (freq-only base 0.665)
+  [sel-128d-wiki] gen 900: val_logprob=-0.9724 (base -0.9948) top1=0.674 (freq-only base 0.665)
+  [sel-128d-wiki] gen 1050: val_logprob=-0.9690 (base -0.9948) top1=0.676 (freq-only base 0.665)
+  [sel-128d-wiki] gen 1200: val_logprob=-0.9673 (base -0.9948) top1=0.676 (freq-only base 0.665)
+  [sel-128d-wiki] gen 1350: val_logprob=-0.9674 (base -0.9948) top1=0.678 (freq-only base 0.665)
+  [sel-128d-wiki] gen 1500: val_logprob=-0.9653 (base -0.9948) top1=0.677 (freq-only base 0.665)
+128d val_logprob=-0.9653  base=-0.9948
+
+logprob improvement (higher=better): 24d=-0.9491 -> 128d=-0.9653 (WORSE or flat)
+saved C:\Users\paytonm\Documents\GENREG\genreg_train\exp_sel_wiki_feat.pkl
+DONE

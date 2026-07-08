@@ -1,0 +1,21 @@
+loading pipeline…
+ready.
+
+=== baseline: oblig OFF ===
+dangling-rate=0.229  mean-sent-len=14.5  distinct-ratio=0.173  (n_sents=227)
+
+=== sweep OBLIG_GAMMA with oblig ON ===
+gamma= 0.5  dangling-rate=0.246  mean-sent-len=23.1  distinct-ratio=0.169  (n_sents=142)
+gamma= 1.0  dangling-rate=0.255  mean-sent-len=29.9  distinct-ratio=0.173  (n_sents=110)
+gamma= 2.0  dangling-rate=0.299  mean-sent-len=33.9  distinct-ratio=0.168  (n_sents=97)
+gamma= 4.0  dangling-rate=0.301  mean-sent-len=35.3  distinct-ratio=0.170  (n_sents=93)
+gamma= 8.0  dangling-rate=0.301  mean-sent-len=35.3  distinct-ratio=0.170  (n_sents=93)
+
+=== summary ===
+baseline (oblig OFF):  dangling-rate=0.229  len=14.5  distinct=0.173
+gamma= 0.5  dangling-rate-drop=-0.017  len-drift=+59.9%  distinct-drop=+0.004  -> reject
+gamma= 1.0  dangling-rate-drop=-0.025  len-drift=+106.4%  distinct-drop=+0.001  -> reject
+gamma= 2.0  dangling-rate-drop=-0.070  len-drift=+134.0%  distinct-drop=+0.005  -> reject
+gamma= 4.0  dangling-rate-drop=-0.072  len-drift=+144.1%  distinct-drop=+0.003  -> reject
+gamma= 8.0  dangling-rate-drop=-0.072  len-drift=+144.1%  distinct-drop=+0.003  -> reject
+DONE

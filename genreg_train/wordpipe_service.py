@@ -13,10 +13,36 @@ import threading
 import numpy as np
 
 from genreg_train import wordpipe as wp
+from genreg_train import agreement as ag
+from genreg_train import altern as al
+from genreg_train import repetition as rp
+from genreg_train import rel_wire
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CACHE = os.path.join(ROOT, "demo", "genomes.pkl")
 NCL, C, D = 32, 4, 24
+AGREE_GAMMA = 2.5         # weight of the agreement re-rank vs the selection score
+ALTERN_GAMMA = 3.0        # weight of content-function alternation at word-selection
+ORDER_ALTERN_GAMMA = 2.0  # weight of content-function alternation on the ORDER skeleton
+ORDER_AGREE_GAMMA = 1.0   # weight of agreement on the ORDER skeleton
+SEM_GAMMA = 2.5           # weight of semantic (content co-occurrence) re-rank
+OPEN_GAMMA = 4.0          # weight of the sentence-opener re-rank (fires at sentence start)
+CLOSE_GAMMA = 0.5         # weight of the sentence-closer (modulates where periods land)
+# Standalone relation genomes (Wikipedia-trained, crosswalked into the pipeline
+# vocab — see genreg_train/rel_wire.py + genomes.txt "battery note"). Kept
+# conservative: these bias toward a SPECIFIC relation (is-a / part-of / same-
+# vs-opposite-meaning) between adjacent content words, not general fit, so a
+# high gamma reads as a taxonomy/part-chain tic rather than natural prose.
+HYPER_GAMMA = 1.0         # weight of the hypernym (is-a) re-rank
+MERO_GAMMA = 1.0          # weight of the meronym (part-of) re-rank
+SYNANT_GAMMA = 1.0        # weight of the unified synonym/antonym re-rank
+# EXPERIMENTAL — open-obligation tracker (see genreg_train/exp_obligation.py).
+# The Order genome only looks back 4 classes; it has no notion of "this
+# preposition/determiner opened a phrase 6 words ago and it's still unclosed."
+# This tracks a live depth counter across the WHOLE sentence (prep/det/article
+# pushes, a content word pops) and suppresses the sentence-boundary
+# probability while depth > 0. OBLIG_GAMMA is swept/set by exp_obligation.py.
+OBLIG_GAMMA = 0.0         # 0 = off; exp_obligation.py sweeps this
 
 
 class Service:
@@ -53,6 +79,45 @@ class Service:
             if os.path.exists(CACHE):
                 with open(CACHE, "rb") as f:
                     self.champs = pickle.load(f)
+            # re-rank genomes: fixed features over the shared vocab + evolved
+            # bilinear heads (from cache). Used to re-rank selection candidates.
+            self.agree_feats = ag.gram_feats(self.vocab)     # agreement (finiteness/number)
+            self.altern_feats = al.func_feats(self.vocab)    # content-function alternation
+            # per-class centroids in each genome's feature space (freq-weighted over
+            # members) — lets the constraint heads bias the ORDER skeleton, not just
+            # selection. Same head, lifted one level up.
+            self.altern_classfeat = np.zeros((self.nc, al.NF), np.float32)
+            self.agree_classfeat = np.zeros((self.nc, ag.NG), np.float32)
+            for cl, (mem, p) in self.table.items():
+                self.altern_classfeat[cl] = p @ self.altern_feats[mem]
+                self.agree_classfeat[cl] = p @ self.agree_feats[mem]
+            # content mask for the repetition genome (function words may recur)
+            self.is_content = rp.content_mask(self.vocab)
+            # open-obligation mask: prepositions/determiners/articles/"to" open
+            # a phrase that needs a following content word to close — reuses
+            # the SAME closed-class sets altern.py already defines, no new
+            # hand-labeling.
+            _oblig_open_words = al.PREPS | al.ARTICLES | al.DET | al.TO
+            self.oblig_open = np.array([w in _oblig_open_words for w in self.vocab], dtype=bool)
+            # per-word sentence-opener score (func features · evolved weights)
+            self.open_scores = (self.altern_feats @ self.champs["open"]
+                                if "open" in self.champs else None)
+            # per-word sentence-closer score + emission-weighted centre (so the closer
+            # is rate-preserving: it moves periods toward good enders without changing
+            # the overall sentence rate).
+            if "close" in self.champs:
+                self.close_scores = self.altern_feats @ self.champs["close"]
+                freq = np.bincount(self.ids, minlength=len(self.vocab)).astype(np.float64)
+                self.close_center = float((self.close_scores * freq).sum() / freq.sum())
+            else:
+                self.close_scores = None; self.close_center = 0.0
+            # standalone relation genomes (hypernym/meronym/synant — Wikipedia-
+            # trained, crosswalked into this vocab). Absent files just mean
+            # those toggles have nothing to do; same graceful-degradation
+            # pattern as every other genome here.
+            self.rel = rel_wire.load_relation_genomes(self.vocab)
+            self.rel_coverage = (round(next(iter(self.rel.values()))["coverage"] * 100)
+                                 if self.rel else 0)
             self.ready = True
         except Exception as exc:                       # pragma: no cover
             import traceback; traceback.print_exc()
@@ -60,24 +125,79 @@ class Service:
         finally:
             self.loading = False
 
-    def status(self):
-        return {"ready": self.ready, "loading": self.loading, "err": self.err,
-                "has_genomes": bool(self.champs),
-                "trained": sorted(self.champs.keys()),
-                "corpus_chars": int(len(self.cids)) if self.ready else 0,
-                "vocab": len(self.vocab) if self.ready else 0,
-                "n_classes": NCL,
-                "chunk_phrases": (sum(len(v) for v in self.chunks.get(2, {}).values())
-                                  + sum(len(v) for v in self.chunks.get(3, {}).values()))
-                if self.ready else 0}
+    @staticmethod
+    def _nparams(x):
+        if isinstance(x, np.ndarray):
+            return x.size
+        if isinstance(x, (tuple, list)):
+            return sum(Service._nparams(e) for e in x)
+        if isinstance(x, dict):
+            return sum(Service._nparams(e) for e in x.values())
+        return 0
 
-    def _punct(self, en, cl, cur, clause, rng):
+    @staticmethod
+    def _nbytes(x):
+        if isinstance(x, np.ndarray):
+            return x.nbytes
+        if isinstance(x, (tuple, list)):
+            return sum(Service._nbytes(e) for e in x)
+        if isinstance(x, dict):
+            return sum(Service._nbytes(e) for e in x.values())
+        return 0
+
+    def _footprint(self):
+        """Live param count + deploy footprint, measured from the loaded genomes/data
+        (not hardcoded). heads = the evolved genomes; full = everything the pipeline
+        needs at inference EXCEPT features derivable from the vocab at load."""
+        rel_M = {k: v["M"] for k, v in self.rel.items()}          # evolved heads only
+        rel_extra = {k: v["feat"] for k, v in self.rel.items()}   # crosswalk arrays (not "evolved")
+        params = sum(self._nparams(v) for v in self.champs.values()) + self._nparams(rel_M)
+        heads = self._nbytes(self.champs) + self._nbytes(rel_M)
+        chunk_b = sum(rows.nbytes + p.nbytes
+                      for d in self.chunks.values() for rows, p in d.values())
+        table_b = sum(m.nbytes + p.nbytes for m, p in self.table.values())
+        full = (heads + self.feat.nbytes + self.cents.nbytes + self.logfreq.nbytes
+                + table_b + chunk_b + self._nbytes(rel_extra))
+        return params, heads, full
+
+    def status(self):
+        s = {"ready": self.ready, "loading": self.loading, "err": self.err,
+             "has_genomes": bool(self.champs),
+             "trained": sorted(self.champs.keys()) + sorted("rel_" + k for k in self.rel.keys())
+             if self.ready else [],
+             "corpus_chars": int(len(self.cids)) if self.ready else 0,
+             "vocab": len(self.vocab) if self.ready else 0,
+             "n_classes": NCL,
+             "rel_coverage_pct": self.rel_coverage if self.ready else 0,
+             "chunk_phrases": (sum(len(v) for v in self.chunks.get(2, {}).values())
+                               + sum(len(v) for v in self.chunks.get(3, {}).values()))
+             if self.ready else 0}
+        if self.ready:
+            params, heads, full = self._footprint()
+            s["params"] = int(params)
+            s["heads_kb"] = round(heads / 1024)
+            s["full_kb"] = round(full / 1024)
+        return s
+
+    def _bound_prob(self, en, cl, cur, prev_w, oblig_depth=0):
+        """P(sentence ends here) from the boundary genome, optionally reshaped by the
+        closer genome so periods land after good ender-words (rate-preserving), and
+        by the EXPERIMENTAL obligation tracker (suppress ending while a prep/det/
+        article opened a phrase that hasn't been closed by a content word yet)."""
+        pb = wp.boundary_prob(self.champs["bound"], cl, cur)
+        if en.get("close") and self.close_scores is not None and prev_w is not None and 0 < pb < 1:
+            pb = min(1.0, pb * np.exp(CLOSE_GAMMA * (self.close_scores[prev_w] - self.close_center)))
+        if en.get("oblig") and oblig_depth > 0 and 0 < pb < 1:
+            pb = pb * np.exp(-OBLIG_GAMMA * oblig_depth)
+        return pb
+
+    def _punct(self, en, cl, cur, clause, rng, prev_w=None, oblig_depth=0):
         """Decide end-of-word punctuation: 'period' (sentence end), 'comma'
         (clause break), or None. Period wins over comma."""
         if cur >= 55:
             return "period"
         if en.get("bound") and "bound" in self.champs and cur >= 4 \
-                and rng.random() < wp.boundary_prob(self.champs["bound"], cl, cur):
+                and rng.random() < self._bound_prob(en, cl, cur, prev_w, oblig_depth):
             return "period"
         if en.get("commas") and "comma" in self.champs and clause >= 3 \
                 and rng.random() < wp.boundary_prob(self.champs["comma"], cl, clause):
@@ -89,14 +209,52 @@ class Service:
             return ""
         rng = np.random.default_rng(seed)
         if en.get("order") and "order" in self.champs:
-            cls_seq = wp.gen_class_seq(self.champs["order"], C, n, self.cids[500:500 + C], rng, 0.8)
+            order_reranks = []
+            if en.get("altern") and "altern" in self.champs and ORDER_ALTERN_GAMMA > 0:
+                order_reranks.append((self.altern_classfeat, self.champs["altern"], ORDER_ALTERN_GAMMA))
+            if en.get("agree") and "agree" in self.champs and ORDER_AGREE_GAMMA > 0:
+                order_reranks.append((self.agree_classfeat, self.champs["agree"], ORDER_AGREE_GAMMA))
+            cls_seq = wp.gen_class_seq(self.champs["order"], C, n, self.cids[500:500 + C],
+                                       rng, 0.8, reranks=order_reranks or None)
         else:
             cls_seq = list(rng.choice(self.nc, size=n, p=self.cprob))
         use_chunk = en.get("chunks") and self.chunks and en.get("vocab")
+        reranks = []
+        if en.get("altern") and "altern" in self.champs:
+            reranks.append((self.altern_feats, self.champs["altern"], ALTERN_GAMMA))
+        if en.get("agree") and "agree" in self.champs:
+            reranks.append((self.agree_feats, self.champs["agree"], AGREE_GAMMA))
+        if en.get("sem") and "sem" in self.champs:
+            reranks.append((self.feat, self.champs["sem"], SEM_GAMMA))
+        if en.get("hyper") and "hyper" in self.rel:
+            reranks.append((self.rel["hyper"]["feat"], self.rel["hyper"]["M"], HYPER_GAMMA))
+        if en.get("mero") and "mero" in self.rel:
+            reranks.append((self.rel["mero"]["feat"], self.rel["mero"]["M"], MERO_GAMMA))
+        if en.get("synant") and "synant" in self.rel:
+            reranks.append((self.rel["synant"]["feat"], self.rel["synant"]["M"], SYNANT_GAMMA))
+        reranks = reranks or None
+        use_rep = en.get("rep") and "rep" in self.champs
+        use_oblig = en.get("oblig")
+        recent = []                                    # emitted word ids, for the rep genome
         parts, prev, cur, clause, j = [], None, 0, 0, 0
+        oblig_depth = 0                                 # EXPERIMENTAL open-obligation tracker
+        def _track_oblig(w):
+            nonlocal oblig_depth
+            if not use_oblig:
+                return
+            if self.oblig_open[w]:
+                oblig_depth = min(4, oblig_depth + 1)
+            elif self.is_content[w]:
+                oblig_depth = max(0, oblig_depth - 1)
         while j < len(cls_seq):
             cl = int(cls_seq[j])
             if cl not in self.table:
+                # The reserved <unk> class isn't emitted as a word, but it carries most
+                # of the sentence-boundary signal (rare sentence-final words fall into it).
+                # Without this, that signal is dropped and sentences run to the length cap.
+                if en.get("vocab") and en.get("bound") and "bound" in self.champs \
+                        and cur >= 4 and rng.random() < self._bound_prob(en, cl, cur, prev, oblig_depth):
+                    parts.append("."); cur = 0; clause = 0; oblig_depth = 0
                 j += 1; continue
             emitted = 0
             # try a real phrase whose class pattern matches the upcoming skeleton
@@ -109,7 +267,8 @@ class Service:
                             rows, p = b
                             ch = rows[rng.choice(len(rows), p=p)]
                             for w in ch:
-                                parts.append(self.vocab[int(w)]); prev = int(w)
+                                parts.append(self.vocab[int(w)]); prev = int(w); recent.append(int(w))
+                                _track_oblig(int(w))
                             emitted = len(ch); j += L; break
             if emitted == 0:
                 if not en.get("vocab"):
@@ -117,23 +276,32 @@ class Service:
                     parts.append("".join(chr(rng.integers(97, 123)) for _ in range(Ln)))
                 else:
                     mem = self.table[cl][0]
+                    bonus = None
+                    if use_rep and prev is not None:
+                        bonus = rp.penalty(self.champs["rep"], recent, mem, self.is_content)
+                    # sentence-opener: bias the first word of each sentence (cur == 0)
+                    if en.get("open") and self.open_scores is not None and prev is not None and cur == 0:
+                        ob = OPEN_GAMMA * self.open_scores[mem]
+                        bonus = ob if bonus is None else bonus + ob
                     if en.get("sel") == "bi" and "bisel" in self.champs and prev is not None:
                         nxt = next((int(cls_seq[k]) for k in range(j + 1, len(cls_seq))
                                     if int(cls_seq[k]) in self.table), cl)
                         w = wp._fill_bisel(prev, cl, nxt, self.table, self.feat, self.logfreq,
-                                           self.cents, self.champs["bisel"], rng)
+                                           self.cents, self.champs["bisel"], rng,
+                                           reranks=reranks, bonus=bonus)
                     elif en.get("sel") in ("uni", "bi") and "sel" in self.champs and prev is not None:
                         w = wp._fill_selected(prev, cl, self.table, self.feat, self.logfreq,
-                                              self.champs["sel"], rng)
+                                              self.champs["sel"], rng, reranks=reranks, bonus=bonus)
                     else:
                         w = int(rng.choice(mem, p=self.table[cl][1]))
-                    parts.append(self.vocab[w]); prev = w
+                    parts.append(self.vocab[w]); prev = w; recent.append(w)
+                    _track_oblig(w)
                 emitted = 1; j += 1
             cur += emitted; clause += emitted
             if en.get("vocab"):
-                mark = self._punct(en, cl, cur, clause, rng)
+                mark = self._punct(en, cl, cur, clause, rng, prev_w=prev, oblig_depth=oblig_depth)
                 if mark == "period":
-                    parts.append("."); cur = 0; clause = 0
+                    parts.append("."); cur = 0; clause = 0; oblig_depth = 0
                 elif mark == "comma":
                     parts.append(","); clause = 0
         import re

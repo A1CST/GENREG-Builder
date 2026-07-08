@@ -1,0 +1,340 @@
+# WordPipe Genome Roadmap
+
+## Sub-label key
+Every genome below is tagged **[structural]** or **[semantic]**. Structural genomes
+constrain FORM (grammar, position, rhythm) using class/function features — they never
+touch word meaning. Semantic genomes constrain MEANING using the distributional word-
+feature spaces built from corpus statistics (24d novel-corpus SVD for the in-pipeline
+genomes; 128d Wikipedia SVD + coordination-SVD for the standalone relation genomes) —
+per the thesis (memory `ga-abstraction-thesis`): build the space from corpus stats,
+evolution learns one relation inside it.
+
+## Currently In Use
+
+| Genome | One Thing | Params | Status | Label |
+|---|---|---|---|---|
+| Vocabulary (G1) | Emit real English words | ~2,885 | PASS - 19%→52% valid | structural |
+| Order (G2) | Next grammatical class sequence | ~3,108 | PASS - ppl 10.91, 75% of ceiling | structural |
+| Selection (G4) | Pick the right word given previous word | ~577 | PASS - +15 pts adj-hit | structural |
+| Bidirectional Selection | Pick the right word given prev word AND next class | ~1,150 | PASS - adj 0.777, distinct 0.231 | structural |
+| Boundary (G5) | Where sentences end | ~577 | PASS - learned 18.6-word rhythm | structural |
+| Commas | Where commas go inside sentences | ~577 | PASS - beats base rate | structural |
+| Agreement | Subject-verb and modal-aux number/tense agreement | ~480 | PASS - 12/12 minimal pairs (order+sel) | structural |
+| Alternation | Content words follow function words and vice versa | ~200 | PASS - func-func pairs down 34% (order+sel) | structural |
+| Semantic (adjacency) | Adjacent content words co-occur in the corpus | ~580 | PASS - real content-adjacency 33%->40%, no fluency cost | semantic |
+| No-repeat | Don't reuse a content word from the last N positions | ~10 | PASS - content repetition 2.2%->0%, no cost | structural |
+| Opener | First word of a sentence is a plausible starter | ~14 | PASS - bad-openings 17%->8%, no cost | structural |
+| Closer | Sentences end on a noun/verb, not a dangling of/the | ~14 | PASS - bad-endings 65%->33%, rate-preserving | structural |
+| Chunks | Emit whole real phrases when class pattern matches | lookup | PASS - +7.5 pts adj-hit | structural |
+
+**Total: ~9,554 params + chunk lookup. Deploy ~140-450 KB.**
+
+## Semantic-relation genomes (standalone, Wikipedia-trained, wired 2026-07-07)
+
+Decompose "meaning" into one tiny bilinear/unary genome per relation, each over a
+pre-built distributional space (see sub-label key above). All **[semantic]**. Verdict
+is always the PROBES (clean hand-picked pairs), not the mined val-acc — mining off
+Hearst/coordination/quote patterns is inherently noisy.
+
+**Wiring (2026-07-07).** Hypernym, Meronym, and unified Synonym/Antonym are now wired
+into `/evolang` as selection re-ranks, same mechanism as Semantic (`genreg_train/rel_wire.py`
+crosswalks the 30K-word Wikipedia vocab these were trained on into the pipeline's own
+4000-word vocab by direct lookup — ~91% coverage; uncovered words get a zero feature row,
+i.e. no bias, same graceful-degradation pattern used everywhere else). New GUI toggles
+`Hypernym` / `Meronym` / `Synonym-Antonym`, all **OFF by default** and labeled EXPERIMENTAL
+in their tooltips — they're validated as standalone relation detectors but have NOT been
+through the generation-time battery (measuring real effect + guardrails) that every other
+shipped genome went through. Gammas kept conservative (1.0 each, `HYPER_GAMMA`/`MERO_GAMMA`/
+`SYNANT_GAMMA` in `wordpipe_service.py`) since these bias toward a SPECIFIC relation between
+adjacent words (is-a / part-of / same-vs-opposite-meaning), not general fit — a high gamma
+reads as a taxonomy/part-chain tic, not natural prose. Params: hyper 16,384 + mero 16,384 +
+synant 30,976 = ~63,700 (all evolved bilinear heads; the vocab crosswalk arrays are fixed
+features, not counted as params, same convention as `self.feat`/`self.altern_feats`).
+
+| Genome | One thing | Module | Signal source | Status |
+|---|---|---|---|---|
+| Hypernym | Is X a type of Y? | `hypernym_export.py` | Hearst patterns ("X such as Y", "X is a Y") | VALIDATED + WIRED - directional heldout-acc 0.86, probes 10/10. `hyper` toggle, OFF by default. |
+| Synonym/Antonym (unified) | Given a RELATED pair, same-meaning or opposite-meaning? | `synant_export.py` | Coordination co-occurrence ("X and/or Y") + paradigmatic, no unrelated pairs in training | PARTIAL + WIRED - val_acc 0.77, probes 11/14. `synant` toggle, OFF by default. See battery note below. |
+| ~~Synonym (separate)~~ | ~~Are X/Y interchangeable?~~ | `synant_build.py` | Paradigmatic similarity, coordination-filtered | SUPERSEDED - probe failure (dog/car unrelated control outscored real synonyms); see battery note |
+| ~~Antonym (separate)~~ | ~~Are X/Y opposites?~~ | `synant_build.py` | Coordination co-occurrence + paradigmatic | SUPERSEDED - flagship hot/cold probe scored negative; see battery note |
+| Meronym | Is X part of Y? | `meronym_export.py` | "the X of Y", "Y has a X" patterns | VALIDATED-weaker + WIRED - probes 9/10 (only leaf/tree failed), heldout-acc modest 0.35-0.41. `mero` toggle, OFF by default. **Wiring note (2026-07-07)**: a loop-order bug during export re-training (mining loops reordered vs the original run) silently changed which pairs got sampled during training despite an identical seed and identical pair COUNT — the first re-export scored only 7/10 on the same probes. Fixed and re-running; see CHANGELOG. |
+| Sentiment (monolithic) | Is this word positive/negative? | `semantic_batch2.py` | Seed word lists + nearest-neighbor propagation | CUT - inverted probes (war>joy); see battery note. Decompose instead (see roadmap below). |
+| Polysemy | Does this word have multiple senses? | `semantic_batch2.py` | Nearest-neighbor similarity spread (proxy for context-cluster count) | CUT - val_acc 0.88 but probes failed (bank/spring/bat all negative); see battery note |
+| Analogy | Does A:B match C:D? | `semantic_batch2.py` | Offset consistency within a mined relation set | CUT AS DESIGNED - chance-level (0.48-0.53) through 600+ gens. Not a dead end - see layer-3 roadmap note below. |
+| Register | Is this word dialogue/informal or narration/formal? | `register_build.py` | Quote-span word frequency skew (novel corpus, not Wikipedia) | CUT - val_acc 0.61, incoherent probes (shall/which scored informal, sir/nevertheless scored formal-negative) |
+
+### Battery note (2026-07-07, second semantic pass)
+
+Full probe results logged in `corpora/wikipedia/build/{hypernym,synant,synant_unified,batch2,register}.log`.
+
+**Synonym/antonym reframe.** Training them as two separate "related vs unrelated"
+detectors failed the decisive test: the separate synonym genome ranked the unrelated
+control pair `dog/car` (2.61) ABOVE real synonym pairs like `quick/fast` (0.63) - it
+was really just detecting relatedness, not synonymy. The separate antonym genome
+failed on its OWN flagship example: `hot/cold` scored -0.29 (should be strongly
+positive). Reframed per the user's suggestion: ONE genome, no unrelated pairs at all,
+whose only job is "given a pair already known to be related, is it same-meaning or
+opposite-meaning?" (`synant_unified.py`, bilinear over paradigmatic+coordination-SVD
+concat, trained purely on the syn_pos/ant_pos boundary). Result: real improvement -
+`hot/cold` flipped to +0.86 (correct), 11/14 probes correct overall (7/8 antonym, 4/6
+synonym), val_acc 0.77. Residual failure: `big/large` and `small/little` (size-adjective
+synonym pairs) still misclassify as antonym-leaning - likely because "big and small",
+"large and small" genuinely co-occur in coordination contexts too ("big and small
+businesses"), contaminating the exact signal (coordination-SVD) the reframe leans on to
+separate the classes. PARTIAL, not shipped - the residual is a real, specific failure
+mode, not noise.
+
+**Sentiment (monolithic) - CUT.** Seed-word nearest-neighbor propagation drifted onto
+generic high-frequency words instead of true polarity (propagated "pos" sample: first,
+new, one, other, more... - not sentiment-charged at all). Probes came back inverted:
+`war` scored +7.85 (should be strongly negative), `joy` scored -7.38 (should be
+strongly positive). Not a marginal miss - the mining recipe itself was wrong.
+
+**Polysemy - CUT.** val_acc looked strong (0.88) but that measured the training
+distribution, not the target concept. Probes on classic polysemous words (bank, spring,
+bat, light, star, book) all scored NEGATIVE (should score high). Diagnosis: the
+NN-similarity-spread proxy assumes a polysemous word's neighbors scatter across its
+several senses, but Wikipedia's register skews these words hard to ONE dominant sense
+(e.g. "bank" mostly finance) - so the neighbor cluster stays tight and the proxy reads
+monosemous. The proxy doesn't measure what it was built to measure.
+
+**Register - CUT.** Quote-span mining (dialogue vs narration in the novel corpus)
+conflated "words common in narration ABOUT feelings" with real dialogue markers.
+val_acc plateaued at a weak 0.61 and probes were incoherent (`shall`/`which` scored
+informal-leaning, `sir`/`nevertheless` scored formal-negative - opposite of expected).
+
+**Analogy - CUT AS DESIGNED, roadmap note (layer-3 insight).** Chance-level accuracy
+(0.48-0.53) through 600+ generations isn't a failed mining attempt to iterate on - it's
+structural. "A:B::C:D" isn't a single relation living in the same distributional space
+as hypernym/synonym/meronym; it's a relationship BETWEEN relationships - do pair (A,B)
+and pair (C,D) instantiate the SAME relation? That's a question about the outputs of
+the layer-2 relation genomes, not a question askable from raw SVD offset vectors.
+Training it directly on `feat(B)-feat(A)` (what `semantic_batch2.py` did) asks a
+layer-3 question with layer-2 machinery - the chance result is exactly what that
+mismatch predicts. Correct future recipe: score(a1,b1,a2,b2) = agreement between
+`hypernym_genome(a1,b1)` and `hypernym_genome(a2,b2)` (hypernym is the one VALIDATED
+layer-2 genome to build this on first) - a small genome over relation-genome OUTPUTS,
+not corpus features. Not attempted this session; logged so it isn't retried the same
+broken way.
+
+**Next concrete step - decompose sentiment instead of retrying it monolithic.** Same
+discipline that built the working pipeline: if the question is too hard, make it
+smaller. Instead of one "positive or negative?" genome (CUT above), split it into
+several tighter binary genomes, each with its own cleaner corpus signal:
+  - **Good** - does this word describe something good? (cluster: excellent, wonderful,
+    pleased...)
+  - **Bad** - does this word describe something bad? (cluster: terrible, awful, angry...)
+  - **Intensity** - how strong/extreme is this word? (mild vs extreme, independent of
+    polarity - "warm" vs "scorching", "annoyed" vs "furious")
+  - **Emotion** - does this word describe an emotional state at all, vs a neutral
+    fact/object? (a gate before polarity even applies)
+  Each is a tighter binary question than "positive or negative" and should mine a
+  cleaner seed-propagation neighborhood than the failed monolithic attempt. NOT YET
+  BUILT - proposed next, pending the user's go-ahead before spinning up more training.
+
+## Should Build / Test
+
+Build status (2026-07-07): the surgical/local genomes below are BUILT as gradient-free
+modules following the agreement/alternation pattern, ready for the battery (not run yet).
+Each has a `train_*` that returns {champ, val_acc/val_logprob}. Shared scaffolding lives in
+`genreg_train/genelib.py` (BilinearPop + train_pairwise for pairwise genomes; WindowPop +
+train_windowed for windowed class-sequence genomes). The three global/dialogue genomes are
+DEFERRED per the priority list (and the conversational route was already tried + rolled back
+— see memory `conversational-model-directive`; do not rebuild without explicit direction).
+
+| Genome | One Thing | Module | Shape | Status | Label |
+|---|---|---|---|---|---|
+| Clause template | Does this 3-4 class sequence match a real clause pattern? | `clause.py` | windowed (K=3) net, ~900 | CUT - redundant w/ Order (see note) | structural |
+| Semantic compatibility | Do adjacent content words co-occur in a window? | `sem_compat.py` | bilinear over SVD feats, ~580 | SHIPPED - real-adjacency 33->40%, no cost | semantic |
+| Repetition penalty | Has this word appeared in the last N positions? | `repetition.py` | stateful recency curve, ~10 | SHIPPED - content-repeat 2.2->0%, no cost | structural |
+| Preposition completion | Does every preposition have a content object? | `prep_complete.py` | pairwise bilinear, ~200 | CUT - no gain, hurts guards (redundant w/ Alternation) | structural |
+| Determiner binding | Does every the/a/my/his have a noun nearby? | `det_bind.py` | pairwise bilinear, ~200 | CUT - orphan-det 11->0 but adj-hit -6 at every gamma | structural |
+| Verb argument | Does every verb have a subject before it? | `verb_arg.py` | windowed (corrupt left slot), ~900 | CUT - class-level redundancy wall (like clause) | structural |
+| Pronoun reference | Does a pronoun have a noun antecedent nearby? | `pron_ref.py` | windowed (corrupt mid slot), ~900 | CUT - class-level redundancy wall | structural |
+| Tense consistency | Are verbs in a sentence in compatible tenses? | `tense_consist.py` | pairwise over tense feats, ~120 | CUT - mixed-tense 54.9->56.4 (no effect) | structural |
+| Clause boundary | Where does a clause end within a sentence? | `clause_boundary.py` | class+pos -> P(break), ~580 | DEFER - beats base rate, not wired (overlaps Comma) | structural |
+| Continuity / topic | Does the next sentence relate to the previous? | — | across-sentence | DEFERRED (global) | semantic |
+| Conversation / copy | Point to the right prompt word to reuse | — | pointer over prompt | DEFERRED (tried, rolled back) | structural |
+| Recurrent context | Carry state across the generated sequence | — | recurrent | DEFERRED (needs dialogue env) | structural |
+| Sentence opener | First word is a plausible starter | `sent_open.py` | unary, ~14 | SHIPPED - bad-open 17->8% | structural |
+| Sentence closer | Last word is a plausible ender | `sent_close.py` | unary + period reshape, ~14 | SHIPPED - bad-close 65->33% | structural |
+| Sentence has-verb | Every sentence has a verb | `stage2.py` | class verb-ness | CUT - no deficit (83.7%≈corpus 84.4%) | structural |
+| Wider co-occurrence | Content words co-occur over ±5 | `stage2.py` | reuse sem head | CUT - marginal, sem±1 sufficient | semantic |
+| Lexical bridge | Carry a content word across sentences | `stage2.py` | prev-sentence boost | CUT - baseline 27.5%>corpus 23%, overshoots | semantic |
+| Discourse connector | Open sentences with a connector | `stage2.py` | flat boost | DEFER - real deficit but needs evolved predictor | structural |
+
+CUT LOG — Clause template (2026-07-07): the genome trained fine (val_acc 0.61, learned real vs
+corrupted class triples) but is REDUNDANT with the Order genome and cannot help. Measured over
+60 samples: baseline skeleton already emits only ~0.2% rare class-trigrams (Order with C=4 context
+already produces common 3-class sequences), so there's no headroom; and biasing generation with the
+clause head only LOWERS mean trigram log-prob (-5.98 off -> -6.36 at g=3), pulling away from Order's
+better-calibrated distribution. Root cause: at the CLASS level, clause-fragment validity is subsumed
+by 4-context next-class prediction. The "the at the / of and to" cases the genome was meant to kill
+are WORD-level (their class-trigram det-prep-det is common), which a class-level genome structurally
+can't see, and the word-level trigram space is the intractable 4000-word one we decomposed away from.
+Module kept (its windowed WindowPop machinery is reused by verb_arg/pron_ref) but NOT wired or cached.
+The `gen_class_seq(clause=...)` hook remains for the windowed genomes that produce the same bias tensor.
+
+BATTERY RESULTS (2026-07-07): trained all 8, gated on val-acc/base-rate, then evaluated each in
+generation (targeted metric ON vs OFF + ff/distinct/adj-hit guardrails, 40 samples). Two shipped,
+six cut/deferred — the battery worked exactly as intended.
+  SHIPPED  sem   val_acc 0.557 (weak) BUT generation +6pts real content-adjacency, adj-hit UP -> the
+                 val-acc gate is necessary-not-sufficient in BOTH directions (weak learner, real gain).
+  SHIPPED  rep   val_acc 0.950; content-repeat 2.2%->0%, all guards stable/up. Cheap insurance.
+  CUT      det   strong signal (0.776) + real effect (orphan-det 11->0) but adj-hit -6 at EVERY gamma:
+                 14 function-type feats too coarse to pick the RIGHT noun -> off-distribution bigrams.
+                 (Order-level would be redundant with Alternation.) Same failure as selection-only altern.
+  CUT      prep  no generation gain, hurts guards; redundant with Alternation for the illegal cases.
+  CUT      tense mixed-tense 54.9->56.4 (no effect); diffuse signal, subsumed by Agreement's local finiteness.
+  CUT      verbarg/pronref  class-level windowed -> same redundancy wall as clause (Order's C=4 subsumes them).
+  DEFER    clausebound  beats base rate but is a positional predictor not wired into generation; overlaps Comma.
+LESSON: the genomes that survive are the ones enforcing a constraint Order/Selection/Alternation
+STRUCTURALLY can't see — semantic co-occurrence (content identity) and exact-word recency (state).
+Class-level windowed validity is always subsumed by the order genome; word-level function-type
+re-ranks are subsumed by Alternation. Cut modules kept on disk (documented) but not wired/cached.
+
+(original battery plan) train each, gate on val-acc-beats-chance AND a targeted generation metric
+(prep/det: fewer dangling-function adjacencies; sem: higher content-pair corpus co-occurrence;
+rep: lower content-word repeat rate; tense: fewer mixed-tense verb pairs; clause/verb/pron:
+higher class-trigram-hit) WITHOUT breaking adj-hit/distinct. Cut and LOG any that don't earn
+their place — several (prep/det vs alternation, tense vs agreement, clause-boundary vs comma,
+verb/pron vs clause) may prove redundant. That's expected; the battery is how we find out.
+
+## Priority Order (my suggestion)
+
+1. **Clause template** - biggest visible fix, kills the remaining ugly sequences
+2. **Preposition completion** - surgical, trivially measurable
+3. **Determiner binding** - surgical, trivially measurable
+4. **Semantic compatibility** - first meaning-level genome
+5. **Repetition penalty** - insurance against collapse
+6. **Verb argument** - clause-level structure
+7. **Continuity / topic** - bridge from local to global
+8. **Conversation / copy** - when you're ready for dialogue
+
+
+WordPipe — Next Genome Candidates
+
+Principle
+
+The current stack is saturated at the class-level and local word-pair level.
+Every genome that operates on "adjacent class pairs" or "class trigrams" is
+redundant with Order (C=4) or Alternation. The genomes that shipped (sem, rep)
+worked because they see things the stack STRUCTURALLY cannot: word identity
+(not class) and temporal state (not windowed).
+
+The next gains live in capabilities none of the current 11 genomes can express.
+
+
+Candidates (grouped by what's structurally new)
+
+A. Cross-sentence coherence (nothing currently crosses a period)
+
+GenomeOne thingFitness signalSearch spaceSentence similarityDoes sentence N+1 share content-class distribution with sentence N?Cosine of class-frequency vectors between adjacent sentences vs random sentence pairs from corpus~300-500 (bilinear over class histograms)Lexical bridgeDoes at least one content word from sentence N appear (or have a synonym) in sentence N+1?Binary: did the next sentence reference something from the previous one? Corpus gives the base rate~200 (threshold + synonym lookup)Discourse connectorDoes the first word of a sentence signal a relationship to the previous? (however, then, also, but, so)Next-sentence-opener prediction given previous sentence's class profile~400 (small classifier over class summary → connector class)
+
+B. Positional / structural awareness (nothing knows WHERE in a sentence it is)
+
+GenomeOne thingFitness signalSearch spaceSentence openerIs the first word of a sentence a plausible sentence-starter?P(word classposition=0) from corpus. "Of" never starts a sentence. "The" often doesSentence closerIs the last word before a period a plausible sentence-ender?P(word classposition=last) from corpus. Sentences end on nouns, verbs, adjectives — not prepositionsLength-dependent classDoes the class distribution shift as the sentence progresses?P(classbucketed position) — early positions favor subjects, late positions favor objects
+
+C. Word identity beyond adjacent pairs (sem only sees ±1)
+
+GenomeOne thingFitness signalSearch spaceWider co-occurrenceDo content words within a 5-word window co-occur in the corpus?Same as sem but scored over a window not just the adjacent pair~580 (same bilinear head, wider context fed in)Content echoIf a content word appeared earlier in THIS sentence, is its reappearance meaningful?Score: does the corpus ever repeat this word within a sentence? Some words repeat naturally (names), most don't~200 (word-frequency-of-repetition lookup + threshold)
+
+D. Functional completeness (nothing checks if a sentence "has all its parts")
+
+GenomeOne thingFitness signalSearch spaceSentence has verbDoes every sentence contain at least one verb-class token?Binary per sentence. Corpus base rate is ~99%. A sentence without a verb is almost never valid~50 (just checks class membership)Sentence has subjectDoes every sentence contain at least one noun/pronoun-class before the verb?Binary. Agent before action is the basic English pattern~100 (class order check within sentence)Minimum contentDoes every sentence contain at least N content words (not just function words)?Ratio of content to function classes per sentence vs corpus distribution~50 (threshold on ratio)
+
+E. Stylistic consistency (nothing tracks register)
+
+GenomeOne thingFitness signalSearch spaceFormality consistencyAre all sentences in the same register?Variance of formality-proxy features (sentence length, function-word ratio, rare-word ratio) across sentences~200 (feature extraction + variance scorer)Vocabulary tierAre the content words drawn from a consistent frequency band?Variance of log-frequency across content words in a passage. Real text has lower variance than random sampling~100 (log-freq variance scorer)
+
+
+Priority recommendation
+
+Highest expected impact (fills gaps visible in current output):
+
+
+Sentence opener — trivially small, likely high impact. Current output starts sentences with "Of" and "And" and "To" — class-0 priors would kill that instantly.
+Sentence closer — same logic, other end. Sentences ending on prepositions or determiners die.
+Sentence has verb — almost free. Verbless sentences are always wrong.
+Lexical bridge — first cross-sentence genome. One content word carried across is the minimum unit of coherence.
+Discourse connector — gives sentences relationships ("however," "then," "also").
+Wider co-occurrence — extends sem's reach from ±1 to ±5, should compound.
+
+
+NEW-BATCH BATTERY — STAGE 1 RESULTS (2026-07-07)
+
+SHIPPED  Sentence opener (`sent_open.py`, ~14 params, UnaryPop over func-type feats): fires at each
+         sentence start; bad-opener% (begins with of/to/is/aux) 22.9->19.3 at zero fluency cost. Wired
+         via the fill bonus hook + OPEN_GAMMA=4.0. Modest (limited to within-class re-rank: sentence
+         position isn't known during class generation, so it can only re-rank inside the pre-chosen class).
+SHIPPED  Sentence closer (`sent_close.py`, ~14 params): reshapes WHERE periods land (end after good
+         ender-words) — modulates BOTH boundary paths by exp(CLOSE_GAMMA*(close_score[last_word]-centre)),
+         centre = emission-weighted mean so it's RATE-PRESERVING (sentence length holds). bad-close 65->33%
+         at g=0.5, adj-hit UP. Needed the boundary fix + emission-weighted centring to work (median-centring
+         inflated length). Wired at CLOSE_GAMMA=0.5.
+
+*** BOUNDARY BUG FOUND + FIXED (the real blocker): sentences ran 54 words (capped 43/45). Root cause was
+NOT the Boundary genome (correctly calibrated: base rate 0.0537 = 18.6-word sentences). The reserved <unk>
+class (class 32) carries most of the boundary signal (rare sentence-final words fall into unk; corpus rate
+0.182) and is emitted ~38% of the time — but generation SKIPS unk (not in table) with a bare `continue`,
+bypassing the boundary check and throwing the period away. FIX: run the boundary check on skipped unk
+classes too. Result: sentence length 54->~13-14 words (target 18.6), capped 43/45 -> 3/167. This unblocked
+the whole sentence tier: opener jumped 22.9->19.3 (broken) to 17.3->8.3 (fixed), and closer became shippable.
+
+STAGE 2 RESULTS (2026-07-07): built + evaluated has-verb, wider-cooc, bridge, connector (`stage2.py`).
+ALL FOUR CUT/DEFERRED — and the reason is the important finding. Corpus reference rates: verb/sent 0.844,
+cross-sentence carryover 0.23, connector-open 0.069.
+  CUT  has-verb   : baseline already 83.7% verb/sent ≈ corpus 84.4%. No deficit (the ~16% verbless mirror
+                    the corpus's fragments/dialogue). Boost pushes to 86% = above corpus, unneeded.
+  CUT  bridge     : baseline carryover 27.5% already EXCEEDS corpus 23%. Boosting → 58-74% = unnatural
+                    cross-sentence repetition (distinct drops 53->46). The pipeline already over-repeats
+                    content across sentences; more is worse.
+  CUT  wider-cooc : cpr 35.5->36.7 at g2 (marginal), hurts at g4. sem±1 already captures it; ±5 adds nothing.
+  DEFER connector : the ONLY real deficit (baseline 0.5% vs corpus 6.9% connector-openings). But my version
+                    is a FLAT boost of a closed connector list — a rule, not the evolved conditional predictor
+                    the spec calls for (connector should signal a RELATIONSHIP to the previous sentence;
+                    flat emission fails that one job). Not shipped as a rule. Real version needs a
+                    previous-sentence-conditioned classifier (cross-sentence, semantic).
+META-FINDING: the cross-sentence COHERENCE tier has no measurable STRUCTURAL deficit — baseline matches
+corpus on verb-rate and EXCEEDS it on carryover. The remaining gap is MEANINGFUL coherence (the right word,
+a real relationship) = semantic understanding, the same wall the conversational attempt hit. Structural
+sentence genomes (opener/closer + the boundary fix) paid off because real structural deficits existed;
+coherence does not yield to boosts. `stage2.py` kept for its corpus_reference() + verb/content/connector
+helpers. Minor known artifact: occasional "word,." (comma then period) — cosmetic.
+
+Honestly? Association is just sem — co-occurrence. You already have it.
+Part-of and type-of are harder. "Hand" and "body" don't have a clean distributional signal that separates them from just "these appear near each other." You'd need labeled data or a pattern like "X is part of Y" appearing in the corpus, and that's sparse.
+Synonyms and antonyms are real though. Synonyms share almost identical context windows. Antonyms share context windows but appear in opposite slots ("hot day" vs "cold day"). Those are measurable distributional signals a tiny genome could learn.
+Start with what has a clean signal. Synonyms and antonyms. If part-of and type-of don't have a corpus signature evolution can grab, they don't earn their place. Same discipline.● This validates the whole direction — 4/5 relations have real signal on Wikipedia. Now the shared dependency: distributional word-features built on Wikipedia (the same SVD-of-co-occurrence approach as the current pipeline, but scaled up — bigger
+  vocab and dims, since semantics needs coverage of nouns like "throne"/"diabetes" that the 4000-word novel vocab lacks). Let me build and cache those:
+● Bash(cd "C:\Users\paytonm\Documents\GENREG" && cat > "C:\Users\paytonm\AppData\Local\Temp\claude\C--Users-paytonm-Documents-GENREG\c959aa30-e956-4d34-8633-2f17f27d7b…)
+  ⎿  Running in the background (↓ to manage)
+● Building the Wikipedia features now (30K vocab, 128-dim, cached to wiki_feats.npz). The nearest-neighbor sanity check at the end is the real test — if "king" → queen/prince/emperor, the features carry enough semantics to train the relation
+  genomes on. Waiting for it.
+✻ Brewed for 2m 18s · 2 shells still running
+● Background command "Build Wikipedia distributional word features" completed (exit code 0)
+  Read 1 file (ctrl+o to expand)
+● The features are genuinely good — semantically coherent neighbors:
+  - king → queen, prince, lord, emperor · france → germany, japan, spain, italy · doctor → teacher, lawyer, pilot · dog → horse, cat
+  - And note hot → cold is the top neighbor, happy → bad — confirming the classic point: antonyms and synonyms are both distributionally similar, so the antonym genome will need the coordination signal to separate them (which we have).
+  Now I have the two shared pieces: wiki_corpus.txt + wiki_feats.npz. Let me validate the whole recipe on the flagship relation — hypernymy (type-of), the one Wikipedia uniquely enables. Mine directional positives (Hearst + fixed "is a" head-noun
+  extraction), train a bilinear genome, and test it ranks dog→animal high, animal→dog low, on held-out pairs and the probes:
+● Bash(cd "C:\Users\paytonm\Documents\GENREG" && cat > "C:\Users\paytonm\AppData\Local\Temp\claude\C--Users-paytonm-Documents-GENREG\c959aa30-e956-4d34-8633-2f17f27d7b…)
+  ⎿  Running in the background (↓ to manage)
+● This is the recipe validation on the flagship relation — mine directional hypernym pairs from Wikipedia, train a bilinear genome, test it ranks dog→animal above animal→dog and generalizes to unseen probes (guitar→instrument, copper→metal,
+  rose→flower). Waiting for it.
+✻ Sautéed for 1m 48s · 2 shells stillShow moreValidated semantic relation genomes using Wikipedia features and hypernymy extractionValidated semantic relation genomes using Wikipedia features and hypernymy extractionKing → queen, prince, lord, emperor. The features work. And hot → cold as top neighbor confirms antonyms and synonyms are distributionally close — the genome's job is to separate them.
+Waiting on the hypernymy result. If a bilinear genome can learn "dog → animal: yes, animal → dog: no" from mined Wikipedia pairs, that's the abstract relation you thought might be impossible, working gradient-free.correct. Thats how we do abstraction in GAs, you don't try and do backprop to discover the solution. in GAs you build the paths(environment) to the solution, if i need an embeedding space, i build the embedding space that would make up a trained gradient embedding space, evolution will bridge taht gap from infinite paths down to the one model that does a PART of the emebding space i need. not the full emebedding space.Synthesized genetic algorithm abstraction principles and evolutionary pathfinding conceptsSynthesized genetic algorithm abstraction principles and evolutionary pathfinding conceptsThat's the thesis stated cleanly. Gradients discover the embedding space by searching through it. Evolution can't search that space — it's too big. But you don't need evolution to discover the space. You BUILD the space from corpus statistics (SVD, co-occurrence, distributional features), and then evolution just learns one tiny relationship within that pre-built space.
+The features ARE the environment. Evolution is the organism navigating it.
+Same pattern as every other genome. You didn't ask evolution to discover POS categories — you induced them with k-means, then evolution learned order over them. You didn't ask evolution to discover word similarity — you built SVD features, then evolution learned selection over them. You don't ask evolution to discover embeddings — you build the distributional space, then evolution learns one relationship at a time within it.
+The environment does the heavy lifting. Evolution does the last mile. Every time.
+Looking at the flow, here are gaps I see:
+Skeleton stage (only 3 genomes — thin compared to fill's 26):
+GenomeOne thingWhy it's missingSentence typeIs this a statement, question, or imperative?Nothing decides sentence shape before generating. Drives different class sequencesSentence length planHow long should this sentence be?Boundary decides AFTER generation. A pre-planned length lets the skeleton pace toward a closerClause countSimple or compound sentence?Nothing decides "one clause" vs "X, and Y" before the skeleton runs
+Fill stage (missing specific linguistic relationships):
+GenomeOne thingWhy it's missingDefiniteness"a" vs "the" — first mention vs known entityNothing tracks whether a noun has appeared beforeVerb-preposition"depend ON" not "depend AT"Fixed collocations between verbs and their prepositions — subcategorizationTransitivityIf the verb needs an object, one must followNothing enforces verb argument requirements
+New stage — Revision (doesn't exist yet):
+GenomeOne thingWhy it's newWhole-sentence scorerRead the complete sentence and score itCurrently every genome scores locally during generation. A post-hoc pass could reject or resample bad sentencesBest-of-NGenerate N candidates, pick the bestThe rerank idea from earlier but with the full pipeline as the generator, not a single model
+Cross-sentence (passage level):
+GenomeOne thingWhy it's missingPronominalization"the king" first time, "he" afterNothing tracks entity introduction vs referenceDiscourse relationThis sentence elaborates / contrasts / causes the previousThe connector genome was deferred — this is its evolved versionInformation statusGiven info first, new info last in each sentenceEnglish information structure — nothing tracks this
+The revision stage is potentially the biggest unlock. Right now every word is committed the moment it's generated. A best-of-N pass with a whole-sentence scorer could be huge — generate 5 sentences, score each one holistically, keep the best. Same genomes, no new training, just selection at the sentence level.

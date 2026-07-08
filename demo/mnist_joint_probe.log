@@ -1,0 +1,5 @@
+warm |W|^2 = 477.9962463378906
+  [joint] gen 1: val_acc=0.9788 best=0.9788 fit0=-0.1700 |W|^2=478.0 (base 0.9786)
+  [joint] gen 500: val_acc=0.9646 best=0.9788 fit0=-0.2312 |W|^2=649.3 (base 0.9786)
+  [joint] gen 1000: val_acc=0.9596 best=0.9788 fit0=-0.2705 |W|^2=827.9 (base 0.9786)
+probe: 0.9786 -> 0.9788

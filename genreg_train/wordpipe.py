@@ -475,16 +475,34 @@ def run_class_lm(n_classes=32, gens=800, pop=200, C=4, E=8, H=48, minibatch=256,
 #   order genome  -> emits a CLASS skeleton (grammatical order)
 #   vocabulary    -> fills each class slot with a real word of that class
 # ==========================================================================
-def gen_class_seq(champ, C, length, seed_ctx, rng, temp=0.9):
-    """Autoregressively emit `length` CLASS ids from the order-genome champion."""
+def gen_class_seq(champ, C, length, seed_ctx, rng, temp=0.9, reranks=None, clause=None):
+    """Autoregressively emit `length` CLASS ids from the order-genome champion.
+    `reranks` = list of (classfeat[nc,K], M[K,K], gamma): pairwise constraint genomes
+    (content-function alternation, agreement, …) lifted to per-class centroids in
+    their own feature space, applied as a bias on the next-CLASS logits. Biases sum.
+    `clause` = (B[nc]*Kc, Kc, gamma): a clause-template genome expanded to a validity
+    bias tensor — given the last Kc-1 classes it biases the next class toward those
+    that COMPLETE a real clause fragment. Both put the constraint on the ORDER skeleton
+    itself, not just word selection within a slot."""
     emb, pos, W1, b1, W2, b2 = champ
+    abias = None
+    if reranks:
+        abias = sum(gamma * (CF @ M @ CF.T) for CF, M, gamma in reranks)   # (nc, nc)[prev, cand]
     ctx = list(np.asarray(seed_ctx[-C:], np.int64))
     out = []
     for _ in range(length):
         c = np.asarray(ctx[-C:], np.int64)
         cvec = np.einsum("ce,c->e", emb[c], pos)
         h = np.tanh(cvec @ W1 + b1)
-        logits = (h @ W2 + b2) / max(0.05, temp)
+        logits = h @ W2 + b2
+        if abias is not None:
+            logits = logits + abias[ctx[-1]]
+        if clause is not None:
+            B, Kc, cg = clause
+            if len(ctx) >= Kc - 1:
+                b = B[tuple(int(x) for x in ctx[-(Kc - 1):])]   # (nc,) validity of each completion
+                logits = logits + cg * (b - b.mean())           # zero-mean = pure rerank
+        logits = logits / max(0.05, temp)
         p = _softmax_last(logits)
         nxt = int(rng.choice(len(p), p=p))
         out.append(nxt); ctx.append(nxt)
@@ -722,12 +740,29 @@ def run_selection(n_classes=32, gens=1500, pop=200, D=24, K=7, minibatch=512,
             "champ": best_champ, "D": D, "K": K}
 
 
-def _fill_selected(prev_w, cl, table, feat, logfreq, champ, rng, temp=0.7):
+def _apply_reranks(s, prev_w, mem, reranks):
+    """Add each pairwise re-rank genome's score to the selection scores in place.
+    `reranks` = list of (feats[Vw,K], M[K,K], gamma): agreement, content-function
+    alternation, … Each adds gamma * feats[prev] @ M @ feats[mem]^T."""
+    if reranks:
+        for Ag, aM, gamma in reranks:
+            s = s + gamma * ((Ag[prev_w] @ aM) @ Ag[mem].T)
+    return s
+
+
+def _fill_selected(prev_w, cl, table, feat, logfreq, champ, rng, temp=0.7, reranks=None, bonus=None):
     """Fill a class slot using the selection specialist: score class members by
-    compatibility with the previous emitted word, sample from the softmax."""
+    compatibility with the previous emitted word, sample from the softmax.
+    `reranks`: optional list of pairwise genomes (agreement, alternation, semantic)
+    that re-rank candidates by their relation to the previous word — see _apply_reranks.
+    `bonus`: optional per-candidate additive score (aligned with table[cl][0]) for
+    stateful constraints the caller computes — e.g. the repetition penalty."""
     M, beta = champ
     mem = table[cl][0]
     s = (feat[prev_w] @ M) @ feat[mem].T + beta * logfreq[mem]
+    s = _apply_reranks(s, prev_w, mem, reranks)
+    if bonus is not None:
+        s = s + bonus
     s = s / max(0.05, temp)
     s -= s.max()
     p = np.exp(s); p /= p.sum()
@@ -1133,11 +1168,15 @@ def run_biselection(n_classes=32, gens=1500, pop=200, D=24, K=7, minibatch=512,
             "champ": best_champ, "D": D}
 
 
-def _fill_bisel(prev_w, cl, next_cls, table, feat, logfreq, cents, champ, rng, temp=0.7):
+def _fill_bisel(prev_w, cl, next_cls, table, feat, logfreq, cents, champ, rng, temp=0.7,
+                reranks=None, bonus=None):
     ML, MR, beta = champ
     mem = table[cl][0]
     cf = feat[mem]
     s = (feat[prev_w] @ ML) @ cf.T + cf @ (MR @ cents[next_cls]) + beta * logfreq[mem]
+    s = _apply_reranks(s, prev_w, mem, reranks)
+    if bonus is not None:
+        s = s + bonus
     s = s / temp; s -= s.max(); p = np.exp(s); p /= p.sum()
     return int(rng.choice(mem, p=p))
 

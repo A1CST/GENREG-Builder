@@ -54,6 +54,14 @@ try:
 except Exception as _e:                       # pragma: no cover
     WP_OK, WP_ERR = False, str(_e)
 
+# MNIST-Pipe — the WordPipe recipe applied to images (stats layer built from
+# data, semantic layer evolved, output mixer evolved). Proof outside language.
+try:
+    from genreg_train import mnist_service
+    MN_OK, MN_ERR = True, None
+except Exception as _e:                       # pragma: no cover
+    MN_OK, MN_ERR = False, str(_e)
+
 # I2 latent-content node (separate program; shares this server).
 try:
     import i2_service
@@ -380,6 +388,16 @@ def evolang_page():
     return resp
 
 
+@app.route("/evolang/layers")
+def evolang_layers_page():
+    """Genome layer/flow map — Structural -> Semantic -> Abstraction, and which
+    pipeline stage (skeleton/fill/boundary) each genome wires into. Static data
+    (static/evolang_layers.js), no backend state."""
+    resp = app.make_response(render_template("evolang_layers.html"))
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
+
+
 @app.route("/api/evolang/status")
 def api_evolang_status():
     """Pipeline load status (lazy-loads genomes + corpus on first hit)."""
@@ -397,7 +415,12 @@ def api_evolang_generate():
     a = request.args
     en = {"vocab": a.get("vocab") == "1", "order": a.get("order") == "1",
           "bound": a.get("bound") == "1", "chunks": a.get("chunks") == "1",
-          "commas": a.get("commas") == "1", "sel": a.get("sel", "off")}
+          "commas": a.get("commas") == "1", "sel": a.get("sel", "off"),
+          "agree": a.get("agree") == "1", "altern": a.get("altern") == "1",
+          "sem": a.get("sem") == "1", "rep": a.get("rep") == "1",
+          "open": a.get("open") == "1", "close": a.get("close") == "1",
+          "hyper": a.get("hyper") == "1", "mero": a.get("mero") == "1",
+          "synant": a.get("synant") == "1"}
     try:
         seed = int(a.get("seed", 0))
     except (TypeError, ValueError):
@@ -405,6 +428,59 @@ def api_evolang_generate():
     wordpipe_service.SERVICE.ensure()
     text = wordpipe_service.SERVICE.generate(en, seed=seed)
     return jsonify({"text": text, "ready": wordpipe_service.SERVICE.ready})
+
+
+@app.route("/mnist")
+def mnist_page():
+    """MNIST — the specialist-pipeline recipe applied to images."""
+    resp = app.make_response(render_template("mnist.html"))
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
+
+
+@app.route("/api/mnist/status")
+def api_mnist_status():
+    """Pipeline load status (lazy-loads genomes + statistics layer on first hit)."""
+    if not MN_OK:
+        return jsonify({"ready": False, "err": MN_ERR or "mnist unavailable"})
+    mnist_service.SERVICE.ensure()
+    return jsonify(mnist_service.SERVICE.status())
+
+
+@app.route("/api/mnist/eval")
+def api_mnist_eval():
+    """Test accuracy + confusion matrix for the enabled layer subset."""
+    if not MN_OK:
+        return jsonify({"err": MN_ERR or "mnist unavailable"})
+    a = request.args
+    mnist_service.SERVICE.ensure()
+    return jsonify(mnist_service.SERVICE.evaluate(
+        use_mixer=a.get("mixer") == "1", use_pairs=a.get("pairs") == "1"))
+
+
+@app.route("/api/mnist/sample")
+def api_mnist_sample():
+    """A grid of test digits with the pipeline's predictions."""
+    if not MN_OK:
+        return jsonify({"err": MN_ERR or "mnist unavailable"})
+    a = request.args
+    try:
+        seed = int(a.get("seed", 0))
+    except (TypeError, ValueError):
+        seed = 0
+    mnist_service.SERVICE.ensure()
+    return jsonify(mnist_service.SERVICE.sample(
+        seed=seed, use_mixer=a.get("mixer") == "1", use_pairs=a.get("pairs") == "1",
+        only_errors=a.get("errors") == "1"))
+
+
+@app.route("/api/mnist/reload", methods=["POST"])
+def api_mnist_reload():
+    """Reload champions from disk (after a training run finishes)."""
+    if not MN_OK:
+        return jsonify({"err": MN_ERR or "mnist unavailable"})
+    mnist_service.SERVICE.reload()
+    return jsonify({"ok": True})
 
 
 @app.route("/diff")
