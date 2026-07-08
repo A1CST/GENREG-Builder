@@ -10,6 +10,14 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-08] (Claude)** — /evolang UI updated for the genomes wired this session.
+  `sent_type`/`lenplan`/`pronominal` toggles now appear in the genome-stack sidebar
+  (LAYERS array in `static/evolang.js`) and the pipeline description card (ARCH array).
+  New `/api/evolang/revision` endpoint + "Best-of-N (Revision)" button — calls
+  `Service.generate_revision()` with the same layer toggles as Regenerate, plus
+  `n_sentences`/`n_candidates` (defaults 6/6, capped at 12). Requires a Flask restart
+  to pick up (not restarted here, per standing instruction).
+
 - **[2026-07-08] (Claude)** — Autonomous genome-testing run: rest of the /evolang/layers
   roadmap cleared (genomes #5-10), plus a new Revision pipeline stage built.
   **Sentence coherence** + **Theme consistency**: CUT, both barely above chance

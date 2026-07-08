@@ -45,6 +45,10 @@
     ["Hypernym (experimental)", "standalone relation genome, NOT trained on this pipeline's corpus — trained on a separate 51M-word Wikipedia corpus (30K vocab, 128-d SVD features), then crosswalked into this pipeline's word list by lookup. Bilinear head learns directional is-a: score(dog,animal) > score(animal,dog). 10/10 on held-out probes, directional held-out accuracy 0.86. Wired as a selection re-rank like Semantic, but untested for its effect on generation quality — that's what this toggle is for."],
     ["Meronym (experimental)", "same recipe as Hypernym for part-of (wheel→car). 9/10 on held-out probes. Also standalone/crosswalked, also untested in generation."],
     ["Synonym/Antonym (experimental)", "same recipe, but asks a narrower question: given a pair already known to be related, is it same-meaning or opposite-meaning? (Training two separate detectors failed — see documentation/GA_SCALING_FIELD_NOTES.pdf for why.) 11/14 on held-out probes; known residual failure on size-adjective pairs."],
+    ["Sentence type (experimental)", "Skeleton-stage unary classifier — question-opener vs statement-opener, over function-type features. Probe: all 18 question-openers outscored all 11 statement-openers. Wired: coin-flip at the corpus question-rate (8.2%), biases the opener, forces “?”. Generation check: flagged-question rate landed at 8.2% (matches corpus). ~14 params."],
+    ["Sentence length plan (experimental)", "Skeleton-stage unary classifier — long-sentence-opener vs short-sentence-opener. Probe passed but weak (mean +0.53 vs -0.13, many tied scores). Wired the same shape as Sentence type, but a generation spot-check found no measurable length-distribution change — technically wired, practically inert at safe gammas."],
+    ["Pronominalization (experimental)", "the first real Passage-stage (cross-sentence) genome, and it needed NO new training — reuses the No-repeat genome's recency buffer directly. A content word re-mentioned within the last 15 words is replaced by a generic pronoun (“it”, no gender/number) 60% of the time. Measured effect: “it” frequency rose 0.77%→1.11% of words with the toggle on — a real, measurable change."],
+    ["Revision — Best-of-N (experimental)", "a whole new pipeline stage (separate button below, not a layer toggle): generates several candidate sentences per slot with the SAME toggles above, unchanged, scores each with a Whole-sentence scorer (semantic adjacency + opener/closer fit + alternation/no-repeat violation counts, all from already-evolved champions), keeps the best. No new training. Verified mechanically to rank-order candidates correctly; has a known bias toward shorter sentences, not yet corrected."],
   ];
 
   let en = { vocab: true, order: true, sel: "bi", altern: true, agree: true, sem: true, rep: true, open: true, close: true, bound: true, commas: true, chunks: false, hyper: false, mero: false, synant: false, sent_type: false, lenplan: false, pronominal: false };
@@ -165,6 +169,16 @@
       .catch(() => { $("ev-out").textContent = "(generation error)"; });
   }
 
+  function generateRevision() {
+    if (!ready) return;
+    $("ev-stack").textContent = stackLabel() + "  +  Revision (Best-of-N)*";
+    $("ev-out").textContent = "generating candidates…"; $("ev-repstats").textContent = "";
+    fetch("/api/evolang/revision?" + qs() + "&n_sentences=6&n_candidates=6")
+      .then((r) => r.json())
+      .then((d) => { renderOutput(d.text || "(no output)"); })
+      .catch(() => { $("ev-out").textContent = "(generation error)"; });
+  }
+
   function setConn(ok, txt) {
     $("ev-dot").className = "dot" + (ok ? " ok" : " bad");
     $("ev-conn").textContent = txt;
@@ -200,5 +214,6 @@
   }
 
   $("ev-gen").addEventListener("click", () => { seed++; generate(); });
+  $("ev-revision").addEventListener("click", () => { seed++; generateRevision(); });
   renderLayers(); renderArch(); poll();
 })();

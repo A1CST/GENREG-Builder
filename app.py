@@ -431,6 +431,40 @@ def api_evolang_generate():
     return jsonify({"text": text, "ready": wordpipe_service.SERVICE.ready})
 
 
+@app.route("/api/evolang/revision")
+def api_evolang_revision():
+    """EXPERIMENTAL Revision stage — Best-of-N over the Whole-sentence scorer.
+    Same layer toggles as /api/evolang/generate, plus n_sentences/n_candidates."""
+    if not WP_OK:
+        return jsonify({"text": "", "err": WP_ERR or "wordpipe unavailable"})
+    a = request.args
+    en = {"vocab": a.get("vocab") == "1", "order": a.get("order") == "1",
+          "bound": a.get("bound") == "1", "chunks": a.get("chunks") == "1",
+          "commas": a.get("commas") == "1", "sel": a.get("sel", "off"),
+          "agree": a.get("agree") == "1", "altern": a.get("altern") == "1",
+          "sem": a.get("sem") == "1", "rep": a.get("rep") == "1",
+          "open": a.get("open") == "1", "close": a.get("close") == "1",
+          "hyper": a.get("hyper") == "1", "mero": a.get("mero") == "1",
+          "synant": a.get("synant") == "1", "sent_type": a.get("sent_type") == "1",
+          "lenplan": a.get("lenplan") == "1", "pronominal": a.get("pronominal") == "1"}
+    try:
+        seed = int(a.get("seed", 0))
+    except (TypeError, ValueError):
+        seed = 0
+    try:
+        n_sentences = max(1, min(12, int(a.get("n_sentences", 6))))
+    except (TypeError, ValueError):
+        n_sentences = 6
+    try:
+        n_candidates = max(1, min(12, int(a.get("n_candidates", 6))))
+    except (TypeError, ValueError):
+        n_candidates = 6
+    wordpipe_service.SERVICE.ensure()
+    text = wordpipe_service.SERVICE.generate_revision(en, n_sentences=n_sentences,
+                                                       n_candidates=n_candidates, seed=seed)
+    return jsonify({"text": text, "ready": wordpipe_service.SERVICE.ready})
+
+
 @app.route("/mnist")
 def mnist_page():
     """MNIST — the specialist-pipeline recipe applied to images."""
