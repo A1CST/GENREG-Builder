@@ -1,6 +1,94 @@
 # WordPipe Genome Roadmap
 
-## Corpus swap: Gutenberg -> Wikipedia (2026-07-08) — user directive: "modern corpus"
+## Corpus swap #2: Wikipedia -> Combined (Wikipedia + Cornell Movie Dialogs), and
+## intent-first generation architecture (2026-07-08)
+
+User's finding: the exclaim-affinity genome trained on Wikipedia-only found every
+emotionally-loaded probe word (wow/amazing/incredible/oh/beware/alas/hooray) was
+OUT-OF-VOCABULARY — Wikipedia's encyclopedic register barely uses "!" the way emotional/
+spoken language does. User directive: expand the corpus with real dialogue AND change the
+generation architecture at the same time (not a repeat of the earlier same-pipeline-new-
+corpus mistake, which fixed vocabulary but never moved fluency).
+
+**Combined corpus**: Wikipedia (316MB) + Cornell Movie Dialogs (`project/conversational/`,
+already on disk — 304,446 real dialogue lines, 17.1MB, repeated 6x to ~103MB so it isn't
+drowned out by Wikipedia's size) = 421MB combined, 24.4% dialogue by weight
+(`corpora/combined/build_combined_corpus.py`). `genreg_train/evolang.py`'s `CORPUS_PATH`
+repointed here (2nd swap this session — Gutenberg -> Wikipedia -> Combined, prior paths
+kept commented for revert/comparison).
+
+**Effect on intent signal, directly attributable to the dialogue mixing**: exclaim-initial
+training samples rose from 2,499 (Wikipedia-only) to **133,321** (53x). Corpus exclaim rate
+in the punctuation-sequence mining rose from 0.11% to **2.34%** of all marks; question rate
+from 0.07% to **6.69%**. Real words like "youtube" and "gimme" now appear in generated
+output (neither could come from Wikipedia alone) — direct, visible confirmation the
+dialogue corpus is shaping the vocabulary, not just padding byte count.
+
+**All 23 genomes retrained** (`genreg_train/run_retrain_combined.py`, I2 primary, ~94 min):
+
+| Genome | Result | vs prior (Wikipedia-only) |
+|---|---|---|
+| Order | val_ppl 11.80 (unigram 13.12) | beats baseline, consistent |
+| Selection | val_logprob -1.08 (base -1.12), top1 0.637 | consistent |
+| Bidirectional | val_logprob -1.08 (base -1.13) | consistent |
+| Boundary | val_logprob -0.144 (base -0.199) | consistent |
+| Comma | val_logprob -0.163 (base -0.237) | consistent |
+| Agreement | val_acc 0.603 | consistent |
+| Alternation | val_acc 0.605 | consistent |
+| Semantic | val_acc 0.588 | consistent |
+| No-repeat | val_acc 0.947 | consistent |
+| Opener | val_acc 0.643 | consistent |
+| Closer | val_acc 0.735 | consistent |
+| Order-bigram | val_ppl 12.52 (unigram 13.26) | consistent |
+| Altern-rhythm | val_acc 0.530 | consistent (still weak — coarse signal) |
+| Altern-func-chain | val_acc 0.684 | consistent (still the strong half) |
+| Agree-modal | val_acc 0.750 | consistent |
+| Agree-number | val_acc 0.684 | consistent |
+| Sem-adjacent | val_acc 0.680 | consistent |
+| Sem-window | val_acc 0.580 | consistent |
+| **sent_type** (question) | val_acc 0.751, 502,073 question-initial samples | **up from Wikipedia-only** — far more question data |
+| **sent_type_exclaim** | val_acc 0.616, 133,321 exclaim-initial samples | **up from val_acc 0.59, 53x more data** |
+| **intent_punct** (punctuation-sequence) | val_ppl 2.44 (unigram 2.68) | real signal, mark distribution now genuinely diverse (see below) |
+| Order-backward | val_ppl 11.08 (unigram 11.42) | fresh, trained on combined corpus |
+| Selection-backward | val_logprob -0.94 (base -0.99) | fresh, trained on combined corpus |
+
+## Intent-first generation (NEW, `Service.generate_intent_first()`)
+
+User's idea: the punctuation mark IS the intent, chosen before any word exists — grammar
+grows backward to serve it, not forward hoping to land on a valid one. Generates the
+punctuation SEQUENCE for the whole response first (`intent_punct`, autoregressive over
+`{. , ; : ! ?}`), then grows each word-span BACKWARD from its mark toward the previous one
+using Order-backward/Selection-backward (trained via a cache-reversal trick — zero new
+algorithm, `wp.run_class_lm`/`wp.run_biselection` fed the corpus read backward, same
+word->class mapping so results stay compatible with the existing class table). The mark's
+TYPE biases what grows toward it: `sent_type`'s question-affinity for `?`, `exclaim`'s
+affinity for `!`.
+
+**Verified working (2026-07-08, real samples, no crash)**:
+```
+seed 1: marks: . ? . ? . . ! . . . , .
+Due day in them that during british team name. The in little made in who?
+Which looks in different the film. Despite and made known won whom? ...
+Yourself go not may who! Man day in two try as due both...
+```
+Real questions (`who?`, `whom?`) and a real exclamation (`who!`) appear tied to genuine
+discourse-skeleton marks, not forced — first time this session real intent-carrying
+punctuation has appeared in generation output at all. Discourse skeletons are genuinely
+varied (mixed periods/commas/questions), not degenerate single-symbol runs like the
+Wikipedia-only punctuation genome produced.
+
+**Honest verdict: this is real, working new functionality, not a fluency fix, and was never
+claimed to be one.** Sentences are still word salad — shorter and more varied than the old
+"of the X of the Y" pattern, but not coherent English; the clause-completeness gap
+diagnosed earlier this session (relative pronouns/clauses that never resolve) is untouched
+by this work, because intent-first changes WHAT anchors generation, not the underlying
+Order/Selection word-to-word mechanics. What changed, and is real: intent-carrying
+punctuation now genuinely exists in the pipeline for the first time, and the vocabulary is
+measurably richer/more modern.
+
+New `/api/evolang/intent_first` endpoint + "Intent-first (backward)" button on `/evolang`.
+
+## Corpus swap #1: Gutenberg -> Wikipedia (2026-07-08) — user directive: "modern corpus"
 
 The entire pipeline was trained on `project/EEC-main/engine/corpus.txt` — 49MB of
 19th-century Gutenberg novels (Brothers Karamazov, Don Quixote, Les Misérables), which is
@@ -37,6 +125,15 @@ and haven't been re-measured on the new one. `battery_round1.py`'s guardrail num
 (adj-hit/distinct/dangling baselines) are also now stale for the same reason — the corpus
 those baselines described no longer exists as the live corpus. Re-running the battery on
 the new corpus is a real follow-up, not done in this pass.
+
+**Superseded by corpus swap #2** (Wikipedia -> Combined, see top of file) — everything in
+this section is now doubly-stale (was already stale once, the corpus that replaced Wikipedia
+has since been replaced again). `sent_type`/`sent_lenplan`/`pronominal`'s old wiki-only
+champion files are no longer loaded (the live `self.sent_type_scores` now comes from
+`genreg_train/sent_type_champ.pkl`, still Wikipedia-trained since it wasn't retrained on the
+combined corpus for the OLD `sent_type` toggle — but `self.sent_type_scores_combined` is the
+NEW combined-corpus version, used only by `generate_intent_first()`). `battery_round1.py`
+was never re-run on either new corpus — a real, still-open follow-up.
 
 ## Grammar investigation (2026-07-08) — 4 hypotheses tested, all failed or mixed
 

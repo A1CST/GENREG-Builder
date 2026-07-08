@@ -10,6 +10,33 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-08] (Claude)** — Intent-first generation VERIFIED with real output. Full
+  swap completed: corpus #2 (Wikipedia -> Combined = Wikipedia + Cornell Movie Dialogs,
+  421MB, 24.4% dialogue) is now live (`demo/genomes.pkl` swapped, `evolang.py`'s
+  `CORPUS_PATH` repointed, wiki-only backup preserved at `demo/genomes_wiki.pkl`). All 23
+  genomes retrained on the combined corpus (I2 primary, job `b791766f592ff012`, ~94 min).
+  Real, attributable effect of the dialogue mixing: exclaim-affinity training samples rose
+  2,499 -> 133,321 (53x), corpus exclaim-rate in the punctuation-sequence mining rose
+  0.11% -> 2.34% of all marks, question-rate 0.07% -> 6.69%. `generate_intent_first()`
+  now produces real output with genuine question marks and an exclamation tied to actual
+  discourse-skeleton marks ("...who?", "...whom?", "...who!") and combined-corpus-specific
+  vocabulary ("youtube", "gimme") appearing — first time this session real intent-carrying
+  punctuation has shown up in generation at all. Honest verdict unchanged from the
+  architecture's design intent: does not fix fluency (still word salad, same clause-
+  completeness gap), because it changes what anchors generation, not the underlying
+  Order/Selection word-to-word mechanics. Full numbers for all 23 genomes and the verified
+  sample in `genomes.txt`'s "Corpus swap #2" section; flow map (`static/evolang_layers.js`)
+  gets a new "Intent" stage (5 new nodes: Punctuation sequence, Exclaim affinity,
+  Order-backward, Selection-backward, Intent-first generation composed node).
+
+- **[2026-07-08] (Claude)** — **PUBLISHED github.com/A1CST/GENREG_MNIST_2.0** — the full
+  scientific package for MNIST-Pipe: **99.10% ± 0.05% test over 5 full-pipeline seeds**,
+  10-cell ablation battery (standard GA baseline 92.60 vs shipped 99.22 on identical
+  environment/budget; cold start -16.0; evolved bank +1.4; mag-scaled mutation carries the
+  climb), charts (confusion matrix, ladder, seed variance, ablations, detector bank),
+  METHOD/FAILURES/LIMITATIONS docs, checkpoints, clean-clone reproducibility verified.
+  Local copy `Documents\GENREG-MNIST-2`; drivers `jobs/mnist_seeds.py` +
+  `jobs/mnist_ablations.py`; details in CHANGELOG_MNIST.md.
 - **[2026-07-08] (Claude)** — Intent-first generation architecture (user idea: "the
   punctuation mark IS the intent" — chosen before any word exists, structure grows
   backward to serve it, not forward hoping to land on one). Combined corpus:

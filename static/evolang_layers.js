@@ -24,6 +24,25 @@
   // short = always-visible one-line caption (fits the node box).
   // desc  = full reasoning, shown in the hover tooltip.
   const NODES = [
+    // ---- intent (punctuation as anchor, generation grows backward from it) ----
+    { id: "intent_punct", name: "Punctuation sequence", layer: "structural", stages: ["intent"], status: "experimental",
+      short: "the discourse skeleton, chosen first",
+      desc: "WIRED, verified (2026-07-08) — user idea: \"the punctuation mark IS the intent\", chosen before any word exists. Tiny autoregressive model (reuses wp.OrderPop) over a 6-symbol alphabet {. , ; : ! ?} instead of 32 word-classes, mined directly from the corpus's real punctuation sequence, zero external labeling. Generates the WHOLE response's discourse skeleton up front. Combined-corpus (Wikipedia + Cornell Movie Dialogs) val_ppl 2.44 (unigram 2.68) — real signal, and the mark distribution is now genuinely diverse (exclaim 2.34%, question 6.69% of all marks, up from 0.11%/0.07% on Wikipedia alone) instead of near-pure period/comma alternation." },
+    { id: "sent_type_exclaim", name: "Exclaim affinity", layer: "structural", stages: ["intent"], status: "experimental",
+      short: "does this word open an exclamation?",
+      desc: "WIRED, verified (2026-07-08) — generalizes the shipped sent_type (question vs statement) to a 3-way split via a SECOND binary genome (exclaim-opener vs statement-opener), same decompose-into-binary pattern as Alternation/Agreement. On Wikipedia alone this was nearly untestable — every emotionally-loaded probe word (wow/amazing/incredible/oh/beware/alas/hooray) was OUT-OF-VOCABULARY, exclaim-initial samples only 2,499, val_acc 0.59. On the combined corpus (+ Cornell Movie Dialogs): exclaim-initial samples jumped to 133,321 (53x), val_acc 0.616. Biases what grows toward a '!' mark in generate_intent_first()." },
+    { id: "order_backward", name: "Order-backward", layer: "structural", stages: ["intent"], status: "experimental",
+      group: "backward", groupLabel: "Backward pair (grows toward the anchor)",
+      short: "next class, grown right-to-left",
+      desc: "WIRED, verified (2026-07-08) — Order retrained on the corpus read BACKWARD via a cache-reversal trick (zero new algorithm: wp.run_class_lm fed reversed ids/cids, same word->class mapping so results stay compatible with the existing class table). val_ppl 11.08 (unigram 11.42) on the combined corpus. Given a chosen ending, predicts the PRECEDING class instead of the following one." },
+    { id: "sel_backward", name: "Selection-backward", layer: "structural", stages: ["intent"], status: "experimental",
+      group: "backward", groupLabel: "Backward pair (grows toward the anchor)",
+      short: "word fit, scored against what's to its right",
+      desc: "WIRED, verified (2026-07-08) — Bidirectional Selection retrained on the reversed corpus, same trick as Order-backward. val_logprob -0.94 (base -0.99). Scores a candidate against the word already placed to its RIGHT and the class about to be placed to its LEFT — the mirror image of the shipped Selection." },
+    { id: "intent_first_gen", name: "Intent-first generation", layer: "abstraction", stages: ["intent"], status: "experimental",
+      short: "compose: skeleton first, words grow backward",
+      desc: "WIRED, verified with real output (2026-07-08). `Service.generate_intent_first()`: generates the punctuation sequence for the WHOLE response first (Punctuation sequence, above), then grows each word-span BACKWARD from its mark toward the previous mark using the Backward pair, with the mark's TYPE biasing what grows toward it (Exclaim affinity for '!', sent_type's question-affinity for '?'). Real verified sample: \"...The in little made in who? Which looks in different the film. Despite and made known won whom? ...Yourself go not may who!\" — real questions/exclamations tied to genuine discourse marks, first time this session real intent-carrying punctuation has appeared in generation. HONEST VERDICT: does not fix fluency (still word salad, same clause-completeness gap as the forward pipeline) — this changes WHAT anchors generation, not the underlying word-to-word mechanics. `/api/evolang/intent_first`, \"Intent-first (backward)\" button on /evolang." },
+
     // ---- structural (form: grammar, position, rhythm) ----
     { id: "content_select", name: "Content selection", layer: "semantic", stages: ["content"], status: "experimental",
       short: "pick the meaning FIRST",
@@ -208,6 +227,7 @@
   ];
 
   const STAGES = [
+    { id: "intent", label: "Intent", sub: "EXPERIMENTAL — punctuation first, grows backward" },
     { id: "content", label: "Content", sub: "EXPERIMENTAL — pick meaning first" },
     { id: "skeleton", label: "Skeleton", sub: "Order class-sequence" },
     { id: "fill", label: "Fill", sub: "word selection" },
@@ -230,9 +250,10 @@
     "cut": ["4,3", 0.45],
   };
 
-  const W = 2080;
-  const COL_X = { content: 180, skeleton: 480, fill: 780, boundary: 1080, revision: 1380, passage: 1680 };
-  const OUTPUT_X = 1950;
+  const W = 2380;
+  const COL_X = { intent: 180, content: 480, skeleton: 780, fill: 1080, boundary: 1380,
+                 revision: 1680, passage: 1980 };
+  const OUTPUT_X = 2250;
   const BACKBONE_Y = 46;
   const BAND_TOP = 110;
   const NODE_W = 178, NODE_H = 52, NODE_GAP = 10;
