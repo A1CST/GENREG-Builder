@@ -10,6 +10,58 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-08] (Claude)** — Intent-first generation architecture (user idea: "the
+  punctuation mark IS the intent" — chosen before any word exists, structure grows
+  backward to serve it, not forward hoping to land on one). Combined corpus:
+  Wikipedia (316MB) + Cornell Movie Dialogs (17.1MB dialogue x6 repeat, ~24.4% of the
+  final 421MB corpus) — Wikipedia alone lacks real question/exclaim register (an
+  earlier probe found every emotionally-loaded word — wow/amazing/hooray/alas — was
+  out-of-vocabulary; movie dialogue supplies real turn-taking, real "!"/"?" usage).
+  New genomes: `intent_punct.py` (punctuation-sequence, tiny autoregressive model
+  over {. , ; : ! ?}, reuses `wp.OrderPop`), `sent_type_exclaim.py` (generalizes
+  `sent_type` to exclaim vs statement via a second binary genome, same
+  decompose-into-binary pattern as Alternation/Agreement). Backward Order+Selection
+  (`run_backward_experiment.py`) trained via a cache-reversal trick — zero new
+  algorithm, same `wp.run_class_lm`/`wp.run_biselection` fed the corpus read
+  backward, same word->class mapping so results stay compatible with the existing
+  class table. New `Service.generate_intent_first()`: generates the punctuation
+  sequence for the whole response FIRST, then grows each word-span BACKWARD from its
+  mark toward the previous mark, with the mark's type (question/exclaim/statement)
+  biasing what grows toward it from the first word chosen. `run_retrain_combined.py`
+  retrains everything (11 core genomes + 7 structural-decomposition sub-genomes + 3
+  intent genomes + fresh backward pair, 23 total) on the combined corpus, dispatched
+  to the I2 primary — full swap, not a same-pipeline-new-corpus repeat (that mistake
+  already happened once this session with the Wikipedia-only swap: fixed vocabulary,
+  changed nothing structural, fluency didn't move). New `/api/evolang/intent_first`
+  endpoint + "Intent-first (backward)" button on `/evolang`. Not yet verified with
+  real output — training was still running when this was committed; see the next
+  changelog entry for results once the primary job finishes.
+
+- **[2026-07-08] (Claude)** — **MNIST-Pipe v4 FINAL: 99.03% TEST — gradient-free record
+  broken** (user's prior best 98.5, MANTIS 98.55, LeNet-5 99.05). Evolved conv-detector
+  environment (66 genomes) + evolved joint head (centroid warm start, full-train
+  landscape, magnitude-scaled mutation): centroid 98.72 -> joint **99.03**; referees
+  correctly gated off at margin 0. ~15.3K evolved params at inference, zero gradients in
+  features or classifier. Backup `demo/mnist_genomes_v4_9903.pkl`; service now honors the
+  pickle's feat_version. Full story: `documentation/changelogs/CHANGELOG_MNIST.md`.
+- **[2026-07-08] (Claude)** — **GPU backend + CIFAR round 1 (58.69% test in 11.5 min)**.
+  `genreg_train/evo_gpu.py`: fitness evaluations on the RTX 4080 (torch no_grad, TF32 off,
+  verified < 5e-7 vs CPU, 57x on the joint head), evolution stays numpy — wired into
+  mnist_pipe (joint/binary) + cifar_pipe (detbank/features) with CPU fallback. CIFAR-10
+  fetched via HuggingFace parquet (Toronto throttled), converted to standard batches. First
+  campaign (`jobs/cifar_v4.py`): bank collapsed to 15 diverse detectors (diversity is the
+  round-2 problem), centroid 57.09 -> joint **58.69** test; referees too weak, margin gate
+  correctly chose 0. Details in `documentation/changelogs/CHANGELOG_MNIST.md`. MNIST v4
+  battery still finishing on CPU (best val 99.24, ceiling 99.26).
+- **[2026-07-08] (Claude)** — NEW PAGE (staged): **/cifar — CIFAR-Pipe**, the MNIST-Pipe
+  program verbatim on CIFAR-10, per user instruction BUILT BUT NOT RUN (MNIST v4 battery has
+  the machine). `genreg_train/cifar_pipe.py` (32x32-RGB data plumbing; classifier genomes
+  imported unchanged from mnist_pipe), `cifar_service.py`, `templates/cifar.html`,
+  `static/cifar.js`, `/cifar` + `/api/cifar/*`, nav entry; data in `corpora/cifar10/`.
+  Run order when ready: `python -m genreg_train.cifar_pipe --detbank` then `--v4`.
+  Meanwhile MNIST round 7 (v4, evolved-detector environment, ceiling 99.20): joint head
+  relaunched from the CENTROID warm start (99.02 val at gen 1, vs 94.94 from the detector
+  fold) — best val 99.12 and climbing. Needs the same pending Flask restart as /mnist.
 - **[2026-07-08] (Claude)** — Structural genome decomposition, full observability (user
   directive, after 4 grammar-fix hypotheses all failed/mixed: "this is a living model...
   break up every single structural genome... gives us full observability... trace back to

@@ -196,6 +196,22 @@
       .catch(() => { $("ev-out").textContent = "(generation error)"; });
   }
 
+  function generateIntentFirst() {
+    if (!ready) return;
+    $("ev-stack").textContent = "Intent-first (backward, combined corpus)*";
+    $("ev-out").textContent = "generating punctuation skeleton…"; $("ev-repstats").textContent = "";
+    fetch("/api/evolang/intent_first?" + qs() + "&n_marks=14")
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.err) { $("ev-out").textContent = "(" + d.err + ")"; return; }
+        renderOutput(d.text || "(no output)");
+        const marks = (d.marks || []).join(" ");
+        $("ev-repstats").innerHTML =
+          `<div class="ev-toprep">discourse skeleton: <b>${marks}</b></div>` + $("ev-repstats").innerHTML;
+      })
+      .catch(() => { $("ev-out").textContent = "(generation error)"; });
+  }
+
   function setConn(ok, txt) {
     $("ev-dot").className = "dot" + (ok ? " ok" : " bad");
     $("ev-conn").textContent = txt;
@@ -233,5 +249,6 @@
   $("ev-gen").addEventListener("click", () => { seed++; generate(); });
   $("ev-revision").addEventListener("click", () => { seed++; generateRevision(); });
   $("ev-meaningfirst").addEventListener("click", () => { seed++; generateMeaningFirst(); });
+  $("ev-intentfirst").addEventListener("click", () => { seed++; generateIntentFirst(); });
   renderLayers(); renderArch(); poll();
 })();

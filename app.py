@@ -62,6 +62,13 @@ try:
 except Exception as _e:                       # pragma: no cover
     MN_OK, MN_ERR = False, str(_e)
 
+# CIFAR-Pipe — the MNIST-Pipe program, verbatim, on CIFAR-10 (staged).
+try:
+    from genreg_train import cifar_service
+    CF_OK, CF_ERR = True, None
+except Exception as _e:                       # pragma: no cover
+    CF_OK, CF_ERR = False, str(_e)
+
 # I2 latent-content node (separate program; shares this server).
 try:
     import i2_service
@@ -496,6 +503,34 @@ def api_evolang_meaning_first():
     return jsonify(r)
 
 
+@app.route("/api/evolang/intent_first")
+def api_evolang_intent_first():
+    """EXPERIMENTAL intent-first generation — the punctuation mark IS the
+    intent, chosen before any word exists. Generates the punctuation
+    sequence first (discourse skeleton), then grows each word-span BACKWARD
+    from its mark toward the previous mark, with the mark's type (question/
+    exclaim/statement) biasing what grows toward it. Requires the
+    combined-corpus (Wikipedia + Cornell Movie Dialogs) intent genomes."""
+    if not WP_OK:
+        return jsonify({"text": "", "err": WP_ERR or "wordpipe unavailable"})
+    a = request.args
+    en = {"vocab": a.get("vocab") == "1", "altern": a.get("altern") == "1",
+          "agree": a.get("agree") == "1", "sem": a.get("sem") == "1",
+          "rep": a.get("rep") == "1"}
+    try:
+        seed = int(a.get("seed", 0))
+    except (TypeError, ValueError):
+        seed = 0
+    try:
+        n_marks = max(4, min(40, int(a.get("n_marks", 14))))
+    except (TypeError, ValueError):
+        n_marks = 14
+    wordpipe_service.SERVICE.ensure()
+    r = wordpipe_service.SERVICE.generate_intent_first(en, n_marks=n_marks, seed=seed)
+    r["ready"] = wordpipe_service.SERVICE.ready
+    return jsonify(r)
+
+
 @app.route("/mnist")
 def mnist_page():
     """MNIST — the specialist-pipeline recipe applied to images."""
@@ -546,6 +581,55 @@ def api_mnist_reload():
     if not MN_OK:
         return jsonify({"err": MN_ERR or "mnist unavailable"})
     mnist_service.SERVICE.reload()
+    return jsonify({"ok": True})
+
+
+@app.route("/cifar")
+def cifar_page():
+    """CIFAR — the MNIST specialist pipeline, verbatim, on CIFAR-10."""
+    resp = app.make_response(render_template("cifar.html"))
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
+
+
+@app.route("/api/cifar/status")
+def api_cifar_status():
+    if not CF_OK:
+        return jsonify({"ready": False, "err": CF_ERR or "cifar unavailable"})
+    cifar_service.SERVICE.ensure()
+    return jsonify(cifar_service.SERVICE.status())
+
+
+@app.route("/api/cifar/eval")
+def api_cifar_eval():
+    if not CF_OK:
+        return jsonify({"err": CF_ERR or "cifar unavailable"})
+    a = request.args
+    cifar_service.SERVICE.ensure()
+    return jsonify(cifar_service.SERVICE.evaluate(
+        use_mixer=a.get("mixer") == "1", use_pairs=a.get("pairs") == "1"))
+
+
+@app.route("/api/cifar/sample")
+def api_cifar_sample():
+    if not CF_OK:
+        return jsonify({"err": CF_ERR or "cifar unavailable"})
+    a = request.args
+    try:
+        seed = int(a.get("seed", 0))
+    except (TypeError, ValueError):
+        seed = 0
+    cifar_service.SERVICE.ensure()
+    return jsonify(cifar_service.SERVICE.sample(
+        seed=seed, use_mixer=a.get("mixer") == "1", use_pairs=a.get("pairs") == "1",
+        only_errors=a.get("errors") == "1"))
+
+
+@app.route("/api/cifar/reload", methods=["POST"])
+def api_cifar_reload():
+    if not CF_OK:
+        return jsonify({"err": CF_ERR or "cifar unavailable"})
+    cifar_service.SERVICE.reload()
     return jsonify({"ok": True})
 
 

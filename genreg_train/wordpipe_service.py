@@ -83,6 +83,34 @@ SEM_ADJACENT_GAMMA = 1.5
 SEM_WINDOW_GAMMA = 1.0
 STRUCT_DECOMPOSE_LOCAL = os.path.join(ROOT, "genreg_train", "structural_decompose_local.pkl")
 STRUCT_DECOMPOSE_PRIMARY = os.path.join(ROOT, "genreg_train", "structural_decompose_primary.pkl")
+# EXPERIMENTAL — backward generation / crystallization (2026-07-08, user idea).
+# Order/Selection are generic autoregressive predictors over whatever sequence
+# they're trained on — training them on the corpus read BACKWARD (same word->
+# class mapping, so results stay compatible with the existing class table/word
+# features/Closer/Boundary) gives a real backward Order+Selection pair for
+# free (genreg_train/run_backward_experiment.py, superseded by
+# run_retrain_combined.py's combined-corpus backward pair below).
+#
+# EXPERIMENTAL — intent-first generation (2026-07-08, user idea + directive):
+# "the punctuation mark IS the intent" — every other mode here is
+# structure-first (Order picks a class skeleton, THEN punctuation gets
+# decided contingently via Boundary/Comma probabilities as a byproduct of
+# where generation happens to land). This inverts it: generate the
+# PUNCTUATION SEQUENCE first (intent_punct.py — a tiny autoregressive model
+# over {. , ; : ! ?}, mined directly from the corpus, zero external
+# labeling), then grow each word-span BACKWARD from its mark toward the
+# previous mark, using Order-backward/Selection-backward, with the mark's
+# TYPE conditioning what grows toward it (sent_type's question-affinity for
+# '?', sent_type_exclaim's exclaim-affinity for '!'). Retrained on the
+# COMBINED corpus (Wikipedia + Cornell Movie Dialogs, ~24% dialogue) instead
+# of Wikipedia alone, specifically because Wikipedia's register doesn't
+# carry real question/exclaim intent (see genomes.txt "Intent architecture"
+# for the corpus-diagnostic finding that motivated this).
+COMBINED_GENOMES = os.path.join(ROOT, "corpora", "combined", "combined_genomes.pkl")
+COMBINED_CHUNKS = os.path.join(ROOT, "corpora", "combined", "combined_chunks.pkl")
+COMBINED_STRUCT = os.path.join(ROOT, "corpora", "combined", "combined_structural_decompose.pkl")
+COMBINED_INTENT = os.path.join(ROOT, "corpora", "combined", "combined_intent.pkl")
+COMBINED_BACKWARD = os.path.join(ROOT, "corpora", "combined", "combined_backward.pkl")
 # Standalone relation genomes (Wikipedia-trained, crosswalked into the pipeline
 # vocab — see genreg_train/rel_wire.py + genomes.txt "battery note"). Kept
 # conservative: these bias toward a SPECIFIC relation (is-a / part-of / same-
@@ -240,6 +268,36 @@ class Service:
             # EXPERIMENTAL pronominalization target word ("it" — generic, no
             # gender/number modeling)
             self.pronom_word = self.stoi.get("it")
+            # combined-corpus structural decomposition (supersedes/adds onto
+            # the wiki-only STRUCT_DECOMPOSE_* files if both are present)
+            if os.path.exists(COMBINED_STRUCT):
+                with open(COMBINED_STRUCT, "rb") as f:
+                    self.struct.update(pickle.load(f))
+            # EXPERIMENTAL intent-first generation: punctuation-sequence +
+            # question/exclaim word-affinity + backward Order/Selection.
+            # All-or-nothing (the three pieces only make sense together) —
+            # gate on the punctuation-sequence file since it's the anchor.
+            if os.path.exists(COMBINED_INTENT):
+                from genreg_train import sent_type_exclaim as ste
+                with open(COMBINED_INTENT, "rb") as f:
+                    intent_d = pickle.load(f)
+                self.intent_punct_champ = intent_d["intent_punct"]["champ"]
+                self.intent_punct_C = intent_d["intent_punct"]["C"]
+                self.sent_type_scores_combined = st.word_scores(
+                    intent_d["sent_type"]["champ"], self.vocab)
+                self.question_rate_combined = intent_d["sent_type"]["question_rate"]
+                self.exclaim_scores = ste.word_scores(
+                    intent_d["sent_type_exclaim"]["champ"], self.vocab)
+            else:
+                self.intent_punct_champ = None
+                self.sent_type_scores_combined = self.exclaim_scores = None
+            if os.path.exists(COMBINED_BACKWARD):
+                with open(COMBINED_BACKWARD, "rb") as f:
+                    bwd_d = pickle.load(f)
+                self.order_bwd_champ = bwd_d["order_bwd"]
+                self.bisel_bwd_champ = bwd_d["bisel_bwd"]
+            else:
+                self.order_bwd_champ = self.bisel_bwd_champ = None
             self.ready = True
         except Exception as exc:                       # pragma: no cover
             import traceback; traceback.print_exc()
@@ -750,6 +808,83 @@ class Service:
         content_words = [self.vocab[w] for w in reserved]
         return {"text": text, "content_words": content_words,
                 "placed": len(reserved) - len(pending), "requested": len(reserved)}
+
+    # ------------------------------------------------------------------
+    # EXPERIMENTAL intent-first generation (2026-07-08, user idea + directive:
+    # "the punctuation mark IS the intent" — chosen before any word exists,
+    # everything grows backward to serve it). Requires the combined-corpus
+    # intent genomes (intent_punct/sent_type/sent_type_exclaim) and backward
+    # Order/Selection — see COMBINED_* constants and _load() above.
+    # ------------------------------------------------------------------
+    def generate_intent_first(self, en, n_marks=14, seed=0):
+        if not self.ready or self.intent_punct_champ is None or self.order_bwd_champ is None:
+            return {"text": "", "marks": [], "err": "intent genomes not loaded"}
+        from genreg_train import intent_punct as ip
+        rng = np.random.default_rng(seed)
+
+        seed_ctx = np.array([ip.MARK_ID["."]] * self.intent_punct_C, dtype=np.int64)
+        marks = ip.gen_mark_seq(self.intent_punct_champ, n_marks, seed_ctx, rng, C=self.intent_punct_C)
+
+        reranks = []
+        if en.get("altern") and "altern" in self.champs:
+            reranks.append((self.altern_feats, self.champs["altern"], ALTERN_GAMMA))
+        if en.get("agree") and "agree" in self.champs:
+            reranks.append((self.agree_feats, self.champs["agree"], AGREE_GAMMA))
+        if en.get("sem") and "sem" in self.champs:
+            reranks.append((self.feat, self.champs["sem"], SEM_GAMMA))
+        self._add_struct_reranks(en, reranks)
+        reranks = reranks or None
+
+        base_end = self.close_scores if self.close_scores is not None else np.zeros(len(self.vocab), np.float32)
+        parts, recent = [], []
+        for mark_id in marks:
+            mark = ip.MARKS[mark_id]
+            if mark in ".!?":
+                span_n = int(rng.integers(6, 16))
+            elif mark == ",":
+                span_n = int(rng.integers(3, 9))
+            else:
+                span_n = int(rng.integers(4, 10))
+
+            # intent bias on the ENDING word: the mark's type shapes what
+            # grows toward it, from the very first word chosen.
+            end_scores = base_end
+            if mark == "?" and self.sent_type_scores_combined is not None:
+                end_scores = end_scores + SENT_TYPE_GAMMA * self.sent_type_scores_combined
+            elif mark == "!" and self.exclaim_scores is not None:
+                end_scores = end_scores + SENT_TYPE_GAMMA * self.exclaim_scores
+            order = np.argsort(-end_scores)
+            top_end = order[:200]
+            p = np.exp((end_scores[top_end] - end_scores[top_end].max()) / 0.7)
+            p /= p.sum()
+            end_word = int(rng.choice(top_end, p=p))
+            end_cls = int(self.w2c[end_word])
+
+            seed_ctx2 = np.array([end_cls] * C, dtype=np.int64)
+            cls_seq_bwd = wp.gen_class_seq(self.order_bwd_champ, C, span_n - 1, seed_ctx2, rng, 0.8)
+            full_cls_bwd = [end_cls] + list(cls_seq_bwd)
+
+            words_bwd = [end_word]
+            prev = end_word
+            for i in range(1, len(full_cls_bwd)):
+                cl = int(full_cls_bwd[i])
+                if cl not in self.table:
+                    continue
+                mem = self.table[cl][0]
+                bonus = (rp.penalty(self.champs["rep"], recent, mem, self.is_content)
+                        if en.get("rep") and "rep" in self.champs else None)
+                next_cls = full_cls_bwd[i + 1] if i + 1 < len(full_cls_bwd) else cl
+                w = wp._fill_bisel(prev, cl, next_cls, self.table, self.feat, self.logfreq,
+                                   self.cents, self.bisel_bwd_champ, rng, reranks=reranks, bonus=bonus)
+                words_bwd.append(w); recent.append(w); prev = w
+            span_words = [self.vocab[w] for w in reversed(words_bwd)]
+            parts.extend(span_words)
+            parts.append(mark)
+
+        text = " ".join(parts)
+        text = re.sub(r"\s+([.,;:!?])", r"\1", text)
+        text = re.sub(r"(^|[.!?] )([a-z])", lambda m: m.group(1) + m.group(2).upper(), text)
+        return {"text": text, "marks": [ip.MARKS[m] for m in marks]}
 
 
 SERVICE = Service()
