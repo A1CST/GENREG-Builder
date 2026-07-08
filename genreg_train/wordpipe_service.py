@@ -47,6 +47,42 @@ ORDER_AGREE_GAMMA = 1.0   # weight of agreement on the ORDER skeleton
 SEM_GAMMA = 2.5           # weight of semantic (content co-occurrence) re-rank
 OPEN_GAMMA = 4.0          # weight of the sentence-opener re-rank (fires at sentence start)
 CLOSE_GAMMA = 0.5         # weight of the sentence-closer (modulates where periods land)
+# Phase-2 structural decomposition (2026-07-08) — user directive: break up
+# every structural genome for full observability ("we can trace back to WHY
+# its output is a specific way"), not expecting any single change to fix
+# fluency on its own. ADDITIVE: the shipped Alternation/Agreement/Semantic
+# genomes above are untouched; these are SEPARATELY-trained sub-genomes
+# over the SAME feature spaces (altern_feats/agree_feats/feat — reused, not
+# recomputed) that each isolate ONE piece of what the monolith jointly
+# learns. Gated on the SAME toggle as their parent (en.get("altern") etc)
+# — this is a transparent internal decomposition, not new user-facing
+# controls; the point is traceability, not new knobs. Modest default gammas
+# keep total behavior close to current.
+#   Altern-rhythm     : coarse content/function alternation ONLY (2-feature
+#                       space, blind to function subtype) — val_acc 0.526,
+#                       barely above chance: the coarse signal alone is weak.
+#   Altern-func-chain : which SPECIFIC function->function transitions are
+#                       legal (full 14-feature subtype space, trained only
+#                       on function-function pairs) — val_acc 0.668, a much
+#                       stronger, cleaner signal than the coarse split.
+#   Agree-modal       : modal auxiliary -> bare verb form only.
+#   Agree-number      : subject number/person -> copula finite form only.
+#   Sem-adjacent      : immediate-neighbor (distance-1) content co-occurrence.
+#   Sem-window        : distance-2..4 content co-occurrence — val_acc 0.539,
+#                       much weaker than adjacent (0.671): loose topical fit
+#                       is a genuinely harder signal than tight collocation.
+#   Order-bigram      : NOT wired into generation — see _load()/generate()
+#                       comments for why (a full class-LM, not a bilinear
+#                       rerank; doesn't fit the reranks-tuple shape). Kept
+#                       as a standalone diagnostic scorer instead.
+ALTERN_RHYTHM_GAMMA = 1.0
+ALTERN_FUNCCHAIN_GAMMA = 1.5
+AGREE_MODAL_GAMMA = 1.5
+AGREE_NUMBER_GAMMA = 1.5
+SEM_ADJACENT_GAMMA = 1.5
+SEM_WINDOW_GAMMA = 1.0
+STRUCT_DECOMPOSE_LOCAL = os.path.join(ROOT, "genreg_train", "structural_decompose_local.pkl")
+STRUCT_DECOMPOSE_PRIMARY = os.path.join(ROOT, "genreg_train", "structural_decompose_primary.pkl")
 # Standalone relation genomes (Wikipedia-trained, crosswalked into the pipeline
 # vocab — see genreg_train/rel_wire.py + genomes.txt "battery note"). Kept
 # conservative: these bias toward a SPECIFIC relation (is-a / part-of / same-
@@ -137,6 +173,25 @@ class Service:
             for cl, (mem, p) in self.table.items():
                 self.altern_classfeat[cl] = p @ self.altern_feats[mem]
                 self.agree_classfeat[cl] = p @ self.agree_feats[mem]
+            # Phase-2 structural decomposition sub-genomes (see constants above).
+            # Altern-func-chain/Agree-modal/Agree-number/Sem-adjacent/Sem-window
+            # reuse the SAME feature spaces as their parent genome (altern_feats/
+            # agree_feats/feat) — only Altern-rhythm needs its own (deliberately
+            # coarser) feature space. Graceful degradation if the files are
+            # absent, same pattern as every other optional genome here.
+            self.struct = {}
+            for p in (STRUCT_DECOMPOSE_LOCAL, STRUCT_DECOMPOSE_PRIMARY):
+                if os.path.exists(p):
+                    with open(p, "rb") as f:
+                        self.struct.update(pickle.load(f))
+            if "altern_rhythm" in self.struct:
+                from genreg_train import altern_decompose as altd
+                self.rhythm_feats = altd.rhythm_feats(self.vocab)
+                self.rhythm_classfeat = np.zeros((self.nc, altd.NF_RHYTHM), np.float32)
+                for cl, (mem, p) in self.table.items():
+                    self.rhythm_classfeat[cl] = p @ self.rhythm_feats[mem]
+            else:
+                self.rhythm_feats = self.rhythm_classfeat = None
             # content mask for the repetition genome (function words may recur)
             self.is_content = rp.content_mask(self.vocab)
             # open-obligation mask: prepositions/determiners/articles/"to" open
@@ -246,6 +301,45 @@ class Service:
             s["full_kb"] = round(full / 1024)
         return s
 
+    def _add_struct_order_reranks(self, en, order_reranks):
+        """Phase-2 structural decomposition sub-genomes, ORDER-skeleton side.
+        Gated on the same toggle as their parent genome — see the
+        ALTERN_RHYTHM_GAMMA block of constants for the full rationale."""
+        s = self.struct
+        if en.get("altern"):
+            if "altern_rhythm" in s and self.rhythm_classfeat is not None:
+                order_reranks.append((self.rhythm_classfeat, s["altern_rhythm"]["champ"],
+                                      ALTERN_RHYTHM_GAMMA))
+            if "altern_funcchain" in s:
+                order_reranks.append((self.altern_classfeat, s["altern_funcchain"]["champ"],
+                                      ALTERN_FUNCCHAIN_GAMMA))
+        if en.get("agree"):
+            if "agree_modal" in s:
+                order_reranks.append((self.agree_classfeat, s["agree_modal"]["champ"],
+                                      AGREE_MODAL_GAMMA))
+            if "agree_number" in s:
+                order_reranks.append((self.agree_classfeat, s["agree_number"]["champ"],
+                                      AGREE_NUMBER_GAMMA))
+
+    def _add_struct_reranks(self, en, reranks):
+        """Phase-2 structural decomposition sub-genomes, word-SELECTION side."""
+        s = self.struct
+        if en.get("altern"):
+            if "altern_rhythm" in s and self.rhythm_feats is not None:
+                reranks.append((self.rhythm_feats, s["altern_rhythm"]["champ"], ALTERN_RHYTHM_GAMMA))
+            if "altern_funcchain" in s:
+                reranks.append((self.altern_feats, s["altern_funcchain"]["champ"], ALTERN_FUNCCHAIN_GAMMA))
+        if en.get("agree"):
+            if "agree_modal" in s:
+                reranks.append((self.agree_feats, s["agree_modal"]["champ"], AGREE_MODAL_GAMMA))
+            if "agree_number" in s:
+                reranks.append((self.agree_feats, s["agree_number"]["champ"], AGREE_NUMBER_GAMMA))
+        if en.get("sem"):
+            if "sem_adjacent" in s:
+                reranks.append((self.feat, s["sem_adjacent"]["champ"], SEM_ADJACENT_GAMMA))
+            if "sem_window" in s:
+                reranks.append((self.feat, s["sem_window"]["champ"], SEM_WINDOW_GAMMA))
+
     def _bound_prob(self, en, cl, cur, prev_w, oblig_depth=0, len_factor=1.0):
         """P(sentence ends here) from the boundary genome, optionally reshaped by the
         closer genome so periods land after good ender-words (rate-preserving), by the
@@ -303,6 +397,7 @@ class Service:
                 order_reranks.append((self.altern_classfeat, self.champs["altern"], ORDER_ALTERN_GAMMA))
             if en.get("agree") and "agree" in self.champs and ORDER_AGREE_GAMMA > 0:
                 order_reranks.append((self.agree_classfeat, self.champs["agree"], ORDER_AGREE_GAMMA))
+            self._add_struct_order_reranks(en, order_reranks)
             cls_seq = wp.gen_class_seq(self.champs["order"], C, n, self.cids[500:500 + C],
                                        rng, 0.8, reranks=order_reranks or None)
         else:
@@ -321,6 +416,7 @@ class Service:
             reranks.append((self.rel["mero"]["feat"], self.rel["mero"]["M"], MERO_GAMMA))
         if en.get("synant") and "synant" in self.rel:
             reranks.append((self.rel["synant"]["feat"], self.rel["synant"]["M"], SYNANT_GAMMA))
+        self._add_struct_reranks(en, reranks)
         reranks = reranks or None
         use_rep = en.get("rep") and "rep" in self.champs
         use_oblig = en.get("oblig")
@@ -588,6 +684,7 @@ class Service:
                 order_reranks.append((self.altern_classfeat, self.champs["altern"], ORDER_ALTERN_GAMMA))
             if en.get("agree") and "agree" in self.champs and ORDER_AGREE_GAMMA > 0:
                 order_reranks.append((self.agree_classfeat, self.champs["agree"], ORDER_AGREE_GAMMA))
+            self._add_struct_order_reranks(en, order_reranks)
             cls_seq = wp.gen_class_seq(self.champs["order"], C, n, self.cids[500:500 + C],
                                        rng, 0.8, reranks=order_reranks or None)
         else:
@@ -600,6 +697,7 @@ class Service:
             reranks.append((self.agree_feats, self.champs["agree"], AGREE_GAMMA))
         if en.get("sem") and "sem" in self.champs:
             reranks.append((self.feat, self.champs["sem"], SEM_GAMMA))
+        self._add_struct_reranks(en, reranks)
         reranks = reranks or None
         use_rep = en.get("rep") and "rep" in self.champs
 

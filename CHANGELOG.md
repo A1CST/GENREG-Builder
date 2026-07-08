@@ -10,6 +10,33 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-08] (Claude)** — Structural genome decomposition, full observability (user
+  directive, after 4 grammar-fix hypotheses all failed/mixed: "this is a living model...
+  break up every single structural genome... gives us full observability... trace back to
+  WHY its output is a specific way"). Assessed all shipped structural genomes; 5 had a
+  genuine internal compound question: **Selection** -> Sel-backward/Sel-forward/
+  Sel-frequency (no retrain — ML/MR/beta were already separate params; verified
+  byte-identical output at default weights, both locally and on the I2 primary).
+  **Order** -> Order-bigram (K=1, val_ppl 11.344 vs unigram 12.984) + existing K=4
+  Order-context; Order-bigram trained but left UNWIRED (its artifact is a full class-LM,
+  not a bilinear rerank — doesn't fit the reranks-tuple shape; kept as a standalone
+  diagnostic scorer). **Alternation** -> Altern-rhythm (coarse content/function only, val_acc
+  0.526, barely above chance) + Altern-func-chain (specific function->function legality,
+  val_acc 0.668, much stronger). **Agreement** -> Agree-modal (0.768) + Agree-number
+  (0.669). **Semantic** -> Sem-adjacent (distance-1, 0.671) + Sem-window (distance-2..4,
+  0.539, confirming loose topical fit is genuinely harder than tight collocation).
+  No-repeat/Opener/Closer/Boundary/Commas assessed and left as-is (already single-question,
+  no real compound to split). Training split across both machines (Alternation/Agreement on
+  the I2 primary, job `c510a82fb3c8d046`, ~23 min; Order-bigram/Semantic locally, ~14 min —
+  user was done gaming, local heavy compute allowed again this session, still parallelized
+  with the primary per their instruction). All 6 wired sub-genomes are ADDITIVE reranks
+  gated on their parent's existing toggle (`_add_struct_order_reranks()`/
+  `_add_struct_reranks()` in `wordpipe_service.py`) — transparent internal decomposition
+  for traceability, no new `/evolang` UI toggles added. Verified locally: all 7 champions
+  load correctly, generation runs without error. Documented in `genomes.txt` (new
+  "Structural genome decomposition" section) and `static/evolang_layers.js` (composed
+  sub-groups under the existing altern/agree/sem nodes).
+
 - **[2026-07-08] (Claude)** — Corpus swap: Gutenberg -> Wikipedia, per user directive
   ("modern corpus" — the pipeline was trained on 19th-century Gutenberg novels, source of
   every "thou"/"shalt"/"grushenka" in generated output). `genreg_train/evolang.py`'s

@@ -38,6 +38,40 @@ and haven't been re-measured on the new one. `battery_round1.py`'s guardrail num
 those baselines described no longer exists as the live corpus. Re-running the battery on
 the new corpus is a real follow-up, not done in this pass.
 
+## Grammar investigation (2026-07-08) — 4 hypotheses tested, all failed or mixed
+
+The vocabulary swap didn't fix the "of the X of the Y" chain problem (user: "this is a
+living model, changing one thing isn't going to magically fix everything"). Four
+independent hypotheses tested on the primary, each with real measurements, none producing
+a clean win:
+
+1. **Stub-article density** — corpus diagnostic (`run_wiki_corpus_diag.py`) found template
+   phrases ("is a town", "population census") in under 0.5% of articles; top bigrams
+   ("of the", "in the", "to the"...) look like ordinary English frequency statistics, not a
+   Wikipedia-specific artifact. Disproven.
+2. **Alternation strength** (`run_alternation_sweep.py`) — sweeping ORDER_ALTERN_GAMMA/
+   ALTERN_GAMMA from 2.0/3.0 up to 12.0/18.0 made every metric WORSE: func-func-adjacency
+   rose 0.280→0.334, distinct ratio collapsed 0.201→0.119, dangling-rate tripled
+   0.200→0.600. The chain is the degenerate limit of forced alternation, not a sign of too
+   little of it. Disproven, harmful.
+3. **Bigram-repeat suppression** (`run_bigram_repeat_experiment.py`) — a windowed penalty
+   on recreating recent (prev,cand) pairs cut literal "of the" recurrence 317→121 (62%),
+   but func-func-adjacency and distinct ratio barely moved and dangling-rate rose 66%
+   (0.188→0.312). Narrow win on its own metric, no real quality improvement, real cost.
+4. **Selection's frequency-bias term** (`run_selection_decompose.py`) — Selection's champion
+   already sums context-fit + a `beta*logfreq` frequency term; decomposing them and dialing
+   the frequency term to 0 raised distinct ratio 0.202→0.292 (+45%) but adj-hit collapsed
+   0.928→0.715 (a 23-point drop) and dangling rose 0.223→0.343. Classic diversity-vs-
+   plausibility trade-off, not a fix — trades boringly-repetitive-but-plausible for
+   varied-but-incoherent.
+
+**Conclusion (user's framing, confirmed by the data):** no single knob fixes this, because
+Order and Selection are both fundamentally LOCAL (next class from last 4 classes; word
+score against immediate neighbors) — neither has any model of what the sentence has already
+said. That diagnosis motivated both Meaning-first generation (below) and the full
+structural decomposition (further below) — not as fixes, but as the observability
+infrastructure needed to actually understand where a given output came from.
+
 ## Meaning-first generation (NEW, 2026-07-08) — user-directed architecture flip
 
 User's diagnosis: the pipeline has been STRUCTURE-first this whole time — Order picks a
@@ -70,6 +104,74 @@ HOW well the surrounding function words glue them together. The generated text s
 as word salad at the surface level (see any sample in the log) — this is a real, separate,
 still-open problem, not solved by the flip. The flip fixes WHAT the sentence is about;
 fluency is still the Order/Selection genomes' job, and they haven't changed.
+
+## Structural genome decomposition (NEW, 2026-07-08) — full observability
+
+User directive, after 4 grammar-fix hypotheses all failed or traded one problem for
+another: not expecting one change to magically fix a living model with many dependent
+genomes — instead, break up every structural genome into smaller pieces "so we have full
+observability… we can trace back to WHY its output is a specific way." Assessed every
+shipped structural genome; five had a genuine internal compound question, five didn't:
+
+**Decomposed (genuine compound questions found):**
+
+| Parent | Split into | Why compound |
+|---|---|---|
+| Selection/Bidirectional | Sel-backward, Sel-forward, Sel-frequency | Already 3 separate terms (ML/MR/beta) summed into 1 score |
+| Order | Order-bigram (K=1), Order-context (K=4, shipped) | Tight local transition vs wider 4-class context |
+| Alternation | Altern-rhythm, Altern-func-chain | Coarse content/function rhythm vs specific function→function legality (both named explicitly in the genome's own docstring) |
+| Agreement | Agree-modal, Agree-number | Modal→bare-verb rule vs subject-number→copula rule (two distinct grammatical phenomena, genomes.txt already described both) |
+| Semantic (adjacency) | Sem-adjacent (dist=1), Sem-window (dist=2-4) | Tight collocation-like fit vs loose topical-window fit |
+
+**Left as-is (already single-question, no real compound to split):** No-repeat (10 params,
+one recency curve), Opener/Closer (14 params each, one binary classifier), Boundary/Commas
+(580 params each, one rate curve from class+position). Forcing an artificial split here
+would just be busywork, not real decomposition.
+
+**Phase 1 — Selection (2026-07-08, verified, live).** No retraining needed: `ML`/`MR`/`beta`
+already existed as separate parameters in the trained "bisel" champion.
+`SEL_BACKWARD_GAMMA`/`SEL_FORWARD_GAMMA`/`SEL_FREQ_GAMMA` (all default 1.0) in
+`wordpipe_service.py`. Verified both locally and on the I2 primary: default gammas
+reproduce byte-identical output to the original `wp._fill_bisel`; overriding
+`SEL_FREQ_GAMMA` live changes generation as expected (same effect as the grammar-
+investigation experiment #4 above).
+
+**Phase 2 — Order/Alternation/Agreement/Semantic (2026-07-08, trained + wired).** Training
+split across both machines (Alternation/Agreement on the I2 primary, job `c510a82fb3c8d046`,
+~23 min; Order-bigram/Semantic locally, ~14 min):
+
+| Sub-genome | val_acc / val_ppl | Notes |
+|---|---|---|
+| Altern-rhythm | 0.526 | Barely above chance — the coarse 2-feature (content-bit-only) space alone is a weak signal, most of Alternation's real power is in the subtype detail |
+| Altern-func-chain | 0.668 | Much stronger — specific function→function legality, trained only on function-function pairs with the full 14-feature subtype space |
+| Agree-modal | 0.768 | Modal→bare-verb rule, mined from modal-relevant pairs only |
+| Agree-number | 0.669 | Subject-number→copula rule, mined from pronoun/finiteness-relevant pairs only |
+| Sem-adjacent | 0.671 | Distance-1 (immediate neighbor) content co-occurrence |
+| Sem-window | 0.539 | Distance-2..4 — much weaker than adjacent: loose topical fit is a genuinely harder signal than tight collocation |
+| Order-bigram | val_ppl 11.344 (unigram baseline 12.984) | Beats the class-unigram baseline — real local signal even at K=1 |
+
+Wired as additive reranks (`_add_struct_order_reranks()`/`_add_struct_reranks()` in
+`wordpipe_service.py`) gated on the SAME toggle as their parent genome (`en.get("altern")`
+etc) — this is a transparent internal decomposition for traceability, not new user-facing
+controls, so no new `/evolang` toggles were added. New gamma constants:
+`ALTERN_RHYTHM_GAMMA=1.0`, `ALTERN_FUNCCHAIN_GAMMA=1.5`, `AGREE_MODAL_GAMMA=1.5`,
+`AGREE_NUMBER_GAMMA=1.5`, `SEM_ADJACENT_GAMMA=1.5`, `SEM_WINDOW_GAMMA=1.0`. Reuse the SAME
+feature spaces as their parent (`altern_feats`/`agree_feats`/`feat`) — only Altern-rhythm
+needed a new (deliberately coarser) 2-feature space. Verified locally: `self.struct` loads
+all 7 champions correctly, generation runs without error. Unlike the Selection
+decomposition, these are REAL new active constraint signals (not a no-op at default
+weights), so output character visibly changed — this is expected, not a regression; the
+shipped parent genomes are untouched, these compose alongside them.
+
+**Order-bigram is loaded but NOT wired into generation.** Its trained artifact is a full
+class-LM (embedding + positional weight + hidden layer + softmax), not a bilinear rerank
+matrix — it doesn't fit the `(classfeat, M, gamma)` reranks-tuple shape every other genome
+here uses. Forcing it into that shape would mean building something broken just to check a
+box. Kept as a standalone diagnostic scorer instead: given an actual generated class
+sequence, score it under Order-bigram alone and compare to the full Order genome's
+score — the gap tells you how much a given sentence's structure depended on context beyond
+immediate class-bigram history. Real observability value, just not a generation-time rerank.
+Still available in `self.struct["order_bigram"]` for exactly this kind of post-hoc analysis.
 
 ## Sub-label key
 Every genome below is tagged **[structural]** or **[semantic]**. Structural genomes

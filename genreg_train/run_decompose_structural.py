@@ -1,11 +1,12 @@
-"""Train all Phase-2 structural decompositions in one batch job (user
-directive: break up every structural genome for full observability). Order
-decomposes into Order-bigram (K=1) + Order-context (K=4, already shipped,
-not retrained here); Alternation into Altern-rhythm + Altern-func-chain;
-Agreement into Agree-modal + Agree-number; Semantic into Sem-adjacent +
-Sem-window. No-repeat/Opener/Closer/Boundary/Commas were assessed and left
-as-is (already single-question, no real compound to split). Runs entirely
-on the I2 primary.
+"""Train the HEAVIER half of the Phase-2 structural decomposition (user
+directive: break up every structural genome for full observability):
+Alternation into Altern-rhythm + Altern-func-chain, Agreement into
+Agree-modal + Agree-number. The lighter half (Order-bigram, Sem-adjacent,
+Sem-window) runs locally in parallel (run_decompose_structural_local.py) --
+split across both machines since local compute is available again this
+session. No-repeat/Opener/Closer/Boundary/Commas were assessed and left
+as-is (already single-question, no real compound to split). Runs on the
+I2 primary.
 """
 import os
 import pickle
@@ -38,7 +39,6 @@ import time
 from genreg_train import wordpipe as wp
 from genreg_train import altern_decompose as altd
 from genreg_train import agree_decompose as agrd
-from genreg_train import sem_decompose as semd
 
 NCL, C, D = 32, 4, 24
 t0 = time.time()
@@ -47,9 +47,6 @@ wp.build_word_corpus(4000); wp.induce_word_classes(NCL)
 log(f"done in {time.time()-t0:.0f}s")
 
 out = {}
-
-log("\n=== ORDER-BIGRAM (K=1) ==="); r = wp.run_class_lm(NCL, gens=1000, pop=200, C=1, E=10, H=64, seed=7, log=log)
-out["order_bigram"] = {"champ": r["champ"], "val_ppl": r.get("val_ppl")}
 
 log("\n=== ALTERN-RHYTHM ==="); r = altd.train_altern_rhythm(log=log)
 out["altern_rhythm"] = {"champ": r["champ"], "val_acc": r["val_acc"]}
@@ -63,14 +60,8 @@ out["agree_modal"] = {"champ": r["champ"], "val_acc": r["val_acc"]}
 log("\n=== AGREE-NUMBER ==="); r = agrd.train_agree_number(log=log)
 out["agree_number"] = {"champ": r["champ"], "val_acc": r["val_acc"]}
 
-log("\n=== SEM-ADJACENT ==="); r = semd.train_sem_adjacent(log=log)
-out["sem_adjacent"] = {"champ": r["champ"], "val_acc": r["val_acc"]}
-
-log("\n=== SEM-WINDOW ==="); r = semd.train_sem_window(log=log)
-out["sem_window"] = {"champ": r["champ"], "val_acc": r["val_acc"]}
-
 OUT_DIR = os.path.join(ROOT, "corpora", "wikipedia", "build")
-OUT = os.path.join(OUT_DIR, "structural_decompose.pkl")
+OUT = os.path.join(OUT_DIR, "structural_decompose_primary.pkl")
 with open(OUT, "wb") as f:
     pickle.dump(out, f)
 log(f"\nsaved {OUT}")
