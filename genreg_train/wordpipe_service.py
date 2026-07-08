@@ -475,5 +475,150 @@ class Service:
                 kept.append(best_text)
         return " ".join(kept)
 
+    # ------------------------------------------------------------------
+    # EXPERIMENTAL meaning-first generation (2026-07-08). Every mode above
+    # is STRUCTURE-first: the Order genome picks a class skeleton blind, Fill
+    # picks whatever word satisfies local constraints in each slot, and
+    # "meaning" is bolted on afterward as a rerank bias. That's very likely
+    # why Sentence coherence / Theme consistency (see genomes.txt) failed
+    # near-chance — a linear rerank can't retrofit global coherence onto a
+    # sequence that was never chosen for its content.
+    #
+    # This flips it: pick 3-5 semantically related CONTENT words FIRST
+    # (using the already-evolved relation genomes — hyper/mero/synant/sem —
+    # exactly the genomes built for "is this related to that"), THEN let the
+    # already-trained Order skeleton run as normal and claim each reserved
+    # word into the first slot whose class matches, instead of running
+    # word-selection there. Structure still comes from the same evolved
+    # genomes; it just accommodates chosen meaning instead of the reverse.
+    # No new training — this recombines existing champions into a new flow.
+    # ------------------------------------------------------------------
+    def _select_content(self, en, rng, n_content=4, temp=0.35):
+        """Pick n_content content-word ids that are mutually related, using
+        whichever relation genomes are enabled (falls back to Semantic
+        adjacency alone if none of hyper/mero/synant are on). Stochastic
+        (softmax sample, not argmax) at every step — no ridge/argmax
+        shortcuts, per project convention."""
+        content_ids = np.where(self.is_content)[0]
+        content_ids = content_ids[content_ids != 0]
+        freq = self.logfreq[content_ids]
+        p0 = freq / freq.sum()
+        seed_w = int(rng.choice(content_ids, p=p0))
+        selected = [seed_w]
+
+        mats = []
+        if en.get("sem", True) and "sem" in self.champs:
+            mats.append((self.feat, self.champs["sem"]))
+        if en.get("hyper") and "hyper" in self.rel:
+            mats.append((self.rel["hyper"]["feat"], self.rel["hyper"]["M"]))
+        if en.get("mero") and "mero" in self.rel:
+            mats.append((self.rel["mero"]["feat"], self.rel["mero"]["M"]))
+        if en.get("synant") and "synant" in self.rel:
+            mats.append((self.rel["synant"]["feat"], self.rel["synant"]["M"]))
+        if not mats and "sem" in self.champs:
+            mats.append((self.feat, self.champs["sem"]))
+
+        for _ in range(n_content - 1):
+            remaining = np.array([w for w in content_ids if w not in selected])
+            if len(remaining) == 0:
+                break
+            scores = np.zeros(len(remaining), np.float64)
+            for feat, M in mats:
+                for s in selected:
+                    scores += feat[remaining] @ M @ feat[s]
+            scores /= max(1, len(mats) * len(selected))
+            z = scores - scores.max()
+            probs = np.exp(z / temp)
+            probs /= probs.sum()
+            nxt = int(rng.choice(remaining, p=probs))
+            selected.append(nxt)
+        return selected
+
+    def generate_meaning_first(self, en, n_content=4, n=140, seed=0):
+        """EXPERIMENTAL. Pick content first (_select_content), then run the
+        SAME evolved Order/Fill genomes as generate(), except each reserved
+        content word claims the first upcoming slot whose class matches its
+        own (self.w2c), instead of that slot running normal word-selection.
+        Structural toggles (altern/agree/sem/rep/open/close/bound/commas/
+        chunks) behave exactly as in generate() for every non-claimed slot.
+        """
+        if not self.ready:
+            return ""
+        rng = np.random.default_rng(seed)
+        reserved = self._select_content(en, rng, n_content)
+        pending = {int(w): int(self.w2c[w]) for w in reserved}   # word -> class, unplaced
+
+        if en.get("order") and "order" in self.champs:
+            order_reranks = []
+            if en.get("altern") and "altern" in self.champs and ORDER_ALTERN_GAMMA > 0:
+                order_reranks.append((self.altern_classfeat, self.champs["altern"], ORDER_ALTERN_GAMMA))
+            if en.get("agree") and "agree" in self.champs and ORDER_AGREE_GAMMA > 0:
+                order_reranks.append((self.agree_classfeat, self.champs["agree"], ORDER_AGREE_GAMMA))
+            cls_seq = wp.gen_class_seq(self.champs["order"], C, n, self.cids[500:500 + C],
+                                       rng, 0.8, reranks=order_reranks or None)
+        else:
+            cls_seq = list(rng.choice(self.nc, size=n, p=self.cprob))
+
+        reranks = []
+        if en.get("altern") and "altern" in self.champs:
+            reranks.append((self.altern_feats, self.champs["altern"], ALTERN_GAMMA))
+        if en.get("agree") and "agree" in self.champs:
+            reranks.append((self.agree_feats, self.champs["agree"], AGREE_GAMMA))
+        if en.get("sem") and "sem" in self.champs:
+            reranks.append((self.feat, self.champs["sem"], SEM_GAMMA))
+        reranks = reranks or None
+        use_rep = en.get("rep") and "rep" in self.champs
+
+        recent, parts, prev, cur, clause, j = [], [], None, 0, 0, 0
+        placed_any = False
+        while j < len(cls_seq):
+            cl = int(cls_seq[j])
+            if cl not in self.table:
+                if en.get("vocab") and en.get("bound") and "bound" in self.champs \
+                        and cur >= 4 and rng.random() < self._bound_prob(en, cl, cur, prev):
+                    parts.append("."); cur = 0; clause = 0
+                j += 1; continue
+            claim_w = next((w for w, c in pending.items() if c == cl), None)
+            if claim_w is not None and en.get("vocab"):
+                w = claim_w
+                del pending[claim_w]
+                placed_any = True
+            elif not en.get("vocab"):
+                Ln = int(rng.integers(2, 9))
+                parts.append("".join(chr(rng.integers(97, 123)) for _ in range(Ln)))
+                cur += 1; clause += 1; j += 1; continue
+            else:
+                mem = self.table[cl][0]
+                bonus = None
+                if use_rep and prev is not None:
+                    bonus = rp.penalty(self.champs["rep"], recent, mem, self.is_content)
+                if en.get("open") and self.open_scores is not None and prev is not None and cur == 0:
+                    ob = OPEN_GAMMA * self.open_scores[mem]
+                    bonus = ob if bonus is None else bonus + ob
+                if en.get("sel") == "bi" and "bisel" in self.champs and prev is not None:
+                    nxt = next((int(cls_seq[k]) for k in range(j + 1, len(cls_seq))
+                               if int(cls_seq[k]) in self.table), cl)
+                    w = wp._fill_bisel(prev, cl, nxt, self.table, self.feat, self.logfreq,
+                                       self.cents, self.champs["bisel"], rng,
+                                       reranks=reranks, bonus=bonus)
+                elif en.get("sel") in ("uni", "bi") and "sel" in self.champs and prev is not None:
+                    w = wp._fill_selected(prev, cl, self.table, self.feat, self.logfreq,
+                                          self.champs["sel"], rng, reranks=reranks, bonus=bonus)
+                else:
+                    w = int(rng.choice(mem, p=self.table[cl][1]))
+            parts.append(self.vocab[w]); prev = w; recent.append(w)
+            cur += 1; clause += 1; j += 1
+            if en.get("vocab"):
+                mark = self._punct(en, cl, cur, clause, rng, prev_w=prev)
+                if mark == "period":
+                    parts.append("."); cur = 0; clause = 0
+                elif mark == "comma":
+                    parts.append(","); clause = 0
+        text = " ".join(parts).replace(" .", ".").replace(" ,", ",")
+        text = re.sub(r"(^|\. )([a-z])", lambda m: m.group(1) + m.group(2).upper(), text)
+        content_words = [self.vocab[w] for w in reserved]
+        return {"text": text, "content_words": content_words,
+                "placed": len(reserved) - len(pending), "requested": len(reserved)}
+
 
 SERVICE = Service()

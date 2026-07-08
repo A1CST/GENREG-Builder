@@ -465,6 +465,37 @@ def api_evolang_revision():
     return jsonify({"text": text, "ready": wordpipe_service.SERVICE.ready})
 
 
+@app.route("/api/evolang/meaning_first")
+def api_evolang_meaning_first():
+    """EXPERIMENTAL meaning-first generation — pick 3-5 semantically related
+    content words FIRST (via hyper/mero/synant/sem), then let the Order/Fill
+    genomes place them into matching grammatical slots, instead of choosing
+    structure blind and bolting meaning on afterward."""
+    if not WP_OK:
+        return jsonify({"text": "", "err": WP_ERR or "wordpipe unavailable"})
+    a = request.args
+    en = {"vocab": a.get("vocab") == "1", "order": a.get("order") == "1",
+          "bound": a.get("bound") == "1", "chunks": a.get("chunks") == "1",
+          "commas": a.get("commas") == "1", "sel": a.get("sel", "off"),
+          "agree": a.get("agree") == "1", "altern": a.get("altern") == "1",
+          "sem": a.get("sem") == "1", "rep": a.get("rep") == "1",
+          "open": a.get("open") == "1", "close": a.get("close") == "1",
+          "hyper": a.get("hyper") == "1", "mero": a.get("mero") == "1",
+          "synant": a.get("synant") == "1"}
+    try:
+        seed = int(a.get("seed", 0))
+    except (TypeError, ValueError):
+        seed = 0
+    try:
+        n_content = max(2, min(6, int(a.get("n_content", 4))))
+    except (TypeError, ValueError):
+        n_content = 4
+    wordpipe_service.SERVICE.ensure()
+    r = wordpipe_service.SERVICE.generate_meaning_first(en, n_content=n_content, seed=seed)
+    r["ready"] = wordpipe_service.SERVICE.ready
+    return jsonify(r)
+
+
 @app.route("/mnist")
 def mnist_page():
     """MNIST — the specialist-pipeline recipe applied to images."""

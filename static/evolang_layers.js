@@ -25,6 +25,9 @@
   // desc  = full reasoning, shown in the hover tooltip.
   const NODES = [
     // ---- structural (form: grammar, position, rhythm) ----
+    { id: "content_select", name: "Content selection", layer: "semantic", stages: ["content"], status: "experimental",
+      short: "pick the meaning FIRST",
+      desc: "WIRED, verified (2026-07-08) — user-directed architecture flip: every other stage is structure-first (Order picks a class skeleton blind, meaning gets bolted on after). This runs BEFORE Order: picks 3-5 mutually-related content words using whichever relation genomes are enabled (Hypernym/Meronym/Synonym-Antonym/Semantic), stochastic sampling (softmax, not argmax). The same evolved Order/Fill genomes then place each reserved word into the first matching class slot instead of running word-selection there — no new training, structure accommodates chosen meaning instead of the reverse. Verified: selected sets score +0.58 higher on relatedness than random (t=8.25, 40 samples). Placement rate 66.5% (133/200 words, 50 samples) — a third of chosen words don't find a matching slot and get dropped. Does NOT fix word-level fluency — Order/Fill are unchanged, only WHICH words fill content slots changed. `/api/evolang/meaning_first`, \"Meaning-first\" button on /evolang." },
     { id: "vocab", name: "Vocabulary", layer: "structural", stages: ["fill"], status: "shipped",
       short: "emit real words, not letters",
       desc: "Emit real English words, not letter noise. The vocabulary/class table every other genome fills slots from." },
@@ -175,6 +178,7 @@
   ];
 
   const STAGES = [
+    { id: "content", label: "Content", sub: "EXPERIMENTAL — pick meaning first" },
     { id: "skeleton", label: "Skeleton", sub: "Order class-sequence" },
     { id: "fill", label: "Fill", sub: "word selection" },
     { id: "boundary", label: "Boundary", sub: "punctuation" },
@@ -196,9 +200,9 @@
     "cut": ["4,3", 0.45],
   };
 
-  const W = 1780;
-  const COL_X = { skeleton: 180, fill: 480, boundary: 780, revision: 1080, passage: 1380 };
-  const OUTPUT_X = 1650;
+  const W = 2080;
+  const COL_X = { content: 180, skeleton: 480, fill: 780, boundary: 1080, revision: 1380, passage: 1680 };
+  const OUTPUT_X = 1950;
   const BACKBONE_Y = 46;
   const BAND_TOP = 110;
   const NODE_W = 178, NODE_H = 52, NODE_GAP = 10;

@@ -49,6 +49,7 @@
     ["Sentence length plan (experimental)", "Skeleton-stage unary classifier — long-sentence-opener vs short-sentence-opener. Probe passed but weak (mean +0.53 vs -0.13, many tied scores). Wired the same shape as Sentence type, but a generation spot-check found no measurable length-distribution change — technically wired, practically inert at safe gammas."],
     ["Pronominalization (experimental)", "the first real Passage-stage (cross-sentence) genome, and it needed NO new training — reuses the No-repeat genome's recency buffer directly. A content word re-mentioned within the last 15 words is replaced by a generic pronoun (“it”, no gender/number) 60% of the time. Measured effect: “it” frequency rose 0.77%→1.11% of words with the toggle on — a real, measurable change."],
     ["Revision — Best-of-N (experimental)", "a whole new pipeline stage (separate button below, not a layer toggle): generates several candidate sentences per slot with the SAME toggles above, unchanged, scores each with a Whole-sentence scorer (semantic adjacency + opener/closer fit + alternation/no-repeat violation counts, all from already-evolved champions), keeps the best. No new training. Verified mechanically to rank-order candidates correctly; has a known bias toward shorter sentences, not yet corrected."],
+    ["Meaning-first (experimental)", "a new generation MODE (separate button below, not a layer toggle) that flips content selection ahead of structure. Every other mode here is structure-first: Order picks a class skeleton blind, Fill picks whatever word satisfies local constraints, meaning is bolted on as a rerank afterward. This picks 3-5 mutually-related content words FIRST (via Hypernym/Meronym/Synonym-Antonym/Semantic — stochastic sampling, not argmax), then lets the same evolved Order/Fill genomes place them into the first grammatically matching slot instead of running word-selection there. No new training. Verified: selected content sets score +0.58 higher on relatedness than random sets (t=8.25, 40 samples); placement rate ~66% (a third of chosen words don't find a matching slot in the token budget and get dropped). Word-level grammar/fluency is UNCHANGED — this fixes what gets said, not the surface fluency of how."],
   ];
 
   let en = { vocab: true, order: true, sel: "bi", altern: true, agree: true, sem: true, rep: true, open: true, close: true, bound: true, commas: true, chunks: false, hyper: false, mero: false, synant: false, sent_type: false, lenplan: false, pronominal: false };
@@ -179,6 +180,22 @@
       .catch(() => { $("ev-out").textContent = "(generation error)"; });
   }
 
+  function generateMeaningFirst() {
+    if (!ready) return;
+    $("ev-stack").textContent = stackLabel() + "  +  Meaning-first*";
+    $("ev-out").textContent = "picking content…"; $("ev-repstats").textContent = "";
+    fetch("/api/evolang/meaning_first?" + qs() + "&n_content=4")
+      .then((r) => r.json())
+      .then((d) => {
+        renderOutput(d.text || "(no output)");
+        const words = (d.content_words || []).join(", ");
+        const rate = d.requested ? `${d.placed}/${d.requested} placed` : "";
+        $("ev-repstats").innerHTML =
+          `<div class="ev-toprep">chosen content: <b>${words}</b> — ${rate}</div>` + $("ev-repstats").innerHTML;
+      })
+      .catch(() => { $("ev-out").textContent = "(generation error)"; });
+  }
+
   function setConn(ok, txt) {
     $("ev-dot").className = "dot" + (ok ? " ok" : " bad");
     $("ev-conn").textContent = txt;
@@ -215,5 +232,6 @@
 
   $("ev-gen").addEventListener("click", () => { seed++; generate(); });
   $("ev-revision").addEventListener("click", () => { seed++; generateRevision(); });
+  $("ev-meaningfirst").addEventListener("click", () => { seed++; generateMeaningFirst(); });
   renderLayers(); renderArch(); poll();
 })();

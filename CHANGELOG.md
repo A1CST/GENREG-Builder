@@ -10,6 +10,23 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-08] (Claude)** — Meaning-first generation: user-directed architecture flip.
+  Diagnosis: the pipeline has been structure-first this whole time (Order picks a class
+  skeleton blind, Fill picks whatever word fits, meaning is bolted on afterward as a
+  rerank) — very likely why Sentence coherence / Theme consistency failed near-chance,
+  since a linear rerank can't retrofit coherence onto a sequence never chosen for its
+  content. New `Service.generate_meaning_first()` in `wordpipe_service.py`: a Content
+  Selection stage runs BEFORE Order, picking 3-5 mutually-related content words via the
+  existing relation genomes (hyper/mero/synant/sem, stochastic sampling not argmax), then
+  the same evolved Order/Fill genomes place each reserved word into the first matching
+  class slot instead of running word-selection there. No new training. Verified (not
+  assumed): selected content sets score +0.58 higher on relatedness than random sets
+  (t=8.25, 40 samples); placement rate 66.5% (133/200, 50 samples) — a third of chosen
+  words don't find a matching slot and get dropped. Word-level fluency is explicitly
+  unchanged — this fixes what gets said, not the surface grammar. New
+  `/api/evolang/meaning_first` endpoint + "Meaning-first" button on `/evolang`. New
+  "Content" stage added to the flow map (`static/evolang_layers.js`), ahead of Skeleton.
+
 - **[2026-07-08] (Claude)** — Full guardrail battery run on round-1's experimental
   genomes (`genreg_train/battery_round1.py`) — correcting an earlier overstatement that
   "tested" meant fully validated. It didn't: earlier verdicts were probe + a lightweight

@@ -1,5 +1,38 @@
 # WordPipe Genome Roadmap
 
+## Meaning-first generation (NEW, 2026-07-08) — user-directed architecture flip
+
+User's diagnosis: the pipeline has been STRUCTURE-first this whole time — Order picks a
+class skeleton blind, Fill picks whatever word satisfies local constraints in each slot,
+and "meaning" gets bolted on afterward as a rerank bias. That is very likely WHY Sentence
+coherence / Theme consistency (below) failed near-chance: a linear rerank can't retrofit
+global coherence onto a sequence that was never chosen for its content in the first place.
+"You know what you want to say, and grammar is the vehicle" — flip it: pick the content
+first, let structure accommodate it.
+
+`Service.generate_meaning_first()` in `wordpipe_service.py` (+ `/api/evolang/meaning_first`,
+"Meaning-first" button on `/evolang`): a new CONTENT SELECTION stage runs before Order —
+`_select_content()` picks 3-5 content words that are mutually related, using whichever
+relation genomes are enabled (Hypernym/Meronym/Synonym-Antonym/Semantic), stochastic
+sampling (softmax, not argmax) at every step. The SAME already-evolved Order/Fill genomes
+then run as normal, except each reserved content word claims the first upcoming slot whose
+class matches its own instead of that slot running word-selection — structure still comes
+from the same trained genomes, it just accommodates the chosen meaning instead of the
+reverse. No new training — this recombines existing champions into a new flow.
+
+**Verified, not assumed:** content selection is genuinely more coherent than random — mean
+pairwise relatedness score of selected 4-word sets is +0.58 higher than random 4-word sets
+(t=8.25, 40 samples, 34/40 individual wins). Placement is real but incomplete: 66.5%
+placement rate across 50 samples (133/200 words) — a third of chosen words never find a
+matching class slot within the token budget and get silently dropped.
+
+**What this does NOT fix:** word-level grammar/fluency is unchanged, because Order/Fill
+themselves weren't modified — only WHICH words get chosen for content slots changed, not
+HOW well the surrounding function words glue them together. The generated text still reads
+as word salad at the surface level (see any sample in the log) — this is a real, separate,
+still-open problem, not solved by the flip. The flip fixes WHAT the sentence is about;
+fluency is still the Order/Selection genomes' job, and they haven't changed.
+
 ## Sub-label key
 Every genome below is tagged **[structural]** or **[semantic]**. Structural genomes
 constrain FORM (grammar, position, rhythm) using class/function features — they never
