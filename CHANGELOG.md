@@ -10,6 +10,52 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-08] (Claude)** — Autonomous genome-testing run, genomes #2 and #3 resolved.
+  I2 node bumped to v1.4.6 (`JOB_WHITELIST` now also allows `genreg_train/run_*.py`, so
+  future genome runners dispatch without duplicating into `jobs/`). **Collocation strength**
+  (absorbs Verb-preposition — no POS tags exist to separate them) trained remotely on the
+  I2 primary: val_acc 0.782, probe only 6/8 correct (75%, fails "depend on"/"look at") —
+  real signal, not clean enough to wire; left unwired, marked PARTIAL not cut.
+  **Sentence length plan** trained locally: probe passed weakly (+0.53 vs -0.13 mean
+  opener score, many ties — coarse feature space), wired the same shape as Sentence type
+  (opener bias + boundary-probability reshaping toward the 14-word median), but a 20-sample
+  generation spot-check showed no measurable length-distribution change — wired but inert
+  at safe gammas. Both documented honestly in `genomes.txt` and `static/evolang_layers.js`
+  (source of truth for current status). `lenplan` toggle added to `/evolang` (default OFF).
+
+- **[2026-07-08] (Claude)** — I2 job dispatch extended for the autonomous genome-testing run
+  (per user reminder to use the primary node): `PUSH_WHITELIST` now also allows
+  `genreg_train/*.py` and `project/EEC-main/engine/corpus.txt` (v1.4.5), so the full
+  in-pipeline WordPipe stack — not just the standalone Wikipedia relation genomes — can run
+  on the primary. Deployed the whole `genreg_train/` package (44 files) + the 49MB novel
+  corpus. Hit and fixed a real bug: `genreg_train/__init__.py` eagerly imports an unrelated
+  subsystem (`trainer.py` -> `engine_api.py` -> requires `project/genreg-engine-main`, a
+  different RL-engine project, not deployed to compute nodes) — any `from genreg_train
+  import wordpipe` blew up on the primary with a `RuntimeError`. Fixed with a reusable shim,
+  NEW `jobs/_pkg_stub.py`: pre-registers a stub `genreg_train` module in `sys.modules` with
+  the correct `__path__` before any real import runs, so Python imports the needed
+  submodule directly without executing the package `__init__.py`'s side effects. Every
+  future dispatch script imports this first. Verified end-to-end with `jobs/test_wp_import.py`
+  on the real primary (corpus builds, vocab loads, no exception).
+- **[2026-07-08] (Claude)** — **Autonomous genome-testing run started** (per user: backup
+  first, then systematically work the /evolang/layers roadmap — train, probe, wire if it
+  passes, decompose or cut if it doesn't). Git checkpoint committed first (`c7997e7`).
+  Genome #1, **Sentence type** — VALIDATED + WIRED. NEW `genreg_train/sent_type.py` (mines
+  sentence-initial words bucketed by whether the sentence ends in "?" vs "."/"!", trains a
+  unary genome — same shape as the existing `sent_open.py` opener genome, but a harder
+  discrimination: hard negatives are statement-openers, not the general marginal) +
+  `run_sent_type.py` (trainer + probe runner). Probe: all 18 hand-picked question-openers
+  (do/will/what/is/how...) scored above all 11 statement-openers — clean separation, not
+  just on average. Wired into `wordpipe_service.py`: a coin-flip at the corpus question-rate
+  (8.19%) fires once per sentence; if "question", biases the opener toward this genome's
+  scores (`SENT_TYPE_GAMMA=3.0`) and forces "?" instead of "." at the close (also fixed the
+  final-text cleanup regex, which only capitalized after ". " before — now handles "? " too).
+  Generation-time spot-check: flagged-question rate landed at 8.2% (matches the corpus rate
+  almost exactly), and roughly half of flagged sentences opened with a real recognized
+  question word (do/does/did/have/where/was/is/what/how/whose) — near 0% before this existed.
+  New `sent_type` toggle on `/evolang`, OFF by default (no formal adj-hit/distinct guardrail
+  sweep run yet, only the spot-check above). Map (`static/evolang_layers.js`) and
+  `genomes.txt` updated. Continuing autonomously through the rest of the roadmap.
 - **[2026-07-08] (Claude)** — `/evolang/layers`: split the "Sentence coherence"/"Theme
   consistency" pair back out of the earlier grouping fix — their names overflowed the
   sub-node box width sized for one-word Sentiment names. `groupSubWidth()` now sizes each

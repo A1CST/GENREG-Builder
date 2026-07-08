@@ -17,6 +17,8 @@ from genreg_train import agreement as ag
 from genreg_train import altern as al
 from genreg_train import repetition as rp
 from genreg_train import rel_wire
+from genreg_train import sent_type as st
+from genreg_train import sent_lenplan as sl
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CACHE = os.path.join(ROOT, "demo", "genomes.pkl")
@@ -43,6 +45,26 @@ SYNANT_GAMMA = 1.0        # weight of the unified synonym/antonym re-rank
 # pushes, a content word pops) and suppresses the sentence-boundary
 # probability while depth > 0. OBLIG_GAMMA is swept/set by exp_obligation.py.
 OBLIG_GAMMA = 0.0         # 0 = off; exp_obligation.py sweeps this
+# EXPERIMENTAL — sentence-type genome (genreg_train/sent_type.py). Skeleton
+# stage was thin (Order/Alternation/Agreement only). Validated on probe: every
+# one of 18 hand-picked question-openers (do/will/what/is...) scored above
+# every one of 11 statement-openers. At each sentence start, flips a coin at
+# the corpus question-rate; if "question", biases the opener toward this
+# genome's scores and forces '?' instead of '.' at the close.
+SENT_TYPE_GAMMA = 3.0
+SENT_TYPE_CHAMP = os.path.join(ROOT, "genreg_train", "sent_type_champ.pkl")
+# EXPERIMENTAL — sentence-length-plan genome (genreg_train/sent_lenplan.py).
+# Probe passed but weaker than sent_type's: mean long-opener score beat mean
+# short-opener score (+0.532 vs -0.125), but several openers tied on identical
+# scores — the coarse function-feature space caps how sharp this signal gets.
+# At each sentence start, flips a coin at the corpus long-sentence rate
+# (48.77% of sentences ran longer than the 14-word median); biases the opener
+# toward/away from this genome's scores and reshapes the boundary probability
+# to lean toward finishing before/after the median length.
+LENPLAN_GAMMA = 2.0
+LENPLAN_LEN_GAMMA = 0.06
+LENPLAN_LONG_RATE = 207266 / (207266 + 217634)   # from sent_lenplan.log mining pass
+SENT_LENPLAN_CHAMP = os.path.join(ROOT, "genreg_train", "sent_lenplan_champ.pkl")
 
 
 class Service:
@@ -118,6 +140,24 @@ class Service:
             self.rel = rel_wire.load_relation_genomes(self.vocab)
             self.rel_coverage = (round(next(iter(self.rel.values()))["coverage"] * 100)
                                  if self.rel else 0)
+            # EXPERIMENTAL sentence-type genome (question-opener bias)
+            if os.path.exists(SENT_TYPE_CHAMP):
+                with open(SENT_TYPE_CHAMP, "rb") as f:
+                    st_d = pickle.load(f)
+                self.sent_type_scores = st.word_scores(st_d["champ"], self.vocab)
+                self.question_rate = st_d["question_rate"]
+            else:
+                self.sent_type_scores = None
+                self.question_rate = 0.0
+            # EXPERIMENTAL sentence-length-plan genome (opener + boundary-shaping bias)
+            if os.path.exists(SENT_LENPLAN_CHAMP):
+                with open(SENT_LENPLAN_CHAMP, "rb") as f:
+                    sl_d = pickle.load(f)
+                self.lenplan_scores = sl.word_scores(sl_d["champ"], self.vocab)
+                self.lenplan_median = sl_d["median_len"]
+            else:
+                self.lenplan_scores = None
+                self.lenplan_median = 14.0
             self.ready = True
         except Exception as exc:                       # pragma: no cover
             import traceback; traceback.print_exc()
@@ -179,25 +219,28 @@ class Service:
             s["full_kb"] = round(full / 1024)
         return s
 
-    def _bound_prob(self, en, cl, cur, prev_w, oblig_depth=0):
+    def _bound_prob(self, en, cl, cur, prev_w, oblig_depth=0, len_factor=1.0):
         """P(sentence ends here) from the boundary genome, optionally reshaped by the
-        closer genome so periods land after good ender-words (rate-preserving), and
-        by the EXPERIMENTAL obligation tracker (suppress ending while a prep/det/
-        article opened a phrase that hasn't been closed by a content word yet)."""
+        closer genome so periods land after good ender-words (rate-preserving), by the
+        EXPERIMENTAL obligation tracker (suppress ending while a prep/det/article opened
+        a phrase that hasn't been closed by a content word yet), and by the EXPERIMENTAL
+        length-plan genome (lean toward finishing before/after the planned median)."""
         pb = wp.boundary_prob(self.champs["bound"], cl, cur)
         if en.get("close") and self.close_scores is not None and prev_w is not None and 0 < pb < 1:
             pb = min(1.0, pb * np.exp(CLOSE_GAMMA * (self.close_scores[prev_w] - self.close_center)))
         if en.get("oblig") and oblig_depth > 0 and 0 < pb < 1:
             pb = pb * np.exp(-OBLIG_GAMMA * oblig_depth)
+        if len_factor != 1.0 and 0 < pb < 1:
+            pb = min(1.0, pb * len_factor)
         return pb
 
-    def _punct(self, en, cl, cur, clause, rng, prev_w=None, oblig_depth=0):
+    def _punct(self, en, cl, cur, clause, rng, prev_w=None, oblig_depth=0, len_factor=1.0):
         """Decide end-of-word punctuation: 'period' (sentence end), 'comma'
         (clause break), or None. Period wins over comma."""
         if cur >= 55:
             return "period"
         if en.get("bound") and "bound" in self.champs and cur >= 4 \
-                and rng.random() < self._bound_prob(en, cl, cur, prev_w, oblig_depth):
+                and rng.random() < self._bound_prob(en, cl, cur, prev_w, oblig_depth, len_factor):
             return "period"
         if en.get("commas") and "comma" in self.champs and clause >= 3 \
                 and rng.random() < wp.boundary_prob(self.champs["comma"], cl, clause):
@@ -235,9 +278,19 @@ class Service:
         reranks = reranks or None
         use_rep = en.get("rep") and "rep" in self.champs
         use_oblig = en.get("oblig")
+        use_sent_type = en.get("sent_type") and self.sent_type_scores is not None
+        use_lenplan = en.get("lenplan") and self.lenplan_scores is not None
         recent = []                                    # emitted word ids, for the rep genome
         parts, prev, cur, clause, j = [], None, 0, 0, 0
         oblig_depth = 0                                 # EXPERIMENTAL open-obligation tracker
+        is_question = (use_sent_type and rng.random() < self.question_rate)  # EXPERIMENTAL sentence-type
+        is_long = (use_lenplan and rng.random() < LENPLAN_LONG_RATE)  # EXPERIMENTAL length-plan
+        def _len_factor(c):
+            if not use_lenplan:
+                return 1.0
+            diff = float(np.clip(c - self.lenplan_median, -20, 20))
+            f = np.exp(LENPLAN_LEN_GAMMA * diff) if is_long else np.exp(-LENPLAN_LEN_GAMMA * diff)
+            return float(np.clip(f, 0.2, 5.0))
         def _track_oblig(w):
             nonlocal oblig_depth
             if not use_oblig:
@@ -253,8 +306,11 @@ class Service:
                 # of the sentence-boundary signal (rare sentence-final words fall into it).
                 # Without this, that signal is dropped and sentences run to the length cap.
                 if en.get("vocab") and en.get("bound") and "bound" in self.champs \
-                        and cur >= 4 and rng.random() < self._bound_prob(en, cl, cur, prev, oblig_depth):
-                    parts.append("."); cur = 0; clause = 0; oblig_depth = 0
+                        and cur >= 4 and rng.random() < self._bound_prob(en, cl, cur, prev, oblig_depth, _len_factor(cur)):
+                    parts.append("?" if is_question else ".")
+                    cur = 0; clause = 0; oblig_depth = 0
+                    is_question = use_sent_type and rng.random() < self.question_rate
+                    is_long = use_lenplan and rng.random() < LENPLAN_LONG_RATE
                 j += 1; continue
             emitted = 0
             # try a real phrase whose class pattern matches the upcoming skeleton
@@ -283,6 +339,16 @@ class Service:
                     if en.get("open") and self.open_scores is not None and prev is not None and cur == 0:
                         ob = OPEN_GAMMA * self.open_scores[mem]
                         bonus = ob if bonus is None else bonus + ob
+                    # EXPERIMENTAL sentence-type: bias the first word toward a
+                    # question-opener when this sentence was flagged a question
+                    if is_question and prev is not None and cur == 0:
+                        qb = SENT_TYPE_GAMMA * self.sent_type_scores[mem]
+                        bonus = qb if bonus is None else bonus + qb
+                    # EXPERIMENTAL length-plan: bias the first word toward/away from
+                    # this genome's long-sentence-opener scores
+                    if use_lenplan and prev is not None and cur == 0:
+                        lb = LENPLAN_GAMMA * self.lenplan_scores[mem] * (1.0 if is_long else -1.0)
+                        bonus = lb if bonus is None else bonus + lb
                     if en.get("sel") == "bi" and "bisel" in self.champs and prev is not None:
                         nxt = next((int(cls_seq[k]) for k in range(j + 1, len(cls_seq))
                                     if int(cls_seq[k]) in self.table), cl)
@@ -299,14 +365,18 @@ class Service:
                 emitted = 1; j += 1
             cur += emitted; clause += emitted
             if en.get("vocab"):
-                mark = self._punct(en, cl, cur, clause, rng, prev_w=prev, oblig_depth=oblig_depth)
+                mark = self._punct(en, cl, cur, clause, rng, prev_w=prev, oblig_depth=oblig_depth,
+                                   len_factor=_len_factor(cur))
                 if mark == "period":
-                    parts.append("."); cur = 0; clause = 0; oblig_depth = 0
+                    parts.append("?" if is_question else ".")
+                    cur = 0; clause = 0; oblig_depth = 0
+                    is_question = use_sent_type and rng.random() < self.question_rate
+                    is_long = use_lenplan and rng.random() < LENPLAN_LONG_RATE
                 elif mark == "comma":
                     parts.append(","); clause = 0
         import re
-        text = " ".join(parts).replace(" .", ".").replace(" ,", ",")
-        return re.sub(r"(^|\. )([a-z])", lambda m: m.group(1) + m.group(2).upper(), text)
+        text = " ".join(parts).replace(" .", ".").replace(" ,", ",").replace(" ?", "?")
+        return re.sub(r"(^|[.?] )([a-z])", lambda m: m.group(1) + m.group(2).upper(), text)
 
 
 SERVICE = Service()

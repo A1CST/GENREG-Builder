@@ -25,6 +25,8 @@
     { key: "hyper", name: "Hypernym", desc: "EXPERIMENTAL — nudges toward “is-a” continuations (dog→animal). Wikipedia-trained, validated 10/10 on held-out probes as a STANDALONE relation genome; not yet battery-tested for its effect on generation, so it's off by default. High gamma reads as a taxonomy climb, not natural prose — try it at low mix with Selection/Semantic on." },
     { key: "mero", name: "Meronym", desc: "EXPERIMENTAL — nudges toward “part-of” continuations (wheel→car). Wikipedia-trained, validated 9/10 on held-out probes as a standalone relation genome; not yet battery-tested for its effect on generation." },
     { key: "synant", name: "Synonym/Antonym", desc: "EXPERIMENTAL — given a related pair, biases toward same-or-opposite-meaning continuations. Wikipedia-trained, PARTIAL validation (11/14 probes) — known to still misfire on size-adjective pairs (big/large). Not yet battery-tested for its effect on generation." },
+    { key: "sent_type", name: "Sentence type", desc: "EXPERIMENTAL — flips a coin at the corpus question-rate (8.2%) per sentence; if “question”, biases the opener toward question-words (do/will/what/is…) and closes with “?”. Probe: all 18 hand-picked question-openers outscored all 11 statement-openers. Generation check: flagged-question rate landed at 8.2% (matches corpus), ~50% of flagged sentences opened with a real question word (was ~0% before). No formal adj-hit/distinct guardrail sweep yet." },
+    { key: "lenplan", name: "Sentence length plan", desc: "EXPERIMENTAL — flips a coin at the corpus long-sentence rate (48.8% of sentences ran past the 14-word median); biases the opener toward/away from long-sentence-opener words (although/because/since…) and reshapes the boundary probability to lean toward finishing before/after the median. Probe passed but WEAKER than Sentence-type: mean long-opener score beat mean short-opener score (+0.53 vs -0.13), but several openers tied on identical scores — the shared function-feature space caps how sharp this one gets. No generation-battery sweep yet." },
   ];
   const ARCH = [
     ["Order", "next grammatical class given the last few classes — dense log-prob fitness over ~32 induced POS-like classes. ~3,100 params."],
@@ -44,7 +46,7 @@
     ["Synonym/Antonym (experimental)", "same recipe, but asks a narrower question: given a pair already known to be related, is it same-meaning or opposite-meaning? (Training two separate detectors failed — see documentation/GA_SCALING_FIELD_NOTES.pdf for why.) 11/14 on held-out probes; known residual failure on size-adjective pairs."],
   ];
 
-  let en = { vocab: true, order: true, sel: "bi", altern: true, agree: true, sem: true, rep: true, open: true, close: true, bound: true, commas: true, chunks: false, hyper: false, mero: false, synant: false };
+  let en = { vocab: true, order: true, sel: "bi", altern: true, agree: true, sem: true, rep: true, open: true, close: true, bound: true, commas: true, chunks: false, hyper: false, mero: false, synant: false, sent_type: false, lenplan: false };
   let seed = 3, ready = false;
 
   function renderLayers() {
@@ -88,6 +90,8 @@
     if (en.hyper && en.sel !== "off" && en.vocab) s.push("Hypernym*");
     if (en.mero && en.sel !== "off" && en.vocab) s.push("Meronym*");
     if (en.synant && en.sel !== "off" && en.vocab) s.push("Synonym/Antonym*");
+    if (en.sent_type && en.vocab) s.push("Sentence-type*");
+    if (en.lenplan && en.vocab) s.push("Length-plan*");
     if (en.rep && en.sel !== "off" && en.vocab) s.push("No-repeat");
     if (en.open && en.sel !== "off" && en.vocab) s.push("Opener");
     if (en.close && en.vocab) s.push("Closer");
@@ -103,7 +107,8 @@
       + `&agree=${en.agree ? 1 : 0}&altern=${en.altern ? 1 : 0}`
       + `&sem=${en.sem ? 1 : 0}&rep=${en.rep ? 1 : 0}&open=${en.open ? 1 : 0}`
       + `&close=${en.close ? 1 : 0}&hyper=${en.hyper ? 1 : 0}&mero=${en.mero ? 1 : 0}`
-      + `&synant=${en.synant ? 1 : 0}&seed=${seed}`;
+      + `&synant=${en.synant ? 1 : 0}&sent_type=${en.sent_type ? 1 : 0}`
+      + `&lenplan=${en.lenplan ? 1 : 0}&seed=${seed}`;
   }
 
   function renderOutput(text) {

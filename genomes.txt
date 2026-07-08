@@ -29,6 +29,21 @@ evolution learns one relation inside it.
 
 **Total: ~9,554 params + chunk lookup. Deploy ~140-450 KB.**
 
+## Autonomous genome-testing run (2026-07-08 onward)
+
+Working systematically through the /evolang/layers roadmap (see `static/evolang_layers.js`
+for the full up-to-date map — this table is a running log, the map is the source of truth
+for current status). Protocol per genome: mine + train, PROBE (decisive test, not training
+val_acc), if probe passes wire + spot-check the real generation effect, if probe fails
+diagnose compound-question-decompose vs genuinely-unlearnable-cut. Updated as each genome
+resolves, not batched.
+
+| # | Genome | Verdict | Notes |
+|---|---|---|---|
+| 1 | Sentence type | VALIDATED + WIRED | `genreg_train/sent_type.py` + `run_sent_type.py`. Probe: all 18 question-openers (do/will/what/is...) outscored all 11 statement-openers. Wired: coin-flip at corpus question-rate (8.19%) per sentence, biases opener + forces "?". Generation check: flagged-question rate landed at 8.2% (matches corpus), ~50% of flagged sentences opened with a real question word (was ~0% before). `sent_type` toggle, OFF by default — no formal adj-hit/distinct guardrail sweep yet, only this spot-check. |
+| 2 | Collocation strength (absorbs Verb-preposition) | PARTIAL | `genreg_train/collocation.py` + `run_collocation.py`, trained on I2 primary (job `d2feb6183c759c96`). Mined 7,734 PMI-thresholded content→function bigrams. val_acc=0.782. Probe: 6/8 non-OOV known collocations correct (75%) — real signal, but fails on two textbook cases ("depend on" scored below "depend at"; "look at" scored below "look on"). Not clean enough to wire with confidence. Verb-preposition folded into this genome from the start (no POS tags exist to separate "verb+governed prep" from "any tight content-function bigram" — see `evolang_layers.js`, `verb_prep` node removed/merged). Left UNWIRED — needs either a sharper feature space (bigger D, or bring in the wider Wikipedia distributional features rel_wire.py already crosswalks) or more mining data before it's trustworthy. Not marked cut — the signal is real (0.78 val_acc, majority-correct probe), just not decisive. |
+| 3 | Sentence length plan | WIRED, NO MEASURED EFFECT | `genreg_train/sent_lenplan.py` + `run_sent_lenplan.py`. Probe passed but weak: mean long-sentence-opener score beat mean short-opener score (+0.53 vs -0.13, val_acc 0.605), but several openers tied on identical scores — the shared function-feature space is too coarse for a sharp cut here. Wired the same shape as Sentence type (opener bias + boundary-probability reshaping toward/away from the 14-word median) at safe gammas. Generation spot-check (20 samples x 260 words, on vs off): median/mean/stdev sentence length came back essentially IDENTICAL (13.37 vs 13.27 mean, 11.06 vs 10.28 stdev) — the wiring exists and the toggle works, but at gammas that don't wreck fluency the effect doesn't show up in the aggregate. `lenplan` toggle, OFF by default. Honest verdict: technically wired, practically inert — would need either a much sharper genome (see Collocation's same coarse-feature problem) or a fundamentally different mechanism (explicit length countdown state, not a per-word score) to actually plan length. |
+
 ## Semantic-relation genomes (standalone, Wikipedia-trained, wired 2026-07-07)
 
 Decompose "meaning" into one tiny bilinear/unary genome per relation, each over a

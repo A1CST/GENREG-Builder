@@ -420,7 +420,8 @@ def api_evolang_generate():
           "sem": a.get("sem") == "1", "rep": a.get("rep") == "1",
           "open": a.get("open") == "1", "close": a.get("close") == "1",
           "hyper": a.get("hyper") == "1", "mero": a.get("mero") == "1",
-          "synant": a.get("synant") == "1"}
+          "synant": a.get("synant") == "1", "sent_type": a.get("sent_type") == "1",
+          "lenplan": a.get("lenplan") == "1"}
     try:
         seed = int(a.get("seed", 0))
     except (TypeError, ValueError):
