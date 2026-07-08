@@ -10,6 +10,19 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-08] (Claude)** — Autonomous genome-testing run, genome #4 resolved, round 1 wrap-up.
+  **Clause count** (skeleton): CUT. val_acc 0.575 never beat the 0.73 majority-class rate;
+  decisive probe (Spearman correlation between genome score and each word's TRUE empirical
+  compound-sentence rate, not hand-picked words) came back -0.009 — no learnable signal.
+  Diagnosis: genuinely unlearnable from the opening word alone (a downstream planning
+  decision, not a lexical property), not a compound question to decompose further.
+  Round 1 tally (genomes #1-4): 1 clean win (Sentence type), 1 wired-but-inert (Sentence
+  length plan), 1 real-but-unclean signal left unwired (Collocation strength), 1 clean cut
+  (Clause count). Remaining Fill-stage roadmap items (Definiteness, Transitivity) flagged
+  in `evolang_layers.js` as needing a real per-context design idea before another training
+  run — both would likely repeat Clause count's per-word-alone failure mode. Full details
+  in `genomes.txt`'s "Round 1 summary".
+
 - **[2026-07-08] (Claude)** — Autonomous genome-testing run, genomes #2 and #3 resolved.
   I2 node bumped to v1.4.6 (`JOB_WHITELIST` now also allows `genreg_train/run_*.py`, so
   future genome runners dispatch without duplicating into `jobs/`). **Collocation strength**
