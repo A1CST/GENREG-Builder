@@ -88,6 +88,85 @@ measurably richer/more modern.
 
 New `/api/evolang/intent_first` endpoint + "Intent-first (backward)" button on `/evolang`.
 
+**CORRECTION (2026-07-08, same day):** the "verified" samples above were generated with a
+real, undisclosed bug — `demo/genomes.pkl` is not pushed to the I2 primary (not in
+`PUSH_WHITELIST`), and the verification script never overrode `Service.CACHE` to point at
+the actual combined-corpus training output. Result: `self.champs` was silently **empty**
+on the primary. No crash — every `"altern"/"agree"/"sem" in self.champs` check just quietly
+evaluated False. The samples above are real in the sense that they used the real
+combined-corpus vocabulary and the real backward Order/Selection genomes and didn't crash,
+but the Alternation/Agreement/Semantic reranks were completely inert, which was not
+disclosed when this was first reported as fully verified. Caught by a follow-up experiment
+(the crystallize A/B test, below) producing suspiciously byte-identical output regardless
+of the toggle — that's what should never happen with active reranks and different code
+paths, and it was the tell. Both `run_verify_crystallize.py` and `run_clause_obligation.py`
+now correctly override `ws.CACHE` before loading.
+
+## Clause-completeness experiments (2026-07-08) — two attempts, neither a clean win
+
+Direct follow-up to the diagnosed gap (relative pronouns/subordinate clauses that open and
+never resolve — "Particular whom state is near"). Two mechanisms tried:
+
+**1. Crystallize (forward polish pass on `generate_intent_first()`).** The backward growth
+in intent-first only ever scores each word against its RIGHT neighbor (already placed).
+Added an optional second pass (`en["crystallize"]`) that sweeps the SAME class skeleton
+left-to-right afterward, re-picking each word against its LEFT neighbor too, using the
+shipped forward Selection genome — "sand it further" (user idea from the backward-
+generation discussion): same genomes, opposite direction, tightening what the other
+direction left loose.
+
+Two real bugs surfaced and fixed before a valid test was possible: (a) the CACHE bug above
+made the branch's own guard (`"bisel" in self.champs`) evaluate False, so it silently never
+ran; (b) once fixed, a class/word list-length mismatch crashed it — backward growth can
+skip `<unk>`-class positions without emitting a word, desyncing `words_bwd` from
+`full_cls_bwd`; fixed by tracking a `classes_used` list aligned 1:1 with actually-emitted
+words.
+
+**Real result, third attempt, both bugs fixed:**
+
+| metric | single-pass | crystallized | delta |
+|---|---|---|---|
+| func-func-adjacency | 0.244 | 0.218 | -0.026 (better) |
+| adj-hit | 0.768 | 0.794 | +0.026 |
+| distinct | 0.239 | 0.233 | -0.007 |
+| dangling-rate | 0.018 | 0.086 | **+0.068 (nearly 5x worse, relative)** |
+
+Mixed — modest improvement on function-word chaining, real cost on dangling-rate. Reading
+the actual samples confirms it: single-pass `"Way when them where?"` vs crystallized
+`"The across yourself time of the?"` — equally word-salad to a human reader, no visible
+readability gain for a second full generation pass's worth of compute. **Stays OFF by
+default** (`en.get("crystallize")`, already the default).
+
+**2. Clause-obligation tracker.** Same shape as the earlier (cut) open-obligation tracker,
+one level up: a relative pronoun/subordinator (who/which/that/whom/whose/where/when/
+`al.SUBORD`) pushes a depth counter, a verb-like word pops it, sentence-boundary
+probability suppressed while depth > 0 (`genreg_train/run_clause_obligation.py`, sweeps
+`CLAUSE_GAMMA` 0/1.5/3.0/5.0/8.0 on the forward pipeline).
+
+| clause_gamma | never-closed-relative-rate | dangling-rate | other metrics |
+|---|---|---|---|
+| 0.0 (off) | 13.1% | 48.5% | ff-adj 0.288, adj-hit 0.941, distinct 0.173 |
+| 1.5 - 8.0 | 12.5% (plateaus immediately) | 53.3% | unchanged from baseline |
+
+Small, real reduction in the target metric (13.1%→12.5%) that stops improving past
+`clause_gamma=1.5` — more suppression pressure doesn't help further — while dangling-rate
+gets worse. (Note: this experiment's own hand-rolled comparison baseline lacks the shipped
+pipeline's Opener/Closer biases, so its absolute dangling numbers run higher than the real
+pipeline's — the RELATIVE trend, gamma making things worse for a small gain, is still real
+and honest.) Samples showed no visible readability improvement — some sentences ran very
+long, suggesting the suppression holds the boundary probability down too aggressively once
+triggered. **Not wired — cut, same family of failure as the original open-obligation
+tracker**: a real, correctly-targeted idea whose blunt implementation (uniform suppression
+regardless of how deep/how long the clause has been open) costs more than it fixes. A
+sharper version (decay the suppression over word-distance since the obligation opened,
+rather than a flat gamma) is a real follow-up, not attempted here.
+
+**Overall clause-completeness verdict:** still open. Two honest, real attempts, neither
+earning a place. The diagnostic tooling built this session (verb-presence check, Order-
+bigram/Altern-rhythm/Altern-func-chain sub-genome scores, this clause-obligation tracker's
+own never-closed-rate metric) is real infrastructure for the next attempt, even though
+neither mechanism tried so far solves it.
+
 ## Corpus swap #1: Gutenberg -> Wikipedia (2026-07-08) — user directive: "modern corpus"
 
 The entire pipeline was trained on `project/EEC-main/engine/corpus.txt` — 49MB of

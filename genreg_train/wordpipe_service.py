@@ -837,6 +837,7 @@ class Service:
 
         base_end = self.close_scores if self.close_scores is not None else np.zeros(len(self.vocab), np.float32)
         parts, recent = [], []
+        crystallize_spans_refined = 0
         for mark_id in marks:
             mark = ip.MARKS[mark_id]
             if mark in ".!?":
@@ -865,6 +866,10 @@ class Service:
             full_cls_bwd = [end_cls] + list(cls_seq_bwd)
 
             words_bwd = [end_word]
+            classes_used = [end_cls]   # aligned 1:1 with words_bwd — <unk>-class
+                                       # positions in full_cls_bwd emit no word and
+                                       # are NOT included here (they'd desync the
+                                       # crystallize pass below otherwise)
             prev = end_word
             for i in range(1, len(full_cls_bwd)):
                 cl = int(full_cls_bwd[i])
@@ -876,15 +881,43 @@ class Service:
                 next_cls = full_cls_bwd[i + 1] if i + 1 < len(full_cls_bwd) else cl
                 w = wp._fill_bisel(prev, cl, next_cls, self.table, self.feat, self.logfreq,
                                    self.cents, self.bisel_bwd_champ, rng, reranks=reranks, bonus=bonus)
-                words_bwd.append(w); recent.append(w); prev = w
-            span_words = [self.vocab[w] for w in reversed(words_bwd)]
+                words_bwd.append(w); classes_used.append(cl); recent.append(w); prev = w
+
+            # EXPERIMENTAL crystallize pass: the backward growth above only
+            # ever scored each word against its RIGHT neighbor (already
+            # placed). One forward polish sweep over the SAME (word-aligned)
+            # class skeleton re-picks each word against its LEFT neighbor
+            # too, using the shipped forward Selection genome — "sand it
+            # further" (user idea): same genomes, opposite direction,
+            # tightening what the other direction left loose. Optional
+            # (en["crystallize"]) so both versions are measurable.
+            words_ordered = list(reversed(words_bwd))
+            if en.get("crystallize") and "bisel" in self.champs:
+                crystallize_spans_refined += 1
+                cls_ordered = list(reversed(classes_used))   # same length as words_ordered
+                refined = [words_ordered[0]]
+                prevf = words_ordered[0]
+                for i in range(1, len(cls_ordered)):
+                    cl = cls_ordered[i]
+                    mem = self.table[cl][0]
+                    bonus = (rp.penalty(self.champs["rep"], refined, mem, self.is_content)
+                            if en.get("rep") and "rep" in self.champs else None)
+                    next_cls = cls_ordered[i + 1] if i + 1 < len(cls_ordered) else cl
+                    w = wp._fill_bisel(prevf, cl, next_cls, self.table, self.feat, self.logfreq,
+                                       self.cents, self.champs["bisel"], rng, reranks=reranks, bonus=bonus)
+                    refined.append(w); prevf = w
+                words_ordered = refined
+
+            span_words = [self.vocab[w] for w in words_ordered]
             parts.extend(span_words)
             parts.append(mark)
 
         text = " ".join(parts)
         text = re.sub(r"\s+([.,;:!?])", r"\1", text)
         text = re.sub(r"(^|[.!?] )([a-z])", lambda m: m.group(1) + m.group(2).upper(), text)
-        return {"text": text, "marks": [ip.MARKS[m] for m in marks]}
+        return {"text": text, "marks": [ip.MARKS[m] for m in marks],
+               "crystallize_requested": bool(en.get("crystallize")),
+               "crystallize_spans_refined": crystallize_spans_refined}
 
 
 SERVICE = Service()

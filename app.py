@@ -516,7 +516,7 @@ def api_evolang_intent_first():
     a = request.args
     en = {"vocab": a.get("vocab") == "1", "altern": a.get("altern") == "1",
           "agree": a.get("agree") == "1", "sem": a.get("sem") == "1",
-          "rep": a.get("rep") == "1"}
+          "rep": a.get("rep") == "1", "crystallize": a.get("crystallize") == "1"}
     try:
         seed = int(a.get("seed", 0))
     except (TypeError, ValueError):

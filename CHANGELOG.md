@@ -10,6 +10,22 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-08] (Claude)** — Clause-completeness experiments (crystallize forward-polish
+  pass + clause-obligation tracker), both real attempts, neither a clean win. CORRECTION:
+  the earlier "verified" intent-first samples ran with `self.champs` silently empty on the
+  I2 primary (`demo/genomes.pkl` isn't pushed there, verification script never overrode
+  `Service.CACHE`) — real backward genomes + real combined-corpus vocab, but Alternation/
+  Agreement/Semantic reranks were completely inert, undisclosed at the time. Caught by the
+  crystallize A/B test producing suspiciously byte-identical output; fixed in
+  `run_verify_crystallize.py`/`run_clause_obligation.py`. **Crystallize**: mixed result
+  (func-func-adjacency -0.026 better, dangling-rate +0.068 worse, no visible readability
+  gain) — stays OFF by default. Also fixed a real crash (class/word list misalignment when
+  backward growth skips `<unk>`-class positions). **Clause-obligation tracker**: real but
+  small effect (never-closed-relative-rate 13.1%→12.5%, plateaus immediately) at a real
+  cost (dangling-rate worse) — cut, same failure family as the original open-obligation
+  tracker (a correctly-targeted idea, blunt implementation). Clause-completeness remains
+  open. Full writeup in `genomes.txt`; flow map updated (`static/evolang_layers.js`).
+
 - **[2026-07-08] (Claude)** — Fixed the changelog modal's "select by project" toggle
   missing on `/evolang`, `/evolang/layers`, and `/mnist`. `static/app.js`'s `PROJECT`
   lookup only mapped 5 routes (`/`, `/tree`, `/diff`, `/animation`, `/i2`) even though
