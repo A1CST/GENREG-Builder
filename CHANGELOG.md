@@ -10,6 +10,14 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-08] (Claude)** — Fixed the changelog modal's "select by project" toggle
+  missing on `/evolang`, `/evolang/layers`, and `/mnist`. `static/app.js`'s `PROJECT`
+  lookup only mapped 5 routes (`/`, `/tree`, `/diff`, `/animation`, `/i2`) even though
+  `documentation/changelogs/` has 8 per-project changelog files including
+  `CHANGELOG_EVOLANG.md` and `CHANGELOG_MNIST.md` — on those two pages the toggle button
+  never got created (gated on `PROJECT` being non-null), so only the flat main changelog
+  was ever reachable. Added the missing three route mappings.
+
 - **[2026-07-08] (Claude)** — Intent-first generation VERIFIED with real output. Full
   swap completed: corpus #2 (Wikipedia -> Combined = Wikipedia + Cornell Movie Dialogs,
   421MB, 24.4% dialogue) is now live (`demo/genomes.pkl` swapped, `evolang.py`'s

@@ -258,7 +258,9 @@ document.getElementById("btn-stop").addEventListener("click", () => activeId != 
   // per-project changelog: pages default to THEIR project's log
   // (documentation/changelogs/CHANGELOG_<X>.md), toggleable to the main log
   const PROJECT = { "/": "BUILD", "/tree": "TREE", "/diff": "DIFFEVO",
-                    "/animation": "ANIMATION", "/i2": "I2" }[location.pathname] || null;
+                    "/animation": "ANIMATION", "/i2": "I2",
+                    "/evolang": "EVOLANG", "/evolang/layers": "EVOLANG",
+                    "/mnist": "MNIST" }[location.pathname] || null;
   let scope = PROJECT ? "project" : "main";
   const title = document.getElementById("changelog-title");
   let toggle = null;
