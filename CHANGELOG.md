@@ -19,6 +19,11 @@ log below; don't rewrite existing entries.
   threshold + 2×2 pool) ridge 0.493.** kNN → ridge alone was a big lift (raw 0.29→
   0.32, PCA 0.18→0.36). Next: batch patch extraction for full 50k data, bigger
   dictionary, and the lens map on top of patch features. Milestone 1 committed.
+  **Milestone 2:** built radial-owned full CIFAR copy (`cifar_full.npz` 50k/10k),
+  batched patch extraction (memory-safe). **Full 50k, patch D=512 pool2 + ridge =
+  0.5904** — from 0.49 at 8k. Added feature caching + a `ladder()` that layers the
+  lens map (nonlinear multi-axis/composed-activation combos) on top of patch
+  features. Running D=512/1024 + lens expansion next.
 - **[2026-07-12] (Claude)** — Lens map: **fixed "no render" + added per-layer
   frame rotation.** Render bug was two things: (1) `_load()` did a full SVD of the
   8000×3072 pixel matrix (~800MB U, effectively hung) — replaced with randomized

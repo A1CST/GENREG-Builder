@@ -7,6 +7,8 @@ corpora/
 
 # runtime state / artifacts (regenerable or machine-local)
 runs/
+# local ffmpeg build for the /video editor (extracted from the downloaded 7z)
+tools/
 agent_store/
 .claude/
 
@@ -33,3 +35,5 @@ demo/genomes.pkl
 project/conversational/cornell.zip
 project/conversational/cornell movie-dialogs corpus/
 copyies/
+radial_data/
+*.npz
