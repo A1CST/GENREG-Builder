@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>GENREG — Radial Space</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='vendor/xterm.css') }}" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+  <style>
+    .rs-layout { display:flex; flex:1 1 auto; min-height:0; }
+    .rs-side { flex:0 0 250px; overflow-y:auto; border-right:1px solid #1a1f26; padding:15px 16px; background:#0e1116; }
+    .rs-side h1 { font-size:15px; margin:0 0 3px; color:#e6ebf1; }
+    .rs-side p.lede { font-size:11px; color:#8b95a1; line-height:1.5; margin:0 0 14px; }
+    .rs-fld { margin-bottom:11px; }
+    .rs-fld label { display:block; font-size:10.5px; color:#8b95a1; margin-bottom:4px; text-transform:uppercase; letter-spacing:.04em; }
+    .rs-fld select, .rs-fld input { width:100%; box-sizing:border-box; }
+    .rs-row { display:flex; gap:8px; } .rs-row .rs-fld { flex:1; }
+    .rs-btn2 { width:100%; margin-top:5px; }
+    .rs-modes { display:flex; }
+    .rs-md { flex:1; text-align:center; font-size:11px; padding:6px 4px; border:1px solid #232a33; background:#11151b; color:#8b95a1; cursor:pointer; }
+    .rs-md:first-child { border-radius:5px 0 0 5px; } .rs-md:last-child { border-radius:0 5px 5px 0; border-left:none; }
+    .rs-md.on { background:#1c2733; color:#dbe2ea; border-color:#2f4152; }
+
+    .rs-main { flex:1 1 auto; display:flex; flex-direction:column; min-width:0; background:#0b0d10; }
+    .rs-explain { font-size:12px; color:#aeb8c2; line-height:1.55; padding:11px 16px; background:#0f141b; border-bottom:1px solid #1a1f26; }
+    .rs-explain b { color:#dbe2ea; }
+    .rs-charts { flex:1 1 auto; display:flex; flex-direction:column; padding:12px 16px; gap:10px; min-height:0; }
+    .rs-chartbox { flex:1; position:relative; border:1px solid #171d24; border-radius:8px; background:#0c0f13; min-height:0; }
+    .rs-chartbox canvas { width:100%; height:100%; display:block; }
+    .rs-chart-lbl { position:absolute; left:12px; top:9px; font-size:11px; color:#8b95a1; }
+    .rs-chart-lbl b { color:#dbe2ea; }
+    .rs-legend { position:absolute; right:12px; top:9px; font-size:11px; color:#8b95a1; }
+    .rs-legend i { display:inline-block; width:12px; height:3px; vertical-align:middle; margin:0 4px 0 10px; }
+    .rs-recontoggle { position:absolute; right:12px; bottom:10px; display:flex; }
+    .rs-rt { font-size:10.5px; padding:4px 9px; border:1px solid #232a33; background:#11151b; color:#8b95a1; cursor:pointer; }
+    .rs-rt:first-child { border-radius:5px 0 0 5px; } .rs-rt:last-child { border-radius:0 5px 5px 0; border-left:none; }
+    .rs-rt.on { background:#1c2733; color:#dbe2ea; border-color:#2f4152; }
+
+    .rs-metrics { flex:0 0 250px; overflow-y:auto; border-left:1px solid #1a1f26; padding:15px 16px; background:#0e1116; }
+    .rs-comp { text-align:center; border:1px solid #1e3a2a; border-radius:8px; padding:11px; background:#0f1c15; margin-bottom:12px; }
+    .rs-comp b { display:block; font-size:30px; color:#5fd39a; line-height:1; font-variant-numeric:tabular-nums; }
+    .rs-comp span { font-size:10.5px; color:#7f8b98; }
+    .rs-comp small { display:block; font-size:10px; color:#6c7885; margin-top:5px; }
+    .rs-kv { display:flex; justify-content:space-between; font-size:11.5px; padding:5px 0; border-bottom:1px solid #161b22; }
+    .rs-kv span { color:#8b95a1; } .rs-kv b { color:#dbe2ea; font-variant-numeric:tabular-nums; font-family:ui-monospace,monospace; }
+    .rs-sec { font-size:10.5px; text-transform:uppercase; letter-spacing:.05em; color:#7f8b98; margin:15px 0 8px; }
+    .rs-test { display:flex; gap:7px; align-items:baseline; font-size:10.5px; margin-bottom:7px; line-height:1.4; }
+    .rs-test .mk { flex:0 0 auto; font-weight:700; } .rs-test .mk.ok { color:#5fd39a; } .rs-test .mk.no { color:#e07a6b; }
+    .rs-test .tn { color:#c7d0da; } .rs-test .tv { color:#7f8b98; font-family:ui-monospace,monospace; }
+    .rs-verdict { font-size:11px; color:#b6c1cd; line-height:1.55; border-top:1px solid #232a33; padding-top:10px; margin-top:10px; }
+  </style>
+</head>
+<body class="tlm-body">
+  <header class="topbar">
+    <div class="brand">GENREG<span class="brand-sub">radial space · deterministic rotation-lattice signal codec</span></div>
+    <div class="status">{% set nav_active = 'radial' %}{% include '_nav.html' %}</div>
+  </header>
+
+  <div class="rs-layout">
+    <aside class="rs-side">
+      <h1>Radial Space</h1>
+      <p class="lede">A fixed dot-lattice spun 1&deg;/step. Each dot is an oscillator
+        <span style="font-family:ui-monospace,monospace">r&middot;cos(T+&phi;&#8320;)</span>. A signal is
+        "addressed" to the dot it matches — 3 floats instead of the raw samples.</p>
+
+      <div class="rs-fld">
+        <label>Mode</label>
+        <div class="rs-modes">
+          <div class="rs-md on" id="rs-mode-codec" data-m="codec">Codec</div>
+          <div class="rs-md" id="rs-mode-vs" data-m="vs">vs Fourier</div>
+          <div class="rs-md" id="rs-mode-v2" data-m="v2">Memory v2</div>
+          <div class="rs-md" id="rs-mode-m" data-m="m">Mapping M</div>
+          <div class="rs-md" id="rs-mode-screen" data-m="screen">Screen</div>
+          <div class="rs-md" id="rs-mode-lens" data-m="lens">Lens Map</div>
+        </div>
+      </div>
+
+      <div class="rs-fld" id="rs-fld-kind">
+        <label>Signal</label>
+        <select id="rs-kind">
+          <option value="dot">pure dot (one tone)</option>
+          <option value="noisy">dot + noise</option>
+          <option value="multitone">multi-tone (3 harmonics)</option>
+          <option value="chirp">chirp (sweeping freq)</option>
+          <option value="randomwalk">random walk (non-periodic)</option>
+        </select>
+      </div>
+      <div class="rs-fld" id="rs-fld-kind2" style="display:none">
+        <label>Signal (non-stationary)</label>
+        <select id="rs-kind2">
+          <option value="burst">burst (brief tone)</option>
+          <option value="two_bursts">two bursts</option>
+          <option value="chirp">chirp</option>
+          <option value="am">AM tone</option>
+          <option value="tone">pure tone</option>
+          <option value="walk">random walk</option>
+        </select>
+      </div>
+      <div class="rs-fld" id="rs-fld-k" style="display:none">
+        <label>Atoms K · <span id="rs-k-v">3</span></label>
+        <input type="range" id="rs-k" min="1" max="24" value="3" />
+      </div>
+      <div class="rs-fld" id="rs-fld-stream" style="display:none">
+        <label>Activity stream</label>
+        <select id="rs-stream">
+          <option value="oscillating">video (oscillating)</option>
+          <option value="switching">app-switching (jumps)</option>
+          <option value="idle">idle (flat)</option>
+        </select>
+      </div>
+      <button id="rs-v2run" class="runs-btn rs-btn2" style="display:none">Run v2 tests (§9.2 + §9.3)</button>
+
+      <div id="rs-screen-ctl" style="display:none">
+        <div class="rs-fld">
+          <label>Activity label</label>
+          <select id="rs-slabel">
+            <option value="idle">idle</option>
+            <option value="browsing">browsing</option>
+            <option value="video">video</option>
+            <option value="coding">coding</option>
+          </select>
+        </div>
+        <div class="rs-fld">
+          <label>Record seconds · <span id="rs-ssecs-v">4</span></label>
+          <input type="range" id="rs-ssecs" min="2" max="8" value="4" />
+        </div>
+        <button id="rs-srecord" class="runs-btn tlm-primary rs-btn2">● Record activity</button>
+        <button id="rs-strain" class="runs-btn rs-btn2">Train classifier</button>
+        <button id="rs-sclassify" class="runs-btn rs-btn2">What am I doing now?</button>
+        <button id="rs-sclear" class="runs-btn rs-btn2">Clear all</button>
+        <div class="rs-sstatus" id="rs-sstatus" style="font-size:11px;color:#8b95a1;margin-top:10px;line-height:1.6"></div>
+      </div>
+
+      <div id="rs-lens-ctl" style="display:none">
+        <div class="rs-fld">
+          <label>Axes to sweep · <span id="rs-la-v">16</span> <span style="color:#6c7885">(more = bigger map)</span></label>
+          <input type="range" id="rs-laxes" min="8" max="20" value="16" />
+        </div>
+        <div class="rs-fld">
+          <label>Colour cells by</label>
+          <div class="rs-modes">
+            <div class="rs-md on" id="rs-lc-struct">structure (no labels)</div>
+            <div class="rs-md" id="rs-lc-sep">class sep (eval)</div>
+          </div>
+        </div>
+        <div class="rs-fld">
+          <label>Next layer's view (frame rotation)</label>
+          <select id="rs-lrot">
+            <option value="0">same view (0°)</option>
+            <option value="15">step 15°</option>
+            <option value="30">step 30°</option>
+            <option value="45">step 45°</option>
+            <option value="90">step 90°</option>
+          </select>
+        </div>
+        <button id="rs-lstart" class="runs-btn tlm-primary rs-btn2">▶ Explore (infinite)</button>
+        <button id="rs-lstop" class="runs-btn rs-btn2" disabled>■ Stop</button>
+        <button id="rs-lextend" class="runs-btn rs-btn2" disabled>＋ Extend (stack a layer)</button>
+        <div class="rs-sstatus" id="rs-lstatus" style="font-size:11px;color:#8b95a1;margin-top:10px;line-height:1.7"></div>
+      </div>
+      <div class="rs-fld"><label>Samples N</label><input type="number" id="rs-n" value="360" min="16" max="2048" step="8" /></div>
+      <div class="rs-row">
+        <div class="rs-fld"><label>Lattice step</label><input type="number" id="rs-step" value="0.5" min="0.1" max="1" step="0.05" /></div>
+        <div class="rs-fld"><label>Sweep rate</label><input type="number" id="rs-rate" value="1" min="0.25" max="8" step="0.25" /></div>
+      </div>
+      <div class="rs-fld"><label>Max dots (decomposition) · <span id="rs-mk-v">32</span></label><input type="range" id="rs-mk" min="1" max="64" value="32" /></div>
+
+      <button id="rs-encode" class="runs-btn tlm-primary rs-btn2">Encode signal</button>
+      <button id="rs-validate" class="runs-btn rs-btn2">Run validation suite (&sect;8)</button>
+    </aside>
+
+    <main class="rs-main">
+      <div class="rs-explain" id="rs-explain" style="display:none">
+        Fourier rebuilds your signal from <b style="color:#3a9ad9">endless waves</b> that run the whole width.
+        A short event forces it to stack up many of them. The radial version uses <b style="color:#e0a53b">blips</b> —
+        little packets you drop right where the action is. Fewer pieces = smaller file + you know <b>when</b> things happen.
+      </div>
+      <div class="rs-charts">
+        <div class="rs-chartbox">
+          <div class="rs-chart-lbl" id="rs-lbl">Signal vs reconstruction</div>
+          <div class="rs-legend" id="rs-legend"><i style="background:#5fd39a"></i>signal<i style="background:#e0a53b"></i>reconstruction</div>
+          <canvas id="rs-cv"></canvas>
+          <div class="rs-recontoggle">
+            <div class="rs-rt on" id="rs-1dot">1 dot</div>
+            <div class="rs-rt" id="rs-kdot">K dots</div>
+          </div>
+        </div>
+        <div class="rs-chartbox" style="flex:0 0 30%;">
+          <div class="rs-chart-lbl" id="rs-spec-lbl">Component spectrum <span style="color:#6c7885">— amplitude per harmonic dot the signal decomposes into</span></div>
+          <canvas id="rs-spec"></canvas>
+        </div>
+      </div>
+    </main>
+
+    <aside class="rs-metrics">
+      <div class="rs-comp">
+        <b id="rs-ratio">—</b><span>compression ratio</span>
+        <small id="rs-bytes"></small>
+      </div>
+      <div class="rs-kv"><span>correlation</span><b id="rs-corr">—</b></div>
+      <div class="rs-kv"><span>dots used</span><b id="rs-dots">—</b></div>
+      <div id="rs-addr-block">
+        <div class="rs-sec">Address (r, &phi;&#8320;, z&#8320;)</div>
+        <div class="rs-kv"><span>r</span><b id="rs-r">—</b></div>
+        <div class="rs-kv"><span>&phi;&#8320;</span><b id="rs-phi">—</b></div>
+        <div class="rs-kv"><span>dot idx</span><b id="rs-idx">—</b></div>
+      </div>
+
+      <div class="rs-sec">Validation suite</div>
+      <div id="rs-tests"><div class="rs-test"><span class="tn" style="color:#6c7885">run the suite to populate</span></div></div>
+      <div class="rs-verdict" id="rs-verdict" style="display:none"></div>
+    </aside>
+  </div>
+
+  <script src="{{ url_for('static', filename='radial.js') }}"></script>
+  <script src="{{ url_for('static', filename='vendor/xterm.js') }}"></script>
+  <script src="{{ url_for('static', filename='vendor/addon-fit.js') }}"></script>
+  <script src="{{ url_for('static', filename='termdock.js') }}"></script>
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
+  <script src="{{ url_for('static', filename='agentpanel.js') }}"></script>
+  <script src="{{ url_for('static', filename='configpanel.js') }}"></script>
+</body>
+</html>

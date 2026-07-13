@@ -152,8 +152,10 @@ def lens_expand(Ftr, Fte, n_axes=96, n_lens=3000, seed=0, keep_base=True):
     V = rand_pca(Ftr, n_axes, seed)
     Ztr, mu, sd = zc(Ftr @ V.T); Zte = (Fte @ V.T - mu) / sd
     rng = np.random.default_rng(seed + 1)
-    cols_tr = [Ztr] if keep_base else []
-    cols_te = [Zte] if keep_base else []
+    # keep the FULL base features and ADD lens combos (combos are drawn from the
+    # PCA axes for tractability, but nothing is discarded from the base)
+    cols_tr = [Ftr.astype(np.float32)] if keep_base else []
+    cols_te = [Fte.astype(np.float32)] if keep_base else []
     for i in range(n_lens):
         order = 2 + int(rng.integers(0, 4))
         ax = rng.choice(n_axes, order, replace=False)
@@ -189,11 +191,11 @@ def ladder(D=512):
     print(f"loaded/built {Ktr.shape[1]} feats in {round(time.time()-t)}s", flush=True)
     a0, l0 = ridge_ova(Ktr, ytr, Kte, yte)
     print(f"  patch ridge:            {a0}  (lam {l0})", flush=True)
-    for nl in (3000, 6000):
+    for nl in (2500,):
         t = time.time()
-        Etr, Ete = lens_expand(Ktr, Kte, n_axes=120, n_lens=nl)
+        Etr, Ete = lens_expand(Ktr, Kte, n_axes=96, n_lens=nl)
         a1, l1 = ridge_ova(Etr, ytr, Ete, yte)
-        print(f"  patch + lens({nl}):      {a1}  (lam {l1}, +{round(a1-a0,4)}, {round(time.time()-t)}s)", flush=True)
+        print(f"  patch + lens({nl}):      {a1}  (lam {l1}, {round(a1-a0,4):+}, {round(time.time()-t)}s)", flush=True)
     return a0
 
 

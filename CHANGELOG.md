@@ -10,6 +10,28 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-13] (Claude)** — **Radial v1 ARCHIVED, rebuilt WAY simpler as the
+  activation-behavior map** (user's direction, from their activation-galaxy
+  research: characterize activation functions by how they TRANSFORM data — not
+  the formula — and the space self-organizes: linear at centre, nonlinearity
+  outward, oscillators on their own branches). All nine v1 modules + the old
+  six-mode page moved intact to `archive/radial_v1/` (README there records each
+  verdict, incl. the no-gradient CIFAR 0.5904; nothing deleted; `radial_data/`
+  left in place for the future images baseline). NEW `radial_map.py` (~230
+  lines): deterministic index-addressed lens programs (1-3 composed primitives
+  `prim(a·x+b)` from a 14-op catalog, lens 0 = identity anchor), behavioral
+  signatures on baseline numeric-loop data (response curve over the data's own
+  quantile grid + 7 behavior stats), classical-MDS 2D map centred on identity,
+  and a closed-form ridge linear probe. New `/radial` page (map scatter with
+  identity-centred rings, colour by nonlinearity/oscillation, click-to-inspect
+  program + response curve, honest-checks panel, probe table); `app.py` radial
+  block replaced by 3 endpoints `/api/radial/{map,lens,probe}`. VERIFIED (CLI):
+  determinism err 0.0, radius-vs-nonlinearity corr +0.47/+0.49, and the user's
+  linear hypothesis holds — raw-x linear R2 ~0 on square/abs/ripple vs
+  **lens-bank linear R2 = 1.000 on all five nonlinear targets** (heldout 60/40,
+  loops AND noise streams): the lens diversity alone does the heavy lifting.
+  `prog_str` kept ASCII (cp1252 console-safe). Data-kind hook ready for images/
+  text baselines next. **Needs a Flask restart to serve the new routes.**
 - **[2026-07-13] (Claude)** — **No-gradient CIFAR push** (branch
   `radial-cifar-nogradient`, autonomous). Goal: beat CIFAR-10 with zero gradient
   descent — deterministic/closed-form features + closed-form ridge classifier.
