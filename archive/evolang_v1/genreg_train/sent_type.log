@@ -1,0 +1,47 @@
+question-initial samples: 27505, statement-initial: 308263
+  [sent_type] gen 1: val_acc=0.583
+  [sent_type] gen 200: val_acc=0.744
+  [sent_type] gen 400: val_acc=0.744
+  [sent_type] gen 600: val_acc=0.744
+  [sent_type] gen 800: val_acc=0.744
+  [sent_type] gen 1000: val_acc=0.744
+  [sent_type] gen 1200: val_acc=0.744
+  [sent_type] gen 1400: val_acc=0.744
+
+val_acc=0.7435  corpus question-rate=0.0819
+
+PROBE — question-openers should score HIGH, statement-openers LOW:
+   Q  do       +1.950
+   Q  does     +1.950
+   Q  did      +1.950
+   Q  will     +2.614
+   Q  would    +2.614
+   Q  could    +2.614
+   Q  can      +2.614
+   Q  is       +2.489
+   Q  are      +2.489
+   Q  was      +2.489
+   Q  what     +2.434
+   Q  who      +1.184
+   Q  why      +2.434
+   Q  how      +2.434
+   Q  when     +1.305
+   Q  where    +2.434
+   Q  which    +2.434
+   Q  shall    +2.614
+   S  the      -1.803
+   S  he       -1.082
+   S  she      -1.082
+   S  it       -1.082
+   S  in       -0.682
+   S  on       -0.682
+   S  at       -0.682
+   S  we       -1.082
+   S  they     -1.082
+   S  of       -0.682
+   S  and      +0.404
+
+mean Q-opener score: +2.280   mean S-opener score: -0.867
+separation: OK — Q > S
+saved sent_type_champ.pkl
+DONE

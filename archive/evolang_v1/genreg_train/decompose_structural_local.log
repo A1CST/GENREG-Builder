@@ -1,0 +1,44 @@
+=== ORDER-BIGRAM (K=1) ===
+  [class-lm 33] gen 1: val_ppl=32.204 (unigram 12.984)
+  [class-lm 33] gen 100: val_ppl=13.098 (unigram 12.984)
+  [class-lm 33] gen 200: val_ppl=12.907 (unigram 12.984)
+  [class-lm 33] gen 300: val_ppl=12.727 (unigram 12.984)
+  [class-lm 33] gen 400: val_ppl=12.447 (unigram 12.984)
+  [class-lm 33] gen 500: val_ppl=12.367 (unigram 12.984)
+  [class-lm 33] gen 600: val_ppl=12.128 (unigram 12.984)
+  [class-lm 33] gen 700: val_ppl=11.985 (unigram 12.984)
+  [class-lm 33] gen 800: val_ppl=11.679 (unigram 12.984)
+  [class-lm 33] gen 900: val_ppl=11.488 (unigram 12.984)
+  [class-lm 33] gen 1000: val_ppl=11.344 (unigram 12.984)
+
+=== SEM-ADJACENT ===
+sem-adjacent: 400000 distance-1 pairs
+  [sem-adjacent] gen 1: val_acc=0.552
+  [sem-adjacent] gen 200: val_acc=0.642
+  [sem-adjacent] gen 400: val_acc=0.651
+  [sem-adjacent] gen 600: val_acc=0.655
+  [sem-adjacent] gen 800: val_acc=0.656
+  [sem-adjacent] gen 1000: val_acc=0.663
+  [sem-adjacent] gen 1200: val_acc=0.664
+  [sem-adjacent] gen 1400: val_acc=0.667
+  [sem-adjacent] gen 1600: val_acc=0.670
+  [sem-adjacent] gen 1800: val_acc=0.670
+  [sem-adjacent] gen 2000: val_acc=0.671
+
+=== SEM-WINDOW ===
+sem-window: 400000 distance-2..4 pairs
+  [sem-window] gen 1: val_acc=0.499
+  [sem-window] gen 200: val_acc=0.527
+  [sem-window] gen 400: val_acc=0.527
+  [sem-window] gen 600: val_acc=0.531
+  [sem-window] gen 800: val_acc=0.528
+  [sem-window] gen 1000: val_acc=0.533
+  [sem-window] gen 1200: val_acc=0.538
+  [sem-window] gen 1400: val_acc=0.537
+  [sem-window] gen 1600: val_acc=0.535
+  [sem-window] gen 1800: val_acc=0.535
+  [sem-window] gen 2000: val_acc=0.539
+
+saved C:\Users\paytonm\Documents\GENREG\genreg_train\structural_decompose_local.pkl
+TOTAL TIME: 812s
+DONE

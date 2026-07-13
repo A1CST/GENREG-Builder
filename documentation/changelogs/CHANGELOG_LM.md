@@ -6,6 +6,67 @@ Seeded 2026-07-05 from the main changelog (keyword split, best effort).
 
 ---
 
+- **[2026-07-09] (Claude)** — New group **`next`** (`next_word`) — intent-conditioned,
+  autoregressive next-word prediction, reviving the archived pipeline's Selection genome
+  concept. **Honest negative result**: 24.25% holdout accuracy, essentially tied with
+  `fill_word`'s 24.08% — fixing the train/inference mismatch and adding intent-conditioning
+  didn't move the needle. Live check confirms generation is still repetitive. Points to
+  negative-sampling strategy (deliberately kept simple/random this round) as the real lever
+  for next time. Full details in the main CHANGELOG.md entry of the same date. `generate()`
+  switched to use `next_word`. 10 genomes recorded at `runs/lm/20260709-213338-lm-*/`.
+
+- **[2026-07-09] (Claude)** — First generation mechanism (hangman-style, variable-length,
+  intent-driven): two new groups, **`length`** (`length_continue`, 61.1% balanced vs 50%
+  chance) and **`fill`** (`fill_word`, a contrastive discriminator, 24.1% vs 16.7% chance).
+  Generation mechanism itself works (real variable length, correct intent wiring); word choice
+  is honestly weak/repetitive — `fill_word`'s accuracy is only modest. Full details, including a
+  real design-tension scope reduction from the original plan, in the main CHANGELOG.md entry of
+  the same date. New `/api/lm/generate` endpoint + "Generate" section on `/lm`. All 9 genomes
+  recorded at `runs/lm/20260709-161129-lm-*/`.
+
+- **[2026-07-09] (Claude)** — New group **"opener"**: `opener_question`/`opener_exclaim` read
+  ONLY a sentence's first word to confirm its eventual intent — mirrors the punctuation group
+  but forward-looking. **`opener_question` (70.6% balanced) is the strongest genome trained
+  yet**, beating `punct_question` (67.2%); `opener_exclaim` (61.4%) also beats `punct_exclaim`
+  (58.5%). Confirms the user's intuition that the first word is a stronger, cheaper signal than
+  the words before the mark. Also fixed a bug in `record_lm_run.py` that mislabeled all opener
+  runs under group "punctuation" on first write. Full details in the main CHANGELOG.md entry of
+  the same date. 7 runs (5 punctuation + 2 opener) recorded at
+  `runs/lm/20260709-124755-lm-*/`.
+
+- **[2026-07-09] (Claude)** — Split into 5 binary genomes under group **"punctuation"**
+  (`punct_end`, `punct_question`, `punct_exclaim`, `punct_semicolon`, `punct_colon`) — fixes
+  the collapse from the entry below. All 5 beat 50% chance and none collapsed: exclaim recall
+  went 0.15%→62.7%, colon 2.5%→47.9%. Live check: "please bring the following items" now
+  correctly gets `:` at 80.8%. Full details in the main CHANGELOG.md entry of the same date.
+  5 runs recorded at `runs/lm/20260709-111525-lm-punct_*/`, tagged `group: "punctuation"`.
+
+- **[2026-07-09] (Claude)** — Genome #1 retrained with the train/eval split fixed: **balanced
+  accuracy 26.5% (chance 16.7%)**, but collapsed to mostly predicting `?`/`;` (recall on those
+  two: 63.7%/67.5%; on `!`/`:`: 0.15%/2.5%). Root cause of the entry below: champion selection
+  used raw accuracy on an imbalanced holdout while training batches were class-balanced, so
+  training was rewarded for getting WORSE at rare marks. Fixed by making balanced accuracy
+  (mean per-class recall) drive both selection and the headline number. Full details in the
+  main CHANGELOG.md entry of the same date. Run recorded at
+  `runs/lm/20260709-110038-lm-intent02/` (original kept at `.../20260709-024735-lm-intent01/`
+  for comparison).
+
+- **[2026-07-09] (Claude)** — Genome #1 (intent recognition) trained: **17.8% held-out, barely
+  above 16.7% chance** — an honest first result, not a working recognizer yet. Full details
+  (the mining-bug catch/fix, confusion matrix, per-class recall, open question about
+  balanced-vs-natural eval) in the main CHANGELOG.md entry of the same date. Run recorded at
+  `runs/lm/20260709-024735-lm-intent01/`.
+
+- **[2026-07-09] (Claude)** — **LM name revived, third incarnation.** History: this name
+  originally belonged to the char/word-level autoregressive campaign below (archived
+  2026-07-06, pivoted to /evolang); /evolang was then archived 2026-07-09
+  (`archive/evolang_v1/`, see `documentation/WORDPIPE_FIELD_NOTES.pdf`) after its fluency
+  ceiling never moved across every architecture variant tried. `/lm` now names the fresh
+  gradient-free genome-pipeline rebuild, starting from nothing but the kept datasets. See the
+  main CHANGELOG.md entry for what genome #1 (intent recognition) actually is — unrelated in
+  approach to both prior LM lines below (no n-gram tables, no char/word autoregression, no
+  reused code).
+
 - **[2026-07-06] (Claude)** — **ARCHIVED — line retired by the EvoLang pivot.** `genreg_lm.py`,
   `genreg_attn.py`, `genreg_enc.py`, `genreg_trustmix.py`, `genreg_distill.py`, `lm_sample.py`,
   `genreg_rerank.py`, `pure_engine.py` moved to `archive/lm_and_tree/`; `lm/attn/enc/encoder/distill`

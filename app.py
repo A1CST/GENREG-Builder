@@ -39,21 +39,6 @@ try:
 except Exception as _e:                       # pragma: no cover
     TRAIN_OK, TRAIN_ERR = False, str(_e)
 
-# EvoLang — evolution-native language model. The page now shows the WordPipe
-# specialist pipeline (composed gradient-free genomes: order/selection/boundary/
-# chunks). The old char-model `evolang` backend is kept importable but unused.
-try:
-    from genreg_train import evolang
-    EVOLANG_OK, EVOLANG_ERR = True, None
-except Exception as _e:                       # pragma: no cover
-    EVOLANG_OK, EVOLANG_ERR = False, str(_e)
-
-try:
-    from genreg_train import wordpipe_service
-    WP_OK, WP_ERR = True, None
-except Exception as _e:                       # pragma: no cover
-    WP_OK, WP_ERR = False, str(_e)
-
 # MNIST-Pipe — the WordPipe recipe applied to images (stats layer built from
 # data, semantic layer evolved, output mixer evolved). Proof outside language.
 try:
@@ -75,6 +60,14 @@ try:
     I2_OK, I2_ERR = True, None
 except Exception as _e:                       # pragma: no cover
     I2_OK, I2_ERR = False, str(_e)
+
+# LM — the language pipeline rebuild, starting from genome #1 (intent
+# recognition). Fresh start after /evolang was archived (archive/evolang_v1).
+try:
+    from genreg_train import lm_service
+    LM_OK, LM_ERR = True, None
+except Exception as _e:                       # pragma: no cover
+    LM_OK, LM_ERR = False, str(_e)
 
 # DiffEvo — denoising diffusion by neuroevolution (separate program).
 try:
@@ -387,148 +380,64 @@ def api_i2_publish():
     return jsonify(meta)
 
 
-@app.route("/evolang")
-def evolang_page():
-    """EvoLang — the WordPipe specialist pipeline (current evolution-native LM)."""
-    resp = app.make_response(render_template("evolang.html"))
+@app.route("/lm")
+def lm_page():
+    """LM — the language pipeline rebuild. Genome #1: intent recognition."""
+    resp = app.make_response(render_template("lm.html"))
     resp.headers["Cache-Control"] = "no-store"
     return resp
 
 
-@app.route("/evolang/layers")
-def evolang_layers_page():
-    """Genome layer/flow map — Structural -> Semantic -> Abstraction, and which
-    pipeline stage (skeleton/fill/boundary) each genome wires into. Static data
-    (static/evolang_layers.js), no backend state."""
-    resp = app.make_response(render_template("evolang_layers.html"))
-    resp.headers["Cache-Control"] = "no-store"
-    return resp
+@app.route("/api/lm/status")
+def api_lm_status():
+    """Intent genome load status (lazy-loads the trained artifact on first hit)."""
+    if not LM_OK:
+        return jsonify({"ready": False, "err": LM_ERR or "lm unavailable"})
+    lm_service.SERVICE.ensure()
+    return jsonify(lm_service.SERVICE.status())
 
 
-@app.route("/api/evolang/status")
-def api_evolang_status():
-    """Pipeline load status (lazy-loads genomes + corpus on first hit)."""
-    if not WP_OK:
-        return jsonify({"ready": False, "err": WP_ERR or "wordpipe unavailable"})
-    wordpipe_service.SERVICE.ensure()
-    return jsonify(wordpipe_service.SERVICE.status())
+@app.route("/api/lm/recognize")
+def api_lm_recognize():
+    """Given a word run (no trailing punctuation), rank which mark's intent
+    fits next."""
+    if not LM_OK:
+        return jsonify({"err": LM_ERR or "lm unavailable"})
+    lm_service.SERVICE.ensure()
+    text = request.args.get("text", "")
+    return jsonify(lm_service.SERVICE.recognize(text))
 
 
-@app.route("/api/evolang/generate")
-def api_evolang_generate():
-    """Generate text with a subset of specialist layers enabled."""
-    if not WP_OK:
-        return jsonify({"text": "", "err": WP_ERR or "wordpipe unavailable"})
+@app.route("/api/lm/recognize_opener")
+def api_lm_recognize_opener():
+    """Given ONLY a sentence's first word, rank which end-mark intent
+    (statement/question/exclaim) the sentence is headed for."""
+    if not LM_OK:
+        return jsonify({"err": LM_ERR or "lm unavailable"})
+    lm_service.SERVICE.ensure()
+    word = request.args.get("word", "")
+    return jsonify(lm_service.SERVICE.recognize_opener(word))
+
+
+@app.route("/api/lm/generate")
+def api_lm_generate():
+    """Hangman-style generation from a single seed word: intent decided
+    once (opener genomes), then a confidence-driven grow/fill tick loop
+    (length_continue + fill_word). Variable length, no fixed target."""
+    if not LM_OK:
+        return jsonify({"err": LM_ERR or "lm unavailable"})
+    lm_service.SERVICE.ensure()
     a = request.args
-    en = {"vocab": a.get("vocab") == "1", "order": a.get("order") == "1",
-          "bound": a.get("bound") == "1", "chunks": a.get("chunks") == "1",
-          "commas": a.get("commas") == "1", "sel": a.get("sel", "off"),
-          "agree": a.get("agree") == "1", "altern": a.get("altern") == "1",
-          "sem": a.get("sem") == "1", "rep": a.get("rep") == "1",
-          "open": a.get("open") == "1", "close": a.get("close") == "1",
-          "hyper": a.get("hyper") == "1", "mero": a.get("mero") == "1",
-          "synant": a.get("synant") == "1", "sent_type": a.get("sent_type") == "1",
-          "lenplan": a.get("lenplan") == "1", "pronominal": a.get("pronominal") == "1"}
-    try:
-        seed = int(a.get("seed", 0))
-    except (TypeError, ValueError):
-        seed = 0
-    wordpipe_service.SERVICE.ensure()
-    text = wordpipe_service.SERVICE.generate(en, seed=seed)
-    return jsonify({"text": text, "ready": wordpipe_service.SERVICE.ready})
-
-
-@app.route("/api/evolang/revision")
-def api_evolang_revision():
-    """EXPERIMENTAL Revision stage — Best-of-N over the Whole-sentence scorer.
-    Same layer toggles as /api/evolang/generate, plus n_sentences/n_candidates."""
-    if not WP_OK:
-        return jsonify({"text": "", "err": WP_ERR or "wordpipe unavailable"})
-    a = request.args
-    en = {"vocab": a.get("vocab") == "1", "order": a.get("order") == "1",
-          "bound": a.get("bound") == "1", "chunks": a.get("chunks") == "1",
-          "commas": a.get("commas") == "1", "sel": a.get("sel", "off"),
-          "agree": a.get("agree") == "1", "altern": a.get("altern") == "1",
-          "sem": a.get("sem") == "1", "rep": a.get("rep") == "1",
-          "open": a.get("open") == "1", "close": a.get("close") == "1",
-          "hyper": a.get("hyper") == "1", "mero": a.get("mero") == "1",
-          "synant": a.get("synant") == "1", "sent_type": a.get("sent_type") == "1",
-          "lenplan": a.get("lenplan") == "1", "pronominal": a.get("pronominal") == "1"}
+    word = a.get("word", "")
     try:
         seed = int(a.get("seed", 0))
     except (TypeError, ValueError):
         seed = 0
     try:
-        n_sentences = max(1, min(12, int(a.get("n_sentences", 6))))
+        temperature = max(0.05, min(2.0, float(a.get("temperature", 0.7))))
     except (TypeError, ValueError):
-        n_sentences = 6
-    try:
-        n_candidates = max(1, min(12, int(a.get("n_candidates", 6))))
-    except (TypeError, ValueError):
-        n_candidates = 6
-    wordpipe_service.SERVICE.ensure()
-    text = wordpipe_service.SERVICE.generate_revision(en, n_sentences=n_sentences,
-                                                       n_candidates=n_candidates, seed=seed)
-    return jsonify({"text": text, "ready": wordpipe_service.SERVICE.ready})
-
-
-@app.route("/api/evolang/meaning_first")
-def api_evolang_meaning_first():
-    """EXPERIMENTAL meaning-first generation — pick 3-5 semantically related
-    content words FIRST (via hyper/mero/synant/sem), then let the Order/Fill
-    genomes place them into matching grammatical slots, instead of choosing
-    structure blind and bolting meaning on afterward."""
-    if not WP_OK:
-        return jsonify({"text": "", "err": WP_ERR or "wordpipe unavailable"})
-    a = request.args
-    en = {"vocab": a.get("vocab") == "1", "order": a.get("order") == "1",
-          "bound": a.get("bound") == "1", "chunks": a.get("chunks") == "1",
-          "commas": a.get("commas") == "1", "sel": a.get("sel", "off"),
-          "agree": a.get("agree") == "1", "altern": a.get("altern") == "1",
-          "sem": a.get("sem") == "1", "rep": a.get("rep") == "1",
-          "open": a.get("open") == "1", "close": a.get("close") == "1",
-          "hyper": a.get("hyper") == "1", "mero": a.get("mero") == "1",
-          "synant": a.get("synant") == "1"}
-    try:
-        seed = int(a.get("seed", 0))
-    except (TypeError, ValueError):
-        seed = 0
-    try:
-        n_content = max(2, min(6, int(a.get("n_content", 4))))
-    except (TypeError, ValueError):
-        n_content = 4
-    wordpipe_service.SERVICE.ensure()
-    r = wordpipe_service.SERVICE.generate_meaning_first(en, n_content=n_content, seed=seed)
-    r["ready"] = wordpipe_service.SERVICE.ready
-    return jsonify(r)
-
-
-@app.route("/api/evolang/intent_first")
-def api_evolang_intent_first():
-    """EXPERIMENTAL intent-first generation — the punctuation mark IS the
-    intent, chosen before any word exists. Generates the punctuation
-    sequence first (discourse skeleton), then grows each word-span BACKWARD
-    from its mark toward the previous mark, with the mark's type (question/
-    exclaim/statement) biasing what grows toward it. Requires the
-    combined-corpus (Wikipedia + Cornell Movie Dialogs) intent genomes."""
-    if not WP_OK:
-        return jsonify({"text": "", "err": WP_ERR or "wordpipe unavailable"})
-    a = request.args
-    en = {"vocab": a.get("vocab") == "1", "altern": a.get("altern") == "1",
-          "agree": a.get("agree") == "1", "sem": a.get("sem") == "1",
-          "rep": a.get("rep") == "1", "crystallize": a.get("crystallize") == "1"}
-    try:
-        seed = int(a.get("seed", 0))
-    except (TypeError, ValueError):
-        seed = 0
-    try:
-        n_marks = max(4, min(40, int(a.get("n_marks", 14))))
-    except (TypeError, ValueError):
-        n_marks = 14
-    wordpipe_service.SERVICE.ensure()
-    r = wordpipe_service.SERVICE.generate_intent_first(en, n_marks=n_marks, seed=seed)
-    r["ready"] = wordpipe_service.SERVICE.ready
-    return jsonify(r)
+        temperature = 0.7
+    return jsonify(lm_service.SERVICE.generate(word, seed=seed, temperature=temperature))
 
 
 @app.route("/mnist")
@@ -922,66 +831,6 @@ def diffuse(ws):
         pass
     finally:
         hub.unsubscribe(emit)              # detach only — training keeps going
-
-
-@sock.route("/evolang")
-def evolang_ws(ws):
-    """EvoLang socket — a viewer onto the evolution-native LM job hub.
-
-    Browser -> server: {"op":"start", ...config} | {"op":"stop"} |
-                       {"op":"generate", prompt, length}.
-    Server -> browser: JSON events (corpus / gen / done / generated / error).
-    Training runs in the hub and survives navigation (same pattern as DiffEvo).
-    """
-    send_lock = threading.Lock()
-
-    def emit(ev):
-        payload = json.dumps(ev)
-        with send_lock:
-            ws.send(payload)
-
-    if not EVOLANG_OK:
-        try:
-            emit({"type": "error", "message": f"evolang unavailable: {EVOLANG_ERR}"})
-        except Exception:
-            pass
-        return
-
-    hub = evolang.HUB
-    try:
-        emit({"type": "corpus", "text": evolang.CORPUS, "vocab": evolang.VOCAB})
-        for ev in hub.snapshot():
-            emit(ev)
-        emit({"type": "job", "running": hub.running()})
-    except Exception:
-        return
-    hub.subscribe(emit)
-
-    try:
-        while True:
-            msg = ws.receive()
-            if msg is None:
-                break
-            try:
-                data = json.loads(msg)
-            except (ValueError, TypeError):
-                continue
-            op = data.get("op")
-            if op == "start":
-                hub.start(data, evolang.EvoTrainer)
-            elif op == "stop":
-                hub.stop()
-            elif op == "generate":
-                try:
-                    text = evolang.generate(str(data.get("prompt", "")),
-                                            length=int(data.get("length", 200)))
-                    emit({"type": "generated", "prompt": data.get("prompt", ""), "text": text})
-                except Exception as exc:
-                    emit({"type": "error", "message": str(exc)})
-    except Exception:
-        pass
-    finally:
-        hub.unsubscribe(emit)
 
 
 @sock.route("/train")

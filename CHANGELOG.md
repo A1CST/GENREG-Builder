@@ -10,6 +10,976 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-13] (Claude)** — **No-gradient CIFAR push** (branch
+  `radial-cifar-nogradient`, autonomous). Goal: beat CIFAR-10 with zero gradient
+  descent — deterministic/closed-form features + closed-form ridge classifier.
+  `radial_cifar.py` harness (reads radial-owned CIFAR copy only). Milestone ladder
+  on 8k train / 2k test: raw pixels ridge 0.324, PCA-256 ridge 0.360, **patch
+  features (Coates-Ng: random-patch k-means dictionary + ZCA whiten + soft-
+  threshold + 2×2 pool) ridge 0.493.** kNN → ridge alone was a big lift (raw 0.29→
+  0.32, PCA 0.18→0.36). Next: batch patch extraction for full 50k data, bigger
+  dictionary, and the lens map on top of patch features. Milestone 1 committed.
+- **[2026-07-12] (Claude)** — Lens map: **fixed "no render" + added per-layer
+  frame rotation.** Render bug was two things: (1) `_load()` did a full SVD of the
+  8000×3072 pixel matrix (~800MB U, effectively hung) — replaced with randomized
+  top-64 PCA (`_rand_pca`, 0.9s); (2) the scatter colormap normalized `struct`
+  (kurtosis) by its max, which a few extreme-kurtosis lenses dragged so high that
+  every other point rendered at near-background → invisible; fixed with a visible
+  slate low-end + outlier-robust saturating scale (`1-exp(-k·v)`), plus a
+  continuous rAF redraw for the live map. NEW: **layer-view rotation** (user's
+  point — stacking was feeding samples without rotating the frame). A "Next
+  layer's view" control (same 0° / step 15/30/45/90°) applies a Givens frame
+  rotation before a layer sweeps, so a stacked layer sees the same features from
+  a rotated angle; the rotation is stored per frozen layer so `_layer_apply`
+  reproduces it. Endpoint + `start(rot_deg=…)`. Needs Flask restart.
+- **[2026-07-12] (Claude)** — **Lens map is now INFINITE / open-ended** (user:
+  "the map is infinite, you can infinitely combine combinatorials and
+  activations"). Replaced the fixed 3600-cell grid with a lens-PROGRAM generator:
+  each lens combines any number of axes with coefficients, composes activations
+  to any depth (`tanh∘sin[3+7+12]`), and can multiply two sub-lenses — richness
+  (axis order 2→5, composition depth 1→3, product terms) grows with the lens
+  index, so exploration keeps reaching new regions and never "finishes." Runs in
+  a background thread until you Stop it (or a 20k safety cap). Each lens still has
+  a deterministic address (index seeds its program), so it's an unbounded-but-
+  fixed coordinate system, laid out RADIALLY (complexity = radius) — simple lenses
+  fill the centre, richer ones spiral outward. Encoder uses a bounded reservoir
+  sample (`BANK_CAP` 2600) so RAM stays flat while the map grows forever; the
+  accuracy curve honestly PLATEAUS even as lenses keep coming (infinite lenses,
+  finite useful info). New `stop()` + endpoint; page: "Explore (infinite)" + Stop
+  buttons, radial scatter that fills outward coloured by structure/class-sep, best
+  lens shown as its program string. Compounding (Extend, residual) preserved.
+  Needs Flask restart.
+- **[2026-07-12] (Claude)** — **Lens map now COMPOUNDS.** `radial_lensmap.py`
+  keeps a frozen layer STACK: each exploration's PCA encoder is frozen, and a new
+  "＋ Extend (stack a layer)" run sweeps a fresh lens map over the previous layer's
+  OUTPUT (layer-2 lenses look at layer-1 features, not raw pixels). Stacking is
+  RESIDUAL (each layer passes its input through alongside the new lens features),
+  so extending is non-destructive — it can only add. Measured (honest): depth-1
+  0.277 over raw-pixel PCA 0.206 (+0.071, the heavy lift), depth-2 0.279 (small
+  further gain, beats its own input PCA 0.256), depth-3 0.272 (plateaus) — a sweet
+  spot in depth, diminishing returns after layer 1; replace-stacking (non-
+  residual) instead *degraded* with depth, which is why residual was chosen. UI:
+  Extend button (enables after a run), status shows current layer + the whole
+  stack's per-depth bests (L1 → L2 → …), and the accuracy overlay draws the
+  previous layer's best as a dashed reference so you see whether the new layer
+  compounds. `start(extend=True)` keeps the stack; fresh Explore resets it.
+- **[2026-07-12] (Claude)** — **Live lens-map explorer on `/radial` ("Lens Map"
+  mode).** Made radial self-contained: `radial_data/cifar_radial.npz` is a
+  radial-OWNED 28MB CIFAR subset (8k train / 2k test) copied once from the cifar
+  project; radial reads only its own npz at runtime (CIFAR project untouched, per
+  user). `radial_lensmap.py` runs the sweep in a background thread and STREAMS
+  each lens as it's computed — no simulation. Each lens = `act(cos θ·axis_i +
+  sin θ·axis_j)`; per lens it reports a label-free structure score (|excess
+  kurtosis|) and an eval-only class-separation score. Endpoints `/api/radial/
+  lensmap/{start,poll}`. New page mode: a heatmap grid that fills in live (cells
+  = lenses, colour = structure or class-sep, toggle), the real CIFAR images the
+  best lens fires most/least on (drawn from the npz), and a live encoder-accuracy
+  curve (PCA over the whole explored bank) climbing past the red PCA baseline.
+  Honest behaviour observed: the curve rises, **peaks ~0.28 above the 0.26 PCA
+  baseline**, then declines as the sweep wanders into weak-axis noise — the map
+  has a sweet spot. Selecting lenses by the label-free score alone fails (kurtosis
+  picks spiky/outlier lenses); the gain comes from PCA over the collective bank,
+  which is what the encoder uses. Needs Flask restart to serve the routes.
+- **[2026-07-12] (Claude)** — LM round 3: "features are the environment" —
+  sem_next + grammar_real genomes in a PPMI/eig feature space built from the
+  training corpus itself (no lookup tables in the model, per user rule: word
+  choice at inference = the genome scoring the WHOLE vocab through the fixed
+  space; round-2 follower pools not consulted). New `genreg_train/lm_sem.py` +
+  `run_lm_sem.py` (SS II templates in the docstring), all training/testing on
+  the I2 primary (6 smokes + 2 full runs; smoke mode = job arg). GA fixes that
+  came out of the smoke ladder, all diagnosed from flat-fitness evidence:
+  (1) relative per-tensor mutation — absolute sigma ~= init scale had made every
+  mutation a re-randomization; (2) fixed 2048 probe batch (resampled per 25 gens)
+  — batch noise was 9x the genome-to-genome signal, selection was a coin flip;
+  (3) fitness EMA per lineage; (4) SS VI bootstrap inits (identity Wq, near-no-op
+  bilinear); (5) logfreq as an environment feature behind ONE evolved weight.
+  RESULTS (runs at `runs/lm/20260712-202708-lm-*`): grammar_real 56.3% balanced
+  (real signal, climbs steadily). sem_next run 1 (no echo pressure): 30.1% vs
+  25.3% baseline — first time the majority-frequency bar was beaten — BUT the
+  champion was the gen-0 bootstrap and generation self-looped ("the the the").
+  Run 2 (+echo negatives): evolution genuinely climbs (0.128->0.233) and loops
+  are gone, but final acc is below the (now-harder) 26.6% baseline and the
+  evolved per-word bias got REWARD-HACKED into context-free word soup
+  ("cat/bitch/dog" boosted everywhere) — the vbias Goodhart from SS XI,
+  reproduced in a new architecture exactly as SS IV.4 predicts. Known deviation:
+  starved band never reached (energy compresses to ~0.3, culls nothing) despite
+  birth-cost + EMA redesign of ga_step_energy. Honest verdict: environment
+  validated, grammar genome validated, word-choice genome not yet — next levers
+  logged (context-gated bias instead of static; two-phase freeze per SS VI;
+  transition-term-only ablation). generate() switched to the genome-only path
+  (sem propose + grammar rerank); lm_service loads lm_sem.pkl alongside
+  lm_intent.pkl. Live /lm needs a **Flask restart**. Also: run_job.py poll()
+  made cp1252-safe (root cause of the 2026-07-11 session crash).
+- **[2026-07-12] (Claude)** — `/xray` page **reframed** to the user's corrected
+  concept: NOT a genome↔address bijection (that claim dropped), but "is the
+  deterministic rotation lattice usable as a MAP?" Mechanic per the user's spec:
+  a fixed ground-truth dot cloud is rotated **1° per step about one fixed axis**;
+  a function's coordinate = how it reads that whole 0–359° sweep (deterministic,
+  so `sin` lands the same every pass — that's what makes it a map, no
+  invertibility needed). `genome_xray.py` rewritten (`run_map`): 12 activation
+  functions in 4 secret families (rectifier / saturating / oscillator /
+  even-bowl) are placed on the map by their sweep-signature (correlation distance
+  + classical MDS) with the families NEVER used for placement, only for scoring.
+  Page rebuilt (`templates/xray.html`, `static/xray.js`): left = the 1°/step
+  sweep animating, centre = the map (dots per function, coloured by family,
+  hulls to centroid), right = verdict panel (family separation, NN purity, known
+  orderings, determinism). Terminal dock added. **Result: map HOLDS** — cross-
+  family pairs sit **2.97× farther** than same-family, **83% NN purity**,
+  determinism error 0, 3/4 known orderings pass (the miss is real signal: `sin`
+  is near-linear over the range so it drifts toward the rectifier/saturating
+  region). Corrects the earlier "clustering is planted" verdict, which was an
+  artifact of placing *random abstract rotations* with no data attached. Next
+  step (user's plan): overlay the project's real solved genomes on the same map.
+  **Needs a Flask restart to serve the new routes.**
+- **[2026-07-12] (Claude)** — **Lens map — UPDATE: it works on CIFAR** (corrects
+  the MNIST-only negative below). User's insight: it's a MAP, not a search — the
+  space is deterministic, so you explore it ONCE and reuse it; no compass needed.
+  And MNIST was the wrong test (PCA already 0.92, no headroom). `radial_lens.py`
+  `run_cifar()`: reduce CIFAR to structured PCA axes, then the lens map is a
+  rotation sweep — each lens `act(cos θ·axis_i + sin θ·axis_j)`, literally the
+  radial "1° rotation → activation" on feature space; enumerate the whole grid
+  once (~2400 lenses). **Result (label-free, kNN, equal dims): linear PCA 0.225,
+  lens map 0.254 (+2.9 pts), and it compounds with PCA.** Bigger sweeps gave up to
+  +5.3. The gain grows as more of the map is swept — real nonlinear territory PCA
+  can't reach, found by systematic exploration with no labels and no search. Not a
+  finished encoder (CIFAR kNN is low), but the map framing is validated on the
+  dataset that has headroom. CIFAR data READ ONLY; nothing written to that project.
+- **[2026-07-12] (Claude)** — Tested the **"lens flip"** idea (`radial_lens.py`):
+  pin the ground-truth images, vary the MODEL — each radial coordinate is a
+  deterministic activation-algebra lens `act_a(P_i·x)·act_b(P_j·x)`; build a
+  label-free encoder by greedily NAVIGATING to lenses orthogonal to the frozen
+  stack. Tested honestly on MNIST (label-free build, kNN eval). **Result: it does
+  not work.** Greedy orthogonal selection **0.548** — worse than random lenses
+  0.750 and far below plain linear PCA **0.920**; full lens bank + PCA 0.899
+  (still < PCA); lens algebra on PCA coords +0.002 (noise). Two data-independent
+  reasons: (1) **orthogonality ≠ information** — the most orthogonal high-variance
+  direction is noise, so navigating by orthogonality walks toward noise; (2)
+  every lens is a **closed-form function of the pixels**, so it only reaches
+  structure computable from the numbers (the shallow half) — the configural
+  coherence that separates classes lives on no parameterizable lens axis, exactly
+  what the source analysis itself suspected. Standalone experiment; no app/CIFAR
+  changes (CIFAR read-only per user). Constructive next step is the coherence /
+  real-vs-fake discriminator the analysis landed on, not the lens sweep.
+- **[2026-07-12] (Claude)** — **Compression verdict (corrects earlier "beats
+  Fourier" claims).** `radial_compress_bench.py` runs a FAIR head-to-head: RS-
+  Gabor matching pursuit vs DFT/DCT/Haar-wavelet top-K, all with 8-bit-quantized
+  coefficients and honest byte accounting, on realistic signals. Result: bytes to
+  reach 99% corr — speech DFT 36 vs RS 92, music DFT 32 vs RS 135, ECG DFT 62 vs
+  RS >60c, transient **RS 18 vs DFT 30**. **RS-Gabor loses to plain DFT on every
+  realistic signal and wins only on a lone isolated transient.** The prior "RS
+  beats Fourier" wins were against an UNQUANTIZED top-K DFT (a baseline no codec
+  uses) on burst-shaped signals; under quantized fair comparison the edge
+  vanishes. Conclusion: radial-space compression is dominated by standard
+  transform coding and is NOT a differentiator — the real keeper is the activity/
+  path-fingerprinting direction (§11.1), not compression.
+- **[2026-07-12] (Claude)** — Built **Radial Space v3 §11.1: real screen-capture
+  fingerprinting** — actual desktop frames, not simulated streams.
+  `radial_screen.py` grabs frames via PIL ImageGrab (~36ms full-res, downscaled
+  to 160×90), extracts per-frame features (brightness, edge density,
+  colourfulness, frame-to-frame motion), maps each through the winning linear M
+  into a radial traversal path, and fingerprints the clip with a 10-dim stat
+  vector. Nearest-centroid classifier with leave-one-out accuracy. Endpoints
+  `/api/radial/screen/{record,train,classify,status,clear}` (record/classify
+  block for N seconds of live capture). New **"Screen"** page mode: pick an
+  activity → Record while doing it → paths overlay by label (idle/browsing/video/
+  coding) → Train → "What am I doing now?" classifies live from path shape with
+  confidence bars. Verified end-to-end: real capture 10fps, idle reads motion
+  ~0.06; train/classify plumbing gives LOO 100% on separable clips. The real
+  separation numbers come from the user recording actual activity. **Needs Flask
+  restart to serve the routes.**
+- **[2026-07-12] (Claude)** — Built + tested **Radial Space v3** (Test Suite 10:
+  mapping-function characterization) from `~/Downloads/radial_space_theory_v3.pdf`
+  — the doc had already folded in my v2 results and defined this as its "next
+  action" to decide whether chain computation survives. `radial_mfunc.py`
+  implements five M families (linear/arctan/sigmoid/sqrt/sinusoidal + paper) and
+  runs 10.1–10.6: invertibility (phi-monotonic), condition number, collision
+  precision, chain Lyapunov, proximity, activity classifier, gate composition.
+  **Decision reached: memory/fingerprinting SOLVED, chain computation DEAD.** All
+  four monotonic M invert and preserve proximity (best = linear: cond 3.9,
+  proximity 0.019, classifier 98%); paper's hash and the sinusoidal fold fail
+  invertibility/proximity. But **no M gives a stable chain** — Lyapunov runs
+  −5.33…+0.83, all far from 0 (best −0.20, still contracting), so chained state
+  decays to 0 or goes chaotic within a few steps, and the cos lookup discards
+  sign+phase (irreversible). Single lookups are expressive (NAND at 100%) but
+  can't be composed into a persistent circuit. Per the doc's own rule: drop chain
+  computation, keep compression + memory + activity fingerprinting. New endpoint
+  `/api/radial/suite10`; page got a **"Mapping M"** mode: phi-vs-input curves for
+  all M families (straight/smooth = invertible, wavy/sawtooth = broken),
+  Lyapunov-per-M bars (none at the stable line), and the M-comparison table +
+  verdict. **Needs Flask restart.**
+- **[2026-07-12] (Claude)** — Built + tested **Radial Space v2** from
+  `~/Downloads/radial_space_theory_v2.pdf` (adds §5 Memory + §6 Computation
+  claims and the §9.2/§9.3 test batteries). `radial_memory.py` implements the v2
+  reference code (`mapping`, `lookup`, `chain`) and runs all suites honestly.
+  Results: **9.1 8/8, 9.2 7/8, 9.3 7/9.** The two failures are the load-bearing
+  new claims: 9.2.3 proximity preservation FAILS (adjacent inputs land 1.31×
+  *farther* than random — "proximity IS similarity" is false, because
+  phi=v*2.47 mod 2π scrambles neighbours) and 9.3.5 reversibility FAILS (chain
+  uses abs+cos, both many-to-one). The chain is a contraction (Lyapunov -49) that
+  collapses every input to 0 — a trivial dynamical system, not a processor;
+  single logic gates ARE realizable (cos nonlinearity, XOR incl.) but can't be
+  wired together. **Constructive finding (the paper's own §10.3/§11.3): the
+  mapping M is the whole lever.** Swapping the broken M for a proximity-
+  preserving one fixes both instantly — proximity **1.3→0.02**, activity-stream
+  classifier **70%→98%**. So the one real capability — a traversal path that
+  fingerprints activity (idle/switching/video) — works, but only under a mapping
+  the paper didn't use. New endpoints `/api/radial/v2suite` + `/api/radial/
+  traversal`; page got a **"Memory v2"** mode: activity-stream picker, side-by-
+  side traversal paths (paper's M scatters vs fixed M draws a clean shape), and
+  the grouped suite results with the M-lever headline. **Needs Flask restart.**
+- **[2026-07-12] (Claude)** — `/radial` vs-Fourier view **rewritten for clarity**
+  (user asked to dumb it down). Added a plain-English explainer banner (endless
+  waves vs blips), a "building blocks" picture showing Fourier's full-width waves
+  beside Radial's localized blips (the WHY), and a plain scoreboard: "pieces to
+  rebuild (Radial vs Fourier)" + "Radial needs N× fewer" + match-% for each.
+  Dropped the corr-vs-K curve (jargon). Backend `run_compare` now returns the
+  per-piece waveforms and `rs95`/`ft95` (pieces each needs to hit 95%). Examples:
+  burst 2 vs 7, two-bursts 3 vs 10. **Still needs Flask restart.**
+- **[2026-07-12] (Claude)** — `/radial` **"vs Fourier" mode** added — pushing RS
+  past the uniform Fourier basis. `radial_dict.py`: give the wasted radial
+  coordinate a temporal job — let radius modulate over the sweep so a dot traces
+  a WINDOWED oscillation (Gabor atom `exp(-(t-τ)²/2s²)·cos(ω(t-τ)+φ)`, optional
+  chirp). That makes an overcomplete, time-localized dictionary (~3136 atoms);
+  `matching_pursuit` greedily fits it. Head-to-head vs top-K Fourier, verified in
+  Python BEFORE any UI: **RS-Gabor genuinely beats Fourier at low atom count on
+  non-stationary signals** — burst K=3 corr **0.98 vs 0.70**, two-bursts K=2
+  **0.91 vs 0.58**, chirp wins K=1–8; Fourier wins pure tone (1.0) and AM/walk at
+  low K (honest losses). The dictionary CONTAINS near-global atoms so MP can fall
+  back to Fourier — fair comparison. New endpoint `/api/radial/compare`; page got
+  a Codec/vs-Fourier mode switch, non-stationary signal picker, atoms-K slider,
+  3-way overlay (signal / RS-Gabor / Fourier) and a corr-vs-K curve showing where
+  amber (RS) sits above blue (FFT). Verdict: this is Gabor/chirplet matching
+  pursuit reached naturally from the radial framing — not new to DSP, but a real
+  win over plain RS/Fourier exactly where Fourier is weak. **Needs Flask restart.**
+- **[2026-07-12] (Claude)** — New `/radial` page: faithful build of the **Radial
+  Space** system from `~/Downloads/radial_space_theory.pdf` (a deterministic
+  rotation-lattice signal codec — unrelated to genomes). `radial_space.py`
+  implements the paper's §7 reference code exactly (cubic lattice, `rotation_
+  matrix`, `sweep`, per-dot sinusoid trajectory `r·cos(wT+φ₀)`, encode→address→
+  decode) plus fixes that make it actually work: the paper's correlation-only
+  encoder can't set amplitude (corr is scale-invariant), so encode also least-
+  squares fits amp/phase; `decompose` is a greedy harmonic matching-pursuit for
+  the §10.1 multi-axis extension. Full §8 validation suite runs live — **8/8
+  pass**: determinism 0, origin displacement 0, pure-dot round-trip err 0 (120:1),
+  phase survives noise (sd=1.0 → 1.1° drift), lattice density 0.330→0.036 as step
+  refines. Endpoints `/api/radial/encode` + `/api/radial/validate`; page
+  (`templates/radial.html`, `static/radial.js`): signal picker, signal-vs-recon
+  overlay, harmonic spectrum, 1-dot/K-dot toggle, address + compression readout,
+  suite panel. **Honest verdict (from the suite, shown in-page): a single-axis
+  sweep is a ONE-frequency basis** — it nails a pure tone (corr 0.996 quantized,
+  1.0 continuous) but a single dot stalls on multi-tone (0.86) and random-walk
+  (0.89); only the harmonic decomposition reaches them (multitone→3 dots=1.0,
+  walk→32 dots=0.99), and that is a greedy Fourier transform in geometric
+  clothing. RS is a correct sinusoid codec; it beats raw storage exactly when the
+  signal is sparse in this Fourier basis — the standard transform-coding caveat,
+  not a new law. Nav link added. **Needs a Flask restart to serve the routes.**
+- **[2026-07-12] (Claude)** — `/xray` **pivoted** away from the abstract maps
+  (user: "the maps kinda suck and useless to me... one slice rotating for some
+  reason"). The rotating slice and the MDS scatters are gone. New page: **watch a
+  real genome pull tangled data into structure.** Ground truth = a balanced
+  sample of real MNIST test digits; a solved genome (`demo/mnist_genomes_r5/r6/
+  r2/pre_v4.pkl`, all feat_v2 so they share one starting cloud) runs the real
+  `mnist_pipe.predict` forward pass; each point tweens from its raw-feature PCA
+  position (tangled) to a confidence-weighted blend of ten digit anchors on a
+  circle (separated). Colour = TRUE digit, so misclassifications land on the
+  wrong-coloured corner and are visible. Controls: genome picker, mixer / pair-
+  referee layer toggles, digits-per-class, scrub slider + replay.
+  `genome_xray.py` rewritten (`transform`, `_ensure_ground_truth` caches the
+  ~11s feature build; loaded genomes cached); endpoint swapped
+  `/api/xray/run` → `/api/xray/transform`. r5 hits 97.8% on the sample; toggling
+  mixer/pairs shifts confidence more than accuracy (detectors alone already
+  strong on easy digits — honest). **Needs a Flask restart to serve the routes.**
+- **[2026-07-12] (Claude)** — `/xray` real-genome overlay added (`genome_overlay`
+  in `genome_xray.py`, map toggle in the page). Loads **114 real solved genomes**
+  — 45 MNIST pairs, 45 CIFAR pairs, 10 CIFAR detectors (`demo/*_genomes.pkl`) +
+  14 WordPipe language classifiers (val_acc from genomes.txt) — and places each
+  by a pure task-behaviour fingerprint [skill over chance, standing vs own kind],
+  standardised, no domain metadata fed in. **Result: families separate 2.25×**
+  (same-kind nearer than different-kind) — so real genomes DO cluster by kind on
+  a behavioural map. **Honesty check: 89% of that separation is the competence
+  axis alone** (mnist 0.98 > cifar-pair 0.83 > cifar-det 0.73 > language 0.67).
+  So the split is real but shallow — the deeper per-class structure that made the
+  activation map cluster cleanly needs behaviour the language genomes don't store
+  (headline accuracy only). Same method, thinner data. Map toggles between
+  "Activations · sanity check" and "Real genomes" views.
+- **[2026-07-12] (Claude)** — New `/plan` page: personal day-plan tracker for
+  Sunday 2026-07-12. Self-contained template (`templates/plan.html`) + route in
+  `app.py`. Each schedule block has a tap-to-cycle status (DONE / PARTIAL /
+  SKIPPED) and a notes field; includes fallbacks, an add-row unscheduled break
+  log, end-of-day scorecard, and patterns section. All state persists in
+  browser localStorage (no backend); monochrome/plain-word status chips, no
+  emojis. Added to the shared top nav (`_nav.html`) as "Plan".
+
+- **[2026-07-11] (Claude)** — LM v2: GENREG_RULES compliance pass + hard negatives +
+  rerank generation, retrained (crash-recovery session: the code rewrite was found
+  complete on disk from a session that crashed before launching the run — root cause
+  of the crash found and fixed: `run_job.py`'s log watcher died on a cp1252
+  UnicodeEncodeError streaming remote logs; poll() now reconfigures stdout with
+  errors="replace"). Changes trained: (1) soft fitness — all three trainers select on
+  mean log-prob of the true answer instead of argmax accuracy (§IV.1); (2) energy
+  homeostasis in ga_step (§III): rank-percentile energy, starvation culling below 0.2
+  — observed starved=0 all run, band (3-15%/gen) NOT reached, needs tuning next
+  round; (3) HARD negatives for next_word: drawn from words that actually followed
+  the same preceding word in the corpus, plus a majority-frequency baseline as the
+  honest bar; (4) rerank generation (§VI): generate() scores only the previous
+  word's top-200 follower pool (mined into the artifact), never a full-vocab softmax.
+  RESULTS (job 9888e902aea0ae02 on the I2 primary, 80.5M tokens): punctuation/opener/
+  length genomes ~unchanged (opener_question 0.7015 still best). **next_word: 21.16%
+  vs 16.67% chance BUT vs 26.92% majority-frequency baseline — honest negative: the
+  genome does not yet beat "pick the most frequent candidate" on hard negatives.**
+  fill_word 21.92%. QUALITATIVE win: generation no longer repetition-loops — rerank
+  over follower pools produces varied, near-grammatical short sentences ("The road
+  signs for me.") with correct intent-driven end marks. 10 runs recorded at
+  `runs/lm/20260711-233847-lm-*/`. Live /lm needs a **Flask restart** to pick up the
+  new artifact + rerank generate().
+- **[2026-07-12] (Claude)** — CIFAR encoder **v7: REAL-VS-FAKE coherence question
+  -- right question, substrate can't hold the answer**. Built the "does this
+  belong" discriminator with a NATURAL (not systematic) corruption: fake = a
+  feathered/alpha-blended patch swapped in from a different image, so there is no
+  seam to detect -- pixels all real, only the CONTENT is out of place; flagging
+  it requires modeling coherence (`_patch_swap_fake`, mode "realfake" reusing the
+  arrange hard-negative fitness; job `cifar_l2_realfake.py`). Result (full 10k):
+  standalone L1+realfake 0.3373 (+1.2 sigma) -- the WEAKEST positive question
+  (vs warp +2.9, color +2.4, arrange +2.1, crop +1.6). Composed: adds no
+  orthogonal axis; champion stays L1+warp+color 0.3655 (6-stack 0.3668 is 0.3
+  sigma = noise, and needs the negative `occlude` to get there). One real flicker:
+  realfake standalone separated bird/deer to 0.828 (best of any single question)
+  -- coherence grabbed something real about that confusion but too little to
+  matter. INTERPRETATION (confirms the chat with the user): coherence/relational
+  ("patterns within the numbers") is the RIGHT KIND of question, but the frozen
+  16-ch/14x14 substrate can barely represent the answer -- to judge coherence you
+  must compare distant regions, but L1 gives 16 coarse channels and L2 pools
+  spatially again, so relational detail is gone by the code. FOUR independent
+  lines now converge: (1) read-head -> ceiling is the retina; (2) composition ->
+  only 2 orthogonal axes fit; (3) arrange -> layout redundant; (4) realfake ->
+  coherence unanswerable here. The substrate is saturated at ~2 axes (photometric/
+  geometric); relational axes need a RICHER substrate. Artifact
+  `demo/cifar_l2_realfake.pkl`; log `demo/cifar_l2_realfake.log`.
+- **[2026-07-12] (Claude)** — CIFAR encoder **v6: ARRANGEMENT question (real-vs-
+  shuffled layout) -- answerable but REDUNDANT; substrate holds ~2 orthogonal
+  axes**. Added the part-composition question as a real-vs-shuffled discriminator
+  (same trick as WordPipe grammar): positives = 2 augs of the real image, plus
+  each anchor's QUADRANT-SHUFFLED self as a hard negative (identical local
+  content, wrong layout) -> the code must encode arrangement to push it away
+  (`_shuffle_quadrants`, `ContrastiveL2GPU.arrange`/`_emt`/`set_shuf`, mode
+  "arrange"; job `cifar_l2_arrange.py`). Result (full 10k): standalone L1+arrange
+  0.3418 (+2.1 sigma) -- the layout question IS answerable and pays out alone.
+  BUT composed onto the champion it DILUTES: L1+warp+color 0.3655 -> +arrange
+  0.3621. Layout at this substrate is entangled with appearance/shape, not a
+  separate axis. Champion stays **L1+warp+color = 0.3655 (+7.2 sigma)**. Refined
+  law: findable is necessary but compounding needs findable AND ORTHOGONAL, and
+  orthogonality is SCARCE -- of 5 answerable questions (warp/color/crop/arrange/
+  decorr all +sigma alone) only warp+color are mutually orthogonal. Measurement:
+  the 16-ch/14x14 frozen L1 substrate holds ~2 orthogonal answerable axes (shape
+  via colour-invariance, appearance via shape-invariance); everything else lands
+  in their span -> evidence that a THIRD axis needs a richer SUBSTRATE, not
+  cleverer questions. Artifact `demo/cifar_l2_arrange.pkl`; log
+  `demo/cifar_l2_arrange.log`.
+- **[2026-07-12] (Claude)** — CIFAR encoder **v5: FITNESS-AS-QUESTION -- composing
+  answerable questions MOVES the ceiling (0.332 -> 0.366, +7 sigma)**. Reframe
+  (user's cross-project law, now recorded in memory `fitness-as-answerable-
+  question`): a layer's fitness is a QUESTION whose answer must be findable in
+  the data; too easy = redundant (v4), too hard/ill-posed = no gain, the win is
+  answerable-but-unanswered. Gave L2 DIFFERENT fitnesses than L1 (all label-free,
+  frozen L1) -- first a 4-way fitness sweep (`evolve_l2`; decorr/hardneg/color/
+  swav), then a battery of augmentation-QUESTIONS where the question = what the
+  view varies (`_augment` kinds color/crop/occlude/warp; jobs
+  `cifar_l2_variants.py`, `cifar_l2_battery.py`). Per-question concat gain (full
+  10k test, L1 kNN 0.3318, SE 0.0047): **warp +2.9 sigma** (vary shape -> learn
+  appearance/texture; cracked bird/deer 0.775), **color +2.4 sigma** (vary colour
+  -> learn shape; cracked cat/dog), crop +1.6, decorr +2.1, hardneg +1.3, occlude
+  -1.2 (unanswerable), swav +0.2 (too hard, collapsed). COMPOSITION
+  (`scratchpad/compose_battery.py`): **L1+warp+color = 0.3655, +7.2 sigma, SUPER-
+  additive** (warp 0.0138 + color 0.0111 alone -> 0.0337 together). Adding crop
+  DILUTES (redundant with warp) and occlude DRAGS (unanswerable adds noise) --
+  exactly the law: stack questions whose answers are findable AND non-redundant.
+  First real movement of the retina ceiling in the whole arc, via composition of
+  answerable questions -- not capacity (v3), depth (v4/v5-stack), or ensembling.
+  Artifacts `demo/cifar_l2_{color,crop,occlude,warp,decorr,hardneg,swav}.pkl`;
+  logs `demo/cifar_l2_{variants,battery}.log`.
+- **[2026-07-12] (Claude)** — CIFAR encoder **v4: FREEZE-AND-STACK layer 2 -- did
+  NOT raise the ceiling (honest negative)**. Froze seed-7 encoder's conv filters
+  as layer 1, took its activated feature maps before the collapsing pool (16 ch,
+  avg-pooled to 14x14), evolved a SECOND conv layer (32x 3x3x16 filters =
+  edges-of-edges) on the frozen maps -> d=16 code, same NT-Xent contrastive
+  objective, zero labels (`ContrastiveL2GPU` / `evolve_encoder_l2` /
+  `_frozen_l1_maps`; reuses `evo_gpu.l1_maps`; job `jobs/cifar_encoder_l2.py`).
+  This is the freeze-and-stack discipline v5 lacked (v5 evolved both layers
+  jointly from random and stalled; GENREG rules VI/X). Result (pop 48, 2500
+  gens): **L2 kNN 0.3157 vs L1 0.3340** -- slightly BELOW, no gain. Verified
+  reproduces exactly; layer 1 confirmed frozen. Coarse structure preserved
+  (10/10 supergroup-clean) and it DID separate some fine pairs (deer/horse 0.44,
+  bird/frog 0.59) but kept the confusable ones (cat/dog 0.94, bird/deer 0.92) and
+  lost net kNN. HONEST DIAGNOSIS of why depth-via-freeze-stack failed here: (1)
+  both encoders bottleneck to d=16 and kNN is measured on that code -- the
+  ceiling is at the bottleneck, downstream of the added depth; (2) the coarse
+  augmentations (flip/shift/occlusion/brightness) set what is learnable at ANY
+  depth; (3) we froze a TERMINAL 16-filter encoder tuned to feed its own readout,
+  not a wide un-collapsed SUBSTRATE -- greedy layerwise stacking needs a wide
+  early layer (64+ ch, no tight code), so we stacked on an endpoint. Implication:
+  the lever is the layer-1 SUBSTRATE design + the objective/augmentations, not
+  more depth on a collapsed code. Artifact `demo/cifar_encoder_l2.pkl`; log
+  `demo/cifar_encoder_l2.log`.
+- **[2026-07-12] (Claude)** — CIFAR encoder **v3: READ-HEAD on the frozen retina
+  (first labels enter the pipeline)**. Froze the seed-7 encoder (kNN 0.3340) as
+  fixed infrastructure, encoded every image through it ONCE, and evolved a small
+  read-head genome on the cached 16-d codes -> 10-class, soft cross-entropy on
+  labeled data (`evolve_readhead` / `_head_logits`; job `jobs/cifar_readhead.py`;
+  first time labels touch anything). Results (pop 160, 2000 gens): **linear probe
+  16->10 test 0.2848**; **evolved MLP head 16->64->10 test 0.3380** (verified
+  reproduces exactly). Reference: chance 0.10, label-free kNN 0.3340. Reading:
+  (a) the nonlinear head (0.338) matches/slightly beats the kNN geometry, while
+  (b) the LINEAR probe (0.285) is BELOW kNN -- the 16-d code is locally
+  structured but not cleanly linearly separable, so a nonlinear head is needed to
+  recover what the label-free geometry already contains. Key point: labels in the
+  tiny head recover the representation's quality but do NOT exceed it -- the 16-d
+  label-free bottleneck is the ceiling, set entirely without labels; the retina,
+  not the head, is the limiting factor. Best per-class: plane 0.47, ship 0.43,
+  car 0.42, horse 0.42, frog 0.47 (vehicles + distinctive animals lead; bird 0.09
+  lags). Artifacts `demo/cifar_readhead_{linear,mlp}.pkl`; log
+  `demo/cifar_readhead.log`.
+- **[2026-07-12] (Claude)** — CIFAR encoder **v2: two private languages AGREE +
+  scaling + reading the code** (`jobs/cifar_encoder_multi.py`,
+  `scratchpad/analyze_encoders.py`). Ran all three follow-ups on the label-free
+  contrastive encoder. **(1) Agreement:** a second encoder evolved from a
+  different seed (101, kNN 0.3267) vs the first (seed 7, kNN 0.3340) -- both
+  10/10 supergroup-clean, and their class-similarity matrices correlate
+  **Pearson r=0.977 / Spearman rho=0.958**, with per-image RSA rho=0.755. Both
+  independently rank the same top pairs (plane~ship, cat~dog, bird~deer,
+  car~truck). CONCLUSION: the emergent semantic geometry is REAL, not a per-run
+  artifact -- two random seeds converge on the same structure. **(2) Scaling**
+  (d=32, M=24, V=6, hard aug via new `hard_aug`/`_augment` strength): kNN 0.3310
+  -- NOT better than base d=16 0.3340 (supergroup-clean dropped 10->7), though
+  harder aug sharpened FINE sub-structure (intra-animal cat/dog 0.945 >>
+  cat/frog 0.756). Scale is not the lever for coarse structure (consistent with
+  the classifier line). **(3) Reading the language:** the 16-d code is
+  interpretable -- dims split into an organic<->manmade basis: dims 2/5 fire +on
+  animals -on vehicles; dims 12/6/3/4/14 +on vehicles -on animals; others encode
+  finer animal axes. `evolve_encoder` now takes `out`/`hard_aug`/`seed` in
+  payload. Artifacts `demo/cifar_encoder_{seed7,seed101,scaled}.pkl`; log
+  `demo/cifar_encoder_multi.log`.
+- **[2026-07-12] (Claude)** — CIFAR **PIVOT: evolve label-free ENCODERS with a
+  private language (contrastive), not class separators**. User redirected the
+  project: stop training genomes to separate classes; evolve encoders that
+  capture similarity/difference structure. New `ContrastiveEncoderGPU` /
+  `evolve_encoder` / `_augment` / `_knn_acc` in `cifar_internal.py`; job
+  `jobs/cifar_encoder_v1.py`. One encoder genome (M=16 conv filters + per-filter
+  activation + pooling -> d=16 UNIT-NORM latent code = its private language),
+  fitness = NT-Xent / SimCLR (positives = two augmentations of the same image:
+  flip/shift/occlusion/brightness; negatives = other images), gradient-free via
+  ga_step. THE ENCODER NEVER SEES A LABEL. Result (pop 48, 2500 gens): positive-
+  retrieval 0.27 -> 0.74 (augment-invariance learned); **kNN top-1 in the code =
+  0.3340 (chance 0.10)** with labels used ONLY at eval. EMERGENCE: the private
+  language split CIFAR-10 into vehicles {plane,car,ship,truck} and animals
+  {bird,cat,deer,dog,frog,horse} -- ALL 10/10 classes have their top-3 nearest
+  neighbors inside the correct supergroup (car~truck~ship~plane, cat~dog,
+  deer~horse), discovered with ZERO labels. Independently verified: kNN reloads
+  to 0.3340 exactly; fitness confirmed label-free. Artifact
+  `demo/cifar_encoder.pkl` (champ + sim_matrix); log `demo/cifar_encoder_v1.log`.
+  This is the direction now -- see also the label-free diversity/occlusion work
+  and the I2 evolved-genome-encoder vision. Next: bigger d, more views, compare
+  two independently-evolved private languages (do they agree on similarity?).
+- **[2026-07-12] (Claude)** — CIFAR internal-language **v5: TWO-LAYER decider
+  (filters-of-filters) + full VERIFICATION SWEEP**. Added
+  `SingleGenome2LayerBinaryGPU` / `evolve_single2` / `evolve_arbiter2` /
+  `champ_logits2`: one genome now carries TWO evolved conv banks -- L1 (8x 5x5x3
+  texture filters, maps avg-pooled 28->14) and L2 (8x 3x3x8 filters combining L1
+  channels into PART detectors) -- plus both activation sets and the readout,
+  evolved jointly. Job `jobs/cifar_arbiter2_catdog.py`. Result (cat vs dog, L1=
+  L2=8, pop 48, 1500 gens): 2-layer decider A 0.6315 / B 0.6700 / avg-ensemble
+  0.6705 / checker 0.6730 -- **the deeper vocabulary does NOT beat the 1-layer
+  0.6705 ceiling** (A even overfits: val 0.6714 -> test 0.6315). Honest caveat:
+  both conv layers were evolved jointly FROM RANDOM INIT, which GENREG_RULES VI/X
+  explicitly warn is a rough landscape ("cannot be evolved from random init";
+  bootstrap/freeze-and-compose instead) -- a two-phase L1-then-L2 run is the
+  fairer test and the logical next step. Seed-consistency held again (agree 71.9%
+  @ 0.71, disagree @ ~coin-flip). CONVERGING EVIDENCE across v3/v4/v5: the ~0.67
+  cat-dog wall is NOT capacity (v3), NOT ensembling/verification (v4), NOT naive
+  depth (v5) -- it is a representation/landscape limit of gradient-free shallow
+  conv on 32x32 whitened patches. **Full independent verification sweep**
+  (`scratchpad/verify_all.py`): every saved champion (v1 0.9215, v3 0.6825, v4
+  A/B/checker + agree-split, v5) reloads and re-evaluates to the reported number
+  within tolerance; adversarial checks pass (deciders genuinely differ
+  ||dK||=9.11; checker sees only decider logits, no label leak; train/test
+  disjoint). ALL CHECKS PASS. Artifacts `demo/cifar_internal2.pkl`,
+  `demo/cifar_arbiter2.pkl`; log `demo/cifar_arbiter2_catdog.log`.
+- **[2026-07-12] (Claude)** — CIFAR internal-language **v4: ARBITER + CHECKER
+  genome (self-verification via seed-consistency)**. Two decider genomes evolved
+  from different seeds (7, 101) = "the same model from a different seed", plus a
+  CHECKER genome (one evolved hidden layer, per-unit activation from the
+  8-catalog) that reads both deciders' logits AND their disagreement |sA-sB| and
+  verifies the answer before outputting. New `evolve_arbiter` / `evolve_checker`
+  / `champ_logits` in `cifar_internal.py`; job `jobs/cifar_arbiter_catdog.py`.
+  Results (cat vs dog, dec_gens 2000, checker_gens 1500): decider A 0.6715 / B
+  0.6680 / average ensemble 0.6790 / **checker 0.6775** (vs single-decider
+  0.6705 baseline) -- ensemble buys +0.7-0.8 pts, small because the two seeds'
+  errors are correlated. THE REAL FINDING is the seed-consistency verifier: the
+  two seeds AGREE on 72.5% of test images and are 73.4% accurate there
+  (confident cases); they DISAGREE on 27.5% where a single decider scores 0.5064
+  -- a literal coin flip (the answer changes with the seed) -- and the checker
+  manages only 0.5281 there. Verdict: seed-disagreement is a VALID calibrated
+  uncertainty detector (73% vs 51%), exactly as hypothesised, but it cannot
+  manufacture signal that is not in the decider outputs -- ~27% of cat/dog
+  images are genuinely unresolvable at 5x5 local-texture resolution. Re-confirms
+  v3 from a new angle: the ceiling is a feature/landscape wall, not capacity or
+  ensembling. Also hardened logs to ASCII + PYTHONIOENCODING=utf-8 to avoid the
+  cp1252 UnicodeEncodeError crash class. Saved `demo/cifar_arbiter.pkl`; log
+  `demo/cifar_arbiter_catdog.log`.
+- **[2026-07-11] (Claude)** — CIFAR internal-language **v3: genomes now EVOLVE
+  THEIR OWN HIDDEN DIM (masked capacity) — width is not the bottleneck**. Added
+  `evolve_single_masked` + per-filter soft gate gene `g=sigmoid(gate)`; fitness
+  pays an annealed cost proportional to `sum(g)` (warm-up 30% so filters
+  specialise before pruning). Genome carries M_max=24 filters and evolves how
+  many it keeps. Jobs `jobs/cifar_internal_masked_{carbird,catdog}.py`. Results
+  (pop 64, 2500 gens, cost_lambda=0.015): car-vs-bird test **0.9185** (vs fixed
+  M=8 0.9215), cat-vs-dog test **0.6825** (vs fixed M=8 0.6705) — both within
+  noise. The gate mechanism WORKS (gates spread 0.5-1.0, genome modulates
+  capacity) but NEITHER pair prunes: both keep all 24 filters "on" (many weakly
+  at 0.50-0.55) because each marginal filter still beats its tiny cost. Verdict:
+  letting the genome choose its width does not change the result — **capacity is
+  not the lever, empirically confirming GENREG_RULES #2** (the cat-dog wall is a
+  landscape/feature problem, not a hidden-dim problem). cost_lambda=0.015 too
+  weak to force real sparsity; a lambda-sweep would trace the accuracy/width
+  tradeoff (how few filters the internal language actually needs) but won't lift
+  the ceiling. Champions `demo/cifar_internal_masked_{carbird,catdog}.pkl`; logs
+  `demo/cifar_internal_masked_*.log`.
+- **[2026-07-11] (Claude)** — CIFAR internal-language **v2: the HARD pair, cat vs
+  dog — single genome reaches 67.05% test** (job `jobs/cifar_internal_v2.py`).
+  Same single-genome architecture as v1, no changes but the class pair (pos=3
+  cat, neg=5 dog). Result (pop 64, 2500 gens): val 0.6814 / **test 0.6705** vs
+  0.5000 baseline (+17 pts); val->test drop 1.6% (generalizes). Verdict: the
+  internal-language architecture HOLDS on visually-entangled classes but the
+  ceiling is real — predictions are fuzzy (0.4-0.6, no confident collapse), the
+  honest signature of two animal classes seen through 8 evolved filters with no
+  gradients. Evolved a more PERIODIC lens set [square,cos,relu,cos,relu,gaussian,
+  cos,leaky] (texture over color/shape). Champion `demo/cifar_internal.pkl`
+  (v1 car-vs-bird champion preserved at `demo/cifar_internal_carbird.pkl`); log
+  `demo/cifar_internal_v2.log`. Next levers to lift the hard-pair ceiling: more
+  filters (M=16/32), a 2-layer internal vocabulary, or larger train pool.
+- **[2026-07-11] (Claude)** — CIFAR **"internal language": one single end-to-end
+  genome, everything evolved, 92.15% test on automobile-vs-bird**. New module
+  `genreg_train/cifar_internal.py` + job `jobs/cifar_internal_v1.py`. The
+  departure from the bank->features->classifier stack: ONE genome does the whole
+  job — its own M=8 evolved 5x5x3 kernels, a per-filter activation from the
+  8-catalog, multi-shape mean pooling (the pooled responses ARE its private
+  "internal language"), and a linear readout to a single sigmoid score. Nothing
+  pre-built: no PCA, no Fisher pre-selection, no logistic regression. Evolved
+  jointly, gradient-free, by `mp.ga_step` (tournament + elitism + starvation
+  homeostasis + self-adaptive sigma, mag-scaled), soft BCE fitness on balanced
+  two-class minibatches, ZCA-whitened patches, champion on a held-out val split.
+  Result (pop 64, 2500 gens, GPU): val 0.9210 / **test 0.9215** vs 0.5000
+  majority baseline; val->test drop -0.1% (no overfit); champion from gen 2000.
+  Genome evolved a HETEROGENEOUS lens set [gaussian,abs,leaky,relu,square,abs,
+  sin,cos] — not one repeated activation. Predictions inspected: cars 0.93-1.0,
+  birds 0.00-0.04. All three GENREG_RULES verification checks pass. Champion
+  saved `demo/cifar_internal.pkl`; log `demo/cifar_internal_v1.log`. Next levers:
+  harder pairs (cat vs dog), more filters, or a per-genome 2-layer internal
+  vocabulary.
+
+- **[2026-07-10] (Claude)** — Characters are now SIDE-PROFILE + episode retimed.
+  Generated humanoids switched from front-facing (flip was invisible) to profile
+  facing +x: one eye/nose/mouth on the leading edge, hair capped over top+back,
+  narrower torso, cap visor and glasses forward — so walk direction, flip, and
+  face-offs finally READ. Walk cycle looks like actual walking in profile. Episode
+  001 rigs regenerated (same seeds), all 8 shots retimed with holds (12/13/14/11/
+  13/12/12/9s = 96s total, was 56.5s) incl. a second futile wall-try beat in the
+  shadowban shot; the-glitches-ep1.mp4 re-rendered (96s). Existing saved rigs keep
+  the old front-facing look until regenerated.
+- **[2026-07-10] (Claude)** — STORYBOARD mechanism + first full episode. New story
+  layer: a story = ordered list of saved scenes, rendered into ONE mp4 in a single
+  encoder pass (all shots rasterized at the first scene's size/fps; no stitching
+  needed). Store runs/video/stories, endpoints /api/anim/stories (+delete) and
+  /api/anim/render_story, Storyboard card in the Scenes view (add/reorder/remove
+  shots, save, render). CONTENT: "The Glitches — Incident 001: Withdrawal" built as
+  proof — rig ensemble (ep1-norm, ep1-corrector, custom ep1-atm with door-tagged cash
+  tray, ep1-wall) + 8 saved shots (street title / tolerated no-clip through wall /
+  ATM abuse with cash eject + LEDGER box / enforcement-log still / shadowban /
+  corrector arrives / deallocation fade / thesis card) + saved story
+  the-glitches-ep1 -> rendered the-glitches-ep1.mp4 (56.5s, 1280x720@24) in the
+  library. Audio deliberately skipped (user records VO separately). **Flask restart
+  required** (anim_service.py + app.py changed).
+- **[2026-07-10] (Claude)** — OPEN/CLOSE verbs for objects (doors etc.). Two new part
+  tags: "door" (slides by dx/dy) and "hinge" (rotates around its pivot by angle).
+  New verbs open/close animate any parts with those tags: openness 0..1 persists
+  between actions (open -> stays open -> close returns), amplitudes from the open
+  action's args (defaults dx=-60, angle=-100). Door archetype rebuilt: sliding panel
+  tagged "door" over a dark opening. Pose model gained per-tag translation — updated
+  in BOTH anim_service.py and animrig.js. Objects' verb list is now move/fade/open/
+  close; characters can also use open/close on tagged parts. "Open" verb-test button
+  on the rig stage. Verified: slide door + hinged crate lid render open/close
+  correctly. **Flask restart required.**
+- **[2026-07-10] (Claude)** — SCENE TEMPLATES + 8 new object archetypes. "Generate
+  scene" in the Scenes sidebar: basic / office / forest / city templates (seeded).
+  Each generates a bg palette + procedural prop rigs (named <scene>-<archetype>-<n>,
+  saved to the rig library and placed as objects — everything stays editable; same
+  name regenerate overwrites the props). New archetypes: tree, bush, rock, desk,
+  plant, whiteboard, building (random lit-window grid), streetlight. New endpoint
+  POST /api/anim/generate_scene; templates listed via /api/anim/status. Verified:
+  all four templates render on-style with a character for scale. **Flask restart
+  required** (anim_service.py + app.py changed).
+- **[2026-07-10] (Claude)** — Scenes: actors and objects separated. New "Objects"
+  card with its own add-dropdown (object-kind rigs only); the Actors card takes
+  character rigs only. Objects are restricted to move/fade verbs (action editor
+  filters the verb list by target kind and coerces invalid verbs when retargeting);
+  object ids prefixed "o", labelled "(obj)" in action dropdowns. Scene JSON is
+  unchanged (one placement list; kind comes from the rig), so old scenes and both
+  renderers are untouched. Frontend-only, no restart.
+- **[2026-07-10] (Claude)** — Scene action SEQUENCING: actions now run top to bottom.
+  Each action has a start mode — "after prev" (chains when the previous ends, the new
+  default), "with prev" (ties to the previous action's start for parallel execution,
+  e.g. two actors talking at once), "at time" (explicit t0; what old scenes migrate
+  to, so nothing changes for them) — plus a duration field and ▲▼ reorder buttons.
+  t0/t1 are resolved in the UI and stored, so scene JSON and both renderers are
+  untouched; scene duration auto-grows to fit the chain. Frontend-only, no restart.
+- **[2026-07-10] (Claude)** — Rig import/export: "Export .json" on the rig stage
+  downloads the open rig (including unsaved edits) as a formatted JSON file;
+  "Import .json" in the sidebar accepts one or more rig files (validated: needs a
+  parts list; name/kind/canvas defaulted), saves them to the rig library and opens
+  the last one. Frontend-only (animstudio.js + video.html), no restart needed.
+- **[2026-07-10] (Claude)** — Rig editor UX round: (1) UNDO/REDO — Ctrl+Z / Ctrl+Y
+  (Ctrl+Shift+Z too) in all three /video views: rig edits, scene edits, editor
+  timeline; snapshot stacks per document, cleared on open, native text-undo left
+  alone while typing in fields. (2) Parts panel + selected-part form now FLOAT over
+  the rig stage (collapsible overlay panels) instead of a card below. (3) On-stage
+  transform gizmos: selected part gets a rotate handle (round, gold) and a resize
+  handle (square, blue) around its pivot; new part properties `rot` (base rotation,
+  applies to the subtree like verb rotations) and `scale` (uniform, shape only so
+  children don't inherit) — added to BOTH anim_service.py and animrig.js renderers,
+  plus rotate/size fields in the part form. Old rigs without rot/scale unchanged.
+- **[2026-07-10] (Claude)** — Animation rigs: two-segment limbs. Generated humanoids
+  now have elbows and knees (thigh/shin + upper-arm/forearm, capsule segments
+  overlapping at the hinge; new tags `leg_*_lower` / `arm_*_lower`). Walk verb bends
+  knees during swing and gives elbows a soft counter-bend — updated in BOTH
+  anim_service.py and animrig.js. Old single-segment rigs stay compatible (unknown
+  tags simply don't rotate). Verified with a 5-phase walk strip render.
+- **[2026-07-10] (Claude)** — /video is now an ANIMATION PLATFORM (SCP-Explained flat
+  style): three views — **Rigs** (manual part-by-part SVG puppet editor: layered parts
+  with parent/pivot/z, semantic tags arms/legs/mouth shapes, drag-to-position, live
+  verb test idle/walk/talk/point; plus a procedural generator with 10 seeded archetypes:
+  researcher/guard/dclass/suit/civilian + crate/table/door/terminal/containment),
+  **Scenes** (actors placed by drag, verb action timeline walk/move/talk/point/fade,
+  caption/title/infobox overlays, optional voiceover audio muxed from the library,
+  scrub+play preview), **Editor** (the original cut/stitch/convert editor). Scene
+  renders: per-frame SVG -> resvg -> ffmpeg pipe -> mp4 lands in the library for the
+  timeline. Verb/pose math lives twice ON PURPOSE: anim_service.py (render) and
+  static/animrig.js (preview) must stay in sync. New: anim_service.py, animrig.js,
+  animstudio.js, /api/anim/* routes; library now accepts audio (mp3/wav/…) for
+  voiceover tracks. resvg-py added to requirements. Verified end-to-end (generate ->
+  scene -> render -> probe). **Flask restart required.**
+- **[2026-07-09] (Claude)** — CIFAR **encoder-objective study complete** (v9 + v10).
+  v9 utility-only greedy encoder (user directive round 1: keep a genome only if it
+  increases fitness; fitness = marginal nearest-centroid gain, incremental GPU state):
+  gate seized at 41 genomes, ceiling **50.9** — greedy selection against a saturating
+  proxy optimises the proxy, not the environment. v10 HYBRID (occlusion-contrastive
+  generation x dense-margin utility gate, combined fitness = contrastive x
+  sigmoid(50*utility), strict ug>0 admission): 512 genomes / 513 rounds, ceiling
+  **65.68 test = occlusion-only's 65.56 from 33% fewer genomes**. FULL TABLE (test
+  ceilings): utility-only 50.9 | entropy-novelty 58.4 | +jitter 58.9 | +L2-hierarchy
+  59.2 | occlusion-contrastive 65.6 | hybrid 65.7 | label-driven Fisher 67.0.
+  CONVERGED CONCLUSION: for 5x5-conv genomes the environment tops out ~65.6-67 and the
+  OCCLUSION objective is what earns it; the utility gate compacts, labels add ~1.4.
+  The open frontier is the CLASSIFIER CLIMB (pure stack reaches ~56 vs 65+ ceilings).
+  New machinery: `UtilityFitGPU` (incremental centroid state, dense margin option),
+  `evolve_detbank_utility`, `evolve_detbank_hybrid`, feats v9/v10. Banks:
+  `cifar_detbank_v9.pkl`, `cifar_detbank_v10.pkl`.
+- **[2026-07-09] (Claude)** — NEW: /video page — ffmpeg-backed video editor (plain
+  utility, nothing evolved). Library (upload any format, probe via ffprobe, cached
+  thumbnails, download/delete), clip timeline with per-clip in/out cut points +
+  reorder + stitch-export (concat filter: mixed codecs/resolutions/framerates
+  normalised, silent inputs get a silence track), per-file cut-to-file and container
+  conversion (mp4/mkv/webm/mov/m4v/avi/gif), background jobs with live progress
+  (`-progress pipe:1`) and cancel. Backend `video_service.py`, routes in app.py
+  (`/api/video/*`), files under `runs/video/library`. ffmpeg full build extracted from
+  the user's downloaded 7z into `tools/ffmpeg-2026-07-09-.../bin` (gitignored;
+  resolution order: tools > PATH > imageio-ffmpeg bundle). All ops verified end-to-end
+  with generated test clips. **Flask restart required** to pick up the new routes.
+- **[2026-07-09] (Claude)** — CIFAR v8 pure-stack + continuation stacking: **55.64 test**
+  (fully pure system: label-free occlusion-contrastive environment + statistics-free
+  evolved classifier). Battery: fold 45.0 -> joint 8k gens 52.98 -> referees gated off ->
+  51.64 test; then 3 continuation rounds (8k gens x pop 240 each, evolving onward from the
+  champion) -> 55.92 val / 55.64 test. THE HONEST CROSSROADS: the v8 environment has the
+  best label-free ceiling (65.6) but a FLAT information spectrum — evolved linear heads
+  climb it slowly (~10-pt optimisation gap remains; v5's spikier label-driven environment
+  gave up its ceiling far more easily). Candidate next levers, undecided: (a) block-
+  coordinate joint evolution (decompose 2048x10 into evolvable bites per the conversational
+  directive's principle), (b) intermediate PCA scaling (sqrt-eig) between the unclimbable
+  unit and the top-heavy eig, (c) narrower readout space (PCA-512: lower ceiling, much
+  easier climb, possibly net positive), (d) brute continuation. Champions
+  `demo/cifar_genomes.pkl`; scoreboard: fully-pure 55.64 | pure-classifier-on-labeled-env
+  58.84 | label-driven-everything 58.84/67-ceiling.
+- **[2026-07-09] (Claude)** — CIFAR **v8: OCCLUSION-CONTRASTIVE fitness (user's call:
+  'try occlusion alone') — label-free ceiling 65.6 test, +6.7 over jitter-stability,
+  within 1.4 of the label-driven 67.0.** Fitness = novelty x entropy x occlusion-SNR:
+  the genome's response must survive a random 12x12 blank-out (a third of the image,
+  mean-filled) while discriminating between images — invariance no single local
+  measurement can satisfy, so survivors integrate global structure. Ladder now: 54.5
+  (entropy) -> 58.4 (768) -> 58.9 (+jitter) -> 59.2 (+L2) -> **65.6 (occlusion)**.
+  The purity gap is essentially closed by objective design, not labels. Bank:
+  `demo/cifar_detbank_v6.pkl` (v8, occlusion; jitter bank backed up `_v6c.pkl`).
+  Pure-stack classifier battery launched on v8.
+- **[2026-07-09] (Claude)** — CIFAR v7 (layer-2 diversity genomes): ceiling **59.2 test**
+  — composition added only +0.3 over single-layer v6c. LABEL-FREE LADDER FINAL: 54.5
+  (256 bank) -> 58.4 (768) -> 58.9 (+stability) -> 59.2 (+512 layer-2 genomes over frozen
+  L1; channel-selection genes + 3x3x8 kernels, novelty x entropy x stability, zero labels
+  at every level) vs label-driven v5 67.0. HONEST VERDICT: pure novelty-driven evolution
+  fills information space uniformly, and hierarchy multiplies the space faster than it
+  concentrates class-relevant structure — the plateau is the objective, not the capacity
+  (archive never saturated at any level). New machinery kept: `Layer2FitGPU`, `l1_maps`,
+  `l2_features_gpu`, `evolve_detbank_l2`, `build_features(7)`, randomized-SVD PCA.
+  PROPOSED NEXT OBJECTIVE (not yet built): augmentation-contrastive fitness — a genome
+  survives by responding INVARIANTLY to strong augmentations of the same image (crop/
+  flip/color-jitter) while DISCRIMINATING between different images (the SimCLR principle,
+  label-free, evolution-compatible; our jitter-SNR term was a weak version). Population
+  diversity stays as a second term. Banks: `demo/cifar_detbank_v7.pkl` (L2), `_v6.pkl`
+  (L1, stability), `_v6b.pkl` (entropy-only).
+- **[2026-07-09] (Claude)** — CIFAR v6c (stability term): ceiling 58.9 test (+0.5 over
+  v6b's entropy-only). LABEL-FREE LADDER COMPLETE for single-layer genomes: 256-bank 54.5
+  -> 768-bank 58.4 -> +stability 58.9, vs label-driven v5 67.0. VERDICT: with one conv
+  layer, 768 diversity-evolved detectors support 8 points LESS than 51 label-guided ones —
+  diversity fills information space uniformly; labels point at the class-relevant corner.
+  Scale is nearly spent (3x genomes = +3.9; objective refinement = +0.5). NEXT (building):
+  LAYER-2 diversity genomes — genomes whose inputs are the frozen layer-1 bank's response
+  maps (channel-selection genes + 3x3 kernel + activation), same novelty x entropy x
+  stability fitness, still zero labels: composition as the source of new information
+  (genomes stacked on genomes in the environment itself).
+- **[2026-07-09] (Claude)** — CIFAR **v6: the LABEL-FREE environment** (user directive:
+  feature genomes evolve for DIVERSITY only — no labels/Fisher/niches/hand-stats/whitening
+  in the environment; labels only ever reach classifier genomes; saved to memory as the
+  standing rule). New machinery: `evo_gpu.DiversityFitGPU` (behavior = z-normed pooled
+  response over an unlabeled probe set; fitness = novelty (1 - mean |cos| to k-nearest in
+  population+archive) x information (16-bin response entropy)), `evolve_detbank_diverse`
+  (novelty-search archive, fresh population per round, dup-capped admission),
+  `build_features(6)` = bank outputs ONLY, GPU randomized-SVD PCA for >12k dims,
+  auto-chunked bank_features (768-bank OOM fix). CEILING LADDER (test): 256-genome bank
+  54.51 -> 768-genome 58.38 (+3.9 from 3x scale; archive NEVER rejected a candidate — the
+  behavior space is unsaturated) vs label-driven v5 67.0. Gap to label-driven ~8.6.
+  Running now: v6c = same 768 recipe + STABILITY term (novelty x entropy x jitter-SNR —
+  response must be stable for the same image under 1px shift, varied across images; kills
+  noise-measurers entropy admits; still zero labels). Banks: `demo/cifar_detbank_v6.pkl`
+  (+ `_v6b.pkl` backup).
+- **[2026-07-09] (Claude)** — **New genome group "next" — intent-conditioned, autoregressive
+  next-word prediction. Honest negative result: it barely beat fill_word (24.25% vs 24.08%),
+  and generation is still repetitive.** Per user directive: revive the core idea from the
+  archived pipeline's Selection/Bidirectional-Selection genomes (bilinear contrastive word-
+  pair scoring), rebuilt fresh with two real fixes over `fill_word`: (1) properly
+  AUTOREGRESSIVE — left context only, matching how `generate()` actually runs (fill_word was
+  trained bidirectionally but used with zero-padded right context at inference, a genuine
+  train/inference mismatch); (2) INTENT-conditioned — the sentence's target end-mark fed in as
+  an explicit small embedding, a signal fill_word never had. Scope, decided via
+  AskUserQuestion: next-word prediction ONLY this round (deferred No-repeat/Agreement/
+  Alternation), negatives kept simple/random (deferred harder same-context negatives) — both
+  explicit choices, not oversights. New `mine_next_word_examples()` (flat word array + parallel
+  per-word intent array built via one O(n) pass with vectorized per-sentence backfill, avoiding
+  the earlier quadratic-mining mistake), new `NextWordPop` class (word embedding + small 3-way
+  intent embedding + bilinear query-vs-candidate scoring). Result: **24.25% holdout accuracy —
+  essentially tied with fill_word's 24.08%, not a meaningful lift.** `generate()` switched to
+  use `next_word` for word choice (fill_word kept trained/shown for comparison only). Live
+  check confirms the numeric near-tie is real, not noise: generation is STILL repetitive
+  ("fifa...fifa", "networks...networks", "moon...moon", "watching...watching",
+  "antonio...antonio", "ministry...ministry" — different failure instances, same failure mode).
+  **Useful negative result, not a wasted round**: fixing the train/inference mismatch and
+  adding intent-conditioning did NOT move the needle, which points the finger away from those
+  two issues and toward the deliberately-deferred lever — negative sampling. Random negatives
+  are likely too easy to beat via a handful of generically "safe" embedding directions,
+  regardless of whether the genome is bidirectional or autoregressive, intent-aware or not.
+  Next real lever for fluency: harder (same-context-class) negatives, per the option explicitly
+  deferred this round. All 10 genomes (5 punctuation + 2 opener + 1 length + 1 fill + 1 next)
+  recorded at `runs/lm/20260709-213338-lm-*/`. `/lm` page gets a "next" genome group card;
+  Fill card re-labeled as comparison-only. **Flask needs a restart.**
+
+- **[2026-07-09] (Claude)** — **First generation mechanism: hangman-style, variable-length,
+  intent-driven — mechanism works, word fluency doesn't yet.** Per user's mental model (planned
+  via EnterPlanMode, approved): a human knows what they want to say (intent) before the words
+  come; like Hangman, guess pieces to fill blanks, except the number of blanks isn't known
+  upfront — length **emerges dynamically**, no separate length-prediction genome, decision made
+  explicitly via AskUserQuestion over 3 alternatives (upfront-sample / dynamic-growth /
+  capped-then-trim — dynamic growth chosen). Two new genome groups: **`length`**
+  (`length_continue` — given a partial sentence, is it complete or does it need to keep
+  growing? needed a NEW explicit length feature on `ClassifierPop`, since mean-pooling the
+  context window alone can't tell a 3-word prefix from a 10-word one apart; mined via bounded
+  prefix-sampling per sentence, 4 negative prefixes + 1 true full-length positive each, to stay
+  linear in corpus size) and **`fill`** (`fill_word` — given the words around a blank, does a
+  candidate word fit; deliberately a CONTRASTIVE discriminator — true word vs 5 random corrupted
+  negatives — not a 4000-way softmax, which would've reintroduced the exact class-imbalance
+  collapse the punctuation group hit; new `FillPop` class, bilinear query-vs-embedding scoring,
+  same tournament-GA machinery). Real design tension surfaced and resolved: `length_continue`
+  is trained on strictly-growing, fully-real prefixes, so true out-of-order multi-blank infill
+  (as sketched during planning) would feed it a context distribution it never saw — narrowed
+  scope to left-to-right fill with confidence-driven grow/stop and full-vocabulary-scored word
+  choice (not fixed-length, not forced-greedy), flagged as a real scope reduction from the
+  original plan, not silently shipped as the full vision. Results: `length_continue` **61.1%
+  balanced accuracy** (chance 50%), recall even across both classes (continue 67.8%, end
+  54.3%) — no collapse. `fill_word` **24.1% holdout accuracy** (chance 16.7% — beats it, but
+  only modestly). Live generation confirms the mechanism genuinely works — variable length (3-6
+  words across samples), correct intent wiring (question-opener words → `?`, "please" → `!`,
+  "never" → `.`) — but word choice is honestly weak: heavy repetition of a handful of generic
+  words ("product" recurring across unrelated seeds) rather than context-appropriate fills,
+  consistent with fill_word's modest accuracy and looking like a classic contrastive-learning
+  shortcut (beating 5 random negatives is often easy via a few generically "safe" embedding
+  directions without the genome actually nailing true left/right context). Per the
+  `lm-diffusion-vision` memory's stated bar (consistency, not perfection): the SKELETON is
+  honest and working; word fluency is the clear next lever — likely needs harder/frequency-
+  matched negatives (current ones are uniform-position, possibly too easy), more capacity, or
+  longer training, not a different architecture. New `/api/lm/generate` endpoint; `/lm` page
+  gets a "Generate" section (seed word + temperature, live per-tick trace) plus length/fill
+  genome cards. All 9 genomes (5 punctuation + 2 opener + 1 length + 1 fill) recorded at
+  `runs/lm/20260709-161129-lm-*/`. **Flask needs a restart to pick up the new page section and
+  endpoint.**
+
+- **[2026-07-09] (Claude)** — **New genome group "opener" — reads a sentence's FIRST word to
+  confirm its eventual intent, and it's the strongest genome trained yet.** User's observation:
+  the `punctuation` genomes only look at words BEFORE a mark; the sentence's opening word
+  ("who/what/where/how/can/don't...") is a separate, cheap, strong signal the pipeline wasn't
+  using at all. Added 2 binary genomes mirroring `punct_question`/`punct_exclaim` exactly, but
+  reading FORWARD from the sentence start instead of backward from the mark: `opener_question`
+  (does the first word predict a `?` ending?), `opener_exclaim` (does it predict `!`?). New
+  `mine_opener_examples()` splits the token stream into sentences (delimited by `. ! ?` only —
+  commas/semicolons/colons don't reset "first word"), one example per sentence = (first word,
+  eventual end mark). ctx_k=1 by design — literally just the opening word — and the existing
+  `ClassifierPop`/`train_classifier` code needed zero changes, since mean-pooling one embedding
+  is a no-op. Result: **`opener_question` 70.6% balanced accuracy — beats every punctuation-
+  group genome including `punct_question`'s 67.2%.** `opener_exclaim` 61.4%, also beats its
+  mirror `punct_exclaim` (58.5%). Confirmed live: "who"/"what" → 88-92% confident `?`; "the"/
+  "never" → 96-98% confident `.`; "please" → correctly favors `!` (42.8%) but not confidently;
+  "wow" → still misses (70.6% `.` instead of `!`) — an honest limitation matching
+  `opener_exclaim` being the weaker of the two new genomes, not hidden. New
+  `/api/lm/recognize_opener` endpoint + a "Confirm" box on `/lm`; `lm_service.py`'s `status()`
+  reshaped from a flat genome list into `groups: [{group, genomes}]` so punctuation and opener
+  render as separate sections. Caught and fixed a real bug in `record_lm_run.py` while adding
+  this: the run-recording script hardcoded `meta.json`'s `"group"` field to `"punctuation"` for
+  EVERY genome regardless of which group it actually belonged to — the first write silently
+  mislabeled the 2 opener runs; deleted and rewrote with `group=split_result["group"]`. All 7
+  genomes (5 punctuation + 2 opener) now correctly recorded at
+  `runs/lm/20260709-124755-lm-*/`. **Flask needs a restart to pick up the new page section and
+  endpoint.**
+
+- **[2026-07-09] (Claude)** — **Split the punctuation-intent genome into 5 small binary
+  specialists — the collapse (0.15% exclaim recall, 2.5% colon recall) is fixed.** Per user
+  directive: the single 6-way classifier's failure mode was structural — one softmax head
+  arbitrating 6 wildly different base rates (periods 5.7M vs colons 99K) let two easy, frequent
+  classes eat all the capacity. Decomposed into 5 genomes, each with ONE clean binary survival
+  condition, all sub-labeled under the group **"punctuation"**: `punct_end` (end . ! ? vs
+  continue , ; :), `punct_question`/`punct_exclaim` (which end-mark, two binary heads instead
+  of a 3-way softmax), `punct_semicolon`/`punct_colon` (which continue-mark, same pattern) —
+  the same decompose-into-specialists recipe that was the one clean win in the archived
+  /evolang pipeline. `recognize_mark()` composes the 5 heads' probabilities hierarchically back
+  into a single ranked guess over all 6 marks. Each binary problem trains AND evaluates
+  class-balanced by construction, so the earlier train/eval mismatch bug (previous two entries)
+  structurally can't recur the same way. Result, all 5 beat 50% chance and — the actual fix —
+  **none collapsed**: `punct_end` 56.9% (continue 56.6%/end 57.1%, even), `punct_question`
+  67.2% (strongest genome, real signal), `punct_exclaim` 58.5% with **exclaim recall 62.7%**
+  (was 0.15% before the split), `punct_semicolon` 63.5% (semicolon recall 30.2% — genuinely
+  harder, still honest, no collapse), `punct_colon` 55.0% (colon recall 47.9%, up from 2.5%).
+  Confirmed live: "please bring the following items" now correctly gets `:` at 80.8% — exactly
+  the class the old genome couldn't recognize at all; "i cannot believe you actually did that"
+  still ranks `?` over `!` but `!` now carries 30% probability instead of ~0% (partial, honest
+  progress, not a full fix). `genreg_train/lm_intent.py` generalized `IntentPop` into
+  `ClassifierPop` (n_out-parametric) and added `SPLITS`/`prepare_split`/`recognize_mark`;
+  `run_lm_intent.py` trains all 5 off one shared corpus load/mine pass; `lm_service.py`
+  composes them for `/api/lm/recognize`; `record_lm_run.py` now writes one run per genome
+  under `runs/lm/`, each tagged `group: "punctuation"` via `meta.json` so they're visibly
+  grouped on `/runs`; `templates/lm.html`/`static/lm.js` show all 5 genomes with per-class
+  recall instead of one confusion matrix. **Flask needs a restart to pick up the new page.**
+
+- **[2026-07-09] (Claude)** — **LM genome #1 retrained with the train/eval split fixed —
+  balanced accuracy 26.5% (vs 16.7% chance), but the genome collapsed to mostly two classes.**
+  Root cause of the entry below's weak, declining holdout number: champion selection during
+  training picked the genome with the best RAW accuracy on the natural (period/comma-heavy)
+  holdout distribution, while training batches were class-balanced — a genome that gets BETTER
+  at rare marks (semicolon/colon) necessarily spends more guesses on them and its raw accuracy
+  on a period-heavy holdout goes DOWN, so training was actively selecting against real learning.
+  Fix: added `IntentPop.balanced_accuracy()` (mean per-class recall) and made it drive BOTH
+  champion selection and the headline metric, matching the class-balanced training batches;
+  raw natural-distribution accuracy is still logged for interpretability but no longer picks
+  the winner. Result: held-out balanced accuracy **26.5%**, up from 17.8% and now a real,
+  stable improvement over chance (train-batch-acc and holdout-balanced-acc rose together and
+  plateaued around gen 250, instead of holdout collapsing below chance as before). **Full
+  honesty on what that number means, though**: per-class recall is `.` 13.2%, `!` 0.15%(!),
+  `?` 63.7%, `,` 11.8%, `;` 67.5%, `:` 2.5% — the genome didn't become a well-rounded 6-way
+  recognizer, it collapsed toward confidently predicting `?` or `;` for almost everything
+  (confirmed live: "i cannot believe you actually did that" gets 99.9% `?`, when `!` is
+  obviously right) and nearly gave up on `!`/`:` entirely. Balanced accuracy went up because
+  those two classes are now genuinely well-recognized, not because the genome got well-rounded.
+  Two real, distinguishable signals exist in the corpus (question words, subordinate-clause
+  cues) and the genome found them; exclaim and colon apparently need either more capacity,
+  better negative sampling, or a per-class weighted fitness (not just balanced batches) to
+  stop being sacrificed. Re-fetched artifact + log; new run recorded at
+  `runs/lm/20260709-110038-lm-intent02/` alongside the original (kept for comparison, not
+  overwritten). `genreg_train/lm_intent.py`, `run_lm_intent.py`, `lm_service.py`,
+  `record_lm_run.py`, `templates/lm.html`, `static/lm.js` all updated to surface both
+  balanced and raw accuracy. **Flask needs a restart to pick up the display changes.**
+
+- **[2026-07-09] (Claude)** — **LM genome #1 (intent recognition) trained — honest first
+  result: 17.8% held-out accuracy, barely above the 16.7% chance floor.** Caught and fixed a
+  real bug first: `mine_examples()` rebuilt `[0]*ctx_k + recent` from the ENTIRE accumulated
+  word list on every mark occurrence instead of the last `ctx_k` words — O(1) on the 3M-char
+  smoke test, silently quadratic on the real 417MB corpus (job never progressed past "mining"
+  in 30+ min; killed, fixed with a `collections.deque(maxlen=ctx_k)` ring buffer, re-verified
+  at 9.4M tokens/~4s before redispatching). Full run then completed clean: 11M examples mined
+  (class counts wildly skewed — periods 5.7M, commas 4.2M, vs semicolons 133K, colons 99K),
+  400 generations, pop 150, ~15 min on the I2 primary. Result is a real, not-yet-useful signal:
+  the confusion matrix shows the genome over-predicts the rare classes (`;`/`:`) across every
+  true row — a train/eval distribution mismatch (class-balanced training batches vs the
+  natural-distribution held-out set), not pure noise, but not a working recognizer either.
+  Per-class recall: `.` 17.8%, `!` 18.2%, `?` 11.3%, `,` 18.1%, `;` 34.8%, `:` 25.2%. Artifact
+  fetched to `corpora/combined/lm_intent.pkl` (+ `.log`); confirmed the `/lm` page's
+  `recognize()` path runs end to end (probabilities cluster 0.13–0.23, no confident signal —
+  consistent with the accuracy). Recorded as a run at `runs/lm/20260709-024735-lm-intent01/`
+  (new `genreg_train/record_lm_run.py` — one-off log→runstore-format converter; no
+  `checkpoint.pkl`, since this genome's format isn't the RL-engine's `engine_api` format, the
+  real artifact is the fetched `.pkl`) so it shows up as an "lm" tab on `/runs` next to the
+  RL-engine environments. Open question for next session: is class-balanced training the wrong
+  choice here, or does eval also need to be class-balanced for a fair read of what genome #1
+  actually learned?
+
+- **[2026-07-09] (Claude)** — **New `/lm` page — the rebuild starts, genome #1 only.** Per
+  user directive: start completely over, no code carried forward from the archived /evolang
+  pipeline, one genome at a time. Genome #1 is **intent recognition**: given the last few words,
+  recognize which punctuation mark's intent belongs right after them — end-statement (.),
+  end-question (?), end-exclaim (!), or "more to say" (comma / semicolon / colon). Recognition
+  only, no generation, no grammar, no word selection — deliberately that narrow. New files, all
+  self-contained (no import from the archived `wordpipe.py`/`evolang.py`, on purpose):
+  `genreg_train/lm_intent.py` (mining + the genome itself — word-embedding → mean-pool → tanh
+  hidden → 6-way class logits, tournament selection + elitism + self-adaptive mutation, class-
+  balanced batches since commas dwarf semicolons/colons ~150:1), `genreg_train/run_lm_intent.py`
+  (I2 job driver, trains on the kept combined corpus), `genreg_train/lm_service.py` (Flask
+  wrapper). New `templates/lm.html` / `static/lm.js`, `/api/lm/status` + `/api/lm/recognize`
+  in `app.py`, nav link added. Local smoke test (3M-char slice, tiny pop/gens) confirmed the
+  pipeline runs end to end; real training (400 gens, pop 150, full 417MB corpus) dispatched to
+  the I2 primary (job `7321d408997023cd`) — artifact lands at `corpora/combined/lm_intent.pkl`,
+  not yet fetched back as of this entry. **Flask needs a restart to pick up the new route.**
+
+- **[2026-07-09] (Claude)** — **Archived the WordPipe /evolang pipeline** for a ground-up
+  rebuild, per user directive: fluency ceiling never moved across every architecture tried
+  this session (forward, meaning-first, intent-first/backward, crystallized, clause-obligation
+  tracking — see `documentation/WORDPIPE_FIELD_NOTES.pdf` for the full record and every verdict).
+  Moved all pipeline code (`genreg_train/wordpipe_service.py`, `wordpipe.py`, `genelib.py`,
+  `evolang.py`, all ~45 genome/experiment modules, `templates/evolang*.html`,
+  `static/evolang*.js`, `demo/demo.py`, trained genome `.pkl` artifacts) to `archive/evolang_v1/`
+  via `git mv`; removed the `/evolang` routes, websocket handler, and nav link from `app.py`/
+  `templates/_nav.html`/`static/app.js`. Explicitly kept in place (datasets, not pipeline code):
+  `corpora/wikipedia/`, `corpora/combined/` (corpus text + build script), and
+  `project/conversational/` (Cornell Movie Dialogs source). See `archive/evolang_v1/README.md`
+  for what's archived, what's kept, and known dangling references in unrelated historical
+  build scripts. **Flask needs a restart to pick up the app.py route removal.**
+
+- **[2026-07-08] (Claude)** — CIFAR **round 2: 58.84% test with a PURE GENOME STACK** (user
+  directive after the MNIST warm-start critique: no statistics anywhere in the classifier).
+  Environment v5: ZCA patch whitening + NICHED bank evolution (55 niches = 45 class pairs +
+  10 one-vs-rest, each with its own Fisher survival condition, round-robin decorrelated
+  selection) -> 51 diverse detectors (vs 15 in round 1); regularised linear ceiling 58.83 ->
+  **~67.0** test; unit-scale centroid floor 65.71. KEY DISCOVERY (cut + fixed with evidence):
+  unit-variance standardisation of deep PCA tails makes the binary-genome landscape
+  UNCLIMBABLE (chance at 2048 dims, 85% at top-256 — noise dims amplified to signal
+  magnitude drown mutation-based search); fix = eigenvalue-proportional scaling
+  (`build_features(pca_scale='eig')`), full ceiling kept, detector learnability restored
+  (76% at 600 gens). Pure stack (`--pure --eig`): 10 detectors evolved from random (70-79%
+  balanced) -> mixer genome -> algebraic fold (53.2 val) -> joint evolution +5.4 -> referees
+  +0.9 test (margin 0.5 — they finally contribute, exactly as gate theory predicts for a
+  below-ceiling head) = **58.84 test** (round 1 centroid-start: 58.69). Honest gap to
+  ceiling ~8 points = the cost of purity at 8k gens. `_train_binary`/`train_detectors`/
+  `train_pairwise` gained mag_scale; run_battery gained warm='fold'/pca_scale; champions
+  `demo/cifar_genomes.pkl` (+ `_v5_pure.pkl` backup), bank `demo/cifar_detbank_v5.pkl`.
 - **[2026-07-08] (Claude)** — Clause-completeness experiments (crystallize forward-polish
   pass + clause-obligation tracker), both real attempts, neither a clean win. CORRECTION:
   the earlier "verified" intent-first samples ran with `self.champs` silently empty on the

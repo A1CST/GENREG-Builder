@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>GENREG — LM</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='vendor/xterm.css') }}" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+</head>
+<body class="tlm-body">
+  <header class="topbar">
+    <div class="brand">GENREG<span class="brand-sub">lm · rebuilt from scratch, one genome at a time</span></div>
+    <div class="status">
+      <span class="dot" id="lm-dot"></span>
+      <span id="lm-conn">loading…</span>
+      {% set nav_active = 'lm' %}{% include '_nav.html' %}
+    </div>
+  </header>
+
+  <div class="tlm-layout">
+    <aside class="sidebar left tlm-side">
+      <div class="side-head">Genome stack</div>
+      <div class="side-body control-panel">
+        <p class="field-hint" style="margin:0 0 12px">
+          The previous /evolang pipeline is archived (see
+          <a href="/docs">docs</a> &rarr; WORDPIPE_FIELD_NOTES). This is the
+          rebuild, starting over with nothing carried forward except the
+          datasets. Two groups so far, both recognition only &mdash; no
+          generation, no grammar, no word selection:
+        </p>
+        <p class="field-hint" style="margin:0 0 6px"><b>punctuation</b> &mdash;
+          5 binary genomes reading the words BEFORE a mark to recognize its
+          intent. A single 6-way genome collapsed to guessing mostly two
+          classes; splitting into specialists with one clean survival
+          condition each fixed that.</p>
+        <p class="field-hint" style="margin:0 0 6px"><b>opener</b> &mdash;
+          the mirror image: 2 binary genomes reading ONLY a sentence's FIRST
+          word ("who/what/where/how/can/don't...") to confirm what intent
+          the sentence is headed for.</p>
+        <p class="field-hint" style="margin:0 0 6px"><b>length</b> &mdash;
+          given a partial sentence, is it already complete or does it need
+          to keep growing? No fixed target length &mdash; this decision
+          IS the length.</p>
+        <p class="field-hint" style="margin:0 0 6px"><b>fill</b> &mdash;
+          given the words AROUND a blank (left + right), does a candidate
+          word fit? Bidirectional, contrastive. Trained and shown for
+          comparison, but superseded for actual generation by <b>next</b>.</p>
+        <p class="field-hint" style="margin:0 0 12px"><b>next</b> &mdash;
+          the intent-conditioned successor to fill: given ONLY the words
+          BEFORE this one plus the sentence's target end-mark, does a
+          candidate word fit? Properly autoregressive (matches how
+          generation actually runs) and intent-aware (a signal fill never
+          had). <b>length</b> + <b>next</b> compose into generation below
+          &mdash; hangman-style: grow/stop is confidence-driven, word
+          choice is confidence-scored, nothing is fixed upfront except the
+          intent.</p>
+        <div id="lm-genomes"></div>
+        <div class="tlm-status" id="lm-status">loading pipeline…</div>
+      </div>
+    </aside>
+
+    <main class="tlm-main">
+      <div class="tlm-tiles">
+        <div class="tlm-tile"><div class="tlm-tile-label">Genomes trained</div><div class="tlm-tile-value" id="st-count">—</div></div>
+        <div class="tlm-tile"><div class="tlm-tile-label">Mean balanced acc.</div><div class="tlm-tile-value" id="st-acc">—</div></div>
+        <div class="tlm-tile"><div class="tlm-tile-label">Chance (binary)</div><div class="tlm-tile-value" id="st-chance">—</div></div>
+        <div class="tlm-tile"><div class="tlm-tile-label">Vocab size</div><div class="tlm-tile-value" id="st-vocab">—</div></div>
+      </div>
+
+      <section class="tlm-card">
+        <div class="tlm-card-head">
+          <h2>Recognize (punctuation) <span class="tlm-card-sub">type a word run with no trailing punctuation — the 5 genomes compose into a ranked guess</span></h2>
+        </div>
+        <div class="tlm-actions" style="margin-bottom:10px">
+          <input id="lm-input" type="text" placeholder="e.g. i cannot believe you actually did that"
+                 style="flex:1;min-width:280px;background:var(--panel-2,#111);color:inherit;border:1px solid var(--border,#333);border-radius:6px;padding:8px 10px;font:inherit" />
+          <button id="lm-run" class="runs-btn tlm-primary">Recognize</button>
+        </div>
+        <div id="lm-result" class="field-hint">—</div>
+      </section>
+
+      <section class="tlm-card">
+        <div class="tlm-card-head">
+          <h2>Confirm (opener) <span class="tlm-card-sub">type ONE opening word — the 2 genomes guess how the sentence will end</span></h2>
+        </div>
+        <div class="tlm-actions" style="margin-bottom:10px">
+          <input id="lm-opener-input" type="text" placeholder="e.g. who"
+                 style="flex:1;min-width:280px;background:var(--panel-2,#111);color:inherit;border:1px solid var(--border,#333);border-radius:6px;padding:8px 10px;font:inherit" />
+          <button id="lm-opener-run" class="runs-btn tlm-primary">Confirm</button>
+        </div>
+        <div id="lm-opener-result" class="field-hint">—</div>
+      </section>
+
+      <section class="tlm-card">
+        <div class="tlm-card-head">
+          <h2>Generate <span class="tlm-card-sub">type ONE seed word — watch the sentence materialize, pass by pass (diffusion-style, not left-to-right autoregression forced by a fixed length)</span></h2>
+        </div>
+        <div class="tlm-actions" style="margin-bottom:10px">
+          <input id="lm-gen-input" type="text" placeholder="e.g. what"
+                 style="flex:1;min-width:200px;background:var(--panel-2,#111);color:inherit;border:1px solid var(--border,#333);border-radius:6px;padding:8px 10px;font:inherit" />
+          <input id="lm-gen-temp" type="number" min="0.1" max="2" step="0.1" value="0.7" title="temperature"
+                 style="width:70px;background:var(--panel-2,#111);color:inherit;border:1px solid var(--border,#333);border-radius:6px;padding:8px 10px;font:inherit" />
+          <button id="lm-gen-run" class="runs-btn tlm-primary">Generate</button>
+        </div>
+        <div id="lm-gen-text" class="tlm-tile-value" style="margin-bottom:10px">—</div>
+        <div id="lm-gen-trace" class="field-hint">—</div>
+      </section>
+
+      <section class="tlm-card">
+        <div class="tlm-card-head">
+          <h2>Punctuation genomes <span class="tlm-card-sub">each row is one binary specialist — balanced accuracy vs 50% chance, plus per-class recall</span></h2>
+        </div>
+        <div id="lm-splits-punctuation">—</div>
+      </section>
+
+      <section class="tlm-card">
+        <div class="tlm-card-head">
+          <h2>Opener genomes <span class="tlm-card-sub">same recipe, fed only the sentence's first word</span></h2>
+        </div>
+        <div id="lm-splits-opener">—</div>
+      </section>
+
+      <section class="tlm-card">
+        <div class="tlm-card-head">
+          <h2>Length + next genomes <span class="tlm-card-sub">the two genomes that actually drive generation</span></h2>
+        </div>
+        <div id="lm-splits-length">—</div>
+        <div id="lm-splits-next">—</div>
+      </section>
+
+      <section class="tlm-card">
+        <div class="tlm-card-head">
+          <h2>Fill genome <span class="tlm-card-sub">bidirectional, kept trained for comparison — not used in generation</span></h2>
+        </div>
+        <div id="lm-splits-fill">—</div>
+      </section>
+    </main>
+  </div>
+
+  <script src="{{ url_for('static', filename='lm.js') }}"></script>
+  <script src="{{ url_for('static', filename='vendor/xterm.js') }}"></script>
+  <script src="{{ url_for('static', filename='vendor/addon-fit.js') }}"></script>
+  <script src="{{ url_for('static', filename='termdock.js') }}"></script>
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
+  <script src="{{ url_for('static', filename='agentpanel.js') }}"></script>
+  <script src="{{ url_for('static', filename='configpanel.js') }}"></script>
+</body>
+</html>

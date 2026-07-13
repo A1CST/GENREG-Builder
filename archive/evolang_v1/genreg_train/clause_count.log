@@ -1,0 +1,41 @@
+compound-initial samples: 114706, simple-initial: 310194
+  [clause_count] gen 1: val_acc=0.559
+  [clause_count] gen 200: val_acc=0.575
+  [clause_count] gen 400: val_acc=0.575
+  [clause_count] gen 600: val_acc=0.571
+  [clause_count] gen 800: val_acc=0.575
+  [clause_count] gen 1000: val_acc=0.571
+  [clause_count] gen 1200: val_acc=0.572
+  [clause_count] gen 1400: val_acc=0.571
+
+val_acc=0.5746  corpus compound-rate=0.27
+
+927 opener words with >=30 occurrences
+
+PROBE — Spearman rank correlation (genome score vs empirical compound-rate): -0.009
+verdict: WEAK/BAD — little to no learnable signal
+
+top 10 by genome score:
+   as           n= 3768 empirical_rate=0.406 score=+0.644
+   if           n= 4907 empirical_rate=0.294 score=+0.451
+   than         n=   30 empirical_rate=0.233 score=+0.451
+   though       n=  606 empirical_rate=0.363 score=+0.451
+   while        n=  522 empirical_rate=0.444 score=+0.451
+   because      n=  374 empirical_rate=0.275 score=+0.451
+   since        n=  248 empirical_rate=0.286 score=+0.451
+   whether      n=  213 empirical_rate=0.601 score=+0.451
+   although     n=  126 empirical_rate=0.421 score=+0.451
+   unless       n=   44 empirical_rate=0.227 score=+0.451
+bottom 10 by genome score:
+   which        n=  376 empirical_rate=0.253 score=-0.688
+   what         n= 8056 empirical_rate=0.107 score=-0.688
+   how          n= 3698 empirical_rate=0.120 score=-0.688
+   where        n= 1191 empirical_rate=0.121 score=-0.688
+   whom         n=  114 empirical_rate=0.149 score=-0.688
+   why          n= 3407 empirical_rate=0.151 score=-0.688
+   whose        n=   94 empirical_rate=0.255 score=-0.688
+   who          n= 1527 empirical_rate=0.159 score=-0.506
+   no           n= 4178 empirical_rate=0.175 score=-0.398
+   not          n= 2237 empirical_rate=0.255 score=-0.375
+saved clause_count_champ.pkl
+DONE

@@ -1,0 +1,44 @@
+median sentence length: 14.0 words
+long-initial samples: 207266, short-initial: 217634
+  [sent_lenplan] gen 1: val_acc=0.555
+  [sent_lenplan] gen 200: val_acc=0.596
+  [sent_lenplan] gen 400: val_acc=0.605
+  [sent_lenplan] gen 600: val_acc=0.605
+  [sent_lenplan] gen 800: val_acc=0.605
+  [sent_lenplan] gen 1000: val_acc=0.602
+  [sent_lenplan] gen 1200: val_acc=0.602
+  [sent_lenplan] gen 1400: val_acc=0.605
+
+val_acc=0.6047  median_len=14.0
+
+PROBE — long-sentence openers should score HIGH, short-sentence openers LOW:
+OOV (skipped): ['ok']
+   L  although   +1.008
+   L  because    +1.008
+   L  since      +1.008
+   L  while      +1.008
+   L  when       +0.253
+   L  after      +0.584
+   L  before     +0.584
+   L  if         +1.008
+   L  though     +1.008
+   L  unless     +1.008
+   L  despite    -0.257
+   L  however    -0.257
+   L  meanwhile  -0.257
+   L  given      -0.257
+   S  yes        -0.257
+   S  no         -0.397
+   S  then       -0.257
+   S  so         -0.257
+   S  he         +0.229
+   S  it         +0.229
+   S  she        +0.229
+   S  now        -0.257
+   S  still      -0.257
+   S  here       -0.257
+
+mean long-opener score: +0.532   mean short-opener score: -0.125
+separation: OK — L > S
+saved sent_lenplan_champ.pkl
+DONE

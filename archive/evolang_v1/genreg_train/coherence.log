@@ -1,0 +1,28 @@
+mined 2331249 content-word occurrences, 2331199 training pairs (local window=8, theme window=50)
+coherence-mining occurrences: 2331249 content words, 2331199 training pairs
+  [sem_coh_local] gen 1: val_acc=0.487
+  [sem_coh_local] gen 200: val_acc=0.490
+  [sem_coh_local] gen 400: val_acc=0.506
+  [sem_coh_local] gen 600: val_acc=0.504
+  [sem_coh_local] gen 800: val_acc=0.510
+  [sem_coh_local] gen 1000: val_acc=0.523
+  [sem_coh_local] gen 1200: val_acc=0.521
+  [sem_coh_local] gen 1400: val_acc=0.525
+
+sem_coh_local val_acc=0.5251
+  [sem_coh_theme] gen 1: val_acc=0.490
+  [sem_coh_theme] gen 200: val_acc=0.495
+  [sem_coh_theme] gen 400: val_acc=0.504
+  [sem_coh_theme] gen 600: val_acc=0.508
+  [sem_coh_theme] gen 800: val_acc=0.519
+  [sem_coh_theme] gen 1000: val_acc=0.525
+  [sem_coh_theme] gen 1200: val_acc=0.519
+  [sem_coh_theme] gen 1400: val_acc=0.531
+
+sem_coh_theme val_acc=0.5306
+
+PROBE verdicts (val_acc on held-out real-vs-teleported pairs, 0.5=chance):
+   sem_coh_local: 0.5251  -> WEAK/BAD — near chance
+   sem_coh_theme: 0.5306  -> WEAK/BAD — near chance
+saved sem_coh_local_champ.pkl, sem_coh_theme_champ.pkl
+DONE

@@ -1,0 +1,33 @@
+loading pipeline…
+ready.
+
+--- baseline (all experimental toggles OFF) ---
+adj-hit=0.871  distinct=0.112  dangling=0.208  mean-len=13.7  (n=630)
+
+=== Sentence type (sent_type) ===
+  OFF: adj-hit=0.871  distinct=0.112  dangling=0.208  mean-len=13.7  (n=630)
+  ON:  adj-hit=0.866  distinct=0.112  dangling=0.248  mean-len=14.1  (n=612)
+  deltas: adj-hit +0.005  distinct +0.000  dangling +0.040  len-drift +2.9%
+  VERDICT: STAYS EXPERIMENTAL — regresses a guardrail
+
+=== Sentence length plan (lenplan) ===
+  OFF: adj-hit=0.871  distinct=0.112  dangling=0.208  mean-len=13.7  (n=630)
+  ON:  adj-hit=0.863  distinct=0.109  dangling=0.260  mean-len=13.7  (n=630)
+  deltas: adj-hit +0.009  distinct +0.003  dangling +0.052  len-drift +0.0%
+  VERDICT: STAYS EXPERIMENTAL — regresses a guardrail
+
+=== Pronominalization (pronominal) ===
+  OFF: adj-hit=0.871  distinct=0.112  dangling=0.208  mean-len=13.7  (n=630)
+  ON:  adj-hit=0.868  distinct=0.110  dangling=0.240  mean-len=13.9  (n=621)
+  deltas: adj-hit +0.003  distinct +0.002  dangling +0.032  len-drift +1.4%
+  VERDICT: STAYS EXPERIMENTAL — regresses a guardrail
+
+--- Revision stage (Best-of-N vs plain generate(), same toggles) ---
+
+=== Revision stage (best-of-N vs plain generate) ===
+  OFF: adj-hit=0.874  distinct=0.240  dangling=0.212  mean-len=14.7  (n=104)
+  ON:  adj-hit=0.839  distinct=0.296  dangling=0.167  mean-len=7.8  (n=120)
+  deltas: adj-hit +0.035  distinct -0.057  dangling -0.045  len-drift +46.7%
+  VERDICT: STAYS EXPERIMENTAL — regresses a guardrail
+
+DONE

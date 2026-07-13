@@ -1,0 +1,13 @@
+BLOCKED before any mining: 'a' is not in the 4000-word pipeline vocabulary at all.
+wordpipe.build_lexicon(min_len=2) drops single-letter words — 'a' (and 'i') are
+filtered out of the lexicon entirely, so every literal 'a' in the corpus is
+silently mapped to <unk> at the word-selection level. The pipeline currently
+CANNOT choose between 'a' and 'the' as distinct words — there's no signal to
+learn or wire, because one side of the distinction doesn't exist in the vocab.
+This is a vocabulary-construction gap, not a learnability or wiring gap.
+Confirmed 'a' IS common in the raw corpus (166,554 occurrences) — it's being
+dropped by the min_len filter, not because it's rare.
+Not fixed here: raising min_len to include 1-char words would shift the top-4000
+cutoff and could require retraining every genome that depends on the vocab/corpus
+caches — too large a change to make as a side effect of testing one genome.
+DONE
