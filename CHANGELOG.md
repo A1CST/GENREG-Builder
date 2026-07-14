@@ -10,6 +10,24 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-14] (Claude)** — **Evolution campaign (autonomous, CIFAR) part 1:
+  Phase A + a MAJOR CORRECTION + the zombie.** New `radial_evo.py`. Phase A
+  (genome #2, evolve ON the map: plane angles/offset/size select a lens
+  region; batched GPU fitness; random-genome control at equal budget):
+  evolved 0.3695 test ≈ random control — and the follow-up diagnostic caught
+  a real flaw in OUR baselines: the rotation probes selected the best angle
+  ON THE TEST SET (max of 360 noisy test measurements ⇒ winner's curse
+  ≈ +0.03). Honest protocol (select on val, test once): **CIFAR slice =
+  0.3845**, not 0.4015 — still ≈ the 400-lens bank with 6% of the lenses and
+  above random 0.3774, but "slice beats bank AND raw" is retracted; audio's
+  0.4025 gets the same caveat. What survives: below-random dead zones
+  (linear core), loops spread, redundancy analysis. Findings §10-§11, PDF
+  regenerated. ENGINEERING: all the "CUDA wedge" slowness across the session
+  was ONE zombie GA process squatting the GPU for hours (task brq24ri2p);
+  after killing it Phase A runs in **42 s**; also fixed an fp16 gram overflow
+  (z-scored gram entries ~1.5e5 > fp16 max ⇒ singular solves) — grams stay
+  fp32. Phase B (interaction feature genomes — the real headroom) next.
+
 - **[2026-07-14] (Claude)** — **Validation-report response**
   (`validation_report.txt` audits the /radial/demo/cousins DEMO — periodic
   140-lens generator, 128-sample probes — not the main line; its
@@ -46,6 +64,18 @@ log below; don't rewrite existing entries.
   page 6 (`RADIAL_SPACE_FINDINGS.pdf`). GitHub visibility fixed: the branch
   was pushed but the repo front page shows `main` — main fast-forwarded to
   the branch head (1673a49→4224e61) and pushed.
+- **[2026-07-14] (Claude)** — **Cousin finder generator de-aliased per the
+  independent validation report** (`documentation/validation_report.txt`).
+  The schematic's lens arithmetic (idx%14, (idx*13)%20, (idx*17)%20) repeats
+  every 140 indices — 76 of the demo's 216 programs were exact duplicates and
+  the inner parent (idx*7+3)%14 only ever took 2 of 14 values — so its
+  "cousins" were mostly generator periodicity, as the report proved. lensAt
+  parameters are now hash-mixed from the index (still deterministic: same
+  index, same lens, forever); trivial self-maps no longer count as cousin
+  pairs. Verified by script: 216/216 distinct programs, 14/14 parents used in
+  both slots, 197/216 distinct signatures (19 genuine behavioral twins), and
+  defaults now yield 5 real cousin pairs vs ~100 inflated (96 were
+  self-maps). Run reports tag generator "hash-v2". Static files only.
 - **[2026-07-13] (Claude)** — **Cousin finder: explicit runs, Runs-page
   recording, JSON report download.** `/radial/demo/cousins` no longer runs on
   page load (canvas shows a "press find" placeholder); cousins and siblings

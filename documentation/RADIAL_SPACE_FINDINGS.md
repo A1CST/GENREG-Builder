@@ -200,6 +200,40 @@ main line (`radial_map.py`, 748-lens bank, 2400-sample stream):
   span). The map is best understood as ~46 real axes plus dense redundancy —
   which is exactly why slice CHOICE beats slice COUNT.
 
+## 10. CORRECTION (2026-07-14): the "slice beats bank" headline was inflated
+
+Self-audit triggered by Phase A of the evolution campaign: the baseline
+rotation probes **selected the best angle on the test set** (max of 360
+test measurements, each with ±0.011 binomial noise on a ~0.377 field —
+winner's-curse inflation ≈ +0.03). Re-run under the honest protocol
+(select the angle on a held-back validation split, measure test once):
+
+- **CIFAR: val-selected slice = 0.3845** (18 lenses) — still ≈ the 400-lens
+  bank (0.3815) with 6% of the lenses, and still above random subsets
+  (0.3774), but the published 0.4015 does **not** replicate; treat every
+  test-selected "best slice" number (CIFAR 0.4015, audio 0.4025) as upper
+  bounds, not estimates.
+- **What survives untouched:** the *below*-random dead zones (structural —
+  the linear core, §Q2), the loops rotation spread (0.83, floor explained
+  mechanistically), and the redundancy analysis. The angular structure on
+  CIFAR is real but thin: val range 0.263–0.326, all of the width on the
+  DOWN side.
+- **Consequences for the genome program:** slice selection on CIFAR is worth
+  ~+0.007 over random, not +0.024 — index-GA (0.376), map-region GA (0.370)
+  and honest slices (0.3845) all live inside a ±0.008 window. The pointwise
+  ceiling is even harder than reported; interactions (Phase B) are the only
+  real headroom.
+
+## 11. Evolution campaign log (autonomous, CIFAR)
+
+- **Phase A — region genome (evolve ON the map):** genome = (plane angles,
+  offset, size) over the 3D map; batched GPU fitness; random-genome control
+  at equal budget. Result: evolved 0.3695 test ≈ random control (val 0.298 vs
+  0.300) — after the §10 correction this is the expected outcome: there is
+  almost nothing to find. Engineering note: all earlier "CUDA wedge"
+  slowdowns were a single zombie GA process saturating the GPU for hours;
+  once killed, Phase A runs in **42 s**. (`radial_data/evo_region_cifar.json`)
+
 All numbers reproducible from `radial_data/baseline_*.json`,
 `prebaseline_fixes.json`, and the CLI (`python radial_map.py map|probe|rotate|
 ladder`, `python radial_baseline.py all`). Roadmap status lives in
