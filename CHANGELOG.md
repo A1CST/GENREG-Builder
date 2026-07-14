@@ -10,6 +10,89 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-14] (Claude)** — **Terminals: 5-min reopen grace on close +
+  Ghostwriter transcript logger.** (1) Closing a terminal tab (× button) no
+  longer kills the shell — the daemon now **detaches** it and holds the session
+  for `CLOSE_GRACE` (300 s) with the process and scrollback intact. In the UI
+  the tab becomes a dim, dashed **held tab** with a live m:ss countdown; click
+  it to reopen exactly where you left off (new `reopen` op → `terminal_restored`
+  snapshot). After the grace window with no reopen it is reaped
+  (`terminal_closed`). The held state is in the daemon, so it survives a page
+  reload — the `hello` snapshot re-lists detached terminals with their
+  `grace_remaining`. Added a `kill` op for an explicit hard close. (2) New
+  **Ghostwriter** class runs on its own daemon thread: every terminal event is
+  queued (non-blocking) and written to `terminal_logs/session-<date>.jsonl`
+  (machine-readable, raw, incl. keystrokes) plus a human-readable
+  `terminal-<id>.txt` of the on-screen output (ANSI stripped). `terminal_logs/`
+  is gitignored. Touches `terminal_daemon.py`, `static/app.js`,
+  `static/style.css`. Verified headless: detach→snapshot→reopen→reap lifecycle
+  and both log files. NOTE: the terminal daemon (port 5001) must be restarted
+  for this to take effect — and restarting it ENDS all current terminal
+  sessions, so do it when the running terminals are safe to drop.
+
+- **[2026-07-14] (Claude)** — **TSDB ops now show up in the runs log + agent
+  alerts redirect there.** Two fixes: (1) `/tsdb` Verify and Stress now POST to
+  a new `/api/tsdb/run` endpoint that records the op as a real run under a new
+  **`tsdb` environment** (via `runstore.create_run`/`finalize`) and posts the
+  Agent-panel notice **carrying that run_id** — so a `tsdb` tab appears on
+  `/runs` and clicking the notice deep-links straight to the run. Op metrics
+  (rows, bytes, MB/s, checksum-sorted flag) ride along in the run config +
+  notes. (2) `static/agentpanel.js`: notice rows of kind **run / alert / test**
+  are now always clickable — deep-link to the specific run when a run_id is
+  present, otherwise open the runs log — so alerts no longer dead-end. Verified:
+  a recorded tsdb run makes `list_runs()` surface the `tsdb` env and `get_run`
+  returns a detail-renderable shape (empty history degrades cleanly). Restart
+  still required for the new route.
+
+- **[2026-07-14] (Claude)** — **/tsdb pushed: CIFAR added + a limits stress
+  harness.** (1) The data endpoint is now dataset-agnostic — `/api/tsdb/data?
+  set=mnist|cifar` (old `/api/tsdb/mnist` kept as an alias). CIFAR feeds a
+  richer store: the full layer ladder (centroid `.4007` → argmax → mixer →
+  joint → +bias `.5592` → +pairs → full), all 45 one-vs-one pairs, **plus 10
+  per-class one-vs-rest detectors** (new `detectors/ovr` file, schema
+  `time,cls,acc`) with real class names (plane…truck). A MNIST/CIFAR toggle on
+  the page rebuilds the store live. (2) **Push-limits stress card:** hammers a
+  fresh store with N blocks × M rows (default 400×250 = 100k rows / 3.2 MB)
+  appended in **random begin-time order** to stress the sorted binary-search
+  insert (`bound`) and the growing physical buffer. Every value is a
+  reproducible hash, so read-back is checked against a recomputed **checksum**
+  (integrity, not just byte count) and blocks are confirmed to come back sorted;
+  it times serialize / append+flush / read+parse and reports MB/s. Verified in
+  a node harness: 100k rows, blocks sorted, checksum drift ~8e-10, INTEGRITY OK.
+  Both Verify and Stress post their result to the Agent panel.
+
+- **[2026-07-14] (Claude)** — **New /tsdb page: the Float64 block store, driven
+  with real MNIST metrics.** Ported `TSDB.js` (a small append-oriented Float64
+  block store) to run in the browser as `static/tsdb.js` (`TSDBMem`) — the
+  physical `.fabf` layer becomes an in-memory `Uint8Array`, but the manifest,
+  logical files, key/`km` schemas, sorted-block insert (`bound`), and
+  `serialize`/`parse` are faithful to the Node original. New `/tsdb` route +
+  `/api/tsdb/mnist` endpoint (reads the frozen champions in
+  `demo/mnist_genomes.pkl`, no model load) feed the store two series: pipeline
+  layer accuracies (`mnist_layers/stage`, schema `time,acc`) and the 45
+  one-vs-one specialist accuracies (`mnist_pairs/ovo`, schema `time,a,b,acc`).
+  The page (`templates/tsdb.html`, `static/tsdbpage.js`) renders **from the
+  read-back rows** (block → bytes → parse), so the charts, the folded 10×10
+  hard-pair map, and the live manifest all prove the round-trip. "Verify"
+  diffs read-back vs source and posts the result to the **Agent panel**
+  (`source: tsdb-page`, kind `test`). Added "TSDB" to the standard nav. NOTE:
+  Flask runs without the reloader — the new route needs a server restart to go
+  live.
+
+- **[2026-07-14] (Claude)** — **Navbar Demo entry + per-project changelog fix
+  everywhere.** (1) `/radial/demo` is now in the standard nav ("Demo", key
+  `rdemo`, right of Radial); the demo + cousins pages highlight it. (2) The
+  changelog modal's page→project map covered only 7 pages, so CIFAR / PURE /
+  X-Ray / Radial / Images / Video dumped the full master log; the resolver in
+  `static/app.js` now prefix-matches every page (sub-pages like
+  `/radial/demo/cousins` resolve to RADIAL) and falls back to the master log
+  automatically if a project file is missing. (3) Seeded the six missing
+  per-project logs from the master (`documentation/changelogs/CHANGELOG_
+  {RADIAL,CIFAR,PURE,XRAY,IMAGES,VIDEO}.md` — 43/36/27/3/4/8 entries; entries
+  truncated at old-format section headers so the master's tail can't glue
+  on). All eight existing + six new project logs verified serving 200 from
+  the live server. Meta pages (plan/runs/docs) intentionally keep the master
+  log. Static/template/doc changes only — no restart needed.
 - **[2026-07-14] (Claude)** — **4-SEED ENSEMBLE: 0.7570.** Seed-19 converged
   on the pod (547 genomes, **solo test 0.7037 — best single seed, ties the
   old mutation-only record by itself**); union of seeds 7+13+37+19 (2192
