@@ -10,6 +10,12 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-14] (Claude)** — **3-SEED ENSEMBLE: 0.7452.** Seed-37 converged
+  locally (603 genomes, test 0.6956 — third crossover seed within 0.003 of
+  the other two); union of seeds 7+13+37 (1645 genomes, head refit, 12 s):
+  **TEST 0.7452**. Diversity curve: 1 seed ≈0.695 → 2 seeds 0.7313 → 3 seeds
+  0.7452. Ladder top. Seed-43 now farming locally; pod farms 19 (dry-out,
+  0.7119)/29/pop-128. Export `ensemble3_cifar.json`.
 - **[2026-07-14] (Claude)** — OPS: **silent pod-job loss caught and fixed.**
   The chained `nohup A & nohup B &` ssh launch only ever started the first
   job — seed-29 and the pop-128 scale test never ran (an hour of farm time
