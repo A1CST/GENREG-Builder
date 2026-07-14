@@ -10,6 +10,9 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-13] (Claude)** — Radial sphere: origin (0,0,0) marked with a solid
+  **red dot + halo ring**, drawn at the true world origin (`project(0,0,0)`) so
+  it stays put while orbiting/zooming. Replaces the grey identity outline.
 - **[2026-07-13] (Claude)** — Radial v2: **the map is now a navigable 3D
   sphere.** `build_map()` returns the full top-3 MDS embedding (adds `z` per
   point; the radius/nonlinearity check now uses the 3D norm — corr 0.50). The
