@@ -10,6 +10,24 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-14] (Claude)** — **Push-to-80 stage built + crossover replicate
+  results.** (1) `radial_push80.py` implements the user's "push to 80" plan
+  (documentation/push to 80.txt) as grammar v3, all three levers as GENES:
+  STACKING (stage-2 over the converged v2 substrate, head sees both stages),
+  META-GENOME (each term's source is a gene: raw scale-map component OR any
+  frozen genome's output — genomes assembling genomes), CONDITIONAL ROUTING
+  (optional evolved gate: feature × sigmoid(k·gate(x)), gate = own mini
+  feature with evolved sharpness — attention from first principles).
+  Downstream energy economy (steady-state, relative contribution), Schur
+  scorer, crossover 0.5, honest 10k val, freeze bar 0.0002 / dry-streak 5
+  (calibrated by smoke: at a 0.71 substrate marginal gains are thin; a
+  full-size round froze a meta-term genome with starvation 5.0/gen, in
+  band). Staged on pod + shadow. (2) CROSSOVER REPLICATE (seed 7, local)
+  CONVERGED: 503 genomes, val 0.7136, **TEST 0.6936 — above the record's
+  val but BELOW its test** (0.7035): crossover climbs faster and converges
+  smaller but overfits the selection split more (gap 0.020 vs 0.007). Pod
+  seed-13 nearly converged (~0.711 val) — second datapoint pending. Local
+  push-80 run launched on the seed-7 substrate.
 - **[2026-07-14] (Claude)** — **RunPod H100 online + Schur fast-path rewrite.**
   (1) FITNESS REWRITE (`make_scorer` in `radial_evo2.py`): the frozen base's
   normal equations are Cholesky-factored ONCE per round; every candidate is a
