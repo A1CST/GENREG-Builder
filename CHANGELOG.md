@@ -10,6 +10,24 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-14] (Claude)** — **Evolution campaign part 2: THE CEILING BREAKS
+  (Phase B) + the genome map (Phase C).** Phase B in `radial_evo.py`:
+  interaction feature genomes over a label-free patch-PCA environment (40
+  comps, 6×6×3; "features are the environment"); genome = 2 components + 2
+  evolved lens bends + combine op + pool → one scalar/image; soft
+  residual-gain fitness, tournament+elitism+energy, freeze-and-compose ≤8
+  decorrelated winners per round, closed-form ridge head, test measured ONCE.
+  **CIFAR 8k/2k: 24 features → 0.4030 (past the pointwise ceiling 0.3845 in
+  4 s); 317 → 0.5565 (past hand-crafted Coates-Ng 0.493); 647 → 0.5840 in
+  231 s, converged naturally — within 0.006 of the v1 FULL-50k milestone on
+  6× less data, in a ~52 KB model, zero gradients.** Phase C maps the 647
+  genomes by behavior: effective dim **405/647 vs the lens bank's 46/748**
+  (why it works — evolution manufactures new directions ~9× more efficiently
+  than enumeration); population near-spherical (8.3/7.4/6.6). Honest
+  negatives: no radial expansion over discovery time (corr −0.15) and op
+  families don't cluster. Exports `radial_data/evo_interact_cifar.json`,
+  `evo_genome_map.json`; findings §11 updated. Next: same recipe on full
+  50k CIFAR vs the 0.5904 milestone.
 - **[2026-07-14] (Claude)** — **Evolution campaign (autonomous, CIFAR) part 1:
   Phase A + a MAJOR CORRECTION + the zombie.** New `radial_evo.py`. Phase A
   (genome #2, evolve ON the map: plane angles/offset/size select a lens

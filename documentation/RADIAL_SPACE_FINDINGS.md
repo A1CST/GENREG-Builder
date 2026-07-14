@@ -234,6 +234,37 @@ winner's-curse inflation ≈ +0.03). Re-run under the honest protocol
   slowdowns were a single zombie GA process saturating the GPU for hours;
   once killed, Phase A runs in **42 s**. (`radial_data/evo_region_cifar.json`)
 
+- **Phase B — interaction feature genomes: THE CEILING BREAKS.** Environment
+  = label-free patch-PCA component maps (40 comps of 6×6×3 patches, built
+  once — "the features are the environment"). A feature genome = two
+  components, two evolved lens bends, a combine op (mult/|diff|/min), a pool
+  (mean/max) → ONE scalar per image. Evolution (pop 64, soft residual-gain
+  fitness on val, tournament + elitism + energy) breeds features; each round
+  the top ≤8 decorrelated survivors are FROZEN and composed; the head stays
+  closed-form ridge. Results on 8k train / 2k test, test measured ONCE:
+  - 24 features (4 s): **0.4030** — already past the pointwise ceiling 0.3845
+  - 317 features (81 s): **0.5565** — past the hand-crafted Coates-Ng bar
+    (0.493 at this data size) by +6.4 pts
+  - 647 features (231 s, converged naturally — a round froze nothing):
+    **0.5840**, within 0.006 of the v1 FULL-50k Coates-Ng milestone (0.5904)
+    on 6× less data. Model size ≈ **52 KB** (647 genomes × ~10 numbers +
+    the ridge head). No gradients anywhere.
+  (`radial_data/evo_interact_cifar.json`)
+
+- **Phase C — the genome map.** The 647 evolved genomes fingerprinted by
+  behavior (feature values over 512 probe images), MDS to 3D
+  (`radial_data/evo_genome_map.json`):
+  - **Effective dimensionality 405 of 647** — vs the enumerated lens bank's
+    46 of 748. This is WHY Phase B works: freeze-decorrelate pressure
+    manufactures genuinely new behavioral directions ~9× more efficiently
+    than enumeration. The population is near-SPHERICAL (8.3/7.4/6.6), not a
+    disc — evolved features fill behavior space isotropically.
+  - Honest negatives: discovery does NOT expand radially over time
+    (corr −0.15 — the activation-galaxy expansion pattern does not reproduce
+    in the residual-boosting regime), and op families barely cluster
+    (intra 13.76 vs inter 14.03) — behavior is set by the component pair,
+    not the op label.
+
 All numbers reproducible from `radial_data/baseline_*.json`,
 `prebaseline_fixes.json`, and the CLI (`python radial_map.py map|probe|rotate|
 ladder`, `python radial_baseline.py all`). Roadmap status lives in

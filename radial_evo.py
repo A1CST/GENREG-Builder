@@ -213,7 +213,265 @@ def phase_a(pop_size=32, gens=60, seed=0, verbose=True):
     return out
 
 
+# ---------------------------------------------------------------------------
+# Phase B — interaction feature genomes (past the pointwise ceiling)
+# ---------------------------------------------------------------------------
+
+_OPS = ["mult", "absdiff", "min"]
+_POOLS = ["mean", "max"]
+_PRIMS_B = ["id", "abs", "relu", "tanh", "gauss", "sq", "soft", "sin"]
+
+
+def _patch_env(torch, dev, C=40, ps=6, stride=2, seed=0):
+    """The environment: label-free patch-PCA component maps per image.
+    Built from data statistics once; evolution never touches it."""
+    import torch.nn.functional as Fn
+    Xtr, ytr, Xte, yte = cifar_data()
+    itr = torch.tensor(Xtr, device=dev).permute(0, 3, 1, 2).contiguous()
+    ite = torch.tensor(Xte, device=dev).permute(0, 3, 1, 2).contiguous()
+    P = Fn.unfold(itr[:2000], ps, stride=stride)          # (n, 108, L)
+    cols = P.permute(0, 2, 1).reshape(-1, ps * ps * 3)
+    g = torch.Generator(device="cpu").manual_seed(seed)
+    cols = cols[torch.randperm(len(cols), generator=g)[:120000].to(dev)]
+    mu = cols.mean(0)
+    _, _, V = torch.linalg.svd(cols - mu, full_matrices=False)
+    comps = V[:C]                                          # (C, 108)
+
+    def maps(imgs, bs=500):
+        out = []
+        for b in range(0, len(imgs), bs):
+            U = Fn.unfold(imgs[b:b + bs], ps, stride=stride)   # (b,108,L)
+            M = torch.einsum("cd,bdl->bcl", comps, U - mu.view(1, -1, 1))
+            out.append(M)
+        M = torch.cat(out)
+        return M
+    Mtr = maps(itr)
+    sd = Mtr.std((0, 2), keepdim=True) + 1e-6
+    Mtr = Mtr / sd
+    Mte = maps(ite) / sd
+    return Mtr, Mte, (Xtr, ytr, Xte, yte), C
+
+
+def _feat(torch, M, g):
+    """One genome -> one scalar feature per image. M: (N, C, L)."""
+    tp = _tprims(torch)
+    za = tp[_PRIMS_B[g["pa"]]](g["a1"] * M[:, g["i"], :] + g["b1"])
+    zb = tp[_PRIMS_B[g["pb"]]](g["a2"] * M[:, g["j"], :] + g["b2"])
+    op = _OPS[g["op"]]
+    z = za * zb if op == "mult" else (torch.abs(za - zb) if op == "absdiff"
+                                      else torch.minimum(za, zb))
+    return z.mean(1) if _POOLS[g["pool"]] == "mean" else z.amax(1)
+
+
+def _new_gen_b(rng, C):
+    return {"i": int(rng.integers(C)), "j": int(rng.integers(C)),
+            "pa": int(rng.integers(len(_PRIMS_B))), "pb": int(rng.integers(len(_PRIMS_B))),
+            "a1": float(rng.uniform(0.5, 2.5)), "b1": float(rng.uniform(-1, 1)),
+            "a2": float(rng.uniform(0.5, 2.5)), "b2": float(rng.uniform(-1, 1)),
+            "op": int(rng.integers(len(_OPS))), "pool": int(rng.integers(len(_POOLS)))}
+
+
+def _mut_b(rng, g, C, sc):
+    c = dict(g)
+    for k in ("i", "j"):
+        if rng.random() < 0.15:
+            c[k] = int(rng.integers(C))
+    for k in ("pa", "pb"):
+        if rng.random() < 0.15:
+            c[k] = int(rng.integers(len(_PRIMS_B)))
+    for k in ("a1", "a2"):
+        c[k] = float(np.clip(c[k] + rng.normal(0, sc), 0.1, 4.0))
+    for k in ("b1", "b2"):
+        c[k] = float(np.clip(c[k] + rng.normal(0, sc), -2.0, 2.0))
+    if rng.random() < 0.1:
+        c["op"] = int(rng.integers(len(_OPS)))
+    if rng.random() < 0.1:
+        c["pool"] = int(rng.integers(len(_POOLS)))
+    return c
+
+
+def _ridge_soft(torch, Xf, Xv, Yf, yval, lam=3.0):
+    n, d = Xf.shape
+    mu, sd = Xf.mean(0), Xf.std(0) + 1e-6
+    A = torch.hstack([(Xf - mu) / sd, torch.ones(n, 1, device=Xf.device)])
+    B = torch.hstack([(Xv - mu) / sd, torch.ones(len(Xv), 1, device=Xf.device)])
+    W = torch.linalg.solve(A.T @ A + lam * torch.eye(d + 1, device=Xf.device), A.T @ Yf)
+    s = B @ W
+    soft = float(torch.log_softmax(s, 1)[torch.arange(len(yval)), yval].mean())
+    acc = float((s.argmax(1) == yval).float().mean())
+    return soft, acc
+
+
+def phase_b(rounds=14, pop_size=64, gens=12, freeze_top=8, seed=0, verbose=True):
+    import torch
+    rng = np.random.default_rng(seed)
+    dev = "cuda" if torch.cuda.is_available() else "cpu"
+    t0 = time.time()
+    Mtr, Mte, data, C = _patch_env(torch, dev)
+    Xtr, ytr, Xte, yte = data
+    n_fit = 6000
+    yf = torch.tensor(ytr[:n_fit], device=dev)
+    yv = torch.tensor(ytr[n_fit:], device=dev)
+    Yf = -torch.ones((n_fit, 10), device=dev)
+    Yf[torch.arange(n_fit), yf] = 1.0
+
+    frozen, fcols_tr = [], []
+    base_soft = None
+    hist = []
+    for rnd in range(rounds):
+        Ffr = (torch.stack(fcols_tr, 1) if fcols_tr
+               else torch.zeros((len(Xtr), 0), device=dev))
+        s0, a0 = _ridge_soft(torch, Ffr[:n_fit], Ffr[n_fit:], Yf, yv) \
+            if fcols_tr else (-np.log(10.0), 0.1)
+        pop = [_new_gen_b(rng, C) for _ in range(pop_size)]
+        scales = np.full(pop_size, 0.25)
+
+        def fit_pop(genomes):
+            softs, accs, cols = [], [], []
+            for g in genomes:
+                col = _feat(torch, Mtr, g)
+                sd = col.std()
+                if float(sd) < 1e-6:
+                    softs.append(-1e9); accs.append(0.0); cols.append(col)
+                    continue
+                X = torch.cat([Ffr, col.view(-1, 1)], 1)
+                s, a = _ridge_soft(torch, X[:n_fit], X[n_fit:], Yf, yv)
+                softs.append(s - s0); accs.append(a); cols.append(col)
+            return np.array(softs), np.array(accs), cols
+
+        fits, accs, cols = fit_pop(pop)
+        energy = np.ones(pop_size)
+        for gen in range(gens):
+            med = np.median(fits)
+            energy = np.clip(energy * 0.9 + 1.5 * (fits - med) * 50, 0.0, 1.5)
+            starved = energy < 0.2
+            order = np.argsort(fits)[::-1]
+            keep = list(order[:6])
+            alive = [i for i in range(pop_size) if not starved[i]] or list(range(pop_size))
+            kids, ksc = [], []
+            while len(kids) < pop_size - 6:
+                cand = rng.choice(alive, 3)
+                pi = cand[np.argmax(fits[cand])]
+                sc = float(np.clip(scales[pi] * rng.choice([1.3, 1 / 1.3]), 0.03, 0.6))
+                kids.append(_mut_b(rng, pop[pi], C, sc)); ksc.append(sc)
+            kf, ka, kc = fit_pop(kids)
+            pop = [pop[i] for i in keep] + kids
+            scales = np.concatenate([scales[keep], ksc])
+            fits = np.concatenate([fits[keep], kf])
+            accs = np.concatenate([accs[keep], ka])
+            cols = [cols[i] for i in keep] + kc
+            energy = np.concatenate([energy[keep], np.ones(len(kids))])
+
+        # freeze the top genomes, decorrelated against each other + the frozen set
+        order = np.argsort(fits)[::-1]
+        added = 0
+        for idx in order:
+            if fits[idx] <= 0.0005 or added >= freeze_top:
+                break
+            col = cols[idx]
+            colz = (col - col.mean()) / (col.std() + 1e-9)
+            dup = False
+            for fc in fcols_tr[-60:]:
+                fz = (fc - fc.mean()) / (fc.std() + 1e-9)
+                if float(torch.abs((colz * fz).mean())) > 0.95:
+                    dup = True
+                    break
+            if not dup:
+                frozen.append(pop[idx]); fcols_tr.append(col); added += 1
+        Ffr = torch.stack(fcols_tr, 1) if fcols_tr else torch.zeros((len(Xtr), 0), device=dev)
+        s1, a1 = _ridge_soft(torch, Ffr[:n_fit], Ffr[n_fit:], Yf, yv)
+        hist.append({"round": rnd, "added": added, "n_frozen": len(frozen),
+                     "val_soft": round(s1, 4), "val_acc": round(a1, 4),
+                     "starved_last_gen": int(starved.sum())})
+        if verbose:
+            print(f"  [B] round {rnd:2d}  +{added} frozen (total {len(frozen)})  "
+                  f"val acc {a1:.4f}  soft {s1:.4f}  ({round(time.time()-t0)}s)", flush=True)
+        if added == 0:
+            break
+
+    # final honest eval: features on full train + real test, one measurement
+    Fte = torch.stack([_feat(torch, Mte, g) for g in frozen], 1)
+    Ftr = torch.stack(fcols_tr, 1)
+    ytr_t = torch.tensor(ytr, device=dev)
+    Yfull = -torch.ones((len(ytr), 10), device=dev)
+    Yfull[torch.arange(len(ytr)), ytr_t] = 1.0
+    yte_t = torch.tensor(yte, device=dev)
+    _, test_acc = _ridge_soft(torch, Ftr, Fte, Yfull, yte_t)
+    out = {"phase": "B-interaction-genomes", "domain": "cifar",
+           "n_frozen": len(frozen), "test_acc": round(test_acc, 4),
+           "genomes": frozen, "history": hist,
+           "references": {"pointwise_ceiling_honest": 0.3845, "bank400": 0.3815,
+                          "raw": 0.3820, "coates_ng_handcrafted_8k": 0.493},
+           "seconds": round(time.time() - t0)}
+    with open(os.path.join(_HERE, "radial_data", "evo_interact_cifar.json"), "w") as f:
+        json.dump(out, f, indent=1)
+    if verbose:
+        print(f"[B] {len(frozen)} evolved features -> TEST {test_acc:.4f}  "
+              f"(pointwise ceiling 0.3845, hand-crafted patch bar 0.493)", flush=True)
+    return out
+
+
+# ---------------------------------------------------------------------------
+# Phase C — the genome map
+# ---------------------------------------------------------------------------
+
+def phase_c(verbose=True):
+    """Map the evolved genomes the same way lenses were mapped: fingerprint
+    each by its BEHAVIOR (feature values over a fixed probe set), MDS to 3D.
+    Questions: does the genome population have real structure? does evolution
+    expand OUTWARD over discovery time (the activation-galaxy claim)? what is
+    the effective dimensionality of the evolved feature set?"""
+    import torch
+    dev = "cuda" if torch.cuda.is_available() else "cpu"
+    with open(os.path.join(_HERE, "radial_data", "evo_interact_cifar.json")) as f:
+        run = json.load(f)
+    genomes = run["genomes"]
+    Mtr, Mte, data, C = _patch_env(torch, dev)
+    probe = Mtr[:512]
+    sigs = []
+    for g in genomes:
+        v = _feat(torch, probe, g)
+        v = (v - v.mean()) / (v.std() + 1e-9)
+        sigs.append(v.cpu().numpy())
+    S = np.array(sigs)
+    Sz = (S - S.mean(0)) / (S.std(0) + 1e-9)
+    X3 = rm._mds(Sz, 3)
+    X3 = X3 - X3.mean(0)
+    r = np.linalg.norm(X3, axis=1)
+    order = np.arange(len(genomes))                     # freeze order = discovery time
+    expand = rm._safe_corr(order.astype(float), r)      # does radius grow with time?
+    sv = np.linalg.svd(Sz - Sz.mean(0), compute_uv=False)
+    eff = int((sv > 0.01 * sv[0]).sum())
+    # family structure: mean intra-op vs inter-op signature distance
+    ops = np.array([g["op"] for g in genomes])
+    D = np.linalg.norm(Sz[:, None, :100] - Sz[None, :, :100], axis=2)
+    intra = float(np.mean([D[np.ix_(ops == o, ops == o)].mean()
+                           for o in set(ops)]))
+    inter = float(D[np.ix_(ops == 0, ops != 0)].mean()) if (ops == 0).any() else 0.0
+    out = {"phase": "C-genome-map", "n_genomes": len(genomes),
+           "effective_dim": eff,
+           "expansion_corr_time_vs_radius": round(float(expand), 3),
+           "axis_std": [round(float(v), 2) for v in X3.std(0)],
+           "op_intra_dist": round(intra, 2), "op_inter_dist": round(inter, 2),
+           "pts": [{"i": int(i), "x": round(float(X3[i, 0]), 3),
+                    "y": round(float(X3[i, 1]), 3), "z": round(float(X3[i, 2]), 3),
+                    "op": _OPS[genomes[i]["op"]], "pool": _POOLS[genomes[i]["pool"]],
+                    "round": int(i // 8)} for i in range(len(genomes))]}
+    with open(os.path.join(_HERE, "radial_data", "evo_genome_map.json"), "w") as f:
+        json.dump(out, f, indent=1)
+    if verbose:
+        print(f"[C] genome map: {len(genomes)} genomes, effective dim {eff}, "
+              f"shape {out['axis_std']}", flush=True)
+        print(f"    discovery expands outward? corr(time, radius) = {expand:+.3f}", flush=True)
+        print(f"    op families: intra-dist {intra:.2f} vs inter {inter:.2f}", flush=True)
+    return out
+
+
 if __name__ == "__main__":
     import sys
-    if "a" in sys.argv or len(sys.argv) == 1:
+    if "c" in sys.argv:
+        phase_c()
+    elif "b" in sys.argv:
+        phase_b()
+    elif "a" in sys.argv or len(sys.argv) == 1:
         phase_a()
