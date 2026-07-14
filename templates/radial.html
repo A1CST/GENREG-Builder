@@ -56,6 +56,7 @@
     .rm-brow .fl.lo { background:#7d3a2e; }
     .rm-brow .vl { flex:0 0 46px; color:#dbe2ea; font-family:ui-monospace,monospace; font-variant-numeric:tabular-nums; }
     .rm-card canvas { width:100%; height:74px; display:block; border:1px solid #14191f; border-radius:5px; background:#0b0e12; margin-top:8px; }
+    .rm-card canvas.cv-map { height:190px; cursor:grab; }
     .rm-card .cl { font-size:10px; color:#6c7885; margin-top:3px; }
     .rm-card .kf { font-size:10.5px; color:#aeb8c2; line-height:1.5; margin-top:9px; border-top:1px solid #161b22; padding-top:8px; }
     .rm-card .kf b { color:#dbe2ea; }
@@ -91,6 +92,8 @@
           <option value="noise">numbers — noise</option>
           <option value="mnist">images — mnist pixels</option>
           <option value="cifar">images — cifar pixels</option>
+          <option value="text">text — wiki chars</option>
+          <option value="audio">audio — tone samples</option>
         </select>
       </div>
       <div class="rm-fld">

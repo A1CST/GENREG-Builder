@@ -487,7 +487,9 @@
                          r.best.acc > p.acc ? "hi" : "");
     var html = '<div class="rm-card"><h2>' + d.domain + '</h2>' +
       '<div class="sub">' + (p.task || p.input_format || "") + " · train " + p.train +
-      " / test " + p.test + '</div>' + rows.join("");
+      " / test " + p.test + '</div>' +
+      '<canvas class="cv-map"></canvas>' +
+      '<div class="cl cv-map-lbl">building domain map…</div>' + rows.join("");
     html += '<canvas class="cv-curve"></canvas><div class="cl">accuracy vs lens count (' +
       p.curve.map(function (c) { return c.n_lens; }).join("/") + ' lenses)</div>';
     if (r && r.acc) {
@@ -511,11 +513,86 @@
                   { ref: r.baseline_random_mean });
       }
       if (p.per_class) classChart(el.querySelector(".cv-cls"), p.per_class);
+      miniMap(el.querySelector(".cv-map"), el.querySelector(".cv-map-lbl"), d.domain);
     });
     return el;
   }
 
   var chartQueue = [];
+
+  /* a small self-spinning, drag-orbitable 3D cloud of one domain's map */
+  function miniMap(cv, lbl, kind) {
+    post("/api/radial/map", { n: 600, kind: kind }).then(function (d) {
+      if (d.error) { lbl.textContent = d.error; return; }
+      var P = d.pts;
+      var maxR = 1e-9;
+      P.forEach(function (p) {
+        maxR = Math.max(maxR, Math.sqrt(p.x * p.x + p.y * p.y + (p.z || 0) * (p.z || 0)));
+      });
+      var sx = 0, sy = 0, sz = 0;
+      P.forEach(function (p) { sx += p.x * p.x; sy += p.y * p.y; sz += (p.z || 0) * (p.z || 0); });
+      var st = function (v) { return Math.sqrt(v / P.length).toFixed(1); };
+      lbl.textContent = "domain map, " + d.n + " lenses · shape " + st(sx) + " / " +
+        st(sy) + " / " + st(sz) + " · auto-spins, drag to orbit";
+      var yaw2 = 0.5, pitch2 = -0.35, dragging = null, spin = true;
+      var W = cv.width = cv.clientWidth * 2, H = cv.height = cv.clientHeight * 2;
+      var s = (Math.min(W, H) / 2 - 14) / maxR;
+      var ctx = cv.getContext("2d");
+
+      function proj(x, y, z) {
+        var cy2 = Math.cos(yaw2), sy2 = Math.sin(yaw2);
+        var cp2 = Math.cos(pitch2), sp2 = Math.sin(pitch2);
+        var x1 = x * cy2 + z * sy2, z1 = -x * sy2 + z * cy2;
+        return [W / 2 + x1 * s, H / 2 + (y * cp2 - z1 * sp2) * s, y * sp2 + z1 * cp2];
+      }
+
+      function render() {
+        ctx.clearRect(0, 0, W, H);
+        var order = [];
+        for (var i = 0; i < P.length; i++) {
+          var c = proj(P[i].x, P[i].y, P[i].z || 0);
+          order.push([c[2], i, c[0], c[1]]);
+        }
+        order.sort(function (a, b) { return a[0] - b[0]; });
+        var zlo = order[0][0], zr = Math.max(1e-9, order[order.length - 1][0] - zlo);
+        for (var k = 0; k < order.length; k++) {
+          var dep = (order[k][0] - zlo) / zr;
+          ctx.globalAlpha = 0.3 + 0.7 * dep;
+          ctx.fillStyle = colour(P[order[k][1]].nl);
+          ctx.beginPath();
+          ctx.arc(order[k][2], order[k][3], 1.6 + 2.2 * dep, 0, 2 * Math.PI);
+          ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+        var o = proj(0, 0, 0);
+        ctx.fillStyle = "#e04b3a";
+        ctx.beginPath(); ctx.arc(o[0], o[1], 5, 0, 2 * Math.PI); ctx.fill();
+      }
+
+      cv.addEventListener("pointerdown", function (ev) {
+        ev.preventDefault();
+        dragging = { x: ev.clientX, y: ev.clientY, yaw: yaw2, pitch: pitch2 };
+        spin = false;
+        cv.setPointerCapture(ev.pointerId);
+      });
+      cv.addEventListener("pointermove", function (ev) {
+        if (!dragging) return;
+        yaw2 = dragging.yaw + (ev.clientX - dragging.x) * 0.01;
+        pitch2 = Math.max(-1.55, Math.min(1.55,
+          dragging.pitch + (ev.clientY - dragging.y) * 0.01));
+      });
+      cv.addEventListener("pointerup", function () {
+        dragging = null;
+        setTimeout(function () { spin = true; }, 2500);
+      });
+
+      (function loop() {
+        if (spin) yaw2 += 0.004;
+        render();
+        requestAnimationFrame(loop);
+      })();
+    }).catch(function (e) { lbl.textContent = "map failed: " + e; });
+  }
 
   function keyFinding(d) {
     var p = d.probe, r = d.rotation_probe;

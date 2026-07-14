@@ -10,6 +10,14 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-13] (Claude)** — Baselines view: **each card now shows the
+  domain's actual 3D MAP** (user: "I really wanted the map of the baselines so
+  I can see the shapes"). Every card fetches its own 600-lens cloud from
+  `/api/radial/map` with that domain's stream and renders a mini 3D scatter —
+  auto-spinning, drag to orbit, depth-sorted, coloured by nonlinearity, red
+  origin dot, measured axis shape in the caption. `text`/`audio` added to the
+  main Map view's data-type select too (both verified: text 4.85/4.10/2.03,
+  audio 5.17/3.63/1.85, determinism 0.0). Cards/bars/curves untouched.
 - **[2026-07-13] (Claude)** — Radial page: **Baselines view** (sidebar View
   toggle: Map | Baselines). New GET `/api/radial/baselines` serves the roadmap
   exports (`radial_data/baseline_*.json` + `prebaseline_fixes.json`); the page
