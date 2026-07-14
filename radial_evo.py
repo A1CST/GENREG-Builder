@@ -534,9 +534,264 @@ def phase_b_full(verbose=True):
     return out
 
 
+# ---------------------------------------------------------------------------
+# Phase D — the PLATEAU SAFETY MECHANISM: stack a new radial space on the
+# outputs of the converged one
+# ---------------------------------------------------------------------------
+
+def phase_stack(rounds=60, pop_size=64, gens=12, freeze_top=8, seed=1, verbose=True):
+    """When adding more genomes stops helping (phase_b converged: a round
+    froze nothing), take the END-OF-GENOME OUTPUTS — the frozen features —
+    and hand them to a NEW radial space as its data. Stage-2 genomes read
+    stage-1 features exactly the way stage-1 genomes read patch components
+    (two channels, two lens bends, combine op). Measured, test once each:
+      - stacked  = ridge on [stage-1 + stage-2]  (does the plateau break?)
+      - stage-2 only = ridge on stage-2 features (how close does the new
+        space get to re-expressing stage 1 from its outputs alone?)
+    Plus the stage-2 behavioral map for the record."""
+    import torch
+    rng = np.random.default_rng(seed)
+    dev = "cuda" if torch.cuda.is_available() else "cpu"
+    t0 = time.time()
+    with open(os.path.join(_HERE, "radial_data", "evo_interact_cifar.json")) as f:
+        run1 = json.load(f)
+    genomes1 = run1["genomes"]
+    Mtr, Mte, data, C = _patch_env(torch, dev, C=int(run1.get("C_env", 40)))
+    Xtr, ytr, Xte, yte = data
+    F1tr = torch.stack([_feat(torch, Mtr, g) for g in genomes1], 1)
+    F1te = torch.stack([_feat(torch, Mte, g) for g in genomes1], 1)
+    mu1, sd1 = F1tr.mean(0), F1tr.std(0) + 1e-6
+    # stage-2 environment: z-scored stage-1 outputs as (N, C2, 1) "maps"
+    M2tr = ((F1tr - mu1) / sd1).unsqueeze(2)
+    M2te = ((F1te - mu1) / sd1).unsqueeze(2)
+    C2 = M2tr.shape[1]
+
+    n_fit = 6000
+    yv = torch.tensor(ytr[n_fit:], device=dev)
+    Yf = -torch.ones((n_fit, 10), device=dev)
+    Yf[torch.arange(n_fit), torch.tensor(ytr[:n_fit], device=dev)] = 1.0
+    s_plateau, a_plateau = _ridge_soft(torch, F1tr[:n_fit], F1tr[n_fit:], Yf, yv)
+    if verbose:
+        print(f"[D] plateau baseline (stage-1 only): val acc {a_plateau:.4f}", flush=True)
+
+    frozen2, cols2 = [], []
+    hist = []
+    for rnd in range(rounds):
+        base = torch.cat([F1tr, torch.stack(cols2, 1)], 1) if cols2 else F1tr
+        s0, _ = _ridge_soft(torch, base[:n_fit], base[n_fit:], Yf, yv)
+        pop = [_new_gen_b(rng, C2) for _ in range(pop_size)]
+        scales = np.full(pop_size, 0.25)
+
+        def fit_pop(gs):
+            softs, accs, cols = [], [], []
+            for g in gs:
+                col = _feat(torch, M2tr, g)
+                if float(col.std()) < 1e-6:
+                    softs.append(-1e9); accs.append(0.0); cols.append(col)
+                    continue
+                X = torch.cat([base, col.view(-1, 1)], 1)
+                s, a = _ridge_soft(torch, X[:n_fit], X[n_fit:], Yf, yv)
+                softs.append(s - s0); accs.append(a); cols.append(col)
+            return np.array(softs), np.array(accs), cols
+
+        fits, accs, cols = fit_pop(pop)
+        # DOWNSTREAM ENERGY ECONOMY (every radial space after the first):
+        #   existing costs (decay), producing an output costs, any valid
+        #   output restores a little, and real energy comes ONLY from output
+        #   that leads to the right answer THROUGH the composition (fits =
+        #   residual gain measured in context of the frozen ensemble). A
+        #   newborn has ~8 gens to prove contribution before it starves and
+        #   is REPLACED — who produces the right answer fastest, survives.
+        # tuned so a non-contributor starves at ~gen 6 (existence clock bites);
+        # a genome earning residual gain >= ~0.0005 sustains itself indefinitely
+        # STEADY-STATE population: genomes PERSIST and live off their energy —
+        # existing costs (decay), producing an output costs, any valid output
+        # restores a little, and real energy comes only from above-median
+        # contribution to the right answer through the composition. A genome
+        # that never out-earns the median starves in ~6 generations and its
+        # slot goes to a child of the living — fastest to contribute survives.
+        E_DECAY, OUT_COST, RESTORE, GAIN, E_FLOOR2, E_MAX2 = 0.75, 0.05, 0.04, 400.0, 0.2, 1.5
+        MIN_TURNOVER = 12                       # search pressure even with no deaths
+        energy = np.ones(pop_size)
+        starved_total = 0
+        for gen in range(gens):
+            valid = fits > -1e8
+            energy = np.clip(energy * E_DECAY - OUT_COST + RESTORE * valid
+                             + GAIN * np.maximum(fits - np.median(fits), 0.0),
+                             0.0, E_MAX2)
+            starved = energy < E_FLOOR2
+            starved_total += int(starved.sum())
+            dead = list(np.where(starved)[0])
+            # turnover floor: also recycle the weakest of the living
+            if len(dead) < MIN_TURNOVER:
+                living_by_fit = [i for i in np.argsort(fits) if i not in set(dead)]
+                dead += living_by_fit[:MIN_TURNOVER - len(dead)]
+            alive = [i for i in range(pop_size) if i not in set(dead)] or \
+                    list(np.argsort(fits)[::-1][:4])
+            kids, ksc = [], []
+            n_fresh = max(1, len(dead) // 4)     # some slots go to fresh blood
+            for k in range(len(dead)):
+                if k < n_fresh:
+                    kids.append(_new_gen_b(rng, C2)); ksc.append(0.25)
+                else:
+                    cand = rng.choice(alive, 3)
+                    pi = cand[np.argmax(fits[cand])]
+                    sc = float(np.clip(scales[pi] * rng.choice([1.3, 1 / 1.3]), 0.03, 0.6))
+                    kids.append(_mut_b(rng, pop[pi], C2, sc)); ksc.append(sc)
+            kf, ka, kc = fit_pop(kids)
+            for slot, k in zip(dead, range(len(kids))):
+                pop[slot] = kids[k]
+                scales[slot] = ksc[k]
+                fits[slot] = kf[k]
+                accs[slot] = ka[k]
+                cols[slot] = kc[k]
+                energy[slot] = 1.0               # newborns start with full budget
+        order = np.argsort(fits)[::-1]
+        added = 0
+        for idx in order:
+            if fits[idx] <= 0.0005 or added >= freeze_top:
+                break
+            col = cols[idx]
+            colz = (col - col.mean()) / (col.std() + 1e-9)
+            dup = False
+            for fc in cols2[-60:]:
+                fz = (fc - fc.mean()) / (fc.std() + 1e-9)
+                if float(torch.abs((colz * fz).mean())) > 0.95:
+                    dup = True
+                    break
+            if not dup:
+                frozen2.append(pop[idx]); cols2.append(col); added += 1
+        base = torch.cat([F1tr, torch.stack(cols2, 1)], 1) if cols2 else F1tr
+        s1, a1 = _ridge_soft(torch, base[:n_fit], base[n_fit:], Yf, yv)
+        hist.append({"round": rnd, "added": added, "n_stage2": len(frozen2),
+                     "val_acc_stacked": round(a1, 4),
+                     "starved_per_gen": round(starved_total / max(gens, 1), 1)})
+        if verbose:
+            print(f"  [D] round {rnd:2d}  +{added} (stage2 {len(frozen2)})  "
+                  f"stacked val {a1:.4f}  (plateau was {a_plateau:.4f}, "
+                  f"{round(time.time()-t0)}s)", flush=True)
+        if added == 0:
+            break
+
+    # honest finals, each model tested once on the real test set
+    yte_t = torch.tensor(yte, device=dev)
+    Yfull = -torch.ones((len(ytr), 10), device=dev)
+    Yfull[torch.arange(len(ytr)), torch.tensor(ytr, device=dev)] = 1.0
+    F2tr = torch.stack(cols2, 1) if cols2 else torch.zeros((len(ytr), 0), device=dev)
+    F2te = (torch.stack([_feat(torch, M2te, g) for g in frozen2], 1)
+            if frozen2 else torch.zeros((len(yte), 0), device=dev))
+    _, t_stage1 = _ridge_soft(torch, F1tr, F1te, Yfull, yte_t)
+    _, t_stacked = _ridge_soft(torch, torch.cat([F1tr, F2tr], 1),
+                               torch.cat([F1te, F2te], 1), Yfull, yte_t)
+    t_stage2 = 0.0
+    if frozen2:
+        _, t_stage2 = _ridge_soft(torch, F2tr, F2te, Yfull, yte_t)
+    # the stage-2 map
+    sig = [(c - c.mean()) / (c.std() + 1e-9) for c in cols2]
+    map_stats = {}
+    if len(sig) > 3:
+        S = torch.stack(sig, 0)[:, :512].cpu().numpy()
+        Sz = (S - S.mean(0)) / (S.std(0) + 1e-9)
+        X3 = rm._mds(Sz, 3)
+        sv = np.linalg.svd(Sz - Sz.mean(0), compute_uv=False)
+        map_stats = {"axis_std": [round(float(v), 2) for v in X3.std(0)],
+                     "effective_dim": int((sv > 0.01 * sv[0]).sum())}
+    out = {"phase": "D-stacked-radial-space", "domain": "cifar",
+           "plateau_val": round(a_plateau, 4),
+           "n_stage2": len(frozen2),
+           "test_stage1_only": round(t_stage1, 4),
+           "test_stacked": round(t_stacked, 4),
+           "test_stage2_only": round(t_stage2, 4),
+           "stage2_map": map_stats, "history": hist,
+           "genomes2": frozen2,
+           "seconds": round(time.time() - t0)}
+    with open(os.path.join(_HERE, "radial_data", "evo_stack_cifar.json"), "w") as f:
+        json.dump(out, f, indent=1)
+    if verbose:
+        print(f"[D] TEST: stage-1 {t_stage1:.4f} | stacked {t_stacked:.4f} | "
+              f"stage-2-only {t_stage2:.4f} ({len(frozen2)} stage-2 genomes, "
+              f"{out['seconds']}s)", flush=True)
+    return out
+
+
+def phase_stack_full(verbose=True):
+    """Stacked model on full CIFAR: stage-1 features from the saved genomes,
+    stage-2 features computed on z-scored stage-1 outputs (stats refit on the
+    full train split), ridge head, test once."""
+    import torch
+    import torch.nn.functional as Fn
+    dev = "cuda" if torch.cuda.is_available() else "cpu"
+    t0 = time.time()
+    with open(os.path.join(_HERE, "radial_data", "evo_interact_cifar.json")) as f:
+        run1 = json.load(f)
+    with open(os.path.join(_HERE, "radial_data", "evo_stack_cifar.json")) as f:
+        run2 = json.load(f)
+    genomes1, C = run1["genomes"], int(run1.get("C_env", 40))
+    genomes2 = run2.get("genomes2") or []
+    if not genomes2:
+        raise RuntimeError("stage-2 genomes missing from evo_stack_cifar.json")
+    z = np.load(os.path.join(_HERE, "radial_data", "cifar_full.npz"))
+    Xtr = z["Xtr"].astype(np.float32) / 255.0
+    Xte = z["Xte"].astype(np.float32) / 255.0
+    ytr, yte = z["ytr"], z["yte"]
+    X8 = cifar_data()[0]
+    i8 = torch.tensor(X8[:2000], device=dev).permute(0, 3, 1, 2).contiguous()
+    P = Fn.unfold(i8, 6, stride=2)
+    cols = P.permute(0, 2, 1).reshape(-1, 108)
+    g = torch.Generator(device="cpu").manual_seed(0)
+    cols = cols[torch.randperm(len(cols), generator=g)[:120000].to(dev)]
+    mu = cols.mean(0)
+    _, _, V = torch.linalg.svd(cols - mu, full_matrices=False)
+    comps = V[:C]
+    sd8 = None
+
+    def f1(X, bs=400):
+        nonlocal sd8
+        out = torch.zeros((len(X), len(genomes1)), device=dev)
+        for b in range(0, len(X), bs):
+            imgs = torch.tensor(X[b:b + bs], device=dev).permute(0, 3, 1, 2).contiguous()
+            U = Fn.unfold(imgs, 6, stride=2)
+            M = torch.einsum("cd,bdl->bcl", comps, U - mu.view(1, -1, 1))
+            if sd8 is None:
+                sd8 = M.std((0, 2), keepdim=True) + 1e-6
+            M = M / sd8
+            for k, gn in enumerate(genomes1):
+                out[b:b + len(imgs), k] = _feat(torch, M, gn)
+        return out
+
+    F1tr, F1te = f1(Xtr), f1(Xte)
+    mu1, sd1 = F1tr.mean(0), F1tr.std(0) + 1e-6
+    M2tr = ((F1tr - mu1) / sd1).unsqueeze(2)
+    M2te = ((F1te - mu1) / sd1).unsqueeze(2)
+    F2tr = torch.stack([_feat(torch, M2tr, g2) for g2 in genomes2], 1)
+    F2te = torch.stack([_feat(torch, M2te, g2) for g2 in genomes2], 1)
+    Y = -torch.ones((len(ytr), 10), device=dev)
+    Y[torch.arange(len(ytr)), torch.tensor(ytr, device=dev)] = 1.0
+    yte_t = torch.tensor(yte, device=dev)
+    best = 0.0
+    for lam in (1.0, 3.0, 10.0, 30.0):
+        _, acc = _ridge_soft(torch, torch.cat([F1tr, F2tr], 1),
+                             torch.cat([F1te, F2te], 1), Y, yte_t, lam=lam)
+        best = max(best, acc)
+    out = {"phase": "D-stack-full", "test_acc": round(best, 4),
+           "n_stage1": len(genomes1), "n_stage2": len(genomes2),
+           "references": {"stage1_full": 0.6257, "v1_milestone": 0.5904},
+           "seconds": round(time.time() - t0)}
+    with open(os.path.join(_HERE, "radial_data", "evo_stack_full_cifar.json"), "w") as f:
+        json.dump(out, f, indent=1)
+    if verbose:
+        print(f"[D-full] stacked on 50k/10k: TEST {best:.4f} "
+              f"(stage-1 full 0.6257, v1 0.5904, {out['seconds']}s)", flush=True)
+    return out
+
+
 if __name__ == "__main__":
     import sys
-    if "full" in sys.argv:
+    if "stackfull" in sys.argv:
+        phase_stack_full()
+    elif "stack" in sys.argv:
+        phase_stack()
+    elif "full" in sys.argv:
         phase_b_full()
     elif "c" in sys.argv:
         phase_c()

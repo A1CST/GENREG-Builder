@@ -260,6 +260,22 @@ winner's-curse inflation ≈ +0.03). Re-run under the honest protocol
   gradient-free. Genomes transfer across data scale without re-evolution.
   (`radial_data/evo_full_cifar.json`)
 
+- **Phase D — stacked radial spaces (the plateau safety mechanism) + the
+  downstream energy economy.** When stage-1 hard-converged, its outputs were
+  handed to a NEW radial space as data. The plateau broke: 8k stacked test
+  0.5945 (from 0.5840), full-50k **0.6353**; stage-2 alone re-expresses
+  0.5285 of stage-1 from outputs only. Then the user's energy economy for
+  all downstream spaces (existing costs, outputting costs, small restore for
+  any output, real energy only from above-median contribution to the right
+  answer through the composition; steady-state population so the existence
+  clock actually ticks — 7.5% starved/gen, in the 3–15% band): **96% of the
+  stacking lift with 50 genomes instead of 411** (full-50k 0.6283) — energy
+  is a compression pressure, buying efficiency rather than peak. Two
+  falsified designs on the way: absolute contribution never starves anyone
+  (adding any column helps ridge a little — the bar must be RELATIVE), and a
+  comma-style GA never lets the existence clock tick (the population must
+  PERSIST). Exports `evo_stack_cifar.json`, `evo_stack_full_cifar.json`.
+
 - **Phase C — the genome map.** The 647 evolved genomes fingerprinted by
   behavior (feature values over 512 probe images), MDS to 3D
   (`radial_data/evo_genome_map.json`):

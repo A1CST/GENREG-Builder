@@ -10,6 +10,26 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-14] (Claude)** — Evolution campaign part 5: **the plateau safety
+  mechanism WORKS (Phase D: stacked radial spaces) + the downstream energy
+  economy.** `phase_stack()`: when phase_b hard-converges (a round freezes
+  nothing), the frozen genome OUTPUTS become the data for a NEW radial space
+  (stage-2 genomes read stage-1 features exactly as stage-1 read patch
+  components). Results (test once each): stage-1 0.5840 → **stacked 0.5945**
+  on 8k (plateau broken, val 0.661→0.695 still climbing at the round cap);
+  stage-2 alone re-expresses 0.5285 from outputs only; **full-50k transfer
+  0.6353** (`phase_stack_full`). Ladder: v1 0.5904 → B 0.6198 → C=80 0.6257 →
+  **stacked 0.6355**. THEN (user directive): every downstream space's genomes
+  live under a real ENERGY ECONOMY — existing costs, outputting costs, any
+  valid output restores a little, real energy ONLY from above-median
+  contribution to the right answer through the composition; steady-state
+  population (genomes persist, starved die, slots go to children — two
+  earlier attempts left starvation at 0%: per-genome gains are almost never
+  negative so the bar must be RELATIVE, and a comma-style GA never lets the
+  existence clock tick; both fixed). Now **7.5% starved/gen (in the 3-15%
+  band)** and the economy buys EFFICIENCY: 96% of the stacking lift with 50
+  stage-2 genomes instead of 411 (8k stacked 0.5900, full 0.6283). Exports
+  `evo_stack_cifar.json`, `evo_stack_full_cifar.json`.
 - **[2026-07-14] (Claude)** — Evolution campaign part 4: **environment
   richness knob** (user asked how much lift evolution really provides).
   `phase_b(C_env=…)`: doubling the patch-PCA environment 40→80 components,
