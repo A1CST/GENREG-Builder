@@ -10,6 +10,24 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-13] (Claude)** — **ENTIRE RADIAL BASELINE ROADMAP RUN** (all
+  domains + pre-baseline fixes; results in `documentation/RADIAL_BASELINES.md`
+  and `radial_data/baseline_{cifar,text,audio}.json` + `prebaseline_fixes.json`).
+  Headlines: **CIFAR** raw 0.3820 vs bank 0.3815 — pointwise lenses add ZERO
+  (interaction-bound domain); but a 24-lens rotation slice hits 0.4015,
+  beating the full bank AND raw. **TEXT** lens bank 0.2651 vs measured
+  bigram-table ceiling 0.2661 — the bank recovers the bigram function to
+  within 0.001 with NO table; nothing above the ceiling is reachable pointwise.
+  **AUDIO** raw 0.4105 vs bank 0.3725 — the bank HURTS; random phase makes
+  every pointwise view class-identical (temporal rotation confirmed mandatory);
+  biggest angular spread of any domain (0.1625). **FIXES:** Z-axis whitening
+  does not shrink dead zones (spread 0.8282 vs 0.8285, same 0.1694 floor);
+  x/y/z spin axes all equivalent — free rotation fine, no anchor needed.
+  Cross-domain law that fell out: the less pointwise diversity can buy
+  (MNIST +3.9 > CIFAR +0.0 > audio −3.8), the more WHICH slice you take
+  matters — slice > full bank on the hard domains. Fix en route: radial_map
+  was missing `import os` (cifar stream crash mid-sweep). Genome targets are
+  now defined by these gaps per the roadmap's closing line.
 - **[2026-07-13] (Claude)** — **Radial baselines campaign started** (user's
   roadmap `~/Downloads/radial_space_baselines.md` → copied to
   `documentation/RADIAL_BASELINES.md`). New `radial_baseline.py`: full lens

@@ -20,7 +20,11 @@ nonlinearity outward, oscillators on their own branches):
 No gradients anywhere. No training in the map itself — it is enumerated, not
 searched. Everything is deterministic given (index, data kind).
 """
+import os
+
 import numpy as np
+
+_HERE = os.path.dirname(os.path.abspath(__file__))
 
 # ---------------------------------------------------------------------------
 # 1. the lens space — primitive ops, index-addressed programs

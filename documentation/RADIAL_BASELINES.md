@@ -39,6 +39,60 @@
   mostly-zero pixel data collapses many lens behaviors together.
 - **Export:** `radial_data/baseline_mnist.json` (probe + rotation_probe + shape).
 
+### 3. Image Baseline (CIFAR-10) — COMPLETED 2026-07-13
+- **Raw-pixel linear head 0.3820; lens bank L=400 0.3815** — the pointwise bank
+  adds NOTHING on CIFAR (slightly hurts at small L). Colour/texture/shape is
+  entirely interaction-bound; per-value nonlinearity buys zero.
+- **Per-channel vs flattened: mathematically identical here** — pointwise
+  lenses transform each value independently, so how the vector is split is
+  invisible to the model. The question only becomes real with windowed input.
+- **Rotation probe:** best 0.4015 @ 105° — **a 24-lens slice BEATS both the
+  full 400-lens bank (0.3815) and raw linear (0.3820)**; worst 0.3685, random
+  0.3774. First domain where slicing outperforms the whole bank (extra lenses
+  are noise dimensions here).
+- **Map shape (cifar stream):** 4.83 / 3.71 / 2.09 — disc, like loops.
+- **Ceiling vs MNIST:** the GAM gains +3.9 pts on MNIST, ±0.0 on CIFAR — the
+  harder the interactions, the less pointwise diversity buys.
+- **Export:** `radial_data/baseline_cifar.json`.
+
+### 4. Text / Byte-Level Baseline — COMPLETED 2026-07-13
+- **Setup:** wiki corpus (read-only), 50-char vocab, next-char from the CURRENT
+  char id only (scalar, pointwise), primal ridge, 60k/15k random split.
+- **Majority 0.1633 · raw-linear 0.1855 · lens bank L=128+ 0.2651 ·
+  measured bigram-table ceiling 0.2661** — the lens bank + linear head lands
+  **within 0.001 of the bigram table with no table**: the bank spans arbitrary
+  functions of the current char, and evolution-free closed-form recovers it.
+- **ANSWER: pointwise lens diversity captures NO sequential structure beyond
+  bigram — it saturates exactly AT the bigram ceiling.** Context (temporal
+  rotation / windows) is where anything above 0.266 must come from.
+- **Minimum lens count:** 8 lenses already 0.2245; 128 saturate the ceiling.
+- **Map shape (text stream):** 4.84 / 4.18 / 2.16. Rotation spread 0.0587.
+- **Export:** `radial_data/baseline_text.json`.
+
+### 5. Audio / Temporal Signal Baseline — COMPLETED 2026-07-13
+- **Setup:** synthetic tone detection (10 frequencies, random phase/amplitude,
+  noise), raw 256-sample waveform, pointwise bank + kernel head.
+- **Raw linear 0.4105; lens bank 0.3725 — the bank HURTS on temporal data.**
+  With random phase every sample position's value distribution is identical
+  across classes; the linear head's above-chance score is a variance exploit,
+  and pointwise lenses only dilute it.
+- **ANSWER: yes — this is where temporal rotation becomes mandatory.** No
+  pointwise transform can be phase-invariant; frequency lives BETWEEN samples.
+- **Rotation probe:** the largest angular structure of any domain (spread
+  0.1625; best slice 0.4025 @ 17° — again beats the full bank), because when
+  the bank is mostly dead weight, WHICH lenses you take matters most.
+- **Map shape (audio stream):** 5.12 / 3.54 / 1.95.
+- **Export:** `radial_data/baseline_audio.json`.
+
+### Pre-Baseline Fixes — ANSWERED 2026-07-13
+- **Z-axis expansion (whitened MDS axes): does NOT help.** Whitened-y rotation
+  spread 0.8282 vs plain 0.8285, same worst-case floor 0.1694. The dead zone
+  is a property of which lenses are behaviorally redundant, not of axis scale.
+- **Rotation axis lock: axis choice does not matter.** X/Y/Z spins all give
+  spread ~0.82-0.83 and the SAME worst-case floor (0.1694) — the redundant
+  clump is hit by every great circle. Free rotation is fine; no anchor needed
+  at this stage. Export: `radial_data/prebaseline_fixes.json`.
+
 ---
 
 ## Needed
