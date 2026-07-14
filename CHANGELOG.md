@@ -10,6 +10,22 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-14] (Claude)** — Evolution campaign part 7: **the honest-ruler
+  deep run (full 50k, 10k val) — the bet was WRONG, and the answer is
+  better.** `run_deep_50k()`: stages 2+ evolved on full CIFAR, fitness val =
+  10k held-back train samples, test touched once. The instrument now reads
+  true (stage-1 val 0.6349 ≈ its real test 0.6378 — no inflation). Result:
+  stages [667, +68, +26, +6], val 0.6429, **TEST 0.6279** — the tower
+  converges at ~770 genomes and does NOT move past the 8k tower's 0.6378.
+  Reading: the 8k run's 310 overfit-selected stage-2 genomes still helped at
+  full scale as BULK diversity (random-feature effect: quantity beat
+  precision), while the honest bar freezes only precision picks and the
+  genome class is simply near-exhausted at ~0.63-0.64 full-CIFAR. WHERE IT
+  ACTUALLY STOPS: this feature-genome class (2 components, depth-1 bends,
+  one op, one pool) saturates here; further lift requires EXPRESSIVITY
+  (multi-scale patches, deeper programs, genomes-of-genomes), not more
+  selection. Ladder top remains 0.6378. Export `evo_deep50_cifar.json`;
+  levers/checkpoints worked; run took ~9 min of GPU.
 - **[2026-07-14] (Claude)** — Evolution campaign part 6: **the deep run — where
   it actually stops.** `run_deep()` in `radial_evo.py`: stack radial spaces
   until a stage adds < 0.002 val; per-round ATOMIC checkpoints
