@@ -10,6 +10,29 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-14] (Claude)** — **The four open questions ANSWERED; PDF updated
+  to 6 pages; main fast-forwarded on GitHub.** Q1 (why a disc): MDS axis 1
+  correlates +0.99 with LINEARITY; axis 2 is response-curve shape (79% of
+  curve variance in 2 PCs) — lens behavior has ~2 dominant degrees of freedom.
+  Q2 (dead zone): **it is the linear core itself** — worst slice = 23 `id`
+  lenses (nl 0.000, intra-distance 0.34 vs 9.10 random); floor 0.1694 = the
+  raw-linear score; same floor on every axis because every great circle passes
+  through the origin; REMOVABLE — dropping the 126 near-linear lenses raises
+  the floor 0.169→0.822 (spread 0.83→0.18). Q3 (temporal rotation):
+  **CONFIRMED** — lens-view agreement across time steps (lens-space
+  autocorrelation, δ=1..16, phase-invariant, closed-form) takes audio tones
+  from 0.41 (raw) / 0.37 (pointwise) to **1.0000 with 16 features** (caveat:
+  identity alone saturates this task — diversity awaits a harder one).
+  Q4 (genome bridge): first radial genome `radial_slice_ga.py` (24-lens slice
+  picker on CIFAR, soft fitness + energy, batched GPU fitness — one (POP,N,N)
+  LU per generation after the sequential version wedged CUDA twice in
+  background runs; 305 s total): **0.376 = random-subset level, below the
+  map-geometry slice 0.4015** — index-space fitness is flat by nature
+  (±0.002); the genome's search space should be the MAP itself (plane/angle/
+  region), which is the design brief for genome #2. Findings doc §8 + PDF
+  page 6 (`RADIAL_SPACE_FINDINGS.pdf`). GitHub visibility fixed: the branch
+  was pushed but the repo front page shows `main` — main fast-forwarded to
+  the branch head (1673a49→4224e61) and pushed.
 - **[2026-07-13] (Claude)** — **Cousin finder: explicit runs, Runs-page
   recording, JSON report download.** `/radial/demo/cousins` no longer runs on
   page load (canvas shows a "press find" placeholder); cousins and siblings
