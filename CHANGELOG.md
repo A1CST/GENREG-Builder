@@ -10,6 +10,15 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-14] (Claude)** — Evolution campaign part 10: **crossover A/B —
+  it helps.** `crossover()` added to `radial_evo2.py` (uniform per-gene
+  recombination of two tournament parents: terms drawn from both, window
+  blends half the time, then normal mutation), `run(p_cross=…, ckpt_path=…,
+  out_path=…)` so experiments never clobber the record artifacts. Controlled
+  smoke (same seed, same 10-round budget, full-50k honest val): mutation-only
+  val 0.5401 / test 0.5307 vs +crossover **val 0.5551 / test 0.5459**, ahead
+  at ALL ten rounds. Full run relaunched with p_cross=0.5 targeting the
+  0.7035 record (fresh ckpt `evo2x_ckpt.json`).
 - **[2026-07-14] (Claude)** — Evolution campaign part 9: **GRAMMAR V2 RESULT —
   TEST 0.7035 on full CIFAR.** Natural convergence after 96 rounds / 114 min:
   592 genomes, honest-10k val 0.7104, **10k test (touched once) 0.7035** —

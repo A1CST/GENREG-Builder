@@ -163,6 +163,27 @@ def mutate(rng, g, sc):
     return c
 
 
+def crossover(rng, g1, g2):
+    """Uniform per-gene recombination of two parents. Terms are drawn from
+    either parent (order taken from one of them); scalar genes picked
+    per-gene; the pooling window blends half the time."""
+    c = json.loads(json.dumps(g1 if rng.random() < 0.5 else g2))
+    pool = [json.loads(json.dumps(t)) for t in (g1["terms"] + g2["terms"])]
+    rng.shuffle(pool)
+    c["terms"] = pool[:len(c["terms"])]
+    for t in c["terms"]:
+        t["prog"] = [tuple(s) for s in t["prog"]]
+    for k in ("ps", "op", "stat"):
+        c[k] = (g1 if rng.random() < 0.5 else g2)[k]
+    if rng.random() < 0.5:                       # blend the window
+        for k in ("cx", "cy", "lsig"):
+            c[k] = 0.5 * (g1[k] + g2[k])
+    else:
+        for k in ("cx", "cy", "lsig"):
+            c[k] = (g1 if rng.random() < 0.5 else g2)[k]
+    return c
+
+
 def feature(torch, tp, env, g, test=False):
     Mtr, Mte, H, W = env.maps(g["ps"])
     M = Mte if test else Mtr
@@ -198,7 +219,8 @@ def feature(torch, tp, env, g, test=False):
 # evolution (comma GA, honest 10k val, freeze-and-compose)
 # ---------------------------------------------------------------------------
 
-def run(rounds=400, pop_size=64, gens=12, freeze_top=8, seed=5, verbose=True):
+def run(rounds=400, pop_size=64, gens=12, freeze_top=8, seed=5, p_cross=0.0,
+        ckpt_path=_CKPT, out_path=None, verbose=True):
     import torch
     rng = np.random.default_rng(seed)
     dev = "cuda" if torch.cuda.is_available() else "cpu"
@@ -221,8 +243,8 @@ def run(rounds=400, pop_size=64, gens=12, freeze_top=8, seed=5, verbose=True):
 
     frozen, fcols = [], []
     hist = []
-    if os.path.exists(_CKPT):
-        with open(_CKPT) as f:
+    if ckpt_path and os.path.exists(ckpt_path):
+        with open(ckpt_path) as f:
             ck = json.load(f)
         frozen = [g for g in ck.get("frozen", [])]
         for g in frozen:
@@ -262,7 +284,13 @@ def run(rounds=400, pop_size=64, gens=12, freeze_top=8, seed=5, verbose=True):
                 cand = rng.choice(pop_size, 3)
                 pi = cand[np.argmax(fits[cand])]
                 sc = float(np.clip(scales[pi] * rng.choice([1.3, 1 / 1.3]), 0.03, 0.6))
-                kids.append(mutate(rng, pop[pi], sc)); ksc.append(sc)
+                if p_cross > 0 and rng.random() < p_cross:
+                    cand2 = rng.choice(pop_size, 3)
+                    pj = cand2[np.argmax(fits[cand2])]
+                    kids.append(mutate(rng, crossover(rng, pop[pi], pop[pj]), sc))
+                else:
+                    kids.append(mutate(rng, pop[pi], sc))
+                ksc.append(sc)
             kf, ka, kc = fit_pop(kids)
             pop = [pop[i] for i in keep] + kids
             scales = np.concatenate([scales[keep], ksc])
@@ -288,11 +316,12 @@ def run(rounds=400, pop_size=64, gens=12, freeze_top=8, seed=5, verbose=True):
         s1, a1 = _ridge_soft(torch, base[:n_fit], base[n_fit:], Yf, yv)
         hist.append({"round": rnd, "added": added, "n": len(frozen),
                      "val_acc": round(a1, 4)})
-        tmp = _CKPT + ".tmp"
-        with open(tmp, "w") as f:
-            json.dump({"frozen": frozen, "hist": hist,
-                       "seconds": round(time.time() - t0)}, f)
-        os.replace(tmp, _CKPT)
+        if ckpt_path:
+            tmp = ckpt_path + ".tmp"
+            with open(tmp, "w") as f:
+                json.dump({"frozen": frozen, "hist": hist,
+                           "seconds": round(time.time() - t0)}, f)
+            os.replace(tmp, ckpt_path)
         if verbose:
             scs = sorted({g["ps"] for g in frozen})
             print(f"  [evo2] round {rnd:3d}  +{added} (total {len(frozen)})  "
@@ -313,7 +342,8 @@ def run(rounds=400, pop_size=64, gens=12, freeze_top=8, seed=5, verbose=True):
         _, acc = _ridge_soft(torch, Ftr, Fte, Yfull, yte_t, lam=lam)
         best = max(best, acc)
     orders = [len(g["terms"]) for g in frozen]
-    out = {"phase": "F-grammar-v2", "n_frozen": len(frozen),
+    out = {"phase": "F-grammar-v2", "p_cross": p_cross, "n_frozen": len(frozen),
+           "hist": hist,
            "test_acc": round(best, 4),
            "val_final": hist[-1]["val_acc"] if hist else 0.0,
            "scales_used": sorted({g["ps"] for g in frozen}),
@@ -323,7 +353,7 @@ def run(rounds=400, pop_size=64, gens=12, freeze_top=8, seed=5, verbose=True):
            "references": {"v1_class_tower": 0.6378, "v1_class_saturation": "0.63-0.64",
                           "coates_ng": 0.5904},
            "seconds": round(time.time() - t0)}
-    with open(os.path.join(_HERE, "radial_data", "evo2_cifar.json"), "w") as f:
+    with open(out_path or os.path.join(_HERE, "radial_data", "evo2_cifar.json"), "w") as f:
         json.dump(out, f, indent=1)
     if verbose:
         print(f"[evo2] DONE: {len(frozen)} genomes, val {out['val_final']}, "
