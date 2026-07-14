@@ -29,22 +29,31 @@
   }
   window.addEventListener("resize", fit);
 
-  var view = null; // {sx, sy, ox, oy}
+  /* 3D view state — drag to orbit, wheel to zoom, shift/right-drag to pan */
+  var yaw = 0, pitch = 0, zoom = 1, panX = 0, panY = 0, baseScale = 1, maxR = 1;
 
   function computeView() {
-    if (!pts.length) { view = null; return; }
-    var xs = pts.map(function (p) { return p.x; }), ys = pts.map(function (p) { return p.y; });
-    var lo = [Math.min.apply(0, xs), Math.min.apply(0, ys)];
-    var hi = [Math.max.apply(0, xs), Math.max.apply(0, ys)];
-    var pad = 26;
-    var s = Math.min((mapCv.width - 2 * pad) / Math.max(1e-9, hi[0] - lo[0]),
-                     (mapCv.height - 2 * pad) / Math.max(1e-9, hi[1] - lo[1]));
-    view = { s: s,
-             ox: pad - lo[0] * s + (mapCv.width - 2 * pad - (hi[0] - lo[0]) * s) / 2,
-             oy: pad - lo[1] * s + (mapCv.height - 2 * pad - (hi[1] - lo[1]) * s) / 2 };
+    if (!pts.length) return;
+    maxR = 1e-9;
+    for (var i = 0; i < pts.length; i++) {
+      var p = pts[i];
+      maxR = Math.max(maxR, Math.sqrt(p.x * p.x + p.y * p.y + (p.z || 0) * (p.z || 0)));
+    }
+    baseScale = (Math.min(mapCv.width, mapCv.height) / 2 - 30) / maxR;
+    yaw = 0.5; pitch = -0.3; zoom = 1; panX = 0; panY = 0;
   }
 
-  function px(p) { return [p.x * view.s + view.ox, p.y * view.s + view.oy]; }
+  function project(x, y, z) {
+    var cy = Math.cos(yaw), sy = Math.sin(yaw);
+    var cp = Math.cos(pitch), sp = Math.sin(pitch);
+    var x1 = x * cy + z * sy, z1 = -x * sy + z * cy;
+    var y1 = y * cp - z1 * sp, z2 = y * sp + z1 * cp;
+    var s = baseScale * zoom;
+    return [mapCv.width / 2 + panX + x1 * s,
+            mapCv.height / 2 + panY + y1 * s, z2];
+  }
+
+  function px(p) { return project(p.x, p.y, p.z || 0); }
 
   function colour(v) {
     // slate -> cyan -> warm, outlier-safe (v already 0..1-ish)
@@ -55,44 +64,112 @@
     return "rgb(" + r + "," + g + "," + b + ")";
   }
 
+  function ring(ctx, r, plane) {
+    ctx.beginPath();
+    for (var a = 0; a <= 64; a++) {
+      var t = (a / 64) * 2 * Math.PI, c;
+      if (plane === "xy") c = project(r * Math.cos(t), r * Math.sin(t), 0);
+      else if (plane === "xz") c = project(r * Math.cos(t), 0, r * Math.sin(t));
+      else c = project(0, r * Math.cos(t), r * Math.sin(t));
+      if (a === 0) ctx.moveTo(c[0], c[1]); else ctx.lineTo(c[0], c[1]);
+    }
+    ctx.stroke();
+  }
+
   function draw() {
     var ctx = mapCv.getContext("2d");
     ctx.clearRect(0, 0, mapCv.width, mapCv.height);
-    if (!pts.length || !view) return;
-    // radial reference rings around the identity lens (index 0 = origin)
-    var o = px(pts[0]);
+    if (!pts.length) return;
+    // wireframe sphere hint: equator rings in the three planes + radius rings
     ctx.strokeStyle = "#151b23";
-    for (var rr = 1; rr <= 4; rr++) {
-      ctx.beginPath();
-      ctx.arc(o[0], o[1], rr * 90, 0, 2 * Math.PI);
-      ctx.stroke();
-    }
+    ring(ctx, maxR, "xy"); ring(ctx, maxR, "xz"); ring(ctx, maxR, "yz");
+    for (var rr = 1; rr <= 3; rr++) ring(ctx, (maxR * rr) / 4, "xy");
+    // depth sort: far points first, near points on top
+    var order = [];
     for (var i = 0; i < pts.length; i++) {
-      var p = pts[i], c = px(p);
+      var c = px(pts[i]);
+      order.push([c[2], i, c[0], c[1]]);
+    }
+    order.sort(function (a, b) { return a[0] - b[0]; });
+    var zlo = order[0][0], zhi = order[order.length - 1][0], zr = Math.max(1e-9, zhi - zlo);
+    for (var k = 0; k < order.length; k++) {
+      var d = (order[k][0] - zlo) / zr;          // 0 far .. 1 near
+      var j = order[k][1], p = pts[j];
+      ctx.globalAlpha = 0.35 + 0.65 * d;
       ctx.fillStyle = colour(colorBy === "nl" ? p.nl : p.osc * 2);
       ctx.beginPath();
-      ctx.arc(c[0], c[1], i === selected ? 5 : 2.2, 0, 2 * Math.PI);
+      ctx.arc(order[k][2], order[k][3], (j === selected ? 5 : 1.4 + 1.6 * d) * Math.sqrt(zoom > 1 ? Math.min(zoom, 4) : 1), 0, 2 * Math.PI);
       ctx.fill();
-      if (i === selected) { ctx.strokeStyle = "#e6ebf1"; ctx.stroke(); }
+      if (j === selected) { ctx.globalAlpha = 1; ctx.strokeStyle = "#e6ebf1"; ctx.stroke(); }
     }
-    // identity marker
+    ctx.globalAlpha = 1;
+    // identity marker (lens 0, the origin)
+    var o = px(pts[0]);
     ctx.strokeStyle = "#8b95a1";
     ctx.beginPath(); ctx.arc(o[0], o[1], 6, 0, 2 * Math.PI); ctx.stroke();
   }
 
-  mapCv.addEventListener("click", function (ev) {
-    if (!pts.length || !view) return;
+  /* orbit / zoom / pan / click-select */
+  var drag = null;
+
+  function canvasXY(ev) {
     var r = mapCv.getBoundingClientRect();
-    var mx = (ev.clientX - r.left) * (mapCv.width / r.width);
-    var my = (ev.clientY - r.top) * (mapCv.height / r.height);
-    var best = -1, bd = 1e9;
+    return [(ev.clientX - r.left) * (mapCv.width / r.width),
+            (ev.clientY - r.top) * (mapCv.height / r.height)];
+  }
+
+  mapCv.addEventListener("contextmenu", function (ev) { ev.preventDefault(); });
+
+  mapCv.addEventListener("pointerdown", function (ev) {
+    if (!pts.length) return;
+    ev.preventDefault();
+    drag = { x0: ev.clientX, y0: ev.clientY, yaw: yaw, pitch: pitch,
+             panX: panX, panY: panY, moved: false,
+             pan: ev.shiftKey || ev.button === 2 || ev.button === 1 };
+    mapCv.setPointerCapture(ev.pointerId);
+  });
+
+  mapCv.addEventListener("pointermove", function (ev) {
+    if (!drag) return;
+    var dx = ev.clientX - drag.x0, dy = ev.clientY - drag.y0;
+    if (Math.abs(dx) + Math.abs(dy) > 3) drag.moved = true;
+    if (!drag.moved) return;
+    if (drag.pan) {
+      var r = mapCv.getBoundingClientRect(), kx = mapCv.width / r.width;
+      panX = drag.panX + dx * kx; panY = drag.panY + dy * kx;
+    } else {
+      yaw = drag.yaw + dx * 0.008;
+      pitch = Math.max(-1.55, Math.min(1.55, drag.pitch + dy * 0.008));
+    }
+    draw();
+  });
+
+  mapCv.addEventListener("pointerup", function (ev) {
+    var wasClick = drag && !drag.moved;
+    drag = null;
+    if (!wasClick || !pts.length) return;
+    var m = canvasXY(ev), best = -1, bd = 1e9;
     for (var i = 0; i < pts.length; i++) {
       var c = px(pts[i]);
-      var d = (c[0] - mx) * (c[0] - mx) + (c[1] - my) * (c[1] - my);
+      var d = (c[0] - m[0]) * (c[0] - m[0]) + (c[1] - m[1]) * (c[1] - m[1]);
       if (d < bd) { bd = d; best = i; }
     }
     if (best >= 0 && bd < 400) selectLens(best);
   });
+
+  mapCv.addEventListener("wheel", function (ev) {
+    if (!pts.length) return;
+    ev.preventDefault();
+    var f = Math.exp(-ev.deltaY * 0.0012);
+    var nz = Math.max(0.2, Math.min(40, zoom * f));
+    f = nz / zoom;
+    var m = canvasXY(ev);
+    // keep the point under the cursor fixed while zooming
+    panX = (m[0] - mapCv.width / 2) - ((m[0] - mapCv.width / 2) - panX) * f;
+    panY = (m[1] - mapCv.height / 2) - ((m[1] - mapCv.height / 2) - panY) * f;
+    zoom = nz;
+    draw();
+  }, { passive: false });
 
   function selectLens(i) {
     selected = i;
@@ -136,7 +213,7 @@
       pts = d.pts; selected = -1;
       computeView(); draw();
       $("rm-maplbl").innerHTML = "<b>" + d.n + "</b> lenses · " + d.kind +
-        " · rings centred on identity";
+        " · drag = orbit · wheel = zoom · shift-drag = pan · click = inspect";
       var c = d.checks, box = $("rm-checks");
       box.innerHTML = "";
       kv(box, "radius vs nonlinearity", (c.radius_vs_nonlinearity_corr >= 0 ? "+" : "") +
@@ -284,10 +361,12 @@
         kind: lastMap.kind,
         n: lastMap.n,
         checks: lastMap.checks,
-        cols: ["i", "x", "y", "nl", "osc"],
-        rows: P.map(function (p) { return [p.i, p.x, p.y, p.nl, p.osc]; }),
+        cols: ["i", "x", "y", "z", "nl", "osc"],
+        rows: P.map(function (p) { return [p.i, p.x, p.y, p.z || 0, p.nl, p.osc]; }),
         summary: {
-          radius: distSummary(P.map(function (p) { return Math.sqrt(p.x * p.x + p.y * p.y); })),
+          radius: distSummary(P.map(function (p) {
+            return Math.sqrt(p.x * p.x + p.y * p.y + (p.z || 0) * (p.z || 0));
+          })),
           nonlinearity: distSummary(P.map(function (p) { return p.nl; })),
           oscillation: distSummary(P.map(function (p) { return p.osc; })),
           most_nonlinear: extremes(P, "nl", 8),

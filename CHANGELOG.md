@@ -10,6 +10,15 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-13] (Claude)** — Radial v2: **the map is now a navigable 3D
+  sphere.** `build_map()` returns the full top-3 MDS embedding (adds `z` per
+  point; the radius/nonlinearity check now uses the 3D norm — corr 0.50). The
+  page renders an orbitable point cloud: drag = orbit (yaw/pitch), wheel =
+  zoom toward the cursor (0.2x-40x), shift-drag or right-drag = pan, click
+  still inspects a lens (only fires on non-drags). Depth cues: far points
+  smaller/dimmer, near points on top; wireframe sphere hint (three equator
+  rings + inner radius rings); identity marker stays at the origin. Export
+  `map.cols` gains `z`. No new endpoints; **Flask restart still pending.**
 - **[2026-07-13] (Claude)** — Radial v2 ladder: **temporal rungs REMOVED**
   (user: "no one said add temporal yet, that's a whole nother beast"). The
   ladder is pointwise-only now — 7 rungs, square through sin32x. Results

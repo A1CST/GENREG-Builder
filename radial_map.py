@@ -155,7 +155,7 @@ def _mds(S, ndim):
 def build_map(n_lens=1200, kind="loops"):
     Sraw, nl, osc, progs = build_signatures(n_lens, kind)
     S = (Sraw - Sraw.mean(0)) / (Sraw.std(0) + 1e-9)
-    XY = _mds(S, 2)
+    XY = _mds(S, 3)                       # full 3D — the page orbits the sphere
     r = np.linalg.norm(XY, axis=1)
     # honest checks: does the galaxy structure hold?
     rad_nl = float(np.corrcoef(r, nl)[0, 1])            # nonlinearity grows outward?
@@ -165,6 +165,7 @@ def build_map(n_lens=1200, kind="loops"):
     return {
         "kind": kind, "n": n_lens,
         "pts": [{"i": i, "x": round(float(XY[i, 0]), 3), "y": round(float(XY[i, 1]), 3),
+                 "z": round(float(XY[i, 2]), 3),
                  "nl": round(float(nl[i]), 3), "osc": round(float(osc[i]), 3),
                  "prog": progs[i]} for i in range(n_lens)],
         "checks": {"radius_vs_nonlinearity_corr": round(rad_nl, 3),
@@ -342,6 +343,6 @@ if __name__ == "__main__":
     else:
         m = build_map(n_lens=int(sys.argv[sys.argv.index("map") + 1]) if "map" in sys.argv[:-1] else 1200)
         print(json.dumps(m["checks"], indent=2))
-        r = np.array([[p["x"], p["y"]] for p in m["pts"]])
+        r = np.array([[p["x"], p["y"], p["z"]] for p in m["pts"]])
         print(f"{m['n']} lenses mapped, radius range {np.linalg.norm(r, axis=1).min():.2f}"
               f"–{np.linalg.norm(r, axis=1).max():.2f}")
