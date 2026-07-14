@@ -179,8 +179,13 @@ def feature3(torch, tp, env, F1z, g, test=False):
 def run(rounds=300, pop_size=64, gens=12, freeze_top=8, seed=21, p_cross=0.5,
         freeze_bar=0.0002, dry_streak=5,
         stage1_ckpt="radial_data/evo2x_ckpt.json",
+        v3_ckpts=(), val_slice=0,
         ckpt_path="radial_data/push80_ckpt.json",
         out_path="radial_data/push80_cifar.json", verbose=True):
+    """v3_ckpts: earlier v3 stages to fold into the substrate (their genomes
+    are replayed against the channel bank of their time, then joined).
+    val_slice: which 10k window of train is THIS stage's validation split —
+    rotate per stage so selection never reuses an exhausted ruler."""
     import torch
     rng = np.random.default_rng(seed)
     dev = "cuda" if torch.cuda.is_available() else "cpu"
@@ -208,15 +213,46 @@ def run(rounds=300, pop_size=64, gens=12, freeze_top=8, seed=21, p_cross=0.5,
     mu1, sd1 = F1tr.mean(0), F1tr.std(0) + 1e-6
     F1z_tr = (F1tr - mu1) / sd1
     F1z_te = (F1te - mu1) / sd1
+
+    # fold earlier v3 stages into the substrate: replay each stage's genomes
+    # against the channel bank AS IT EXISTED for that stage, then extend it
+    for ckp in v3_ckpts:
+        with open(os.path.join(_HERE, ckp)) as f:
+            gs_prev = json.load(f)["frozen2"]
+        for g in gs_prev:
+            for t in g["terms"]:
+                t["prog"] = [tuple(s) for s in t["prog"]]
+            if g.get("gate"):
+                g["gate"]["prog"] = [tuple(s) for s in g["gate"]["prog"]]
+        Ptr = torch.stack([feature3(torch, tp, env, F1z_tr, g) for g in gs_prev], 1)
+        Pte = torch.stack([feature3(torch, tp, env, F1z_te, g, test=True)
+                           for g in gs_prev], 1)
+        F1tr = torch.cat([F1tr, Ptr], 1)
+        F1te = torch.cat([F1te, Pte], 1)
+        mu1, sd1 = F1tr.mean(0), F1tr.std(0) + 1e-6
+        F1z_tr = (F1tr - mu1) / sd1
+        F1z_te = (F1te - mu1) / sd1
+        if verbose:
+            print(f"[p80] folded {len(gs_prev)} genomes from {ckp} "
+                  f"(substrate now {F1tr.shape[1]})", flush=True)
     n_feat = F1tr.shape[1]
 
-    n_fit = 40000
-    yv = torch.tensor(ytr[n_fit:], device=dev)
+    # rotating honest validation window: a fresh ruler per stage
+    n_all = len(ytr)
+    n_fit = n_all - 10000
+    val_lo = n_all - 10000 * (1 + int(val_slice))
+    val_np = np.arange(val_lo, val_lo + 10000)
+    fit_np = np.concatenate([np.arange(0, val_lo), np.arange(val_lo + 10000, n_all)])
+    order_t = torch.tensor(np.concatenate([fit_np, val_np]), device=dev)
+    yv = torch.tensor(ytr[val_np], device=dev)
     yte_t = torch.tensor(yte, device=dev)
     Yf = -torch.ones((n_fit, 10), device=dev)
-    Yf[torch.arange(n_fit), torch.tensor(ytr[:n_fit], device=dev)] = 1.0
+    Yf[torch.arange(n_fit), torch.tensor(ytr[fit_np], device=dev)] = 1.0
     Yfull = -torch.ones((len(ytr), 10), device=dev)
     Yfull[torch.arange(len(ytr)), torch.tensor(ytr, device=dev)] = 1.0
+    if verbose:
+        print(f"[p80] val window rows {val_lo}-{val_lo+10000} (slice {val_slice})",
+              flush=True)
 
     def featcol(g, test=False):
         F1zz = F1z_te if test else F1z_tr
@@ -235,7 +271,7 @@ def run(rounds=300, pop_size=64, gens=12, freeze_top=8, seed=21, p_cross=0.5,
     empty_streak = 0
     for rnd in range(len(hist), rounds):
         base = torch.cat([F1tr] + ([torch.stack(fcols2, 1)] if fcols2 else []), 1)
-        scorer, s0, a0 = e2.make_scorer(torch, base, n_fit, Yf, yv)
+        scorer, s0, a0 = e2.make_scorer(torch, base[order_t], n_fit, Yf, yv)
 
         pop = [new_genome3(rng, n_feat) for _ in range(pop_size)]
         scales = np.full(pop_size, 0.25)
@@ -247,7 +283,7 @@ def run(rounds=300, pop_size=64, gens=12, freeze_top=8, seed=21, p_cross=0.5,
             softs = np.full(len(gs), -1e9)
             accs = np.zeros(len(gs))
             if ok:
-                C = torch.stack([cols[i] for i in ok], 1)
+                C = torch.stack([cols[i] for i in ok], 1)[order_t]
                 sf, ac = scorer(C)
                 for j, i in enumerate(ok):
                     softs[i] = sf[j] - s0
@@ -311,7 +347,7 @@ def run(rounds=300, pop_size=64, gens=12, freeze_top=8, seed=21, p_cross=0.5,
             if not dup:
                 frozen2.append(pop[idx]); fcols2.append(col); added += 1
         base = torch.cat([F1tr] + ([torch.stack(fcols2, 1)] if fcols2 else []), 1)
-        _, _, a1 = e2.make_scorer(torch, base, n_fit, Yf, yv)
+        _, _, a1 = e2.make_scorer(torch, base[order_t], n_fit, Yf, yv)
         n_gated = sum(1 for g in frozen2 if g.get("gate"))
         n_meta = sum(1 for g in frozen2 for t in g["terms"] if t.get("src") == "feat")
         hist.append({"round": rnd, "added": added, "n": len(frozen2),

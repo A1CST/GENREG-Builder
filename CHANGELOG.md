@@ -10,6 +10,24 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-14] (Claude)** — **Autonomous scaling campaign (user away):
+  RECORD 0.7144; the tower converges at stage 3; pod at full utilization.**
+  (1) FRESH-VAL ROTATION shipped (`run(val_slice=…, v3_ckpts=…)`): each stage
+  selects against a different 10k train window, earlier v3 stages fold into
+  the substrate by replaying their genomes against the channel bank of their
+  time. (2) LOCAL TOWER: stage-3 (fresh window) = 96 genomes, **TEST 0.7144
+  in 55 s** (gap on the fresh ruler 0.017 vs stale 0.034 — hygiene fix
+  works); stage-4 = 11 genomes, test 0.7133 → tower CONVERGED at stage 3.
+  Ladder: 0.5904 → 0.6378 → 0.7035 → 0.7079 → **0.7144** (note: stage
+  results are sibling measurements — differences near noise are read
+  cautiously). (3) CROSSOVER REPLICATE VERDICT (pod seed-13: 539 genomes,
+  val 0.7123, test 0.6962): both crossover seeds beat the record's val and
+  miss its test by ~1.5σ — crossover = faster climb, slightly more selection
+  overfit; replicated across seeds AND hardware. (4) POD (H100) now runs TWO
+  jobs: seed-13 push-80 with fresh val (round 80 in 21 s, val 0.7261) + the
+  population-scaling question (v2, pop 128, seed 17). (5) Local GPU runs the
+  cross-seed ensemble test (503+539 substrate union). Shadow sync v2 pulls
+  ALL pod logs/jsons every 5 min.
 - **[2026-07-14] (Claude)** — **NEW TEST RECORD: 0.7079 (push-80 stage, local
   seed-7).** The grammar-v3 stack converged in **77 seconds**: 403 stage-2
   genomes over the 503-genome substrate, val 0.7136→0.7424, **test-once
