@@ -526,10 +526,20 @@
 
   /* a self-spinning, drag-orbitable, wheel-zoomable 3D cloud of one domain */
   function miniMap(cv, lbl, kind) {
+    function retry(msg) {
+      lbl.textContent = msg + " — click here to retry";
+      lbl.style.cursor = "pointer";
+      lbl.onclick = function () {
+        lbl.onclick = null;
+        lbl.style.cursor = "";
+        lbl.textContent = "building domain map…";
+        miniMap(cv, lbl, kind);
+      };
+    }
     mapChain = mapChain.then(function () {
       return post("/api/radial/map", { n: 600, kind: kind });
     }).then(function (d) {
-      if (d.error) { lbl.textContent = d.error; return; }
+      if (d.error) { retry(d.error); return; }
       var P = d.pts;
       var maxR = 1e-9;
       P.forEach(function (p) {
@@ -602,7 +612,7 @@
         render();
         requestAnimationFrame(loop);
       })();
-    }).catch(function (e) { lbl.textContent = "map failed: " + e; });
+    }).catch(function (e) { retry("map failed: " + e); });
   }
 
   function keyFinding(d) {

@@ -10,6 +10,14 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-13] (Claude)** — Baselines maps: **failed cards are now
+  click-to-retry.** Diagnosis of "still only text loads after restart": the
+  live server answers all five domains 200/valid-JSON in <0.6s (verified with
+  curl) — the visible errors were fetches fired by the still-open tab while
+  Flask was down, and the view caches after first load so toggling never
+  refetched. Failed map labels are now clickable retries; a failed baselines
+  load no longer marks the view as loaded. A plain page refresh (F5) shows
+  everything.
 - **[2026-07-13] (Claude)** — Baselines maps: **NaN crash fixed + bigger +
   zoomable.** Root cause of "only text loaded, others crashed": `np.corrcoef`
   inside `_sig`/`build_map` emitted invalid-divide NaNs on spiky domain
