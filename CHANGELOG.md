@@ -10,6 +10,22 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-14] (Claude)** — **RunPod H100 online + Schur fast-path rewrite.**
+  (1) FITNESS REWRITE (`make_scorer` in `radial_evo2.py`): the frozen base's
+  normal equations are Cholesky-factored ONCE per round; every candidate is a
+  rank-1 Schur border — O(N·F) per candidate instead of O(N·F²), whole batch
+  scored in fused matmuls. Parity vs exact solve: soft err 2e-7, acc err 0;
+  **68× per candidate at F=300** (grows with F). Local crossover run resumed
+  from checkpoint onto the fast path (hard-kill + atomic-ckpt resume, no
+  test-set peek). (2) RUNPOD: H100 80GB / 224 cores / 2TB RAM at
+  103.207.149.106 (port changes per restart). Project built in
+  `/workspace/genreg-radial` (5 modules + both CIFAR npz); NOTE: everything
+  outside /workspace is EPHEMERAL — authorized_keys died with the first
+  restart (key must live in RunPod account settings for durability). Pod runs
+  the full crossover replicate (seed 13; local runs seed 7). (3) SHADOW COPY
+  (user rule: pods lose data): `runpod_shadow/` mirrors every pod file; a
+  persistent 5-min sync loop pulls log + checkpoint + results and surfaces
+  pod progress + sync failures. Both GPUs busy.
 - **[2026-07-14] (Claude)** — Evolution campaign part 10: **crossover A/B —
   it helps.** `crossover()` added to `radial_evo2.py` (uniform per-gene
   recombination of two tournament parents: terms drawn from both, window
