@@ -10,6 +10,23 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-14] (Claude)** — Evolution campaign part 6: **the deep run — where
+  it actually stops.** `run_deep()` in `radial_evo.py`: stack radial spaces
+  until a stage adds < 0.002 val; per-round ATOMIC checkpoints
+  (`evo_deep_ckpt.json`) + graceful kill lever (touch
+  `radial_data/STOP_EVO`) + resume-from-checkpoint. Run to natural stop, no
+  lever needed: **stage 2 = +310 genomes (val 0.661→0.7185 — the earlier
+  60-round cap had been leaving +2.4 val pts on the table), stage 3 = +8
+  genomes (+0.0015) → tower stops at 2 real stacked stages** (667+310+8 =
+  985 genomes). Full-50k transfer of the whole tower (`run_deep_full`):
+  **0.6378** — ladder: v1 0.5904 → 0.6198 → 0.6257 → 0.6353 → **0.6378**.
+  HONEST CAVEAT: the stop was declared by an exhausted instrument — val
+  (2000 samples) was reused for ~970 freeze decisions and overfit (val 0.720
+  vs 8k-test 0.5885, worse than the shorter stack's 0.5945 on 8k), yet the
+  full-scale test still improved; "where it stops" is partly "where a
+  2000-sample val stops seeing" — next lever is a bigger/fresh-per-stage
+  val split or evolving on full data. Export `evo_deep_cifar.json`,
+  `evo_deep_full_cifar.json`.
 - **[2026-07-14] (Claude)** — Evolution campaign part 5: **the plateau safety
   mechanism WORKS (Phase D: stacked radial spaces) + the downstream energy
   economy.** `phase_stack()`: when phase_b hard-converges (a round freezes

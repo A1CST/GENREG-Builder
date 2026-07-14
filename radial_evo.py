@@ -785,9 +785,308 @@ def phase_stack_full(verbose=True):
     return out
 
 
+# ---------------------------------------------------------------------------
+# Phase E — RUN DEEP: keep stacking radial spaces until it actually stops.
+# Levers: touch radial_data/STOP_EVO to stop gracefully (finishes the round,
+# checkpoints, exits); crash-safe atomic checkpoint after every round.
+# ---------------------------------------------------------------------------
+
+_CKPT = os.path.join(_HERE, "radial_data", "evo_deep_ckpt.json")
+_STOP = os.path.join(_HERE, "radial_data", "STOP_EVO")
+
+
+def _save_ckpt(obj):
+    tmp = _CKPT + ".tmp"
+    with open(tmp, "w") as f:
+        json.dump(obj, f)
+    os.replace(tmp, _CKPT)
+
+
+def _evolve_stage(torch, dev, rng, M2tr, base_tr, n_fit, Yf, yv, rounds, gens,
+                  freeze_top, C2, on_round=None, verbose=True, tag=""):
+    """One downstream radial space evolved under the energy economy, until
+    3 consecutive rounds freeze nothing (or on_round says stop)."""
+    frozen2, cols2, hist = [], [], []
+    empty_streak = 0
+    for rnd in range(rounds):
+        base = torch.cat([base_tr, torch.stack(cols2, 1)], 1) if cols2 else base_tr
+        s0, _ = _ridge_soft(torch, base[:n_fit], base[n_fit:], Yf, yv)
+        pop = [_new_gen_b(rng, C2) for _ in range(64)]
+        scales = np.full(64, 0.25)
+
+        def fit_pop(gs):
+            softs, accs, cols = [], [], []
+            for g in gs:
+                col = _feat(torch, M2tr, g)
+                if float(col.std()) < 1e-6:
+                    softs.append(-1e9); accs.append(0.0); cols.append(col)
+                    continue
+                X = torch.cat([base, col.view(-1, 1)], 1)
+                s, a = _ridge_soft(torch, X[:n_fit], X[n_fit:], Yf, yv)
+                softs.append(s - s0); accs.append(a); cols.append(col)
+            return np.array(softs), np.array(accs), cols
+
+        fits, accs, cols = fit_pop(pop)
+        E_DECAY, OUT_COST, RESTORE, GAIN, E_FLOOR2, E_MAX2 = 0.75, 0.05, 0.04, 400.0, 0.2, 1.5
+        MIN_TURNOVER = 12
+        energy = np.ones(64)
+        starved_total = 0
+        for gen in range(gens):
+            valid = fits > -1e8
+            energy = np.clip(energy * E_DECAY - OUT_COST + RESTORE * valid
+                             + GAIN * np.maximum(fits - np.median(fits), 0.0),
+                             0.0, E_MAX2)
+            starved = energy < E_FLOOR2
+            starved_total += int(starved.sum())
+            dead = list(np.where(starved)[0])
+            if len(dead) < MIN_TURNOVER:
+                living_by_fit = [i for i in np.argsort(fits) if i not in set(dead)]
+                dead += living_by_fit[:MIN_TURNOVER - len(dead)]
+            alive = [i for i in range(64) if i not in set(dead)] or \
+                    list(np.argsort(fits)[::-1][:4])
+            kids, ksc = [], []
+            n_fresh = max(1, len(dead) // 4)
+            for k in range(len(dead)):
+                if k < n_fresh:
+                    kids.append(_new_gen_b(rng, C2)); ksc.append(0.25)
+                else:
+                    cand = rng.choice(alive, 3)
+                    pi = cand[np.argmax(fits[cand])]
+                    sc = float(np.clip(scales[pi] * rng.choice([1.3, 1 / 1.3]), 0.03, 0.6))
+                    kids.append(_mut_b(rng, pop[pi], C2, sc)); ksc.append(sc)
+            kf, ka, kc = fit_pop(kids)
+            for slot, k in zip(dead, range(len(kids))):
+                pop[slot] = kids[k]; scales[slot] = ksc[k]
+                fits[slot] = kf[k]; accs[slot] = ka[k]
+                cols[slot] = kc[k]; energy[slot] = 1.0
+        order = np.argsort(fits)[::-1]
+        added = 0
+        for idx in order:
+            if fits[idx] <= 0.0005 or added >= freeze_top:
+                break
+            col = cols[idx]
+            colz = (col - col.mean()) / (col.std() + 1e-9)
+            dup = False
+            for fc in cols2[-60:]:
+                fz = (fc - fc.mean()) / (fc.std() + 1e-9)
+                if float(torch.abs((colz * fz).mean())) > 0.95:
+                    dup = True
+                    break
+            if not dup:
+                frozen2.append(pop[idx]); cols2.append(col); added += 1
+        base = torch.cat([base_tr, torch.stack(cols2, 1)], 1) if cols2 else base_tr
+        s1, a1 = _ridge_soft(torch, base[:n_fit], base[n_fit:], Yf, yv)
+        hist.append({"round": rnd, "added": added, "n": len(frozen2),
+                     "val_acc": round(a1, 4),
+                     "starved_per_gen": round(starved_total / max(gens, 1), 1)})
+        starved_total = 0
+        if verbose:
+            print(f"  [{tag}] round {rnd:3d}  +{added} (total {len(frozen2)})  "
+                  f"val {a1:.4f}  starved/gen {hist[-1]['starved_per_gen']}", flush=True)
+        if on_round is not None and on_round(frozen2, hist) is False:
+            hist.append({"stopped": "STOP_EVO lever"})
+            break
+        empty_streak = empty_streak + 1 if added == 0 else 0
+        if empty_streak >= 3:
+            break
+    return frozen2, cols2, hist
+
+
+def run_deep(max_stages=8, rounds=500, gens=12, freeze_top=8, seed=2, verbose=True):
+    """Stack radial spaces until the architecture itself stops improving.
+    Stage 1 = the saved phase_b genomes (no energy — first space is exempt).
+    Every later stage evolves under the energy economy with the concatenated
+    outputs of ALL previous stages as its environment. Checkpoint after every
+    round; touch radial_data/STOP_EVO to stop gracefully."""
+    import torch
+    rng = np.random.default_rng(seed)
+    dev = "cuda" if torch.cuda.is_available() else "cpu"
+    t0 = time.time()
+    if os.path.exists(_STOP):
+        os.remove(_STOP)
+    with open(os.path.join(_HERE, "radial_data", "evo_interact_cifar.json")) as f:
+        run1 = json.load(f)
+    genomes1, C_env = run1["genomes"], int(run1.get("C_env", 40))
+    Mtr, Mte, data, _ = _patch_env(torch, dev, C=C_env)
+    Xtr, ytr, Xte, yte = data
+    F1tr = torch.stack([_feat(torch, Mtr, g) for g in genomes1], 1)
+    F1te = torch.stack([_feat(torch, Mte, g) for g in genomes1], 1)
+    n_fit = 6000
+    yv = torch.tensor(ytr[n_fit:], device=dev)
+    yte_t = torch.tensor(yte, device=dev)
+    Yf = -torch.ones((n_fit, 10), device=dev)
+    Yf[torch.arange(n_fit), torch.tensor(ytr[:n_fit], device=dev)] = 1.0
+    Yfull = -torch.ones((len(ytr), 10), device=dev)
+    Yfull[torch.arange(len(ytr)), torch.tensor(ytr, device=dev)] = 1.0
+
+    stages = []          # [{"genomes": [...], "hist": [...]}]
+    feats_tr, feats_te = [F1tr], [F1te]
+
+    # resume from checkpoint if present
+    if os.path.exists(_CKPT):
+        with open(_CKPT) as f:
+            ck = json.load(f)
+        for sg in ck.get("stages", []):
+            base_tr = torch.cat(feats_tr, 1)
+            base_te = torch.cat(feats_te, 1)
+            mu, sd = base_tr.mean(0), base_tr.std(0) + 1e-6
+            M2tr = ((base_tr - mu) / sd).unsqueeze(2)
+            M2te = ((base_te - mu) / sd).unsqueeze(2)
+            gs = sg["genomes"]
+            feats_tr.append(torch.stack([_feat(torch, M2tr, g) for g in gs], 1))
+            feats_te.append(torch.stack([_feat(torch, M2te, g) for g in gs], 1))
+            stages.append(sg)
+        if verbose:
+            print(f"[deep] resumed {len(stages)} completed stages from checkpoint", flush=True)
+
+    def val_acc_now():
+        B = torch.cat(feats_tr, 1)
+        _, a = _ridge_soft(torch, B[:n_fit], B[n_fit:], Yf, yv)
+        return a
+
+    stopped = False
+    prev_val = val_acc_now()
+    if verbose:
+        print(f"[deep] starting val (stage-1{'+' + str(len(stages)) if stages else ''}): "
+              f"{prev_val:.4f}", flush=True)
+    while len(stages) < max_stages and not stopped:
+        stage_no = len(stages) + 2
+        base_tr = torch.cat(feats_tr, 1)
+        base_te = torch.cat(feats_te, 1)
+        mu, sd = base_tr.mean(0), base_tr.std(0) + 1e-6
+        M2tr = ((base_tr - mu) / sd).unsqueeze(2)
+        M2te = ((base_te - mu) / sd).unsqueeze(2)
+        C2 = M2tr.shape[1]
+
+        def on_round(frozen2, hist):
+            _save_ckpt({"stages": stages + [{"genomes": frozen2, "hist": hist,
+                                             "partial": True}],
+                        "seconds": round(time.time() - t0)})
+            return not os.path.exists(_STOP)
+
+        frozen2, cols2, hist = _evolve_stage(
+            torch, dev, rng, M2tr, base_tr, n_fit, Yf, yv, rounds, gens,
+            freeze_top, C2, on_round=on_round, verbose=verbose,
+            tag=f"stage{stage_no}")
+        stopped = os.path.exists(_STOP)
+        if not frozen2:
+            if verbose:
+                print(f"[deep] stage {stage_no} froze nothing — architecture "
+                      "converged", flush=True)
+            break
+        feats_tr.append(torch.stack(cols2, 1))
+        feats_te.append(torch.stack([_feat(torch, M2te, g) for g in frozen2], 1))
+        stages.append({"genomes": frozen2, "hist": hist, "stage": stage_no})
+        _save_ckpt({"stages": stages, "seconds": round(time.time() - t0)})
+        new_val = val_acc_now()
+        if verbose:
+            print(f"[deep] stage {stage_no} done: +{len(frozen2)} genomes, "
+                  f"val {prev_val:.4f} -> {new_val:.4f}", flush=True)
+        if new_val - prev_val < 0.002:
+            if verbose:
+                print("[deep] stage gain < 0.002 — the tower has stopped", flush=True)
+            prev_val = new_val
+            break
+        prev_val = new_val
+
+    # honest final: 8k test once, then full-50k transfer of the whole tower
+    Btr, Bte = torch.cat(feats_tr, 1), torch.cat(feats_te, 1)
+    _, test8 = _ridge_soft(torch, Btr, Bte, Yfull, yte_t)
+    out = {"phase": "E-run-deep", "stages": len(stages),
+           "genomes_per_stage": [len(s["genomes"]) for s in stages],
+           "stage1": len(genomes1),
+           "final_val": round(prev_val, 4), "test_8k": round(test8, 4),
+           "stopped_by_lever": bool(stopped),
+           "seconds": round(time.time() - t0)}
+    with open(os.path.join(_HERE, "radial_data", "evo_deep_cifar.json"), "w") as f:
+        json.dump(out, f, indent=1)
+    if verbose:
+        print(f"[deep] DONE: {len(stages)} stacked stages, val {prev_val:.4f}, "
+              f"8k TEST {test8:.4f}, lever={stopped} "
+              f"({round(time.time()-t0)}s)", flush=True)
+    return out
+
+
+def run_deep_full(verbose=True):
+    """The whole tower on full CIFAR (50k/10k): stage-1 features, then each
+    checkpointed stage applied to the z-scored concat of everything before
+    it, ridge head, test once."""
+    import torch
+    import torch.nn.functional as Fn
+    dev = "cuda" if torch.cuda.is_available() else "cpu"
+    t0 = time.time()
+    with open(os.path.join(_HERE, "radial_data", "evo_interact_cifar.json")) as f:
+        run1 = json.load(f)
+    with open(_CKPT) as f:
+        ck = json.load(f)
+    genomes1, C = run1["genomes"], int(run1.get("C_env", 40))
+    stages = [s["genomes"] for s in ck["stages"] if s.get("genomes")]
+    z = np.load(os.path.join(_HERE, "radial_data", "cifar_full.npz"))
+    Xtr = z["Xtr"].astype(np.float32) / 255.0
+    Xte = z["Xte"].astype(np.float32) / 255.0
+    ytr, yte = z["ytr"], z["yte"]
+    X8 = cifar_data()[0]
+    i8 = torch.tensor(X8[:2000], device=dev).permute(0, 3, 1, 2).contiguous()
+    P = Fn.unfold(i8, 6, stride=2)
+    cols = P.permute(0, 2, 1).reshape(-1, 108)
+    g = torch.Generator(device="cpu").manual_seed(0)
+    cols = cols[torch.randperm(len(cols), generator=g)[:120000].to(dev)]
+    mu = cols.mean(0)
+    _, _, V = torch.linalg.svd(cols - mu, full_matrices=False)
+    comps = V[:C]
+    sd8 = None
+
+    def f1(X, bs=400):
+        nonlocal sd8
+        out = torch.zeros((len(X), len(genomes1)), device=dev)
+        for b in range(0, len(X), bs):
+            imgs = torch.tensor(X[b:b + bs], device=dev).permute(0, 3, 1, 2).contiguous()
+            U = Fn.unfold(imgs, 6, stride=2)
+            M = torch.einsum("cd,bdl->bcl", comps, U - mu.view(1, -1, 1))
+            if sd8 is None:
+                sd8 = M.std((0, 2), keepdim=True) + 1e-6
+            M = M / sd8
+            for k, gn in enumerate(genomes1):
+                out[b:b + len(imgs), k] = _feat(torch, M, gn)
+        return out
+
+    feats_tr, feats_te = [f1(Xtr)], [f1(Xte)]
+    for gs in stages:
+        base_tr = torch.cat(feats_tr, 1)
+        base_te = torch.cat(feats_te, 1)
+        m1, s1 = base_tr.mean(0), base_tr.std(0) + 1e-6
+        M2tr = ((base_tr - m1) / s1).unsqueeze(2)
+        M2te = ((base_te - m1) / s1).unsqueeze(2)
+        feats_tr.append(torch.stack([_feat(torch, M2tr, g2) for g2 in gs], 1))
+        feats_te.append(torch.stack([_feat(torch, M2te, g2) for g2 in gs], 1))
+    Y = -torch.ones((len(ytr), 10), device=dev)
+    Y[torch.arange(len(ytr)), torch.tensor(ytr, device=dev)] = 1.0
+    yte_t = torch.tensor(yte, device=dev)
+    best = 0.0
+    for lam in (1.0, 3.0, 10.0, 30.0):
+        _, acc = _ridge_soft(torch, torch.cat(feats_tr, 1),
+                             torch.cat(feats_te, 1), Y, yte_t, lam=lam)
+        best = max(best, acc)
+    out = {"phase": "E-deep-full", "test_acc": round(best, 4),
+           "stages": [len(genomes1)] + [len(s) for s in stages],
+           "references": {"two_stage_full": 0.6353, "stage1_full": 0.6257,
+                          "v1_milestone": 0.5904},
+           "seconds": round(time.time() - t0)}
+    with open(os.path.join(_HERE, "radial_data", "evo_deep_full_cifar.json"), "w") as f:
+        json.dump(out, f, indent=1)
+    if verbose:
+        print(f"[deep-full] tower {out['stages']} on 50k/10k: TEST {best:.4f} "
+              f"(two-stage 0.6353, {out['seconds']}s)", flush=True)
+    return out
+
+
 if __name__ == "__main__":
     import sys
-    if "stackfull" in sys.argv:
+    if "deepfull" in sys.argv:
+        run_deep_full()
+    elif "deep" in sys.argv:
+        run_deep()
+    elif "stackfull" in sys.argv:
         phase_stack_full()
     elif "stack" in sys.argv:
         phase_stack()
