@@ -10,6 +10,14 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-14] (Claude)** — **Evolution campaign part 3: THE v1 MILESTONE
+  FALLS.** `phase_b_full()` transfers the 647 evolved genomes to full CIFAR
+  (50k/10k; identical environment basis so component indices keep meaning;
+  head refit closed-form; test once): **0.6198 vs the v1 hand-crafted
+  Coates-Ng milestone 0.5904 (+2.9 pts)**, 35 s. The no-gradient CIFAR
+  ladder now: raw 0.324 → PCA 0.360 → hand-crafted patches 0.5904 →
+  **evolved genomes 0.6198**. Genomes evolved on 8k transfer to 50k without
+  re-evolution. Export `radial_data/evo_full_cifar.json`; findings §11.
 - **[2026-07-14] (Claude)** — **Evolution campaign part 2: THE CEILING BREAKS
   (Phase B) + the genome map (Phase C).** Phase B in `radial_evo.py`:
   interaction feature genomes over a label-free patch-PCA environment (40

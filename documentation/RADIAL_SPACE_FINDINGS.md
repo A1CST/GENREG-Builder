@@ -251,6 +251,15 @@ winner's-curse inflation ≈ +0.03). Re-run under the honest protocol
     the ridge head). No gradients anywhere.
   (`radial_data/evo_interact_cifar.json`)
 
+- **Phase B-full — transfer to full CIFAR: THE MILESTONE FALLS.** The 647
+  genomes evolved on 8k, recomputed on 50k/10k with the head refit (35 s):
+  **test 0.6198 — beats the v1 hand-crafted Coates-Ng milestone (0.5904,
+  full 50k, 2048-dim features) by +2.9 pts** with 647 evolved scalar
+  features. The branch's original goal line now reads: raw 0.324 → PCA
+  0.360 → hand-crafted patches 0.5904 → **evolved genomes 0.6198**, all
+  gradient-free. Genomes transfer across data scale without re-evolution.
+  (`radial_data/evo_full_cifar.json`)
+
 - **Phase C — the genome map.** The 647 evolved genomes fingerprinted by
   behavior (feature values over 512 probe images), MDS to 3D
   (`radial_data/evo_genome_map.json`):

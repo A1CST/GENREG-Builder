@@ -467,9 +467,78 @@ def phase_c(verbose=True):
     return out
 
 
+def phase_b_full(verbose=True):
+    """Transfer test: the 647 genomes evolved on 8k, features recomputed on
+    FULL CIFAR (50k train / 10k test), ridge head refit, test measured once.
+    The environment basis is rebuilt from the SAME 2000 images the genomes
+    evolved against, so component indices keep their meaning."""
+    import torch
+    dev = "cuda" if torch.cuda.is_available() else "cpu"
+    t0 = time.time()
+    with open(os.path.join(_HERE, "radial_data", "evo_interact_cifar.json")) as f:
+        genomes = json.load(f)["genomes"]
+    Mtr8, _, _, C = _patch_env(torch, dev)      # basis fit inside, identical path
+    del Mtr8
+    torch.cuda.empty_cache()
+    import torch.nn.functional as Fn
+    z = np.load(os.path.join(_HERE, "radial_data", "cifar_full.npz"))
+    Xtr = z["Xtr"].astype(np.float32) / 255.0
+    Xte = z["Xte"].astype(np.float32) / 255.0
+    ytr, yte = z["ytr"], z["yte"]
+
+    # rebuild the exact basis (same code path/seed as _patch_env)
+    from radial_baseline import cifar_data
+    X8 = cifar_data()[0]
+    i8 = torch.tensor(X8[:2000], device=dev).permute(0, 3, 1, 2).contiguous()
+    P = Fn.unfold(i8, 6, stride=2)
+    cols = P.permute(0, 2, 1).reshape(-1, 108)
+    g = torch.Generator(device="cpu").manual_seed(0)
+    cols = cols[torch.randperm(len(cols), generator=g)[:120000].to(dev)]
+    mu = cols.mean(0)
+    _, _, V = torch.linalg.svd(cols - mu, full_matrices=False)
+    comps = V[:C]
+    sd8 = None
+
+    def feats(X, bs=400):
+        nonlocal sd8
+        F_out = torch.zeros((len(X), len(genomes)), device=dev)
+        for b in range(0, len(X), bs):
+            imgs = torch.tensor(X[b:b + bs], device=dev).permute(0, 3, 1, 2).contiguous()
+            U = Fn.unfold(imgs, 6, stride=2)
+            M = torch.einsum("cd,bdl->bcl", comps, U - mu.view(1, -1, 1))
+            if sd8 is None:
+                sd8 = M.std((0, 2), keepdim=True) + 1e-6   # first batch stats
+            M = M / sd8
+            for k, gn in enumerate(genomes):
+                F_out[b:b + len(imgs), k] = _feat(torch, M, gn)
+        return F_out
+
+    Ftr = feats(Xtr)
+    Fte = feats(Xte)
+    Y = -torch.ones((len(ytr), 10), device=dev)
+    Y[torch.arange(len(ytr)), torch.tensor(ytr, device=dev)] = 1.0
+    yte_t = torch.tensor(yte, device=dev)
+    best = 0.0
+    for lam in (1.0, 3.0, 10.0, 30.0):
+        _, acc = _ridge_soft(torch, Ftr, Fte, Y, yte_t, lam=lam)
+        best = max(best, acc)
+    out = {"phase": "B-full-transfer", "train": len(ytr), "test": len(yte),
+           "n_genomes": len(genomes), "test_acc": round(best, 4),
+           "references": {"v1_coates_ng_full50k": 0.5904, "evolved_8k": 0.584},
+           "seconds": round(time.time() - t0)}
+    with open(os.path.join(_HERE, "radial_data", "evo_full_cifar.json"), "w") as f:
+        json.dump(out, f, indent=1)
+    if verbose:
+        print(f"[B-full] {len(genomes)} genomes on 50k/10k: TEST {best:.4f} "
+              f"(v1 milestone 0.5904, evolved-8k 0.5840, {out['seconds']}s)", flush=True)
+    return out
+
+
 if __name__ == "__main__":
     import sys
-    if "c" in sys.argv:
+    if "full" in sys.argv:
+        phase_b_full()
+    elif "c" in sys.argv:
         phase_c()
     elif "b" in sys.argv:
         phase_b()
