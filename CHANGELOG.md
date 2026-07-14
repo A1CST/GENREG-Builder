@@ -10,6 +10,17 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-14] (Claude)** — **NEW TEST RECORD: 0.7079 (push-80 stage, local
+  seed-7).** The grammar-v3 stack converged in **77 seconds**: 403 stage-2
+  genomes over the 503-genome substrate, val 0.7136→0.7424, **test-once
+  0.7079 vs the previous record 0.7035**. Evolution adopted all three levers:
+  156/403 keepers gated (conditional routing), 421 meta-terms reading other
+  genomes' outputs. Energy economy in band (~6 starved/gen) throughout.
+  Honest caveat: cumulative val-test gap now 0.034 (906 freeze decisions
+  against the same 10k split across two stages) — a fresh val split per
+  stage is the known next hygiene fix. Pod seed-13 in dry-out (~round 93);
+  its push-80 fires on completion. Ladder: Coates-Ng 0.5904 → v1 0.6378 →
+  v2 0.7035 → **v3 stack 0.7079**.
 - **[2026-07-14] (Claude)** — **Push-to-80 stage built + crossover replicate
   results.** (1) `radial_push80.py` implements the user's "push to 80" plan
   (documentation/push to 80.txt) as grammar v3, all three levers as GENES:
