@@ -103,10 +103,12 @@
       if (j === selected) { ctx.globalAlpha = 1; ctx.strokeStyle = "#e6ebf1"; ctx.stroke(); }
     }
     ctx.globalAlpha = 1;
-    // identity marker (lens 0, the origin)
-    var o = px(pts[0]);
-    ctx.strokeStyle = "#8b95a1";
-    ctx.beginPath(); ctx.arc(o[0], o[1], 6, 0, 2 * Math.PI); ctx.stroke();
+    // origin marker (0,0,0 = the identity lens): solid red dot + halo ring
+    var o = project(0, 0, 0);
+    ctx.fillStyle = "#e04b3a";
+    ctx.beginPath(); ctx.arc(o[0], o[1], 4.5, 0, 2 * Math.PI); ctx.fill();
+    ctx.strokeStyle = "#e04b3a";
+    ctx.beginPath(); ctx.arc(o[0], o[1], 8, 0, 2 * Math.PI); ctx.stroke();
   }
 
   /* orbit / zoom / pan / click-select */
