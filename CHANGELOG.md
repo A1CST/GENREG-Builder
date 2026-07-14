@@ -10,6 +10,17 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-14] (Claude)** — **Radial demo page rewritten to reflect how
+  models actually train now.** `/radial/demo` no longer shows the superseded
+  rotation-cube concept; it walks the real v3 pipeline (environment → genome
+  anatomy with an annotated keeper structure → residual-gain fitness with the
+  honesty rules → tournament/crossover/energy selection → freeze-and-compose
+  → seed farming), with LIVE numbers: the gradient-free ladder as bars and
+  the per-seed substrate table via new GET `/api/radial/training_state`
+  (reads run exports incl. the pod mirror; in-flight runs show "running").
+  Cousins sub-page untouched. **Needs a Flask restart.** Farm status:
+  seed-29 done (0.6859), seed-43 done (0.6793), pop-128 running; final-union
+  readout staged on the pod; nothing else staged per the review freeze.
 - **[2026-07-14] (Claude)** — **Terminals: 5-min reopen grace on close +
   Ghostwriter transcript logger.** (1) Closing a terminal tab (× button) no
   longer kills the shell — the daemon now **detaches** it and holds the session
