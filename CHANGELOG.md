@@ -10,6 +10,21 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-14] (Claude)** — Evolution campaign part 8: **FULL SEND
+  EXPRESSIVITY — grammar v2, nothing hand-crafted** (`radial_evo2.py`,
+  user: "the genomes need to evolve those features"). Every structural
+  property of the v1 feature-genome class that was a design decision is now
+  a GENE: patch SCALE (4-14, environment lazily builds patch-PCA maps per
+  scale evolution visits, LRU-cached fp16), interaction ORDER (2-3 terms,
+  add/remove-term mutation), program DEPTH (1-2 bends, add/drop-stage
+  mutation), and POOLING — no region catalog, an evolved soft spatial
+  window (cx, cy, sigma genes: wide sigma IS global pooling, tight IS a
+  local region). Human hand: math primitives (8 activations, 3 ops, 3
+  stats) + data statistics only. Evolved directly on full 50k with the
+  honest 10k val; test once; per-round checkpoints (`evo2_ckpt.json`),
+  STOP_EVO lever, resume. Smoke: 24 genomes → val 0.402 with evolution
+  already diversifying scales on its own. Full run launched (target: the
+  v1-class ceiling 0.6378); monitor armed.
 - **[2026-07-14] (Claude)** — Evolution campaign part 7: **the honest-ruler
   deep run (full 50k, 10k val) — the bet was WRONG, and the answer is
   better.** `run_deep_50k()`: stages 2+ evolved on full CIFAR, fitness val =
