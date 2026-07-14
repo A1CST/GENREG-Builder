@@ -235,11 +235,6 @@ LADDER = [
     ("sin8x",     lambda x: np.sin(8 * x)),
     ("sin16x",    lambda x: np.sin(16 * x)),
     ("sin32x",    lambda x: np.sin(32 * x)),
-    # temporal — the value at t depends on OTHER samples; a pointwise lens
-    # bank has no access to context, so the frontier should land here
-    ("lag1_prod", lambda x: x * np.roll(x, 1)),
-    ("lag4_mean", lambda x: (x + np.roll(x, 1) + np.roll(x, 2) + np.roll(x, 3)) / 4),
-    ("delay5",    lambda x: np.roll(x, 5)),
 ]
 
 

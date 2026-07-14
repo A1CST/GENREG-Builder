@@ -10,6 +10,10 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-13] (Claude)** — Radial v2 ladder: **temporal rungs REMOVED**
+  (user: "no one said add temporal yet, that's a whole nother beast"). The
+  ladder is pointwise-only now — 7 rungs, square through sin32x. Results
+  unchanged where it matters: loops clears 6/7, frontier sin32x (0.9902).
 - **[2026-07-13] (Claude)** — Radial v2: **auto-incrementing task ladder**
   (user: "if R2 hits .998 the task changes to the next harder task").
   `ladder_probe()` in `radial_map.py`: 10 ordered rungs — pointwise with rising
