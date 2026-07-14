@@ -10,6 +10,16 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-13] (Claude)** — **Radial space discoveries documented +
+  published.** `documentation/RADIAL_SPACE_FINDINGS.md` (the master findings
+  doc: the space, the galaxy structure with the radius=strangeness correction,
+  the linear-diversity hypothesis result, rotation/redundancy, all five domain
+  baselines, model-size analysis, the four quantified genome-starting gaps)
+  and `documentation/RADIAL_SPACE_FINDINGS.pdf` (5 pages, generated from live
+  code: title/abstract, the six per-domain behavioral maps with shapes and the
+  red origin, loops + per-domain rotation curves with the redundancy
+  annotation, baseline bar chart with the bigram-ceiling line, details page).
+  Branch pushed to origin (GENREG-Builder).
 - **[2026-07-13] (Claude)** — Baselines maps: **failed cards are now
   click-to-retry.** Diagnosis of "still only text loads after restart": the
   live server answers all five domains 200/valid-JSON in <0.6s (verified with
