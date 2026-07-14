@@ -520,9 +520,15 @@
 
   var chartQueue = [];
 
-  /* a small self-spinning, drag-orbitable 3D cloud of one domain's map */
+  /* domain map requests run one at a time — four concurrent builds made
+     Flask miserable */
+  var mapChain = Promise.resolve();
+
+  /* a self-spinning, drag-orbitable, wheel-zoomable 3D cloud of one domain */
   function miniMap(cv, lbl, kind) {
-    post("/api/radial/map", { n: 600, kind: kind }).then(function (d) {
+    mapChain = mapChain.then(function () {
+      return post("/api/radial/map", { n: 600, kind: kind });
+    }).then(function (d) {
       if (d.error) { lbl.textContent = d.error; return; }
       var P = d.pts;
       var maxR = 1e-9;
@@ -533,15 +539,16 @@
       P.forEach(function (p) { sx += p.x * p.x; sy += p.y * p.y; sz += (p.z || 0) * (p.z || 0); });
       var st = function (v) { return Math.sqrt(v / P.length).toFixed(1); };
       lbl.textContent = "domain map, " + d.n + " lenses · shape " + st(sx) + " / " +
-        st(sy) + " / " + st(sz) + " · auto-spins, drag to orbit";
-      var yaw2 = 0.5, pitch2 = -0.35, dragging = null, spin = true;
+        st(sy) + " / " + st(sz) + " · auto-spins · drag = orbit · wheel = zoom";
+      var yaw2 = 0.5, pitch2 = -0.35, dragging = null, spin = true, zoom2 = 1;
       var W = cv.width = cv.clientWidth * 2, H = cv.height = cv.clientHeight * 2;
-      var s = (Math.min(W, H) / 2 - 14) / maxR;
+      var s0 = (Math.min(W, H) / 2 - 14) / maxR;
       var ctx = cv.getContext("2d");
 
       function proj(x, y, z) {
         var cy2 = Math.cos(yaw2), sy2 = Math.sin(yaw2);
         var cp2 = Math.cos(pitch2), sp2 = Math.sin(pitch2);
+        var s = s0 * zoom2;
         var x1 = x * cy2 + z * sy2, z1 = -x * sy2 + z * cy2;
         return [W / 2 + x1 * s, H / 2 + (y * cp2 - z1 * sp2) * s, y * sp2 + z1 * cp2];
       }
@@ -585,6 +592,10 @@
         dragging = null;
         setTimeout(function () { spin = true; }, 2500);
       });
+      cv.addEventListener("wheel", function (ev) {
+        ev.preventDefault();
+        zoom2 = Math.max(0.3, Math.min(12, zoom2 * Math.exp(-ev.deltaY * 0.0014)));
+      }, { passive: false });
 
       (function loop() {
         if (spin) yaw2 += 0.004;

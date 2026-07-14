@@ -120,6 +120,17 @@ def data_stream(kind="loops", n=2400, seed=0):
 # 3. behavioral signature — how a lens transforms the stream
 # ---------------------------------------------------------------------------
 
+def _safe_corr(a, b):
+    """Correlation with no NaN and no numpy divide warnings — degenerate
+    (near-constant) inputs, common on spiky real-data streams, give 0."""
+    a = a - a.mean(); b = b - b.mean()
+    den = np.sqrt(float((a * a).sum()) * float((b * b).sum()))
+    if not np.isfinite(den) or den < 1e-12:
+        return 0.0
+    c = float((a * b).sum() / den)
+    return float(np.clip(c, -1.0, 1.0)) if np.isfinite(c) else 0.0
+
+
 def _sig(prog, x, xq):
     """Signature = the lens's response curve over the data's own quantile grid
     (the transform's shape as seen through this data's distribution) plus a
@@ -132,10 +143,7 @@ def _sig(prog, x, xq):
     cs = curve.std()
     curve = (curve - curve.mean()) / (cs + 1e-9) if cs > 1e-9 else curve * 0.0
     dc = np.diff(curve)
-    corr = 0.0
-    if ys > 1e-9:
-        c = np.corrcoef(x, yz)[0, 1]
-        corr = float(c) if np.isfinite(c) else 0.0
+    corr = _safe_corr(x, yz) if ys > 1e-9 else 0.0
     stats = np.array([
         corr,                                                    # linearity
         float(np.mean(np.abs(yz) > 2.0)),                        # tail mass
@@ -182,7 +190,7 @@ def build_map(n_lens=1200, kind="loops"):
     XY = _mds(S, 3)                       # full 3D — the page orbits the sphere
     r = np.linalg.norm(XY, axis=1)
     # honest checks: does the galaxy structure hold?
-    rad_nl = float(np.corrcoef(r, nl)[0, 1])            # nonlinearity grows outward?
+    rad_nl = _safe_corr(r, nl)                          # nonlinearity grows outward?
     k = min(n_lens, 50)                                 # raw signatures reproduce exactly
     s2, _, _, _ = build_signatures(k, kind)
     det_err = float(np.abs(Sraw[:k] - s2[:k]).max())

@@ -10,6 +10,16 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-13] (Claude)** — Baselines maps: **NaN crash fixed + bigger +
+  zoomable.** Root cause of "only text loaded, others crashed": `np.corrcoef`
+  inside `_sig`/`build_map` emitted invalid-divide NaNs on spiky domain
+  streams, and a NaN in `radius_vs_nonlinearity_corr` made jsonify produce
+  invalid JSON (bare `NaN`), killing the fetch. Replaced every corrcoef with a
+  `_safe_corr` (no numpy divide path at all, degenerate → 0.0); verified all
+  five domains build with warnings-promoted-to-errors and json.dumps clean.
+  GUI: card maps 320px tall (cards min 440px wide), wheel-zoom added
+  (0.3x-12x), and the four domain-map requests now load SEQUENTIALLY (a
+  promise chain) instead of hitting Flask concurrently.
 - **[2026-07-13] (Claude)** — Baselines view: **each card now shows the
   domain's actual 3D MAP** (user: "I really wanted the map of the baselines so
   I can see the shapes"). Every card fetches its own 600-lens cloud from
