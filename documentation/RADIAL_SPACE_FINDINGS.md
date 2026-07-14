@@ -224,6 +224,31 @@ winner's-curse inflation ≈ +0.03). Re-run under the honest protocol
   ceiling is even harder than reported; interactions (Phase B) are the only
   real headroom.
 
+## 11b. GRAMMAR V2 — the expressivity wall falls (2026-07-14)
+
+The honest-ruler run measured the v1 feature-genome class saturating at
+~0.63–0.64. Grammar v2 (`radial_evo2.py`) removed every hand-crafted
+structural decision: patch scale, interaction order, program depth, and the
+pooling region are all GENES (pooling is an evolved soft spatial window —
+wide σ *is* global, tight σ *is* local; no catalog). The human hand: 8
+activation primitives, 3 ops, 3 stats, and per-scale patch statistics built
+lazily from data for whatever scales evolution visits.
+
+**Result (full 50k, honest 10k val, 10k test touched once): 592 genomes,
+val 0.7104, TEST 0.7035** — natural convergence in 96 rounds / 114 min.
+Val–test gap 0.007: the instrument held. The complete gradient-free ladder:
+raw 0.324 → PCA 0.360 → hand-crafted Coates-Ng 0.5904 → v1 evolved 0.6198 →
+v1 tower 0.6378 → **grammar v2 0.7035**. The v1 ceiling fell at round 30
+with a third of the genomes.
+
+What evolution chose when nothing was chosen for it: all six patch scales
+colonized within 20 rounds; 426 order-2 and 166 order-3 interactions; and —
+unplanned by anyone — **std pooling over evolved local windows became the
+second-most-used stat (238 of 592)**: local texture-variance detectors, a
+feature family absent from every hand-crafted baseline. Expressivity, not
+selection, was the binding constraint — exactly what the saturation analysis
+predicted.
+
 ## 11. Evolution campaign log (autonomous, CIFAR)
 
 - **Phase A — region genome (evolve ON the map):** genome = (plane angles,

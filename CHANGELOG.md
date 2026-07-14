@@ -10,6 +10,19 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-14] (Claude)** — Evolution campaign part 9: **GRAMMAR V2 RESULT —
+  TEST 0.7035 on full CIFAR.** Natural convergence after 96 rounds / 114 min:
+  592 genomes, honest-10k val 0.7104, **10k test (touched once) 0.7035** —
+  val-test gap only 0.007, the instrument held. Ladder: raw 0.324 → PCA
+  0.360 → hand-crafted Coates-Ng 0.5904 → v1 evolved 0.6198 → v1 tower
+  0.6378 → **grammar v2 0.7035** (+6.6 over the v1 ceiling, +11.3 over
+  hand-crafted, zero gradients, ~60 KB of genomes + ridge head). What
+  evolution chose when nothing was hand-picked: all SIX patch scales
+  colonized (4-14); 426 order-2 / 166 order-3 interactions; pooling stats
+  mean 292 / std 238 / max 62 — the heavy use of evolved-window STD pooling
+  (local texture-variance detectors) is a structure no one designed. The
+  expressivity hypothesis is confirmed: the v1 wall fell at round 30 with a
+  third of the genomes. Export `radial_data/evo2_cifar.json`.
 - **[2026-07-14] (Claude)** — Evolution campaign part 8: **FULL SEND
   EXPRESSIVITY — grammar v2, nothing hand-crafted** (`radial_evo2.py`,
   user: "the genomes need to evolve those features"). Every structural
