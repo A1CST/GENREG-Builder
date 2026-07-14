@@ -10,6 +10,14 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-15] (Claude)** — **radial_stack full run #1: the speed/quality
+  dial, measured.** Emergent-cap stacked run (cap 0.0014): **11.5 min** (10x
+  faster than the v2 record's 114) — uncapped freezing banked 24-37 genomes
+  per round; the economy self-sized spaces [424, 22, 6]; **test 0.6390** vs
+  v2's 0.7035. Bulk-freeze harvests the steep curve then trips before the
+  slow-grind territory where v2 earned its last points — the cap IS the
+  tradeoff dial. Run #2 launched with cap.txt=0.0005 to plot the second point
+  of the speed/quality curve (result preserved as radial_stack_cap14.json).
 - **[2026-07-14] (Claude)** — radial_stack patched with the resnet line's
   latest update: **per-space frame ROTATION** (`_rotate_features` + `rot_deg`,
   default 1°/space) — space k reads the previous space's z-scored outputs
