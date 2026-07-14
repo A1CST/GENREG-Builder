@@ -10,6 +10,23 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-14] (Claude)** — **CIFAR run restructured to match the ResNet
+  line** (user directive: same structure and all updates as `resnet_evo`).
+  New `radial_stack.py`: the radial grammar under the resnet runner skeleton —
+  **emergent-cap stacked spaces** per `documentation/stacking.txt` ("don't set
+  the cap, make it a pressure"): no freeze_top, every qualifying decorrelated
+  contributor freezes, a space is FULL when a round's val gain drops below the
+  cap threshold (**live-tunable via `cap.txt`**, no restart), overflow opens
+  the next space reading the previous outputs, the stack stops when a whole
+  space can't earn MIN_SPACE_GAIN. Energy economy in EVERY space (Phase-D
+  constants). Space 0 = grammar-v2 spatial genomes; deeper spaces = vector
+  grammar (terms + sigmoid gates over prior outputs — meta + routing).
+  Artifacts off C: (`GENREG_RADIAL_DIR`, default `F:\Radial` on Windows,
+  radial_data on the pod — fixed a portability bug where `F:\...` silently
+  created a junk dir on Linux); **runs/ integration** (environment
+  `radial_stack`, shows on /runs); **smoke mode**. Pod smoke: 2 spaces
+  self-sized [57, 15], gates adopted, cap tripped on value not count,
+  artifacts + run record confirmed. Ready for a full run on user go.
 - **[2026-07-14] (Claude)** — **ResNet line: gradient-free evolved residual
   networks on CIFAR (new `/resnet` page + full pipeline).** The whole lab is
   gradient-free (rule #1); this asks the ResNet question inside that law. New
