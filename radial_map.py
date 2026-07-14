@@ -99,8 +99,15 @@ def data_stream(kind="loops", n=2400, seed=0):
         d = np.load(os.path.join(_HERE, "radial_data", "cifar_radial.npz"))
         flat = (d["Xtr"].astype(np.float32) / 255.0).reshape(-1)
         x = np.random.default_rng(seed).choice(flat, n, replace=False)
+    elif kind == "text":
+        from radial_baseline import text_stream
+        x = text_stream(n)
+    elif kind == "audio":
+        from radial_baseline import audio_data
+        x = np.random.default_rng(seed).choice(audio_data()[0].reshape(-1), n, replace=False)
     else:
-        raise ValueError(f"unknown data kind '{kind}' (have: loops, noise, mnist, cifar)")
+        raise ValueError(f"unknown data kind '{kind}' "
+                         "(have: loops, noise, mnist, cifar, text, audio)")
     x = x - x.mean()
     return x / (x.std() + 1e-9)
 
@@ -276,7 +283,8 @@ def ladder_probe(n_lens=400, kind="loops", threshold=0.998):
             "frontier": None if rungs[-1]["passed"] else rungs[-1]["task"]}
 
 
-def rotation_probe(n_lens=800, kind="loops", step_deg=1.0, frac=0.03, n_rand=20):
+def rotation_probe(n_lens=800, kind="loops", step_deg=1.0, frac=0.03, n_rand=20,
+                   axis="y", whiten=False):
     """Rotate the radial map about the Y axis, 1 degree per step — the data
     never changes, only the lens PERSPECTIVE does. The map is embedded in 3D
     (top-3 MDS of the same behavioral signatures); at angle t the probe sees
@@ -289,7 +297,9 @@ def rotation_probe(n_lens=800, kind="loops", step_deg=1.0, frac=0.03, n_rand=20)
     lenses are co-planar) carries task-relevant information."""
     Sraw, _, _, _ = build_signatures(n_lens, kind)
     S = (Sraw - Sraw.mean(0)) / (Sraw.std(0) + 1e-9)
-    X3 = _mds(S, 3)                                   # x, y, z — y is the spin axis
+    X3 = _mds(S, 3)
+    if whiten:                     # Z-axis expansion: equalize the disc's axes
+        X3 = X3 / (X3.std(0) + 1e-9)
     x = data_stream(kind)
     bank = np.stack([lens_apply(lens_program(i), x) for i in range(n_lens)], 1)
     ok = bank.std(0) > 1e-9
@@ -300,9 +310,10 @@ def rotation_probe(n_lens=800, kind="loops", step_deg=1.0, frac=0.03, n_rand=20)
         return {n: _ridge_r2(bank[:, idx], y) for n, y in tasks.items()}
 
     angles, mean_r2, per_task, slice_n = [], [], {n: [] for n in tasks}, []
+    ax = {"y": (0, 2), "x": (1, 2), "z": (0, 1)}[axis]   # which coords the spin mixes
     for k in range(int(round(360.0 / step_deg))):
         th = np.deg2rad(k * step_deg)
-        z2 = -X3[:, 0] * np.sin(th) + X3[:, 2] * np.cos(th)
+        z2 = -X3[:, ax[0]] * np.sin(th) + X3[:, ax[1]] * np.cos(th)
         idx = np.where(np.abs(z2) <= np.quantile(np.abs(z2), frac))[0]
         r2 = bank_r2(idx)
         angles.append(round(k * step_deg, 2))
@@ -317,7 +328,8 @@ def rotation_probe(n_lens=800, kind="loops", step_deg=1.0, frac=0.03, n_rand=20)
     full = float(np.mean(list(bank_r2(np.arange(bank.shape[1])).values())))
     best, worst = int(np.argmax(mean_r2)), int(np.argmin(mean_r2))
     return {
-        "kind": kind, "n_lens": int(bank.shape[1]), "step_deg": step_deg,
+        "kind": kind, "axis": axis, "whiten": bool(whiten),
+        "n_lens": int(bank.shape[1]), "step_deg": step_deg,
         "slice_size": m, "angles": angles, "mean_r2": mean_r2, "per_task": per_task,
         "baseline_random_mean": round(float(np.mean(rand)), 4),
         "baseline_random_std": round(float(np.std(rand)), 4),
