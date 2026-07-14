@@ -168,6 +168,38 @@ map's geometry exposes for free. **The genome's search space should be the
 MAP (plane/angle/region parameters), not raw indices** — which is the radial
 thesis restated as an evolution recipe, and the design brief for genome #2.
 
+## 9. Response to the independent validation report (2026-07-14)
+
+`documentation/validation_report.txt` audits the `/radial/demo/cousins`
+sub-page (a separate workstream: a small periodic 140-lens generator on a
+grid, probed with 128 samples) and invalidates 5 of its 10 claims — mainly
+overparameterized least squares (features > samples ⇒ R²=1 by memorization)
+and modulo-duplicate lenses masquerading as spatial structure. Those
+critiques are correct **for that demo**. We ran the same attacks against the
+main line (`radial_map.py`, 748-lens bank, 2400-sample stream):
+
+- **Overparameterization: does not apply.** Our ridge fits 1440 rows against
+  ≤749 features and scores held-out; with the bank cut to **100 features**
+  (7% of sample count) heldout R² is still 1.000 on all five tasks. The
+  correct framing stands as written in §3: pointwise 1-D targets are easy
+  function interpolation for a diverse bank — real, but not deep abstraction.
+- **Periodicity/duplicates: does not apply.** Our generator is rng(i)-seeded,
+  no modulo cycle; behavioral duplicate pairs (|corr|>0.99) are 1.17%, and
+  after deduplicating at 0.95 the 171 survivors still hit R² 1.000 on
+  everything.
+- **Rotation-is-a-red-herring: already resolved by Q2.** Our worst-slice
+  effect is driven by behavioral redundancy (the linear core), which we
+  identified and removed ourselves — the below-chance floor is explained, not
+  mystical.
+- **Effective dimensionality: the critique LANDS, and sharpens §1.** At the
+  1% singular-value threshold the 748-lens bank spans only **~46 effective
+  dimensions** on the loops stream. The "infinite" lens space collapses to a
+  few dozen usable directions per domain — consistent with Q1's two dominant
+  DOF, with the early saturation of every accuracy-vs-L curve, and with the
+  sin32x frontier (high-frequency targets need directions the bank doesn't
+  span). The map is best understood as ~46 real axes plus dense redundancy —
+  which is exactly why slice CHOICE beats slice COUNT.
+
 All numbers reproducible from `radial_data/baseline_*.json`,
 `prebaseline_fixes.json`, and the CLI (`python radial_map.py map|probe|rotate|
 ladder`, `python radial_baseline.py all`). Roadmap status lives in

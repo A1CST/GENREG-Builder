@@ -10,6 +10,19 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-14] (Claude)** — **Validation-report response**
+  (`validation_report.txt` audits the /radial/demo/cousins DEMO — periodic
+  140-lens generator, 128-sample probes — not the main line; its
+  overparameterization and modulo-duplicate critiques are correct for that
+  demo). Ran the same attacks on `radial_map.py`: overparameterization does
+  NOT apply (1440 fit rows vs ≤749 features, heldout scoring; 100 features
+  still give R² 1.000), generator is aperiodic (duplicate pairs 1.17%;
+  deduped 171-lens bank still 1.000), rotation-red-herring already resolved
+  by Q2 (the linear core). One critique LANDS and is now logged in findings
+  §9: **effective dimensionality of the 748-lens bank is only ~46** (1% sv
+  threshold) — the infinite space collapses to a few dozen usable directions
+  per domain, explaining early L-curve saturation and the sin32x frontier;
+  the map = ~46 real axes + dense redundancy, hence slice CHOICE > COUNT.
 - **[2026-07-14] (Claude)** — **The four open questions ANSWERED; PDF updated
   to 6 pages; main fast-forwarded on GitHub.** Q1 (why a disc): MDS axis 1
   correlates +0.99 with LINEARITY; axis 2 is response-curve shape (79% of
