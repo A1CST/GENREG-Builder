@@ -10,6 +10,29 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-14] (Claude)** — **ResNet line: gradient-free evolved residual
+  networks on CIFAR (new `/resnet` page + full pipeline).** The whole lab is
+  gradient-free (rule #1); this asks the ResNet question inside that law. New
+  `resnet_evo.py` evolves **residual-block genomes** — a stem of label-free
+  patch-PCA channels + a depth-evolving stack of `h ← h + gain·act(a·(mix·h)+b)`
+  blocks (the identity **skip is the gene**; `mix` = 1×1-conv analog; `act` =
+  the 8-function catalog; new blocks bootstrap as near-no-op then evolve) →
+  collapsed to one scalar via the evolved soft window. Reuses the radial
+  machinery unchanged (`Env` patch-PCA, Schur border-ridge `make_scorer`,
+  `_ridge_soft`, comma-GA freeze-and-compose, checkpoint/STOP/resume). **No
+  gradients anywhere.** New page `/resnet` (`templates/resnet.html`,
+  `static/resnet.js`) mirrors the Radial styling: residual-grammar explainer,
+  test/val headline, val-curve with Coates-Ng / radial-v1 / grammar-v2
+  reference lines, and depth/width/stat distribution bars. Added to the shared
+  nav (`_nav.html`, key `resnet`); new `/api/resnet/result` route. **Artifacts
+  write to `F:\Resnet`** (env `GENREG_RESNET_DIR`; local `radial_data/`
+  fallback) — nothing large on C:. Every run writes a `runs/resnet_evo/<rid>/`
+  entry so it shows on `/runs`. Smoke-tested end-to-end (3k/800 subset, 2
+  rounds): val 0.233→0.283, test 0.305, artifacts + run entry confirmed on F:.
+  **No full run launched** (pod busy). Per-project log:
+  `documentation/changelogs/CHANGELOG_RESNET.md`. NOTE: Flask must be restarted
+  to serve the new `/resnet` route + template.
+
 - **[2026-07-14] (Claude)** — **Radial demo page rewritten to reflect how
   models actually train now.** `/radial/demo` no longer shows the superseded
   rotation-cube concept; it walks the real v3 pipeline (environment → genome
