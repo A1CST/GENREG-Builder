@@ -10,6 +10,25 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-13] (Claude)** — **Radial baselines campaign started** (user's
+  roadmap `~/Downloads/radial_space_baselines.md` → copied to
+  `documentation/RADIAL_BASELINES.md`). New `radial_baseline.py`: full lens
+  bank + closed-form linear head per data domain, no genomes — implemented as
+  summed per-lens linear kernels + kernel ridge on CUDA (RTX 4080), input
+  format logged as FLAT/POINTWISE (a GAM over pixels). Radial-owned MNIST copy
+  (`radial_data/mnist_radial.npz`, 8k/2k, built read-only from corpora/mnist).
+  **MNIST BASELINE DONE:** raw-pixel linear 0.8005; lens bank 0.827 (L=8) →
+  0.8395 (L=400) — saturates immediately, so the roadmap question is answered:
+  COMPOUNDING problem, not coverage (pointwise GAM can't see pixel
+  interactions). Per-class: 5 and 2 hardest. Top lenses are gauss/abs folds
+  (ink detectors). Rotation probe on MNIST: spread only 0.028 (vs loops' 0.83)
+  — a 24-lens slice already hits the ceiling. MNIST-domain map is a flat cigar
+  (axis std 6.8/1.7/1.4). Export `radial_data/baseline_mnist.json`. Fixes:
+  NaN guards in `_sig` (mostly-zero pixel streams degenerated corrcoef and
+  poisoned the MDS — the first rotation run scored 0.0 everywhere); `mnist`/
+  `cifar` added as data kinds (page select too). Next per roadmap: CIFAR-10
+  baseline, then text/audio; pre-baseline fixes (Z-axis expansion, rotation
+  axis lock) still open.
 - **[2026-07-13] (Claude)** — Radial sphere: origin (0,0,0) marked with a solid
   **red dot + halo ring**, drawn at the true world origin (`project(0,0,0)`) so
   it stays put while orbiting/zooming. Replaces the grey identity outline.

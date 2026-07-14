@@ -91,8 +91,16 @@ def data_stream(kind="loops", n=2400, seed=0):
         x = np.concatenate(parts)
     elif kind == "noise":
         x = np.random.default_rng(seed).standard_normal(n)
+    elif kind == "mnist":
+        from radial_baseline import mnist_data
+        Xtr = mnist_data()[0]
+        x = np.random.default_rng(seed).choice(Xtr.reshape(-1), n, replace=False)
+    elif kind == "cifar":
+        d = np.load(os.path.join(_HERE, "radial_data", "cifar_radial.npz"))
+        flat = (d["Xtr"].astype(np.float32) / 255.0).reshape(-1)
+        x = np.random.default_rng(seed).choice(flat, n, replace=False)
     else:
-        raise ValueError(f"unknown data kind '{kind}' (have: loops, noise)")
+        raise ValueError(f"unknown data kind '{kind}' (have: loops, noise, mnist, cifar)")
     x = x - x.mean()
     return x / (x.std() + 1e-9)
 
@@ -113,7 +121,10 @@ def _sig(prog, x, xq):
     cs = curve.std()
     curve = (curve - curve.mean()) / (cs + 1e-9) if cs > 1e-9 else curve * 0.0
     dc = np.diff(curve)
-    corr = float(np.corrcoef(x, yz)[0, 1]) if ys > 1e-9 else 0.0
+    corr = 0.0
+    if ys > 1e-9:
+        c = np.corrcoef(x, yz)[0, 1]
+        corr = float(c) if np.isfinite(c) else 0.0
     stats = np.array([
         corr,                                                    # linearity
         float(np.mean(np.abs(yz) > 2.0)),                        # tail mass
@@ -123,7 +134,9 @@ def _sig(prog, x, xq):
         float(np.mean(dc >= 0)),                                 # monotonic frac
         float(np.tanh(ys)),                                      # gain (bounded)
     ])
-    return np.concatenate([curve, stats]), corr, stats[4]
+    # spiky real-data streams (e.g. mostly-zero image pixels) can degenerate a
+    # lens's response — never let a NaN poison the whole map
+    return np.nan_to_num(np.concatenate([curve, stats])), corr, stats[4]
 
 
 def build_signatures(n_lens=1200, kind="loops", n_curve=48):
