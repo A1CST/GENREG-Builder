@@ -10,6 +10,16 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-14] (Claude)** — OPS: **silent pod-job loss caught and fixed.**
+  The chained `nohup A & nohup B &` ssh launch only ever started the first
+  job — seed-29 and the pop-128 scale test never ran (an hour of farm time
+  lost); the earlier "3 processes" check was matching the wrapper's command
+  string, not real processes. Both relaunched in separate ssh calls with
+  `ssh -f`, verified by LOG-FILE EXISTENCE (the reliable check), both
+  confirmed running. Farm state: pod = seed-19 (dry-out, val 0.7015),
+  seed-29 (restarted), pop-128 (restarted); local = seed-37 (round 48,
+  val 0.666). Lesson for the ops notes: never trust `pgrep -c` across ssh
+  for launch verification — check the artifact.
 - **[2026-07-14] (Claude)** — Ensemble-tower verdict: **stacking has gone
   noise-level; seed farming is the live lever.** A v3 stage on the 1042-genome
   union (212 keepers, fresh val 0.7459) tested 0.7278 — −0.0035 vs the plain
