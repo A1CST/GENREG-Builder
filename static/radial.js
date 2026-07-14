@@ -6,7 +6,8 @@
   var $ = function (id) { return document.getElementById(id); };
   var mapCv = $("rm-map"), curveCv = $("rm-curve");
   var pts = [], colorBy = "nl", kind = "loops", selected = -1;
-  var lastMap = null, lastProbe = null, lastLens = null, lastRot = null;
+  var lastMap = null, lastProbe = null, lastLens = null, lastRot = null,
+      lastLadder = null;
 
   function post(url, body) {
     return fetch(url, {
@@ -172,6 +173,30 @@
     }).catch(function (e) { status("probe failed: " + e); });
   };
 
+  /* ---- task ladder ------------------------------------------------------ */
+
+  $("rm-ladder").onclick = function () {
+    kind = $("rm-kind").value;
+    status("climbing the task ladder on '" + kind + "'…");
+    post("/api/radial/ladder", { n: 400, kind: kind }).then(function (d) {
+      if (d.error) { status(d.error); return; }
+      lastLadder = d;
+      var t = $("rm-laddertbl");
+      t.innerHTML = "<tr><th>task</th><th>raw x</th><th>lens bank</th><th></th></tr>";
+      d.rungs.forEach(function (r) {
+        var tr = document.createElement("tr");
+        tr.innerHTML = "<td>" + r.task + "</td><td>" + r.r2_linear.toFixed(3) +
+          "</td><td" + (r.passed ? " class=\"win\"" : "") + ">" +
+          r.r2_lens.toFixed(3) + "</td><td>" + (r.passed ? "✓" : "✗") + "</td>";
+        t.appendChild(tr);
+      });
+      $("rm-frontier").textContent = d.frontier
+        ? "cleared " + d.cleared + "/" + d.total + " — frontier: " + d.frontier
+        : "ladder complete (" + d.cleared + "/" + d.total + ")";
+      status("ladder done");
+    }).catch(function (e) { status("ladder failed: " + e); });
+  };
+
   /* ---- rotation probe -------------------------------------------------- */
 
   $("rm-rotate").onclick = function () {
@@ -242,7 +267,7 @@
   }
 
   $("rm-export").onclick = function () {
-    if (!lastMap && !lastProbe && !lastRot) {
+    if (!lastMap && !lastProbe && !lastRot && !lastLadder) {
       status("nothing to export yet — build a map or run a probe first");
       return;
     }
@@ -272,6 +297,7 @@
       };
     }
     if (lastProbe) out.probe = lastProbe;
+    if (lastLadder) out.ladder = lastLadder;
     if (lastRot) out.rotation_probe = lastRot;
     if (lastLens) out.selected_lens = lastLens;
     var name = "radial_map_" + (lastMap ? lastMap.kind + "_" + lastMap.n : "probe") +

@@ -82,6 +82,7 @@
 
       <button class="rm-btn" id="rm-probe">Run linear probe</button>
       <button class="rm-btn" id="rm-rotate">Rotation probe (1&deg; / step)</button>
+      <button class="rm-btn" id="rm-ladder">Task ladder (auto-harder)</button>
       <button class="rm-btn" id="rm-export">Export results (JSON)</button>
       <div class="rm-status" id="rm-status"></div>
 
@@ -117,6 +118,14 @@
         <table class="rm-probe" id="rm-probetbl">
           <tr><th>task</th><th>raw x</th><th>lens bank</th></tr>
         </table>
+      </div>
+
+      <div class="rm-sec">Task ladder — pass ≥ 0.998 advances</div>
+      <div class="rm-block">
+        <table class="rm-probe" id="rm-laddertbl">
+          <tr><th>task</th><th>raw x</th><th>lens bank</th><th></th></tr>
+        </table>
+        <div class="rm-status" id="rm-frontier"></div>
       </div>
 
       <div class="rm-sec">Rotation probe — R&sup2; vs angle</div>

@@ -10,6 +10,21 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-13] (Claude)** — Radial v2: **auto-incrementing task ladder**
+  (user: "if R2 hits .998 the task changes to the next harder task").
+  `ladder_probe()` in `radial_map.py`: 10 ordered rungs — pointwise with rising
+  curvature (square, abs, sin3x, ripple, sin8x, sin16x, sin32x) then TEMPORAL
+  (lag1_prod, lag4_mean, delay5 — value at t depends on other samples, which a
+  pointwise lens bank cannot see); heldout R2 >= 0.998 auto-advances, first
+  miss stops the climb and is the frontier. RESULTS (400 lenses): loops clears
+  6/10, frontier **sin32x** (0.9902); noise clears 5/10, frontier **sin16x**
+  (0.9492) — the frontier is currently FREQUENCY, not temporality (the temporal
+  rungs are never reached), and it is data-dependent: the loops stream's value
+  distribution supports higher-frequency fits than noise. Endpoint
+  `/api/radial/ladder` (n/kind/threshold), CLI `python radial_map.py ladder`,
+  page button "Task ladder (auto-harder)" with per-rung table (✓/✗ + frontier
+  line), included in the JSON export as `ladder`. **Flask restart still
+  pending** (map/lens/probe/rotate/ladder routes).
 - **[2026-07-13] (Claude)** — Radial v2: **rotation probe — spin the map, not
   the data** (user's direction: "rotate the radial axis on the y axis, one
   degree, then run the linear probe again — the data isn't changing").

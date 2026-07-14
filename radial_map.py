@@ -226,6 +226,47 @@ def probe(n_lens=400, kind="loops"):
     return {"kind": kind, "rows": rows}
 
 
+LADDER = [
+    # pointwise, increasingly curved — the lens space should climb these
+    ("square",    lambda x: x * x),
+    ("abs",       lambda x: np.abs(x)),
+    ("sin3x",     lambda x: np.sin(3 * x)),
+    ("ripple",    lambda x: np.sin(4 * x) * np.exp(-x * x)),
+    ("sin8x",     lambda x: np.sin(8 * x)),
+    ("sin16x",    lambda x: np.sin(16 * x)),
+    ("sin32x",    lambda x: np.sin(32 * x)),
+    # temporal — the value at t depends on OTHER samples; a pointwise lens
+    # bank has no access to context, so the frontier should land here
+    ("lag1_prod", lambda x: x * np.roll(x, 1)),
+    ("lag4_mean", lambda x: (x + np.roll(x, 1) + np.roll(x, 2) + np.roll(x, 3)) / 4),
+    ("delay5",    lambda x: np.roll(x, 5)),
+]
+
+
+def ladder_probe(n_lens=400, kind="loops", threshold=0.998):
+    """Auto-incrementing difficulty: run the linear probe on each ladder task
+    in order; a heldout R2 >= threshold advances to the next, harder task; the
+    first miss stops the climb and is the lens bank's current frontier."""
+    x = data_stream(kind)
+    bank = np.stack([lens_apply(lens_program(i), x) for i in range(n_lens)], 1)
+    bank = bank[:, bank.std(0) > 1e-9]
+    rungs = []
+    for name, f in LADDER:
+        y = f(x)
+        r2 = _ridge_r2(bank, y)
+        rungs.append({"task": name,
+                      "r2_linear": round(_ridge_r2(x[:, None], y), 4),
+                      "r2_lens": round(r2, 4),
+                      "passed": bool(r2 >= threshold)})
+        if r2 < threshold:
+            break
+    return {"kind": kind, "threshold": threshold, "n_lens": int(bank.shape[1]),
+            "rungs": rungs,
+            "cleared": int(sum(r["passed"] for r in rungs)),
+            "total": len(LADDER),
+            "frontier": None if rungs[-1]["passed"] else rungs[-1]["task"]}
+
+
 def rotation_probe(n_lens=800, kind="loops", step_deg=1.0, frac=0.03, n_rand=20):
     """Rotate the radial map about the Y axis, 1 degree per step — the data
     never changes, only the lens PERSPECTIVE does. The map is embedded in 3D
@@ -280,7 +321,16 @@ def rotation_probe(n_lens=800, kind="loops", step_deg=1.0, frac=0.03, n_rand=20)
 
 if __name__ == "__main__":
     import sys, json
-    if "rotate" in sys.argv:
+    if "ladder" in sys.argv:
+        r = ladder_probe()
+        print(f"task ladder ({r['kind']}, {r['n_lens']} lenses, pass >= {r['threshold']}):")
+        for rung in r["rungs"]:
+            mark = "pass" if rung["passed"] else "FAIL"
+            print(f"  {rung['task']:<10} raw {rung['r2_linear']:+.4f}   "
+                  f"lens {rung['r2_lens']:+.4f}   {mark}")
+        print(f"cleared {r['cleared']}/{r['total']}"
+              + (f" — frontier: {r['frontier']}" if r["frontier"] else " — ladder complete"))
+    elif "rotate" in sys.argv:
         r = rotation_probe()
         print(f"rotation probe ({r['kind']}): {r['n_lens']} lenses, slice ~{r['slice_size']}, "
               f"{len(r['angles'])} angles at {r['step_deg']} deg")
