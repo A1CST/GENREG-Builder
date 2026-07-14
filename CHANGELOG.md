@@ -10,6 +10,13 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-14] (Claude)** — Ensemble-tower verdict: **stacking has gone
+  noise-level; seed farming is the live lever.** A v3 stage on the 1042-genome
+  union (212 keepers, fresh val 0.7459) tested 0.7278 — −0.0035 vs the plain
+  union (0.7313), inside 1σ. At this substrate strength additional evolved
+  stages neither help nor hurt; complementary DIVERSITY (new seeds) is what
+  moves test. Local 4080 now farms seed-37 alongside the pod's seeds 19/29.
+  Champion remains the 2-seed union at **0.7313**.
 - **[2026-07-14] (Claude)** — **THE SCALING LAW APPEARS: cross-seed ensemble
   0.7313.** The union of the two independently-evolved v2 substrates (503 +
   539 = 1042 genomes, one head refit, 10 s of compute, test once) scores
