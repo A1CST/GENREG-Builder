@@ -6,6 +6,7 @@
   var $ = function (id) { return document.getElementById(id); };
   var mapCv = $("rm-map"), curveCv = $("rm-curve");
   var pts = [], colorBy = "nl", kind = "loops", selected = -1;
+  var lastMap = null, lastProbe = null, lastLens = null;
 
   function post(url, body) {
     return fetch(url, {
@@ -97,6 +98,7 @@
     draw();
     post("/api/radial/lens", { i: pts[i].i, kind: kind }).then(function (d) {
       if (d.error) { status(d.error); return; }
+      lastLens = d;
       $("rm-prog").textContent = "#" + d.i + "   " + d.prog;
       drawCurve(d.xs, d.ys);
     });
@@ -129,6 +131,7 @@
     $("rm-maplbl").innerHTML = "building…";
     post("/api/radial/map", { n: n, kind: kind }).then(function (d) {
       if (d.error) { status(d.error); return; }
+      lastMap = d;
       pts = d.pts; selected = -1;
       computeView(); draw();
       $("rm-maplbl").innerHTML = "<b>" + d.n + "</b> lenses · " + d.kind +
@@ -155,6 +158,7 @@
     status("running linear probe on '" + kind + "'…");
     post("/api/radial/probe", { n: 400, kind: kind }).then(function (d) {
       if (d.error) { status(d.error); return; }
+      lastProbe = d;
       var t = $("rm-probetbl");
       t.innerHTML = "<tr><th>task</th><th>raw x</th><th>lens bank</th></tr>";
       d.rows.forEach(function (r) {
@@ -166,6 +170,72 @@
       });
       status("probe done (" + d.rows[0].n_lens + " lenses in bank)");
     }).catch(function (e) { status("probe failed: " + e); });
+  };
+
+  /* ---- export --------------------------------------------------------- */
+
+  function r3(v) { return Math.round(v * 1000) / 1000; }
+
+  function distSummary(vals) {
+    var s = vals.slice().sort(function (a, b) { return a - b; });
+    var mean = s.reduce(function (a, b) { return a + b; }, 0) / s.length;
+    return { min: r3(s[0]), p50: r3(s[Math.floor(s.length * 0.5)]),
+             p90: r3(s[Math.floor(s.length * 0.9)]), max: r3(s[s.length - 1]),
+             mean: r3(mean) };
+  }
+
+  function extremes(P, key, n, low) {
+    return P.slice().sort(function (a, b) {
+      return low ? a[key] - b[key] : b[key] - a[key];
+    }).slice(0, n).map(function (p) {
+      var e = { i: p.i, prog: p.prog };
+      e[key] = p[key];
+      return e;
+    });
+  }
+
+  $("rm-export").onclick = function () {
+    if (!lastMap && !lastProbe) {
+      status("nothing to export yet — build a map or run the probe first");
+      return;
+    }
+    var out = {
+      format: "radial-map-v2-export",
+      exported: new Date().toISOString(),
+      note: "map.rows is column-oriented (see map.cols); programs are kept " +
+            "only for extreme lenses — rebuild any lens from its index, the " +
+            "space is deterministic"
+    };
+    if (lastMap) {
+      var P = lastMap.pts;
+      out.map = {
+        kind: lastMap.kind,
+        n: lastMap.n,
+        checks: lastMap.checks,
+        cols: ["i", "x", "y", "nl", "osc"],
+        rows: P.map(function (p) { return [p.i, p.x, p.y, p.nl, p.osc]; }),
+        summary: {
+          radius: distSummary(P.map(function (p) { return Math.sqrt(p.x * p.x + p.y * p.y); })),
+          nonlinearity: distSummary(P.map(function (p) { return p.nl; })),
+          oscillation: distSummary(P.map(function (p) { return p.osc; })),
+          most_nonlinear: extremes(P, "nl", 8),
+          most_oscillatory: extremes(P, "osc", 8),
+          most_linear: extremes(P, "nl", 8, true)
+        }
+      };
+    }
+    if (lastProbe) out.probe = lastProbe;
+    if (lastLens) out.selected_lens = lastLens;
+    var name = "radial_map_" + (lastMap ? lastMap.kind + "_" + lastMap.n : "probe") +
+      "_" + new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-") + ".json";
+    var blob = new Blob([JSON.stringify(out)], { type: "application/json" });
+    var a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+    status("exported " + name);
   };
 
   /* toggle */

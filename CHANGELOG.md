@@ -10,6 +10,18 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-13] (Claude)** — Radial v2 page: **terminal dock restored + Export
+  results button.** The rebuilt page had dropped the shared dock stack — added
+  the standard includes (xterm.css/js, addon-fit, termdock.js, app.js,
+  agentpanel.js, configpanel.js) so terminals, the Agent panel and Run-Config
+  panel are back on `/radial`. New "Export results (JSON)" button downloads a
+  compressed-but-informative snapshot: column-oriented map rows (`cols`/`rows`
+  arrays, 3-dp), honest checks, distribution summaries (radius/nonlinearity/
+  oscillation min/p50/p90/max/mean), the 8 most-nonlinear / most-oscillatory /
+  most-linear lenses WITH their program strings (all other programs omitted —
+  the space is deterministic, any lens rebuilds from its index), plus the last
+  probe table and selected-lens curve. No server changes; the pending Flask
+  restart from the v2 rebuild still applies.
 - **[2026-07-13] (Claude)** — **Radial v1 ARCHIVED, rebuilt WAY simpler as the
   activation-behavior map** (user's direction, from their activation-galaxy
   research: characterize activation functions by how they TRANSFORM data — not

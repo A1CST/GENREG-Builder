@@ -4,6 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>GENREG — Radial Map</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='vendor/xterm.css') }}" />
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
   <style>
     .rm-layout { display:flex; flex:1 1 auto; min-height:0; }
@@ -80,6 +81,7 @@
       </div>
 
       <button class="rm-btn" id="rm-probe">Run linear probe</button>
+      <button class="rm-btn" id="rm-export">Export results (JSON)</button>
       <div class="rm-status" id="rm-status"></div>
 
       <div class="rm-note">The probe stacks one closed-form linear model on the
@@ -119,5 +121,11 @@
   </div>
 
   <script src="{{ url_for('static', filename='radial.js') }}"></script>
+  <script src="{{ url_for('static', filename='vendor/xterm.js') }}"></script>
+  <script src="{{ url_for('static', filename='vendor/addon-fit.js') }}"></script>
+  <script src="{{ url_for('static', filename='termdock.js') }}"></script>
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
+  <script src="{{ url_for('static', filename='agentpanel.js') }}"></script>
+  <script src="{{ url_for('static', filename='configpanel.js') }}"></script>
 </body>
 </html>
