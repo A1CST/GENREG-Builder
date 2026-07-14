@@ -10,6 +10,14 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-14] (Claude)** — radial_stack patched with the resnet line's
+  latest update: **per-space frame ROTATION** (`_rotate_features` + `rot_deg`,
+  default 1°/space) — space k reads the previous space's z-scored outputs
+  rotated by k degrees via deterministic block-diagonal Givens rotations
+  (same R for train/test): the radial "relative motion between data and lens
+  creates diversity" move, formalized in the stack. Logged in the space
+  source line and exported as `rot_deg_per_space`. Pod smoke green (space 1
+  reads "57 feats, rotated 1.0°").
 - **[2026-07-14] (Claude)** — **CIFAR run restructured to match the ResNet
   line** (user directive: same structure and all updates as `resnet_evo`).
   New `radial_stack.py`: the radial grammar under the resnet runner skeleton —

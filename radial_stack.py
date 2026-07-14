@@ -146,6 +146,23 @@ def mutate_vec(rng, g, sc, F_prev):
     return c
 
 
+def _rotate_features(torch, X, deg):
+    """Rotate a feature matrix (N, F) by `deg` degrees via block-diagonal 2x2
+    Givens rotations across adjacent feature axes (0,1),(2,3),... — the radial
+    'relative motion between data and lens creates diversity' move. Same R for
+    train and test (deterministic). An odd trailing feature is left unrotated."""
+    n = X.shape[1]
+    c = float(np.cos(np.radians(deg)))
+    s = float(np.sin(np.radians(deg)))
+    R = torch.eye(n, device=X.device, dtype=X.dtype)
+    idx = torch.arange(0, n - 1, 2, device=X.device)
+    R[idx, idx] = c
+    R[idx, idx + 1] = -s
+    R[idx + 1, idx] = s
+    R[idx + 1, idx + 1] = c
+    return X @ R
+
+
 def feature_vec(torch, tp, prevF, g):
     """Vector grammar genome over prevF (N, F_prev) z-scored -> (N,)."""
     z = None
@@ -316,7 +333,8 @@ def _evolve_space(torch, rng, pop_size, gens, max_rounds, n_fit, Yf, yv,
 # ---------------------------------------------------------------------------
 
 def run_stacked(pop_size=64, gens=12, max_rounds=200, seed=5, smoke=False,
-                n_train=None, n_test=None, out_path=None, record=True, verbose=True):
+                n_train=None, n_test=None, out_path=None, record=True, verbose=True,
+                rot_deg=1.0):
     """Emergent-cap stacked CIFAR grammar evolution. Space 0 = spatial
     grammar-v2 genomes over the patch-PCA environment; deeper spaces = vector
     grammar genomes (terms + gates) over the previous space's outputs. Depth
@@ -373,12 +391,18 @@ def run_stacked(pop_size=64, gens=12, max_rounds=200, seed=5, smoke=False,
             mu = prev_tr.mean(0); sd = prev_tr.std(0) + 1e-6
             prevF_tr = (prev_tr - mu) / sd
             prevF_te = (prev_te - mu) / sd
+            rot = si * rot_deg          # R_k rotated by k degrees (R0=0, R1=1, ...)
+            rot_note = ""
+            if rot:
+                prevF_tr = _rotate_features(torch, prevF_tr, rot)
+                prevF_te = _rotate_features(torch, prevF_te, rot)
+                rot_note = f", rotated {rot}°"
             F_prev = prevF_tr.shape[1]
             new_fn = lambda r: new_vec_genome(r, F_prev)
             mut_fn = lambda r, g, sc: mutate_vec(r, g, sc, F_prev)
             feat_tr = lambda g: feature_vec(torch, tp, prevF_tr, g)
             feat_te = lambda g: feature_vec(torch, tp, prevF_te, g)
-            src = f"space {si-1} outputs ({F_prev} feats, vector grammar + gates)"
+            src = f"space {si-1} outputs ({F_prev} feats{rot_note}, vector grammar + gates)"
 
         log(f"  [space {si}] opening — reads {src}", verbose)
         frozen, fcols = _evolve_space(torch, rng, pop_size, gens, max_rounds,
@@ -428,6 +452,7 @@ def run_stacked(pop_size=64, gens=12, max_rounds=200, seed=5, smoke=False,
            "test_acc": round(best, 4),
            "val_final": spaces[-1]["val_after"] if spaces else 0.0,
            "space_caps": [s["n_frozen"] for s in spaces],
+           "rot_deg_per_space": rot_deg,
            "spaces": spaces,
            "references": {"grammar_v2_record": 0.7035,
                           "v3_freshval_tower": 0.7144,
