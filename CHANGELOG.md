@@ -10,6 +10,18 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-13] (Claude)** — Radial page: **Baselines view** (sidebar View
+  toggle: Map | Baselines). New GET `/api/radial/baselines` serves the roadmap
+  exports (`radial_data/baseline_*.json` + `prebaseline_fixes.json`); the page
+  renders a card per domain: accuracy bars (majority / raw linear / bigram
+  ceiling / lens bank / best rotation slice — green when the slice beats the
+  bank), accuracy-vs-lens-count curve with the raw-linear reference dashed,
+  the 360° rotation sweep with the random-subset baseline dashed, per-class
+  recall bars (red < 0.5), and a key-finding line per domain; plus a
+  pre-baseline-fixes card (spread per spin axis, the shared dead-zone floor).
+  Charts draw after DOM insertion (clientWidth-0 fix); colour-by toggle
+  selector scoped to `[data-c]` so the View toggle doesn't clobber it.
+  **Flask restart still pending** (all radial routes).
 - **[2026-07-13] (Claude)** — **ENTIRE RADIAL BASELINE ROADMAP RUN** (all
   domains + pre-baseline fixes; results in `documentation/RADIAL_BASELINES.md`
   and `radial_data/baseline_{cifar,text,audio}.json` + `prebaseline_fixes.json`).

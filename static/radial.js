@@ -393,10 +393,10 @@
     status("exported " + name);
   };
 
-  /* toggle */
-  Array.prototype.forEach.call(document.querySelectorAll(".rm-tg"), function (el) {
+  /* colour-by toggle */
+  Array.prototype.forEach.call(document.querySelectorAll(".rm-tg[data-c]"), function (el) {
     el.onclick = function () {
-      Array.prototype.forEach.call(document.querySelectorAll(".rm-tg"), function (x) {
+      Array.prototype.forEach.call(document.querySelectorAll(".rm-tg[data-c]"), function (x) {
         x.classList.remove("on");
       });
       el.classList.add("on");
@@ -404,6 +404,175 @@
       draw();
     };
   });
+
+  /* ---- baselines view --------------------------------------------------- */
+
+  var baseLoaded = false;
+
+  Array.prototype.forEach.call(document.querySelectorAll(".rm-vw"), function (el) {
+    el.onclick = function () {
+      Array.prototype.forEach.call(document.querySelectorAll(".rm-vw"), function (x) {
+        x.classList.remove("on");
+      });
+      el.classList.add("on");
+      var showBase = el.getAttribute("data-v") === "base";
+      $("rm-view-map").style.display = showBase ? "none" : "";
+      $("rm-view-base").style.display = showBase ? "block" : "";
+      if (showBase && !baseLoaded) loadBaselines();
+      if (!showBase) fit();
+    };
+  });
+
+  function bar(rows, label, val, scale, cls) {
+    if (val == null) return;
+    rows.push('<div class="rm-brow"><div class="lb">' + label + '</div>' +
+      '<div class="tr"><div class="fl ' + (cls || "") + '" style="width:' +
+      Math.max(1, Math.min(100, (val / scale) * 100)).toFixed(1) + '%"></div></div>' +
+      '<div class="vl">' + val.toFixed(3) + '</div></div>');
+  }
+
+  function lineChart(cv, xs, ys, opts) {
+    var ctx = cv.getContext("2d");
+    var W = cv.width = cv.clientWidth * 2, H = cv.height = cv.clientHeight * 2;
+    ctx.clearRect(0, 0, W, H);
+    var lo = opts && opts.lo != null ? opts.lo : Math.min.apply(0, ys);
+    var hi = opts && opts.hi != null ? opts.hi : Math.max.apply(0, ys);
+    if (hi - lo < 1e-9) { hi = lo + 1; }
+    var Y = function (v) { return H - 8 - ((v - lo) / (hi - lo)) * (H - 16); };
+    if (opts && opts.ref != null) {
+      ctx.strokeStyle = "#4a3a2a"; ctx.setLineDash([4, 4]);
+      ctx.beginPath(); ctx.moveTo(0, Y(opts.ref)); ctx.lineTo(W, Y(opts.ref)); ctx.stroke();
+      ctx.setLineDash([]);
+    }
+    ctx.strokeStyle = opts && opts.color ? opts.color : "#5fb2d3";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    for (var i = 0; i < ys.length; i++) {
+      var x = (i / Math.max(1, ys.length - 1)) * (W - 12) + 6;
+      if (i === 0) ctx.moveTo(x, Y(ys[i])); else ctx.lineTo(x, Y(ys[i]));
+    }
+    ctx.stroke();
+    ctx.lineWidth = 1;
+  }
+
+  function classChart(cv, perClass) {
+    var ctx = cv.getContext("2d");
+    var W = cv.width = cv.clientWidth * 2, H = cv.height = cv.clientHeight * 2;
+    ctx.clearRect(0, 0, W, H);
+    var ks = Object.keys(perClass);
+    var bw = W / ks.length;
+    ks.forEach(function (k, i) {
+      var v = perClass[k];
+      ctx.fillStyle = v < 0.5 ? "#7d3a2e" : "#2f4152";
+      ctx.fillRect(i * bw + bw * 0.18, H - 14 - v * (H - 22), bw * 0.64, v * (H - 22));
+      ctx.fillStyle = "#7f8b98";
+      ctx.font = "16px ui-monospace,monospace";
+      ctx.fillText(k, i * bw + bw * 0.34, H - 2);
+    });
+  }
+
+  function domainCard(d) {
+    var p = d.probe, r = d.rotation_probe;
+    var rows = [];
+    var vals = [p.majority_class_acc, p.raw_linear_acc, p.acc,
+                r && r.best && r.best.acc, p.bigram_table_ceiling].filter(function (v) {
+      return v != null;
+    });
+    var scale = Math.max.apply(0, vals) * 1.12;
+    bar(rows, "majority class", p.majority_class_acc, scale, "lo");
+    bar(rows, "raw linear", p.raw_linear_acc, scale);
+    if (p.bigram_table_ceiling != null) bar(rows, "bigram ceiling", p.bigram_table_ceiling, scale, "lo");
+    bar(rows, "lens bank", p.acc, scale, "hi");
+    if (r && r.best) bar(rows, "best rotation slice", r.best.acc, scale,
+                         r.best.acc > p.acc ? "hi" : "");
+    var html = '<div class="rm-card"><h2>' + d.domain + '</h2>' +
+      '<div class="sub">' + (p.task || p.input_format || "") + " · train " + p.train +
+      " / test " + p.test + '</div>' + rows.join("");
+    html += '<canvas class="cv-curve"></canvas><div class="cl">accuracy vs lens count (' +
+      p.curve.map(function (c) { return c.n_lens; }).join("/") + ' lenses)</div>';
+    if (r && r.acc) {
+      html += '<canvas class="cv-rot"></canvas><div class="cl">rotation sweep 0-360° · slice ~' +
+        r.slice_size + " · spread " + r.angular_spread +
+        (r.baseline_random_mean != null ? " · random " + r.baseline_random_mean : "") + '</div>';
+    }
+    if (p.per_class) html += '<canvas class="cv-cls"></canvas><div class="cl">per-class recall</div>';
+    html += '<div class="kf">' + keyFinding(d) + '</div></div>';
+    var el = document.createElement("div");
+    el.innerHTML = html;
+    el = el.firstChild;
+    // charts must draw AFTER the card is in the DOM (clientWidth is 0 before)
+    chartQueue.push(function () {
+      lineChart(el.querySelector(".cv-curve"),
+                p.curve.map(function (c) { return c.n_lens; }),
+                p.curve.map(function (c) { return c.acc; }),
+                { ref: p.raw_linear_acc, color: "#5fd39a" });
+      if (r && r.acc) {
+        lineChart(el.querySelector(".cv-rot"), r.angles, r.acc,
+                  { ref: r.baseline_random_mean });
+      }
+      if (p.per_class) classChart(el.querySelector(".cv-cls"), p.per_class);
+    });
+    return el;
+  }
+
+  var chartQueue = [];
+
+  function keyFinding(d) {
+    var p = d.probe, r = d.rotation_probe;
+    var gain = p.acc - p.raw_linear_acc;
+    var s = "bank vs raw: <b>" + (gain >= 0 ? "+" : "") + (gain * 100).toFixed(1) + " pts</b>. ";
+    if (p.bigram_table_ceiling != null) {
+      s += "Lands within <b>" + (p.bigram_table_ceiling - p.acc).toFixed(4) +
+        "</b> of the bigram-table ceiling with no table. ";
+    }
+    if (r && r.best && r.best.acc > p.acc) {
+      s += "Best " + (r.slice_size || "") + "-lens slice (<b>" + r.best.acc.toFixed(3) +
+        " @ " + r.best.deg + "°</b>) beats the full bank. ";
+    }
+    if (r && r.map_shape_axis_std) s += "Map shape " + r.map_shape_axis_std.join(" / ") + ".";
+    return s;
+  }
+
+  function fixesCard(fx) {
+    var rows = [];
+    ["axis_y", "axis_x", "axis_z", "whitened_y"].forEach(function (k) {
+      if (!fx[k]) return;
+      bar(rows, k.replace("_", " "), fx[k].angular_spread, 1.0,
+          fx[k].angular_spread > 0.5 ? "" : "hi");
+    });
+    var el = document.createElement("div");
+    el.innerHTML = '<div class="rm-card"><h2>pre-baseline fixes (loops)</h2>' +
+      '<div class="sub">rotation-probe R² spread per spin axis — lower would mean fewer dead zones</div>' +
+      rows.join("") +
+      '<div class="kf">All axes hit the same worst-case floor (<b>' +
+      (fx.axis_y ? fx.axis_y.worst.r2 : "?") +
+      '</b>) and whitening the flat axis changes nothing — the dead zone is ' +
+      'behavioral redundancy, not geometry. <b>Free rotation is fine; no anchor needed.</b></div></div>';
+    return el.firstChild;
+  }
+
+  function loadBaselines() {
+    fetch("/api/radial/baselines").then(function (r) { return r.json(); }).then(function (d) {
+      baseLoaded = true;
+      var box = $("rm-cards");
+      box.innerHTML = "";
+      if (d.error) { box.textContent = d.error; return; }
+      var order = ["mnist", "cifar", "text", "audio"];
+      order.concat(Object.keys(d.domains).filter(function (k) {
+        return order.indexOf(k) < 0;
+      })).forEach(function (k) {
+        if (d.domains[k]) box.appendChild(domainCard(d.domains[k]));
+      });
+      if (d.fixes) box.appendChild(fixesCard(d.fixes));
+      if (!box.children.length) {
+        box.textContent = "no baseline exports found — run: python radial_baseline.py all";
+      }
+      requestAnimationFrame(function () {
+        chartQueue.forEach(function (f) { f(); });
+        chartQueue = [];
+      });
+    }).catch(function (e) { $("rm-cards").textContent = "failed to load: " + e; });
+  }
 
   fit();
 })();
