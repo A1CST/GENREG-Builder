@@ -10,6 +10,66 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-13] (Claude)** — **Cousin finder: explicit runs, Runs-page
+  recording, JSON report download.** `/radial/demo/cousins` no longer runs on
+  page load (canvas shows a "press find" placeholder); cousins and siblings
+  each have their own run button. Every run POSTs to new
+  `/api/radial/demo/record`, which writes a standard run folder under
+  `runs/Demo_Radial/<rid>/` (config.json / history.jsonl with the log lines /
+  summary.json with the stats / report.json with the full result) so it
+  appears on the Runs page under the Demo_Radial environment. "download
+  report (JSON)" buttons fetch `/api/radial/demo/report/<rid>` (attachment;
+  falls back to a client-side blob if the server didn't record). Sibling
+  reports include the full lineage table + up to 500 sibling pairs. NOTE:
+  new API routes — Flask restart required.
+- **[2026-07-13] (Claude)** — **Cousin finder expanded to siblings + lineage**
+  (`/radial/demo/cousins`). Every lens is a1(a2(scale*x+bias)) so it has two
+  parents (outer a1, inner a2); lenses sharing a parent are siblings. New
+  section: parent-activation selector + relation mode (outer/inner/either),
+  stat cards (family members, sibling pairs, mean sibling |r| vs population
+  baseline, and "cousins that are relatives" — the share of rotation-cousin
+  pairs that also share a parent, self-maps excluded), a clickable 14-row
+  lineage table per parent activation (outer/inner counts, members, sibling
+  |r|, delta vs baseline color-coded, rotation-cousin share), top-20 sibling
+  pair log, and cyan family-member rings on both 3D grids. Backed by a full
+  216x216 |r| matrix computed per run. Static files only.
+- **[2026-07-13] (Claude)** — **Radial demo: Y-rotation fix + dynamic lenses +
+  Space Cousin Finder sub-page.** (1) Fixed the "+ Y rotation" checkboxes: the
+  fixed-500px canvases overflowed their flex wrappers and covered the toggles,
+  eating their clicks (also stretching the render) — canvases now fill their
+  wrapper (`fit()` measures real height). (2) Lenses are now a dynamic list:
+  "+ Add lens" appends lens 3+ (own X/Y sliders, fresh palette color, show
+  toggle, remove button; schematic lenses 1-2 fixed; cap 8); legends render
+  dynamically. (3) New sub-page `/radial/demo/cousins` built to the downloaded
+  `radial_space_cousin_finder.html` (copied to
+  `documentation/RADIAL_SPACE_COUSIN_FINDER_SCHEMATIC.html`): 6x6x6 grid of
+  deterministic composed-activation lens programs, Y-rotated onto neighbors,
+  Pearson-correlated signatures above threshold = cousin pairs; stat cards
+  (pairs/families/redundancy), dual original/rotated 3D view with pair lines,
+  top-20 pair log. Route added; demo page links to it.
+- **[2026-07-13] (Claude)** — **Radial demo rebuilt to the downloaded visual
+  schematic** (copied into `documentation/RADIAL_SPACE_VISUAL_SCHEMATIC.md`).
+  `/radial/demo` is now the dual-panel demo: left "ground truth moves" (green
+  10x30x10 column flows on Y through stationary blue Y+15deg and yellow
+  X+15deg->Y+45deg lens cubes), right "lenses move" (the inverse), shared
+  time, per-panel "+ Y rotation" toggles, window culling at +/-6, perspective
+  camera locked at Y=0.6rad/dist 22, retina 2x canvases. Added play-around
+  knobs on top of the schematic defaults: pause, flow speed, spin speed,
+  visible-window size, per-layer visibility, all three lens-angle sliders,
+  optional free camera (drag orbit/wheel zoom), and a reset-to-schematic
+  button. Template + static JS only; no route change.
+- **[2026-07-13] (Claude)** — Radial demo: **yellow offset copy added.** Third
+  checkbox on `/radial/demo` overlays a stationary duplicate of the cube
+  (like blue) but pre-rotated 30 degrees on the Y axis then 30 degrees on the
+  X axis. Template key + corner label updated.
+- **[2026-07-13] (Claude)** — **Radial rotation demo page (`/radial/demo`),
+  no models.** New `templates/radial_demo.html` + `static/radial_demo.js` +
+  route in `app.py`: a 3D XYZ coordinate grid with 8,000 red ground-truth dots
+  (20x20x20, one per grid coordinate, centered on the origin). A checkbox
+  rotates the data itself — every dot uniformly about the Y axis, not a camera
+  effect; a second checkbox overlays a stationary blue copy of the same cube.
+  Drag-to-orbit / wheel-to-zoom camera is independent of the data rotation.
+  Flask restart (or debug auto-reload) needed to pick up the new route.
 - **[2026-07-13] (Claude)** — **Radial space discoveries documented +
   published.** `documentation/RADIAL_SPACE_FINDINGS.md` (the master findings
   doc: the space, the galaxy structure with the radius=strangeness correction,

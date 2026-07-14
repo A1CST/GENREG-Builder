@@ -126,6 +126,48 @@ Deployable model size is entirely the linear head:
    right 24 lenses beat 400 — an evolved slice-picker is a tiny genome with
    measured headroom (+2.0 pts CIFAR over the full bank).
 
+## 8. The four open questions — ANSWERED (2026-07-13, round 2)
+
+**Q1 — Why is the map a disc?** Measured: axis 1 correlates **+0.99 with
+linearity** — the dominant axis literally *is* the linear↔nonlinear
+direction (monotonicity +0.60 rides along). Axis 2 is response-curve *shape*
+(no scalar stat explains it; the curve part of the signature carries 79% of
+its variance in 2 PCs). Axis 3 is a weak oscillation/zero-cross mix. The
+disc exists because lens behavior has ~2 dominant degrees of freedom —
+how linear, and what shape of bend — and everything else is minor.
+
+**Q2 — What is the dead-zone clump?** **It is the linear core itself.** The
+worst slice = 23 lenses, all outer-op `id`, nonlinearity 0.000, intra-clump
+signature distance 0.34 vs 9.10 for random sets — 23 copies of `x`. That is
+why the floor (0.1694) exactly equals raw-linear performance, and why every
+spin axis hit the *same* floor: every great circle passes through the origin.
+**And it is removable:** excluding the 126 near-linear lenses (nl < 0.05)
+raises the rotation floor from 0.169 to **0.822** and collapses the spread
+from 0.83 to 0.18. Practical rule: never build a slice out of the core.
+
+**Q3 — Does temporal rotation work?** **Yes — confirmed.** Rotating a lens's
+view through time (features = agreement between the lens's view at t and at
+t+δ, δ = 1..16 — lens-space autocorrelation; deterministic, closed-form,
+phase-invariant by construction) takes the audio tone task from 0.41 (raw)
+/ 0.37 (pointwise bank) to **1.0000 with 16 features**. Honest caveat: the
+identity lens alone already saturates this task, so the *mechanism* is
+proven but lens *diversity* in the temporal regime needs a harder task to
+show its value.
+
+**Q4 — The genome bridge.** First radial genome built and run
+(`radial_slice_ga.py`, batched GPU fitness: one (POP,N,N) LU per generation,
+305 s total): a 24-lens slice picker evolved on CIFAR (soft log-softmax
+fitness on a held-back validation split, tournament + elitism + energy
+homeostasis; the classifier stays closed-form — evolution only picks the
+views). **Result: 0.376 — random-subset level (0.3774), well below the
+map-geometry slice (0.4015),** with the classic flat-fitness signature
+(soft −2.074 → −2.058 over 60 gens, starved 0). The honest reading: the
+index-space landscape is flat by nature (random 24-subsets differ by ±0.002),
+so naive evolution over raw lens indices cannot see the structure that the
+map's geometry exposes for free. **The genome's search space should be the
+MAP (plane/angle/region parameters), not raw indices** — which is the radial
+thesis restated as an evolution recipe, and the design brief for genome #2.
+
 All numbers reproducible from `radial_data/baseline_*.json`,
 `prebaseline_fixes.json`, and the CLI (`python radial_map.py map|probe|rotate|
 ladder`, `python radial_baseline.py all`). Roadmap status lives in
