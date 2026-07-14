@@ -10,6 +10,13 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-14] (Claude)** — **4-SEED ENSEMBLE: 0.7570.** Seed-19 converged
+  on the pod (547 genomes, **solo test 0.7037 — best single seed, ties the
+  old mutation-only record by itself**); union of seeds 7+13+37+19 (2192
+  genomes, head refit, 22 s): **TEST 0.7570**. Diversity curve: 0.695 →
+  0.7313 → 0.7452 → 0.7570 — the 4th seed still bought +1.2 pts. Farm
+  continues: seed-29 (pod, ~r40 0.668), pop-128 (pod), seed-43 (local).
+  Export `ensemble4_cifar.json`.
 - **[2026-07-14] (Claude)** — **3-SEED ENSEMBLE: 0.7452.** Seed-37 converged
   locally (603 genomes, test 0.6956 — third crossover seed within 0.003 of
   the other two); union of seeds 7+13+37 (1645 genomes, head refit, 12 s):
