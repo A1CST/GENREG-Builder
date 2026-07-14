@@ -10,6 +10,19 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-14] (Claude)** — **THE SCALING LAW APPEARS: cross-seed ensemble
+  0.7313.** The union of the two independently-evolved v2 substrates (503 +
+  539 = 1042 genomes, one head refit, 10 s of compute, test once) scores
+  **0.7313** vs 0.6936 / 0.6962 individually — **+3.5 pts from pure seed
+  diversity, essentially free.** Independent evolutionary runs discover
+  complementary features; the union is worth more than either tower.
+  Also: pod seed-13 push-80 with fresh val DONE (388 genomes, test 0.7119 —
+  the fresh-val stack replicates across hardware). CAMPAIGN PIVOT (scaling
+  is the goal): the H100 now farms ensemble fodder — seeds 19 and 29
+  (grammar v2, crossover) running alongside the pop-128 scale test (3 jobs);
+  locally the ENSEMBLE TOWER is running (v3 stage over the 1042-genome
+  union, fresh val slice 3; `run()` now accepts multiple stage-1 ckpts).
+  Exports: `ensemble2_cifar.json`, pod artifacts in `runpod_shadow/`.
 - **[2026-07-14] (Claude)** — **Autonomous scaling campaign (user away):
   RECORD 0.7144; the tower converges at stage 3; pod at full utilization.**
   (1) FRESH-VAL ROTATION shipped (`run(val_slice=…, v3_ckpts=…)`): each stage
