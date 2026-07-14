@@ -6,7 +6,7 @@
   var $ = function (id) { return document.getElementById(id); };
   var mapCv = $("rm-map"), curveCv = $("rm-curve");
   var pts = [], colorBy = "nl", kind = "loops", selected = -1;
-  var lastMap = null, lastProbe = null, lastLens = null;
+  var lastMap = null, lastProbe = null, lastLens = null, lastRot = null;
 
   function post(url, body) {
     return fetch(url, {
@@ -172,6 +172,53 @@
     }).catch(function (e) { status("probe failed: " + e); });
   };
 
+  /* ---- rotation probe -------------------------------------------------- */
+
+  $("rm-rotate").onclick = function () {
+    kind = $("rm-kind").value;
+    status("rotating the map 1°/step and probing each slice (30-90s)…");
+    post("/api/radial/rotate", { n: 800, kind: kind }).then(function (d) {
+      if (d.error) { status(d.error); return; }
+      lastRot = d;
+      drawRotCurve(d);
+      var box = $("rm-rotkv");
+      box.innerHTML = "";
+      kv(box, "best angle", d.best.deg + "° → " + d.best.r2.toFixed(3));
+      kv(box, "worst angle", d.worst.deg + "° → " + d.worst.r2.toFixed(3));
+      kv(box, "angular spread", d.angular_spread);
+      kv(box, "random subset (same size)", d.baseline_random_mean.toFixed(3) +
+         " ± " + d.baseline_random_std);
+      kv(box, "full bank", d.baseline_full.toFixed(3));
+      kv(box, "slice size", d.slice_size + " of " + d.n_lens);
+      status("rotation probe done");
+    }).catch(function (e) { status("rotation probe failed: " + e); });
+  };
+
+  function drawRotCurve(d) {
+    var cv = $("rm-rotcurve"), ctx = cv.getContext("2d");
+    var W = cv.width, H = cv.height;
+    ctx.clearRect(0, 0, W, H);
+    var ys = d.mean_r2;
+    var ylo = Math.min(0, Math.min.apply(0, ys)), yhi = 1.0;
+    var Y = function (v) { return H - 6 - ((v - ylo) / (yhi - ylo)) * (H - 12); };
+    // random-subset baseline band
+    ctx.fillStyle = "rgba(139,149,161,0.15)";
+    var b0 = Y(d.baseline_random_mean - d.baseline_random_std);
+    var b1 = Y(d.baseline_random_mean + d.baseline_random_std);
+    ctx.fillRect(0, b1, W, Math.max(1, b0 - b1));
+    // the angle curve
+    ctx.strokeStyle = "#5fd39a"; ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    for (var i = 0; i < ys.length; i++) {
+      var x = (i / (ys.length - 1)) * (W - 8) + 4;
+      if (i === 0) ctx.moveTo(x, Y(ys[i])); else ctx.lineTo(x, Y(ys[i]));
+    }
+    ctx.stroke(); ctx.lineWidth = 1;
+    ctx.fillStyle = "#7f8b98"; ctx.font = "9px ui-monospace,monospace";
+    ctx.fillText("0°", 4, H - 1);
+    ctx.fillText("360°", W - 26, H - 1);
+  }
+
   /* ---- export --------------------------------------------------------- */
 
   function r3(v) { return Math.round(v * 1000) / 1000; }
@@ -195,8 +242,8 @@
   }
 
   $("rm-export").onclick = function () {
-    if (!lastMap && !lastProbe) {
-      status("nothing to export yet — build a map or run the probe first");
+    if (!lastMap && !lastProbe && !lastRot) {
+      status("nothing to export yet — build a map or run a probe first");
       return;
     }
     var out = {
@@ -225,6 +272,7 @@
       };
     }
     if (lastProbe) out.probe = lastProbe;
+    if (lastRot) out.rotation_probe = lastRot;
     if (lastLens) out.selected_lens = lastLens;
     var name = "radial_map_" + (lastMap ? lastMap.kind + "_" + lastMap.n : "probe") +
       "_" + new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-") + ".json";

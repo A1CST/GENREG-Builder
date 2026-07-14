@@ -81,6 +81,7 @@
       </div>
 
       <button class="rm-btn" id="rm-probe">Run linear probe</button>
+      <button class="rm-btn" id="rm-rotate">Rotation probe (1&deg; / step)</button>
       <button class="rm-btn" id="rm-export">Export results (JSON)</button>
       <div class="rm-status" id="rm-status"></div>
 
@@ -116,6 +117,12 @@
         <table class="rm-probe" id="rm-probetbl">
           <tr><th>task</th><th>raw x</th><th>lens bank</th></tr>
         </table>
+      </div>
+
+      <div class="rm-sec">Rotation probe — R&sup2; vs angle</div>
+      <div class="rm-block">
+        <canvas class="rm-curve" id="rm-rotcurve" width="238" height="110"></canvas>
+        <div id="rm-rotkv"></div>
       </div>
     </aside>
   </div>

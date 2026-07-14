@@ -142,15 +142,20 @@ def build_signatures(n_lens=1200, kind="loops", n_curve=48):
 # 4. the map — classical MDS of signature distances, centred on identity
 # ---------------------------------------------------------------------------
 
+def _mds(S, ndim):
+    n = len(S)
+    D2 = np.maximum(0.0, (S ** 2).sum(1)[:, None] + (S ** 2).sum(1)[None, :] - 2 * S @ S.T)
+    J = np.eye(n) - 1.0 / n
+    B = -0.5 * J @ D2 @ J
+    w, V = np.linalg.eigh(B)
+    X = V[:, -ndim:][:, ::-1] * np.sqrt(np.maximum(w[-ndim:][::-1], 0.0))
+    return X - X[0]                       # identity lens = origin
+
+
 def build_map(n_lens=1200, kind="loops"):
     Sraw, nl, osc, progs = build_signatures(n_lens, kind)
     S = (Sraw - Sraw.mean(0)) / (Sraw.std(0) + 1e-9)
-    D2 = np.maximum(0.0, (S ** 2).sum(1)[:, None] + (S ** 2).sum(1)[None, :] - 2 * S @ S.T)
-    J = np.eye(n_lens) - 1.0 / n_lens
-    B = -0.5 * J @ D2 @ J
-    w, V = np.linalg.eigh(B)
-    XY = V[:, -2:] * np.sqrt(np.maximum(w[-2:], 0.0))
-    XY = XY - XY[0]                       # identity lens = origin
+    XY = _mds(S, 2)
     r = np.linalg.norm(XY, axis=1)
     # honest checks: does the galaxy structure hold?
     rad_nl = float(np.corrcoef(r, nl)[0, 1])            # nonlinearity grows outward?
@@ -221,9 +226,70 @@ def probe(n_lens=400, kind="loops"):
     return {"kind": kind, "rows": rows}
 
 
+def rotation_probe(n_lens=800, kind="loops", step_deg=1.0, frac=0.03, n_rand=20):
+    """Rotate the radial map about the Y axis, 1 degree per step — the data
+    never changes, only the lens PERSPECTIVE does. The map is embedded in 3D
+    (top-3 MDS of the same behavioral signatures); at angle t the probe sees
+    only the slice of lenses lying in the current viewing plane (|z'| within
+    the `frac` quantile after rotation). The linear probe runs per angle.
+
+    Honest baselines: random subsets of the same size (n_rand seeds) and the
+    full bank. If the angle curve is flat at the random-subset level, rotation
+    adds nothing; structure in the curve means the map's geometry (which
+    lenses are co-planar) carries task-relevant information."""
+    Sraw, _, _, _ = build_signatures(n_lens, kind)
+    S = (Sraw - Sraw.mean(0)) / (Sraw.std(0) + 1e-9)
+    X3 = _mds(S, 3)                                   # x, y, z — y is the spin axis
+    x = data_stream(kind)
+    bank = np.stack([lens_apply(lens_program(i), x) for i in range(n_lens)], 1)
+    ok = bank.std(0) > 1e-9
+    bank, X3 = bank[:, ok], X3[ok]
+    tasks = {name: f(x) for name, f in TASKS.items()}
+
+    def bank_r2(idx):
+        return {n: _ridge_r2(bank[:, idx], y) for n, y in tasks.items()}
+
+    angles, mean_r2, per_task, slice_n = [], [], {n: [] for n in tasks}, []
+    for k in range(int(round(360.0 / step_deg))):
+        th = np.deg2rad(k * step_deg)
+        z2 = -X3[:, 0] * np.sin(th) + X3[:, 2] * np.cos(th)
+        idx = np.where(np.abs(z2) <= np.quantile(np.abs(z2), frac))[0]
+        r2 = bank_r2(idx)
+        angles.append(round(k * step_deg, 2))
+        for n in tasks:
+            per_task[n].append(round(r2[n], 4))
+        mean_r2.append(round(float(np.mean(list(r2.values()))), 4))
+        slice_n.append(int(len(idx)))
+    m = int(np.median(slice_n))
+    rng = np.random.default_rng(3)
+    rand = [float(np.mean(list(bank_r2(rng.choice(bank.shape[1], m, replace=False)).values())))
+            for _ in range(n_rand)]
+    full = float(np.mean(list(bank_r2(np.arange(bank.shape[1])).values())))
+    best, worst = int(np.argmax(mean_r2)), int(np.argmin(mean_r2))
+    return {
+        "kind": kind, "n_lens": int(bank.shape[1]), "step_deg": step_deg,
+        "slice_size": m, "angles": angles, "mean_r2": mean_r2, "per_task": per_task,
+        "baseline_random_mean": round(float(np.mean(rand)), 4),
+        "baseline_random_std": round(float(np.std(rand)), 4),
+        "baseline_full": round(full, 4),
+        "best": {"deg": angles[best], "r2": mean_r2[best]},
+        "worst": {"deg": angles[worst], "r2": mean_r2[worst]},
+        "angular_spread": round(float(max(mean_r2) - min(mean_r2)), 4),
+    }
+
+
 if __name__ == "__main__":
     import sys, json
-    if "probe" in sys.argv:
+    if "rotate" in sys.argv:
+        r = rotation_probe()
+        print(f"rotation probe ({r['kind']}): {r['n_lens']} lenses, slice ~{r['slice_size']}, "
+              f"{len(r['angles'])} angles at {r['step_deg']} deg")
+        print(f"  best  {r['best']['r2']:+.4f} @ {r['best']['deg']} deg")
+        print(f"  worst {r['worst']['r2']:+.4f} @ {r['worst']['deg']} deg   "
+              f"(angular spread {r['angular_spread']})")
+        print(f"  random-subset baseline {r['baseline_random_mean']:+.4f} "
+              f"(std {r['baseline_random_std']})   full bank {r['baseline_full']:+.4f}")
+    elif "probe" in sys.argv:
         r = probe()
         print(f"linear model, raw x vs {r['rows'][0]['n_lens']}-lens bank ({r['kind']}):")
         for row in r["rows"]:

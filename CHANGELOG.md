@@ -10,6 +10,25 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-13] (Claude)** — Radial v2: **rotation probe — spin the map, not
+  the data** (user's direction: "rotate the radial axis on the y axis, one
+  degree, then run the linear probe again — the data isn't changing").
+  `rotation_probe()` in `radial_map.py`: the map is embedded in 3D (top-3 MDS
+  of the same behavioral signatures, `_mds()` refactored out), rotated about
+  the Y axis 1 deg/step; per angle the closed-form linear probe sees ONLY the
+  slice of lenses in the current viewing plane. Honest baselines: same-size
+  random subsets + full bank. RESULTS (loops, 800 lenses): at slice ~90 every
+  angle saturates (R2~1, ceiling — no signal visible), so default slice is
+  ~23 (frac 0.03), where real angular structure appears: **best angle 81 deg
+  R2 0.998, worst angle 5 deg R2 0.169, spread 0.83** — while random 23-lens
+  subsets average 0.996. Reading: co-planar lenses are behaviorally SIMILAR
+  (redundant views), so bad angles are far below chance — the map's geometry
+  carries real information, and the diversity-does-the-lifting hypothesis is
+  confirmed from the failure side. New endpoint `/api/radial/rotate`
+  (n/kind/step_deg/frac), CLI `python radial_map.py rotate`, page button
+  "Rotation probe (1 deg/step)" with R2-vs-angle curve (random-baseline band),
+  best/worst/spread panel; included in the JSON export as `rotation_probe`.
+  **Flask restart still pending** (now also for the rotate route).
 - **[2026-07-13] (Claude)** — Radial v2 page: **terminal dock restored + Export
   results button.** The rebuilt page had dropped the shared dock stack — added
   the standard includes (xterm.css/js, addon-fit, termdock.js, app.js,
