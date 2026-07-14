@@ -10,6 +10,16 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-14] (Claude)** — Evolution campaign part 4: **environment
+  richness knob** (user asked how much lift evolution really provides).
+  `phase_b(C_env=…)`: doubling the patch-PCA environment 40→80 components,
+  same recipe: 8k test unchanged (0.5840 — saturated by train size at this
+  scale; val 0.661 vs 0.651) but **full-50k transfer 0.6257** vs 0.6198
+  (+0.6). Current bottlenecks are evolution-data size and genome
+  expressivity (single 6×6 patch scale, depth-1 bends), not component
+  count. NOTE: `evo_interact_cifar.json` now holds the C=80 genomes
+  (667); `phase_b_full` reads `C_env` from the export. Ladder: hand-crafted
+  0.5904 → evolved 0.6198 (C=40) → **0.6257 (C=80)**.
 - **[2026-07-14] (Claude)** — **Evolution campaign part 3: THE v1 MILESTONE
   FALLS.** `phase_b_full()` transfers the 647 evolved genomes to full CIFAR
   (50k/10k; identical environment basis so component indices keep meaning;

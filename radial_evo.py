@@ -302,12 +302,13 @@ def _ridge_soft(torch, Xf, Xv, Yf, yval, lam=3.0):
     return soft, acc
 
 
-def phase_b(rounds=14, pop_size=64, gens=12, freeze_top=8, seed=0, verbose=True):
+def phase_b(rounds=14, pop_size=64, gens=12, freeze_top=8, seed=0, C_env=40,
+            verbose=True):
     import torch
     rng = np.random.default_rng(seed)
     dev = "cuda" if torch.cuda.is_available() else "cpu"
     t0 = time.time()
-    Mtr, Mte, data, C = _patch_env(torch, dev)
+    Mtr, Mte, data, C = _patch_env(torch, dev, C=C_env)
     Xtr, ytr, Xte, yte = data
     n_fit = 6000
     yf = torch.tensor(ytr[:n_fit], device=dev)
@@ -398,7 +399,7 @@ def phase_b(rounds=14, pop_size=64, gens=12, freeze_top=8, seed=0, verbose=True)
     yte_t = torch.tensor(yte, device=dev)
     _, test_acc = _ridge_soft(torch, Ftr, Fte, Yfull, yte_t)
     out = {"phase": "B-interaction-genomes", "domain": "cifar",
-           "n_frozen": len(frozen), "test_acc": round(test_acc, 4),
+           "n_frozen": len(frozen), "test_acc": round(test_acc, 4), "C_env": C,
            "genomes": frozen, "history": hist,
            "references": {"pointwise_ceiling_honest": 0.3845, "bank400": 0.3815,
                           "raw": 0.3820, "coates_ng_handcrafted_8k": 0.493},
@@ -476,10 +477,9 @@ def phase_b_full(verbose=True):
     dev = "cuda" if torch.cuda.is_available() else "cpu"
     t0 = time.time()
     with open(os.path.join(_HERE, "radial_data", "evo_interact_cifar.json")) as f:
-        genomes = json.load(f)["genomes"]
-    Mtr8, _, _, C = _patch_env(torch, dev)      # basis fit inside, identical path
-    del Mtr8
-    torch.cuda.empty_cache()
+        run8 = json.load(f)
+    genomes = run8["genomes"]
+    C = int(run8.get("C_env", 40))
     import torch.nn.functional as Fn
     z = np.load(os.path.join(_HERE, "radial_data", "cifar_full.npz"))
     Xtr = z["Xtr"].astype(np.float32) / 255.0
