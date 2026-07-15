@@ -169,9 +169,10 @@ GRID = 4    # coarse spatial resolution passed BETWEEN stacked spaces (per the
             # space — scalars were destroying the spatial data between spaces.
 
 
-def _to_grid(torch, z):
+def _to_grid(torch, z, grid=None):
     import torch.nn.functional as Fn
-    return Fn.adaptive_avg_pool2d(z.unsqueeze(1), (GRID, GRID)).squeeze(1)
+    g = grid or GRID
+    return Fn.adaptive_avg_pool2d(z.unsqueeze(1), (g, g)).squeeze(1)
 
 
 def _window_pool(torch, z, g):
@@ -220,12 +221,28 @@ def feature_r0(torch, tp, env, g, test=False, want_grid=False):
     return _to_grid(torch, z) if want_grid else _window_pool(torch, z, g)
 
 
+def _shift2d(torch, v, dy, dx):
+    """Zero-padded 2D shift of (N,H,W) maps — the RELATIVE-OFFSET primitive:
+    lets a term compare channel A at (i,j) with channel B at (i+dy, j+dx)."""
+    if dy == 0 and dx == 0:
+        return v
+    out = torch.zeros_like(v)
+    H, W = v.shape[1], v.shape[2]
+    ys, ye = max(dy, 0), H + min(dy, 0)
+    xs, xe = max(dx, 0), W + min(dx, 0)
+    out[:, ys:ye, xs:xe] = v[:, ys - dy:ye - dy, xs - dx:xe - dx]
+    return out
+
+
 def new_grid_genome(rng, C_prev):
     """Grammar genome over a previous space's (C_prev, GRID, GRID) maps —
     channels are the previous space's genomes; window/stat read out; optional
-    gate routes on a channel's global mean."""
+    gate routes on a channel's global mean. Each term carries a SHIFT gene
+    (dy, dx) so folds can compare relative positions across channels."""
     order = 2 if rng.random() < 0.7 else 3
     g = {"terms": [{"c": int(rng.integers(C_prev)),
+                    "sh": [int(rng.integers(-(GRID // 2), GRID // 2 + 1)),
+                           int(rng.integers(-(GRID // 2), GRID // 2 + 1))],
                     "prog": [(int(rng.integers(len(_PRIMS))),
                               float(rng.uniform(0.5, 2.5)),
                               float(rng.uniform(-1, 1)))
@@ -250,6 +267,13 @@ def mutate_grid_g(rng, g, sc, C_prev):
     c = mutate_vec(rng, {k: g[k] for k in ("terms", "op", "gate")}, sc, C_prev)
     out = dict(g)
     out.update(c)
+    for t in out["terms"]:
+        if "sh" not in t or t["sh"] is None:
+            t["sh"] = [0, 0]
+        if rng.random() < 0.20:                    # the shift gene walks
+            m = GRID // 2
+            t["sh"] = [int(np.clip(t["sh"][0] + rng.integers(-1, 2), -m, m)),
+                       int(np.clip(t["sh"][1] + rng.integers(-1, 2), -m, m))]
     if rng.random() < 0.08:
         out["stat"] = int(rng.integers(3))
     out["cx"] = float(np.clip(g["cx"] + rng.normal(0, sc * 0.5), 0.0, 1.0))
@@ -261,9 +285,24 @@ def mutate_grid_g(rng, g, sc, C_prev):
 
 def feature_grid_g(torch, tp, gridT, g, want_grid=False):
     """Grammar genome over the previous space's (N, C_prev, GRID, GRID) maps —
-    stacking REPRESENTATIONS, not scalars."""
-    z = _terms_fold(torch, tp,
-                    lambda c: gridT[:, c % gridT.shape[1]].float(), g)
+    stacking REPRESENTATIONS, not scalars. Terms apply their SHIFT gene before
+    folding, so products compare relative positions across channels."""
+    z = None
+    for t in g["terms"]:
+        v = gridT[:, t["c"] % gridT.shape[1]].float()
+        sh = t.get("sh") or [0, 0]
+        v = _shift2d(torch, v, int(sh[0]), int(sh[1]))
+        for prim, a, b in t["prog"]:
+            v = tp[_PRIMS[prim]](a * v + b)
+        if z is None:
+            z = v
+        else:
+            op = _OPS[g["op"]]
+            z = z * v if op == "mult" else (torch.minimum(z, v) if op == "min"
+                                            else torch.abs(z - v))
+    if False:
+        z = _terms_fold(torch, tp,
+                        lambda c: gridT[:, c % gridT.shape[1]].float(), g)
     gt = g.get("gate")
     if gt:
         gv = gridT[:, gt["c"] % gridT.shape[1]].float().mean((1, 2))
@@ -459,19 +498,22 @@ def _r0_cache_path(seed, pop_size, gens, max_rounds, n_train, n_test, smoke,
 def run_stacked(pop_size=64, gens=12, max_rounds=200, seed=5, smoke=False,
                 n_train=None, n_test=None, out_path=None, record=True, verbose=True,
                 rot_deg=1.0, r0_cache=True, data_npz=None,
-                handoff="grid"):
+                handoff="grid", grid_size=None, max_spaces=None):
     """Emergent-cap stacked CIFAR grammar evolution. Space 0 = spatial
     grammar-v2 genomes over the patch-PCA environment; deeper spaces = vector
     grammar genomes (terms + gates) over the previous space's outputs. Depth
     emerges from scarcity, not a hyperparameter."""
     import torch
+    global GRID
+    if grid_size:
+        GRID = int(grid_size)
     rng = np.random.default_rng(seed)
     dev = "cuda" if torch.cuda.is_available() else "cpu"
     tp = _tprims(torch)
     t0 = time.time()
     if os.path.exists(_STOP):
         os.remove(_STOP)
-    max_spaces = MAX_SPACES
+    max_spaces = max_spaces or MAX_SPACES
     if smoke:
         pop_size, gens, max_rounds, max_spaces = 16, 4, 6, 2
         n_train = n_train or 3000
