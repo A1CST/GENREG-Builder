@@ -415,6 +415,29 @@ live from the checkpoint files, exactly as evolution wrote them</div>
       cut out, and its shape call.</div>
     <div class="an-grid" id="an-shape" style="margin-bottom:12px">loading the shape reader…</div>
     <div class="an-note" style="margin-top:0;border-top:none;padding-top:0" id="an-shape-note"></div>
+
+    <div class="an-cl" style="margin:18px 0 8px"><b style="color:#dbe2ea;font-size:12.5px">Try it ·
+      Interactive</b> — <b>move your mouse</b> over the canvas to drive the red cursor. The model
+      tracks it (<b style="color:#5fd39a">green crosshair</b>) and names the shape under it, live.
+      Hover a shape's clear body and it reads it; drag into an <b>overlap</b> to probe its depth
+      sense (occlusion is hard, so it slips there). <b>Shuffle</b> for a new random scene.</div>
+    <div id="an-live" style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap;margin-bottom:12px">
+      <div style="position:relative;width:320px;height:320px;flex:0 0 auto">
+        <canvas id="an-live-cv" width="320" height="320"
+          style="width:320px;height:320px;border:1px solid #2f4152;border-radius:8px;cursor:none;background:#000"></canvas>
+      </div>
+      <div style="flex:1 1 220px;min-width:220px">
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
+          <button class="an-btn" id="an-live-shuffle">Shuffle scene</button>
+          <span id="an-live-status" style="font-size:11.5px;color:#8b95a1"></span>
+        </div>
+        <div style="font-size:12px;color:#8b95a1;margin-bottom:4px">model reads</div>
+        <div id="an-live-read" style="font-family:ui-monospace,monospace;font-size:22px;
+          color:#dbe2ea;letter-spacing:.3px">move over the canvas</div>
+        <div id="an-live-sub" style="font-size:11.5px;color:#647082;margin-top:6px"></div>
+      </div>
+    </div>
+    <div class="an-note" style="margin-top:0;border-top:none;padding-top:0" id="an-live-note"></div>
   </div></main>
 
   <script>
@@ -1323,20 +1346,144 @@ live from the checkpoint files, exactly as evolution wrote them</div>
           card.appendChild(fc); card.appendChild(col); box.appendChild(card);
         });
         var res = d.result || {};
+        var dep = res.depth || {};
+        var clean = dep["0.00"], hard = dep["1.00"];
         document.getElementById("an-shape-note").innerHTML =
-          "Riding the tracker's own attention, the model names the shape under the cursor at <b>" +
-          (res.test_acc != null ? (res.test_acc * 100).toFixed(1) + "%</b>" : "high accuracy</b>") +
-          " across <b>" + (res.n_classes || d.n_classes) + " shapes</b> (chance " +
-          Math.round(100 / (res.n_classes || d.n_classes)) + "%), and <b>98.25%</b> on the " +
-          "circle-vs-square action — reading shape <b>regardless of color</b>, amid " +
-          (res.distractors || 0) + " random-colored distractors it never looks at. The clutter " +
-          "falls <b>outside the " + d.crop + "px attention window</b>, so it is ignored for free. " +
-          "This is the attention payoff: <b>\"where\" (the frozen tracker) unlocks \"what\"</b> — " +
-          "with a reliable spotlight, shape ID stays near-perfect even when nothing but the cursor " +
-          "picks the target out. Reproduce: <b>dot_shape.py</b> (<b>--cs</b> for circle-vs-square).";
+          "Riding the tracker's own attention, the model names the shape under the cursor " +
+          "<b>regardless of color</b>, amid " + (res.distractors || 0) + " random-colored " +
+          "distractors it never looks at (they fall outside the <b>" + d.crop + "px attention " +
+          "window</b>). On clean scenes it reads <b>" +
+          (clean != null ? (clean * 100).toFixed(1) + "%</b>" : "~94%</b>") + " across <b>" +
+          (d.n_classes) + " shapes</b> (chance " + Math.round(100 / d.n_classes) + "%). " +
+          "The hard case is <b>depth</b>: when a bigger distractor fully ENCOMPASSES the target, " +
+          "the old model picked the encompassing shape (~53%). Retrained on encompassing overlaps " +
+          "(the target is drawn in front, so occlusion is the cue), it now reads <b>" +
+          (hard != null ? (hard * 100).toFixed(1) + "%</b>" : "~73%</b>") + " on that case — a real " +
+          "figure-ground gain, gradient-free. This is the attention payoff: <b>\"where\" (the frozen " +
+          "tracker) unlocks \"what\"</b>. Reproduce: <b>dot_shape.py</b> (<b>--cs</b> for " +
+          "circle-vs-square).";
       }).catch(function (e) {
         document.getElementById("an-shape").textContent = "load failed: " + e;
       });
+
+    /* ---- Interactive Model 1b: mouse-driven cursor over a random scene ---- */
+    (function () {
+      var cv = document.getElementById("an-live-cv");
+      if (!cv) { return; }
+      var g = cv.getContext("2d");
+      var SCALE = 5;                              // 64 -> 320
+      var field = null, seed = 1, busy = false, mx = -1, my = -1;
+      var statusEl = document.getElementById("an-live-status");
+      var readEl = document.getElementById("an-live-read");
+      var subEl = document.getElementById("an-live-sub");
+      var noteEl = document.getElementById("an-live-note");
+
+      function drawScene() {
+        if (!field) { return; }
+        var res = field.res, raw = atob(field.canvas);
+        var img = g.createImageData(res, res);
+        for (var p = 0; p < res * res; p++) {
+          var o = p * 3;
+          img.data[4 * p] = raw.charCodeAt(o);
+          img.data[4 * p + 1] = raw.charCodeAt(o + 1);
+          img.data[4 * p + 2] = raw.charCodeAt(o + 2);
+          img.data[4 * p + 3] = 255;
+        }
+        var tmp = document.createElement("canvas"); tmp.width = res; tmp.height = res;
+        tmp.getContext("2d").putImageData(img, 0, 0);
+        g.imageSmoothingEnabled = false;
+        g.clearRect(0, 0, cv.width, cv.height);
+        g.drawImage(tmp, 0, 0, cv.width, cv.height);
+        if (mx >= 0) { overlay(); }
+      }
+
+      function nearest(v) {                       // map a res-px coord to a grid index
+        var gs = field.grid, best = 0, bd = 1e9;
+        for (var i = 0; i < gs.length; i++) {
+          var d = Math.abs(gs[i] - v); if (d < bd) { bd = d; best = i; }
+        }
+        return best;
+      }
+
+      function overlay() {
+        drawSceneBase();
+        var res = field.res;
+        var rx = mx / SCALE, ry = my / SCALE;      // res-space cursor
+        var ix = nearest(rx), iy = nearest(ry);
+        var tp = field.track_field[iy][ix];        // model's tracked point (normalised)
+        var cls = field.classes[field.shape_field[iy][ix]];
+        // green crosshair at the model's tracked position
+        var tx = tp[0] * cv.width, ty = tp[1] * cv.height;
+        g.strokeStyle = "#5fd39a"; g.lineWidth = 1.5;
+        g.beginPath();
+        g.moveTo(tx - 7, ty); g.lineTo(tx + 7, ty);
+        g.moveTo(tx, ty - 7); g.lineTo(tx, ty + 7); g.stroke();
+        g.strokeRect(tx - 4, ty - 4, 8, 8);
+        // the red cursor at the mouse
+        g.fillStyle = "#ff2b2b";
+        g.beginPath(); g.arc(mx, my, 5, 0, 6.2832); g.fill();
+        g.strokeStyle = "rgba(255,255,255,.5)"; g.lineWidth = 1; g.stroke();
+        readEl.textContent = cls;
+        subEl.textContent = "cursor (" + Math.round(rx) + ", " + Math.round(ry) +
+          ") · model tracks (" + Math.round(tp[0] * res) + ", " + Math.round(tp[1] * res) + ")";
+      }
+
+      var _base = null;
+      function drawSceneBase() {
+        if (_base) { g.clearRect(0, 0, cv.width, cv.height); g.drawImage(_base, 0, 0); return; }
+        drawScene();
+      }
+      function cacheBase() {
+        _base = document.createElement("canvas"); _base.width = cv.width; _base.height = cv.height;
+        var res = field.res, raw = atob(field.canvas);
+        var img = g.createImageData(res, res);
+        for (var p = 0; p < res * res; p++) {
+          var o = p * 3;
+          img.data[4 * p] = raw.charCodeAt(o); img.data[4 * p + 1] = raw.charCodeAt(o + 1);
+          img.data[4 * p + 2] = raw.charCodeAt(o + 2); img.data[4 * p + 3] = 255;
+        }
+        var tmp = document.createElement("canvas"); tmp.width = res; tmp.height = res;
+        tmp.getContext("2d").putImageData(img, 0, 0);
+        var bg = _base.getContext("2d");
+        bg.imageSmoothingEnabled = false;
+        bg.drawImage(tmp, 0, 0, cv.width, cv.height);
+      }
+
+      function load() {
+        if (busy) { return; }
+        busy = true; _base = null;
+        statusEl.textContent = "computing field…";
+        fetch("/api/animation/cursor_field?seed=" + seed + "&stride=2")
+          .then(function (r) { return r.json(); })
+          .then(function (d) {
+            busy = false;
+            if (d.error && !d.pending) { statusEl.textContent = d.error; return; }
+            if (d.pending) { statusEl.textContent = d.error || "models not trained yet"; return; }
+            field = d; cacheBase(); drawScene();
+            statusEl.textContent = d.shapes.length + " shapes · grid " +
+              d.grid.length + "×" + d.grid.length;
+            noteEl.innerHTML = "The scene and every readout are computed <b>server-side by the " +
+              "same gradient-free models</b> (the frozen tracker + the overlap-trained shape " +
+              "classifier), on a full grid of cursor positions, so your mouse reads answers " +
+              "instantly. Endpoint <b>/api/animation/cursor_field</b>, module <b>dot_live.py</b>.";
+          }).catch(function (e) { busy = false; statusEl.textContent = "load failed: " + e; });
+      }
+
+      cv.addEventListener("mousemove", function (e) {
+        if (!field) { return; }
+        var rect = cv.getBoundingClientRect();
+        mx = e.clientX - rect.left; my = e.clientY - rect.top;
+        overlay();
+      });
+      cv.addEventListener("mouseleave", function () {
+        mx = my = -1; if (field) { drawScene(); }
+        readEl.textContent = "move over the canvas"; subEl.textContent = "";
+      });
+      document.getElementById("an-live-shuffle").addEventListener("click", function () {
+        seed = (seed % 100000) + 1; load();
+      });
+      load();
+    })();
   })();
   </script>
   <script src="{{ url_for('static', filename='vendor/xterm.js') }}"></script>

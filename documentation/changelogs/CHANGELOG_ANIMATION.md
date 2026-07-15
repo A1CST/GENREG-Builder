@@ -6,6 +6,25 @@ Seeded 2026-07-05 from the main changelog (keyword split, best effort).
 
 ---
 
+## 2026-07-15 (Claude) — Attention line: depth/occlusion fix + interactive mode
+
+User spotted Model 1b's misses were an occlusion failure — when a bigger
+distractor ENCOMPASSES the target, the model picked the encompassing shape, not
+the one the cursor sits on. Fix: `gen_labeled` draws a large distractor centered
+on the target (behind it) in 60% of examples (`overlap`), forcing the model to
+use occlusion (the target is drawn in front) to read the right shape. Controlled:
+all-encompassing test 0.5335 (baseline) -> 0.7220 (overlap-trained), +19 pts, for
+~1.5 pts on clean (0.9545 -> 0.9430). `dot_shape.py` saves a reloadable
+checkpoint (`dot_shape_model.json`) and the depth numbers into `dot_shape.json`.
+
+NEW interactive mode (`dot_live.py`, `/api/animation/cursor_field`, card on
+/animation): server renders a random scene and precomputes the model's read
+(tracked point + shape) over a 32x32 grid of cursor positions in one batched
+gradient-free pass, so moving the mouse gives an instant live readout (green
+crosshair + shape name); Shuffle makes a new scene (~3s). Recurring basis rule
+again: the classifier's crop-PCA basis is rebuilt from its own training crops
+(first 2000, seed 1). Flask restart needed for the new route + template.
+
 ## 2026-07-15 (Claude) — Attention line: fixed the white-target leak, retrained
 
 The tracker's target shape was always WHITE while distractors were colored, so

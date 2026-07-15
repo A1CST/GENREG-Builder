@@ -1313,6 +1313,26 @@ def animation_shape():
         return jsonify({"error": f"animation shape failed: {exc}"}), 500
 
 
+@app.route("/api/animation/cursor_field")
+def animation_cursor_field():
+    """Interactive Model-1b — a random scene + a precomputed grid of the model's
+    reads (where the cursor is + what shape is under it) so the browser can show
+    live inference as the mouse moves. ?seed=<int>&stride=<int>. Runs torch
+    inference locally; models must be present."""
+    try:
+        base = os.path.dirname(os.path.abspath(__file__))
+        need = ("dot_model.json", "dot_shape_model.json")
+        if not all(os.path.exists(os.path.join(base, "radial_data", n)) for n in need):
+            return jsonify({"pending": True,
+                            "error": "run dot_track.py then dot_shape.py first"})
+        seed = int(request.args.get("seed", 1))
+        stride = max(1, min(4, int(request.args.get("stride", 2))))
+        import dot_live
+        return jsonify(dot_live.compute(seed, stride=stride))
+    except Exception as exc:
+        return jsonify({"error": f"animation cursor_field failed: {exc}"}), 500
+
+
 @app.route("/api/animation/multires")
 def animation_multires():
     """Scaling module 6 — one model across resolutions: the generalization

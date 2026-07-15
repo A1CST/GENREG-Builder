@@ -10,6 +10,25 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-15] (Claude)** — **Attention line: depth/occlusion fix +
+  INTERACTIVE mouse-driven mode.** User spotted Model 1b's errors were an
+  occlusion failure: when a bigger distractor ENCOMPASSES the target, the model
+  picked the encompassing shape, not the one the cursor sits on. Fix: gen_labeled
+  now draws a large distractor centered on the target (behind it) in 60% of
+  examples (`overlap`), so the model must use occlusion (the target is drawn in
+  FRONT) to read the right shape. Controlled result: on the all-encompassing test
+  the classifier goes **0.5335 (baseline) -> 0.7220 (overlap-trained)**, +19 pts,
+  for only ~1.5 pts on clean (0.9545 -> 0.9430); depth numbers saved into
+  dot_shape.json. dot_shape.py now also saves a reloadable checkpoint
+  (dot_shape_model.json). NEW **dot_live.py** + `/api/animation/cursor_field` +
+  an interactive card on /animation: the server renders a random scene and, in
+  one batched gradient-free pass, precomputes the model's read (tracked point +
+  shape) over a 32x32 grid of cursor positions, so moving the mouse gives an
+  instant live readout (green crosshair + shape name) and "Shuffle" makes a new
+  scene (~3s). Same recurring basis rule: the classifier's crop-PCA basis is
+  rebuilt from its own training crops (first 2000, seed 1) or predictions are
+  garbage. **Flask restart needed** for the new route + template. Reproduce:
+  dot_shape.py, dot_live.py.
 - **[2026-07-15] (Claude)** — **MODULE 15 - second crank: far skip-grams
   (w-4,w-1)/(w-5,w-1) take the lean model to TEST 0.4832 top-1 / 0.6643
   top-5 - the user's "simple neural LM territory" band, gradient-free at
