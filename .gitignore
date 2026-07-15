@@ -37,3 +37,6 @@ project/conversational/cornell movie-dialogs corpus/
 copyies/
 radial_data/
 *.npz
+
+# Terminal transcripts (Ghostwriter)
+terminal_logs/

@@ -174,15 +174,31 @@ next_left, next_intent, next_cand = li.mine_next_word_examples(tokens, stoi, ctx
 log(f"next-word examples: {len(next_cand):,}  (1 true + 5 negatives each)  "
    f"intent dist: {{{', '.join(f'{li.MARKS[m]}={int((next_intent == m).sum()):,}' for m in range(li.N_INTENTS))}}}")
 
+# majority-class baseline (GENREG_RULES §VII.1): pick the candidate with the
+# highest GLOBAL corpus frequency — no context, no evolution. The genome must
+# meaningfully beat THIS, not just 1/6 chance.
+import numpy as _np
+_word_freq = _np.bincount(_np.asarray([stoi.get(t, 0) for t in tokens
+                                       if li.MARK_ID.get(t) is None], dtype=_np.int64),
+                          minlength=4001)
+_freq_pick = _word_freq[next_cand].argmax(axis=1)
+next_baseline = float((_freq_pick == 0).mean())
+log(f"  majority-frequency baseline (pick most frequent candidate): {next_baseline:.4f}")
+
 log(f"\n=== training next_word (next) — {li.NEXT_SPLIT['desc']} ===")
 next_export, next_acc = li.train_next_word(next_left, next_intent, next_cand, gens=250, pop=120,
                                            D=24, ctx_k=6, batch_size=512, seed=0, log=log)
-log(f"  FINAL next_word: holdout-acc={next_acc:.4f} (chance={1 / 6:.4f}, 1 true + 5 negatives)")
+log(f"  FINAL next_word: holdout-acc={next_acc:.4f} (chance={1 / 6:.4f}, "
+   f"majority-frequency baseline={next_baseline:.4f})")
 results["next_word"] = {
     "genome": next_export, "group": li.NEXT_GROUP, "desc": li.NEXT_SPLIT["desc"],
-    "holdout_acc": next_acc, "chance": 1 / 6,
+    "holdout_acc": next_acc, "chance": 1 / 6, "majority_baseline": next_baseline,
     "n_examples": len(next_cand),
 }
+
+log("\nbuilding rerank-generation follower pools (top 200 followers per word)...")
+followers, global_top = li.build_generation_followers(tokens, stoi, top_n=200)
+log(f"follower pools built for {len(followers):,} words (+ global fallback of {len(global_top)})")
 
 log("\n=== summary, all genomes ===")
 for key, r in results.items():
@@ -193,7 +209,8 @@ for key, r in results.items():
         log(f"  {key:>16}  ({r['group']:>11})  holdout-acc={r['holdout_acc']:.4f}")
 
 artifact = {"splits": results, "vocab": vocab, "stoi": stoi, "ctx_k": 6,
-           "opener_ctx_k": 1, "marks": li.MARKS, "mark_intent": li.MARK_INTENT}
+           "opener_ctx_k": 1, "marks": li.MARKS, "mark_intent": li.MARK_INTENT,
+           "followers": followers, "global_top": global_top}
 with open(OUT, "wb") as fh:
     pickle.dump(artifact, fh)
 log(f"\nsaved {OUT}")

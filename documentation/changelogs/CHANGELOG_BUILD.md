@@ -6,6 +6,17 @@ Seeded 2026-07-05 from the main changelog (keyword split, best effort).
 
 ---
 
+- **[2026-07-14] (Claude)** — **Terminals: 5-min reopen grace + Ghostwriter
+  logger.** Closing a terminal tab now soft-**detaches** it in the daemon and
+  holds the shell + scrollback for 300 s; the tab becomes a dashed "held" tab
+  with an m:ss countdown, click to reopen where you left off (`reopen` op →
+  `terminal_restored`). Reaped after the window if not reopened; held state
+  survives a page reload via the `hello` snapshot. New **Ghostwriter** thread
+  records every terminal event to `terminal_logs/session-<date>.jsonl` (raw)
+  and `terminal-<id>.txt` (readable, ANSI-stripped). Files:
+  `terminal_daemon.py`, `static/app.js`, `static/style.css`. Requires a daemon
+  (port 5001) restart — which ends current terminals. See master CHANGELOG.
+
 - **[2026-07-06] (Claude)** — **PER-LAYER ("tissue") constraints — new engine + validated.**
   User's idea: evaluate each constraint against its WIRED LAYER'S activations instead of the
   whole network, so layers face different survival conditions like tissues — same tournament /

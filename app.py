@@ -97,6 +97,22 @@ try:
 except Exception as _e:                       # pragma: no cover
     REV_OK, REV_ERR = False, str(_e)
 
+# Video editor — library + ffmpeg jobs (cut / stitch / convert / export).
+try:
+    import video_service
+    VID_OK, VID_ERR = video_service.available(), None
+    if not VID_OK:
+        VID_ERR = "ffmpeg not found (tools/ffmpeg-*/bin, PATH, imageio-ffmpeg)"
+except Exception as _e:                       # pragma: no cover
+    VID_OK, VID_ERR = False, str(_e)
+
+# Animation platform — SVG rigs + scene timelines rendered onto the library.
+try:
+    import anim_service
+    ANIMP_OK, ANIMP_ERR = True, None
+except Exception as _e:                       # pragma: no cover
+    ANIMP_OK, ANIMP_ERR = False, str(_e)
+
 # Agent board — shared notice feed for the floating Agent panel (all pages).
 try:
     import agent_board
@@ -493,6 +509,143 @@ def api_mnist_reload():
     return jsonify({"ok": True})
 
 
+# ── TSDB ────────────────────────────────────────────────────────────
+# A small Float64 block store (TSDB.js). The page runs an in-browser port
+# of it and feeds it real MNIST pipeline metrics as Float64 row data.
+@app.route("/tsdb")
+def tsdb_page():
+    """TSDB — the Float64 block store, driven with real MNIST metrics."""
+    resp = app.make_response(render_template("tsdb.html"))
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
+
+
+_TSDB_SETS = {
+    "mnist": {
+        "cache": "mnist_genomes.pkl",
+        "classes": [str(i) for i in range(10)],
+    },
+    "cifar": {
+        "cache": "cifar_genomes.pkl",
+        "classes": ["plane", "car", "bird", "cat", "deer",
+                    "dog", "frog", "horse", "ship", "truck"],
+    },
+}
+
+
+@app.route("/api/tsdb/mnist")            # back-compat alias
+@app.route("/api/tsdb/data")
+def api_tsdb_data():
+    """Numeric pipeline series (MNIST or CIFAR), shaped as Float64 rows.
+
+    Everything here is plain numbers pulled from the frozen champions
+    (demo/<set>_genomes.pkl) — no model load, no test-set pass. The browser
+    serializes each series into TSDB blocks and reads them straight back.
+    Pick the set with ?set=mnist|cifar (default mnist)."""
+    import pickle
+    which = (request.args.get("set", "mnist") or "mnist").lower()
+    spec = _TSDB_SETS.get(which)
+    if spec is None:
+        return jsonify({"err": f"unknown set '{which}'"}), 400
+    cache = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                         "demo", spec["cache"])
+    if not os.path.exists(cache):
+        return jsonify({"err": f"demo/{spec['cache']} not found"}), 404
+    try:
+        with open(cache, "rb") as f:
+            d = pickle.load(f)
+    except Exception as exc:                       # pragma: no cover
+        return jsonify({"err": f"{type(exc).__name__}: {exc}"}), 500
+
+    res = d.get("results", {}) or {}
+    # Layer progression: the store's `time` axis is the pipeline stage index.
+    stages = [
+        ("centroid", res.get("centroid_test")),
+        ("argmax",   d.get("argmax_val_acc")),
+        ("mixer",    d.get("mixer_val_acc")),
+        ("joint",    d.get("joint_base_val_acc")),
+        ("joint+bias", d.get("joint_val_acc")),
+        ("+pairs",   res.get("joint_test")),
+        ("full",     res.get("full_test")),
+    ]
+    layers, layer_labels, t = [], [], 0
+    for lbl, a in stages:
+        if a is None:
+            continue
+        layers.append({"t": t, "acc": float(a)})
+        layer_labels.append(lbl)
+        t += 1
+
+    # One-vs-one specialists: 45 rows keyed by pair index.
+    pv = d.get("pair_val_acc", {}) or {}
+    pairs = []
+    for i, (k, acc) in enumerate(sorted(pv.items())):
+        try:
+            a, b = k.split("v")
+            pairs.append({"t": i, "a": int(a), "b": int(b), "acc": float(acc)})
+        except (ValueError, TypeError):
+            continue
+
+    # Per-class detectors (one-vs-rest), when the champions carry them.
+    classes = spec["classes"]
+    dets = []
+    dva = d.get("det_val_acc") or {}
+    if isinstance(dva, dict):
+        for c in sorted(dva.keys(), key=lambda x: int(x)):
+            ci = int(c)
+            name = classes[ci] if 0 <= ci < len(classes) else str(ci)
+            dets.append({"t": ci, "cls": ci, "name": name, "acc": float(dva[c])})
+
+    return jsonify({
+        "ok": True,
+        "set": which,
+        "classes": classes,
+        "joint_val_acc": d.get("joint_val_acc"),
+        "joint_base_val_acc": d.get("joint_base_val_acc"),
+        "feat_version": d.get("feat_version"),
+        "layers": layers,
+        "layer_labels": layer_labels,
+        "pairs": pairs,
+        "detectors": dets,
+    })
+
+
+@app.route("/api/tsdb/run", methods=["POST"])
+def api_tsdb_run():
+    """Record a TSDB op (round-trip verify / stress load) as a run under the
+    `tsdb` environment, then post the Agent-panel notice carrying that run_id
+    so the notice deep-links straight to the run on /runs. Falls back to a
+    plain notice if the run store isn't available."""
+    data = request.get_json(silent=True) or {}
+    kind = data.get("kind", "info")
+    title = str(data.get("title", "TSDB op")).strip() or "TSDB op"
+    body = str(data.get("body", ""))
+    ok = bool(data.get("ok", True))
+    metrics = data.get("metrics") or {}
+    op = data.get("op", "op")            # 'verify' | 'stress'
+
+    run_id = None
+    if TRAIN_OK:
+        try:
+            cfg = {"environment": "tsdb", "config": {"op": op, **metrics}}
+            run = runstore.create_run(cfg, {"environment": "tsdb", "notes": body})
+            runstore.finalize(
+                run,
+                {"reason": "finished" if ok else "failed",
+                 "best": {"score": metrics.get("score")}},
+                None)
+            run_id = run["id"]
+        except Exception:                # pragma: no cover — recording is best-effort
+            run_id = None
+
+    if BOARD_OK:
+        try:
+            agent_board.post(title, body, kind=kind, source="tsdb-page", run_id=run_id)
+        except Exception:                # pragma: no cover
+            pass
+    return jsonify({"ok": True, "run_id": run_id})
+
+
 @app.route("/cifar")
 def cifar_page():
     """CIFAR — the MNIST specialist pipeline, verbatim, on CIFAR-10."""
@@ -702,6 +855,582 @@ def pure_frames():
             os.unlink(tmp.name)
         except OSError:
             pass
+
+
+@app.route("/xray")
+def xray_page():
+    """X-Ray — stress test of the 'radial address space' theory: is a genome's
+    rotation sequence a reversible, function-clustering coordinate? Real SO(3)
+    experiments report which claims survive and which don't."""
+    resp = app.make_response(render_template("xray.html"))
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
+
+
+@app.route("/api/xray/transform", methods=["POST"])
+def xray_transform():
+    """Apply a solved MNIST genome to a shared sample of real digits and return
+    each point's raw (tangled) and post-genome (clustered) 2D position, so the
+    page can animate the separation. First call builds features (~11s), cached."""
+    try:
+        import genome_xray
+        data = request.get_json(silent=True) or {}
+        gid = str(data.get("genome", "r5"))
+        use_pairs = bool(data.get("use_pairs", True))
+        use_mixer = bool(data.get("use_mixer", True))
+        npc = max(10, min(100, int(data.get("n_per_class", 50))))
+        return jsonify(genome_xray.transform(gid, use_pairs, use_mixer, npc))
+    except Exception as exc:
+        return jsonify({"error": f"xray transform failed: {exc}"}), 500
+
+
+@app.route("/radial")
+def radial_page():
+    """Radial Map v2 — deterministic index-addressed activation lenses,
+    characterized by BEHAVIOR on baseline data (numeric loops first), projected
+    to a 2D map; a closed-form linear model on the lens bank tests whether lens
+    diversity alone does the heavy lifting. v1 archived in archive/radial_v1/."""
+    resp = app.make_response(render_template("radial.html"))
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
+
+
+@app.route("/radial/demo")
+def radial_demo_page():
+    """Radial rotation demo — no models: a 20x20x20 grid cube of red ground-
+    truth dots centered on the origin, with a checkbox that rotates the DATA
+    (uniform Y-axis rotation of every dot, not a camera effect) and a checkbox
+    that overlays a stationary blue copy of the same cube for comparison."""
+    resp = app.make_response(render_template("radial_demo.html"))
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
+
+
+@app.route("/radial/demo/cousins")
+def radial_cousins_page():
+    """Space Cousin Finder — sub-page of the radial demo: a 6x6x6 grid of
+    deterministic composed-activation lens programs is rotated about Y and
+    rotated-onto neighbors are Pearson-correlated; pairs above threshold are
+    'cousins' (behaviorally redundant views). Pure front-end, no models."""
+    resp = app.make_response(render_template("radial_cousins.html"))
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
+
+
+@app.route("/api/radial/demo/record", methods=["POST"])
+def radial_demo_record():
+    """Persist a cousin/sibling search from /radial/demo/cousins as a run in
+    the runs store (runs/Demo_Radial/<rid>/), so it appears on the Runs page.
+    Writes the standard config.json/history.jsonl/summary.json trio plus
+    report.json — the full downloadable run report."""
+    try:
+        import datetime
+        import hashlib
+        d = request.get_json(silent=True) or {}
+        kind = str(d.get("kind", "search"))[:24]
+        params = d.get("params") or {}
+        stats = d.get("stats") or {}
+        log_lines = [str(x)[:300] for x in (d.get("log") or [])][:100]
+        report = d.get("report") or {}
+        ts = datetime.datetime.now()
+        h = hashlib.sha1(json.dumps([kind, params], sort_keys=True,
+                                    default=str).encode()).hexdigest()[:6]
+        rid = f"{ts.strftime('%Y%m%d-%H%M%S')}-demoradial-{h}"
+        base = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                            "runs", "Demo_Radial", rid)
+        os.makedirs(base, exist_ok=True)
+        created = ts.isoformat(timespec="seconds")
+        with open(os.path.join(base, "config.json"), "w", encoding="utf-8") as f:
+            json.dump({"id": rid, "environment": "Demo_Radial", "created": created,
+                       "config": dict(params, kind=kind), "status": "finished"},
+                      f, indent=2)
+        with open(os.path.join(base, "history.jsonl"), "w", encoding="utf-8") as f:
+            for i, line in enumerate(log_lines):
+                f.write(json.dumps({"gen": i, "note": line}) + "\n")
+        with open(os.path.join(base, "summary.json"), "w", encoding="utf-8") as f:
+            json.dump({"id": rid, "environment": "Demo_Radial", "status": "finished",
+                       "finished": created, "best": stats, "checkpoint": None},
+                      f, indent=2)
+        with open(os.path.join(base, "meta.json"), "w", encoding="utf-8") as f:
+            json.dump({"label": f"{kind} search", "favorite": False,
+                       "group": "", "tags": [kind, "radial-demo"]}, f, indent=2)
+        with open(os.path.join(base, "report.json"), "w", encoding="utf-8") as f:
+            json.dump({"id": rid, "kind": kind, "created": created,
+                       "params": params, "stats": stats, "log": log_lines,
+                       "report": report}, f, indent=2)
+        return jsonify({"id": rid})
+    except Exception as exc:
+        return jsonify({"error": f"record failed: {exc}"}), 500
+
+
+@app.route("/api/radial/demo/report/<rid>")
+def radial_demo_report(rid):
+    """Download a Demo_Radial run's report.json as an attachment."""
+    if not rid.replace("-", "").replace("_", "").isalnum():
+        return jsonify({"error": "bad run id"}), 400
+    base = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                        "runs", "Demo_Radial", rid)
+    if not os.path.isfile(os.path.join(base, "report.json")):
+        return jsonify({"error": "not found"}), 404
+    resp = send_from_directory(base, "report.json", mimetype="application/json",
+                               as_attachment=True)
+    resp.headers["Content-Disposition"] = f"attachment; filename={rid}_report.json"
+    return resp
+
+
+@app.route("/api/radial/map", methods=["POST"])
+def radial_map_api():
+    try:
+        import radial_map as rmap
+        d = request.get_json(silent=True) or {}
+        return jsonify(rmap.build_map(
+            n_lens=max(50, min(2500, int(d.get("n", 1200)))),
+            kind=str(d.get("kind", "loops"))))
+    except Exception as exc:
+        return jsonify({"error": f"radial map failed: {exc}"}), 500
+
+
+@app.route("/api/radial/lens", methods=["POST"])
+def radial_lens_api():
+    try:
+        import radial_map as rmap
+        d = request.get_json(silent=True) or {}
+        return jsonify(rmap.lens_detail(int(d.get("i", 0)),
+                                        kind=str(d.get("kind", "loops"))))
+    except Exception as exc:
+        return jsonify({"error": f"radial lens failed: {exc}"}), 500
+
+
+@app.route("/api/radial/training_state")
+def radial_training_state():
+    """Live numbers for the demo page: the gradient-free ladder, per-seed
+    substrates, ensembles, and stacked stages — read from the run exports."""
+    try:
+        import json as _json
+        base = os.path.dirname(os.path.abspath(__file__))
+
+        def rd(path, *keys):
+            try:
+                with open(os.path.join(base, path)) as f:
+                    d = _json.load(f)
+                for k in keys:
+                    d = d[k]
+                return d
+            except Exception:
+                return None
+
+        seeds = []
+        for name, path in (
+                ("seed 7 (local)", "radial_data/evo2x_cifar.json"),
+                ("seed 13 (pod)", "runpod_shadow/radial_data/evo2x_cifar.json"),
+                ("seed 19 (pod)", "runpod_shadow/radial_data/evo2_s19_cifar.json"),
+                ("seed 29 (pod)", "runpod_shadow/radial_data/evo2_s29_cifar.json"),
+                ("seed 37 (local)", "radial_data/evo2_s37_cifar.json"),
+                ("seed 43 (local)", "radial_data/evo2_s43_cifar.json"),
+                ("pop-128 (pod)", "runpod_shadow/radial_data/evo2p128_cifar.json")):
+            t = rd(path, "test_acc")
+            n = rd(path, "n_frozen")
+            seeds.append({"name": name, "test": t, "n": n,
+                          "status": "done" if t else "running"})
+        ladder = [
+            {"name": "raw pixels + ridge", "test": 0.324, "kind": "baseline"},
+            {"name": "PCA + ridge", "test": 0.360, "kind": "baseline"},
+            {"name": "Coates-Ng (hand-crafted)", "test": 0.5904, "kind": "baseline"},
+            {"name": "v1 evolved genomes", "test": 0.6198, "kind": "evolved"},
+            {"name": "v1 stacked tower", "test": 0.6378, "kind": "evolved"},
+            {"name": "v2 grammar (all-gene)", "test": rd("radial_data/evo2_cifar.json", "test_acc") or 0.7035, "kind": "evolved"},
+            {"name": "v3 stack (gates+meta)", "test": rd("radial_data/push80_cifar.json", "test_acc") or 0.7079, "kind": "evolved"},
+            {"name": "fresh-val tower", "test": rd("radial_data/push80_s3_cifar.json", "test_acc") or 0.7144, "kind": "evolved"},
+            {"name": "2-seed union", "test": rd("radial_data/ensemble2_cifar.json", "test_acc") or 0.7313, "kind": "ensemble"},
+            {"name": "3-seed union", "test": rd("radial_data/ensemble3_cifar.json", "test_acc") or 0.7452, "kind": "ensemble"},
+            {"name": "4-seed union", "test": rd("radial_data/ensemble4_cifar.json", "test_acc") or 0.7570, "kind": "ensemble"},
+        ]
+        fu = rd("runpod_shadow/radial_data/final_union_cifar.json", "test_acc")
+        if fu:
+            ladder.append({"name": "final union (all substrates)", "test": fu,
+                           "kind": "ensemble"})
+        return jsonify({"ladder": ladder, "seeds": seeds})
+    except Exception as exc:
+        return jsonify({"error": f"training state failed: {exc}"}), 500
+
+
+@app.route("/api/radial/baselines")
+def radial_baselines_api():
+    """Serve the roadmap baseline exports (radial_data/baseline_*.json +
+    prebaseline_fixes.json) for the page's Baselines view."""
+    try:
+        import glob
+        import json as _json
+        base = os.path.join(os.path.dirname(os.path.abspath(__file__)), "radial_data")
+        out = {"domains": {}, "fixes": None}
+        for path in sorted(glob.glob(os.path.join(base, "baseline_*.json"))):
+            try:
+                with open(path) as f:
+                    d = _json.load(f)
+                out["domains"][d.get("domain", os.path.basename(path))] = d
+            except Exception:
+                continue
+        fx = os.path.join(base, "prebaseline_fixes.json")
+        if os.path.exists(fx):
+            with open(fx) as f:
+                out["fixes"] = _json.load(f)
+        return jsonify(out)
+    except Exception as exc:
+        return jsonify({"error": f"radial baselines failed: {exc}"}), 500
+
+
+@app.route("/api/radial/ladder", methods=["POST"])
+def radial_ladder_api():
+    """Auto-incrementing task ladder: pass at R2 >= threshold advances to the
+    next harder task; first miss is the lens bank's frontier."""
+    try:
+        import radial_map as rmap
+        d = request.get_json(silent=True) or {}
+        return jsonify(rmap.ladder_probe(
+            n_lens=max(20, min(1500, int(d.get("n", 400)))),
+            kind=str(d.get("kind", "loops")),
+            threshold=max(0.5, min(1.0, float(d.get("threshold", 0.998))))))
+    except Exception as exc:
+        return jsonify({"error": f"radial ladder failed: {exc}"}), 500
+
+
+@app.route("/api/radial/rotate", methods=["POST"])
+def radial_rotate_api():
+    """Rotate the 3D-embedded map about the Y axis 1 deg/step; per angle the
+    linear probe sees only the slice of lenses in the viewing plane."""
+    try:
+        import radial_map as rmap
+        d = request.get_json(silent=True) or {}
+        return jsonify(rmap.rotation_probe(
+            n_lens=max(100, min(1500, int(d.get("n", 800)))),
+            kind=str(d.get("kind", "loops")),
+            step_deg=max(0.5, min(15.0, float(d.get("step_deg", 1.0)))),
+            frac=max(0.005, min(0.5, float(d.get("frac", 0.03))))))
+    except Exception as exc:
+        return jsonify({"error": f"radial rotate failed: {exc}"}), 500
+
+
+@app.route("/api/radial/probe", methods=["POST"])
+def radial_probe_api():
+    try:
+        import radial_map as rmap
+        d = request.get_json(silent=True) or {}
+        return jsonify(rmap.probe(n_lens=max(20, min(1500, int(d.get("n", 400)))),
+                                  kind=str(d.get("kind", "loops"))))
+    except Exception as exc:
+        return jsonify({"error": f"radial probe failed: {exc}"}), 500
+
+
+# --- ResNet: gradient-free evolved residual networks on CIFAR --------------
+
+@app.route("/resnet")
+def resnet_page():
+    """ResNet (gradient-free) — evolved residual-block genomes on CIFAR-10. The
+    whole lab is gradient-free (rule #1); this asks the ResNet question inside
+    that law: can evolution discover the residual skip and stack it usefully,
+    scored only by a closed-form linear read-out? Pipeline in resnet_evo.py;
+    artifacts on F:\\Resnet."""
+    resp = app.make_response(render_template("resnet.html"))
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
+
+
+def _resnet_out_dir():
+    """Where resnet_evo.py writes its result JSON (F:\\Resnet, or the local
+    radial_data fallback when F: is absent — mirrors resnet_evo.OUT_DIR)."""
+    d = os.environ.get("GENREG_RESNET_DIR", r"F:\Resnet")
+    if not os.path.isdir(d):
+        d = os.path.join(os.path.dirname(os.path.abspath(__file__)), "radial_data")
+    return d
+
+
+@app.route("/api/resnet/result")
+def resnet_result_api():
+    """Serve the latest resnet-evo result JSON for the page. Prefers the full
+    run (resnet_evo_cifar.json) and falls back to the smoke output."""
+    try:
+        d = _resnet_out_dir()
+        for name in ("resnet_evo_cifar.json", "resnet_evo_smoke.json"):
+            path = os.path.join(d, name)
+            if os.path.exists(path):
+                with open(path) as f:
+                    out = json.load(f)
+                out["_source"] = name
+                out["_dir"] = d
+                return jsonify(out)
+        return jsonify({"error": "no resnet-evo result yet — run resnet_evo.py "
+                                 "(or `python resnet_evo.py --smoke`)",
+                        "_dir": d}), 404
+    except Exception as exc:
+        return jsonify({"error": f"resnet result failed: {exc}"}), 500
+
+
+@app.route("/video")
+def video_page():
+    """Video — ffmpeg-backed editor: cut, stitch, convert, export."""
+    resp = app.make_response(render_template("video.html"))
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
+
+
+@app.route("/api/video/status")
+def api_video_status():
+    return jsonify({"ok": VID_OK, "err": VID_ERR,
+                    "formats": video_service.FORMATS if VID_OK else []})
+
+
+@app.route("/api/video/library")
+def api_video_library():
+    if not VID_OK:
+        return jsonify({"error": f"video unavailable: {VID_ERR}"}), 503
+    return jsonify(video_service.list_library())
+
+
+@app.route("/api/video/upload", methods=["POST"])
+def api_video_upload():
+    if not VID_OK:
+        return jsonify({"error": f"video unavailable: {VID_ERR}"}), 503
+    f = request.files.get("file")
+    if not f:
+        return jsonify({"error": "no file uploaded"}), 400
+    name = video_service.safe_name(f.filename)
+    if os.path.splitext(name)[1] not in video_service.VIDEO_EXTS | video_service.AUDIO_EXTS:
+        return jsonify({"error": "not a recognized video/audio format"}), 400
+    path = video_service.unique_path(name)
+    f.save(path)
+    return jsonify({"ok": True, "name": os.path.basename(path)})
+
+
+@app.route("/api/video/library/<name>", methods=["DELETE"])
+def api_video_delete(name):
+    if not VID_OK:
+        return jsonify({"error": f"video unavailable: {VID_ERR}"}), 503
+    ok = video_service.delete(name)
+    return (jsonify({"ok": True}), 200) if ok else (jsonify({"error": "not found"}), 404)
+
+
+@app.route("/api/video/file/<name>")
+def api_video_file(name):
+    """Serve a library file with Range support (browser <video> seeking)."""
+    if not VID_OK:
+        return jsonify({"error": f"video unavailable: {VID_ERR}"}), 503
+    as_download = request.args.get("download") == "1"
+    return send_from_directory(video_service.LIB_DIR, video_service.safe_name(name),
+                               as_attachment=as_download, conditional=True)
+
+
+@app.route("/api/video/thumb/<name>")
+def api_video_thumb(name):
+    if not VID_OK:
+        return jsonify({"error": f"video unavailable: {VID_ERR}"}), 503
+    path = video_service.thumbnail(name)
+    if not path:
+        return jsonify({"error": "no thumbnail"}), 404
+    return send_from_directory(video_service.THUMB_DIR, os.path.basename(path),
+                               mimetype="image/jpeg")
+
+
+@app.route("/api/video/job", methods=["POST"])
+def api_video_job():
+    """Start a background ffmpeg job. op: cut | stitch | convert."""
+    if not VID_OK:
+        return jsonify({"error": f"video unavailable: {VID_ERR}"}), 503
+    data = request.get_json(silent=True) or {}
+    op = data.get("op")
+    try:
+        if op == "convert":
+            job = video_service.convert(
+                data.get("name", ""), data.get("format", "mp4"),
+                crf=int(data.get("crf", 23)),
+                scale_h=data.get("scale_h") or None, fps=data.get("fps") or None)
+        elif op == "cut":
+            job = video_service.trim(
+                data.get("name", ""), float(data.get("start", 0)),
+                float(data.get("end", 0)), precise=bool(data.get("precise", True)),
+                crf=int(data.get("crf", 23)))
+        elif op == "stitch":
+            job = video_service.stitch(
+                data.get("clips", []), fmt=data.get("format", "mp4"),
+                crf=int(data.get("crf", 23)), scale_h=data.get("scale_h") or None,
+                fps=data.get("fps") or None, out_name=data.get("out_name", ""))
+        else:
+            return jsonify({"error": f"unknown op: {op}"}), 400
+    except (TypeError, ValueError) as exc:
+        return jsonify({"error": str(exc)}), 400
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+    return jsonify(video_service.job_view(job))
+
+
+@app.route("/api/video/jobs")
+def api_video_jobs():
+    if not VID_OK:
+        return jsonify([])
+    return jsonify(video_service.list_jobs())
+
+
+@app.route("/api/video/job/<job_id>/cancel", methods=["POST"])
+def api_video_cancel(job_id):
+    if not VID_OK:
+        return jsonify({"error": f"video unavailable: {VID_ERR}"}), 503
+    ok = video_service.cancel(job_id)
+    return (jsonify({"ok": True}), 200) if ok else (jsonify({"error": "not cancellable"}), 404)
+
+
+# ── animation platform (rigs / scenes / render) ────────────────────────────
+def _anim_guard():
+    if not ANIMP_OK:
+        return jsonify({"error": f"animation unavailable: {ANIMP_ERR}"}), 503
+    return None
+
+
+@app.route("/api/anim/status")
+def api_anim_status():
+    if not ANIMP_OK:
+        return jsonify({"ok": False, "err": ANIMP_ERR})
+    return jsonify({"ok": True, "raster": anim_service.RASTER_OK,
+                    "raster_err": anim_service.RASTER_ERR,
+                    "archetypes": anim_service.ARCHETYPES,
+                    "scene_templates": anim_service.SCENE_TEMPLATES,
+                    "tags": anim_service.TAGS})
+
+
+@app.route("/api/anim/rigs")
+def api_anim_rigs():
+    return _anim_guard() or jsonify(anim_service.list_rigs())
+
+
+@app.route("/api/anim/rigs", methods=["POST"])
+def api_anim_rig_save():
+    guard = _anim_guard()
+    if guard:
+        return guard
+    rig = request.get_json(silent=True) or {}
+    try:
+        return jsonify(anim_service.save_rig(rig))
+    except (TypeError, ValueError) as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+@app.route("/api/anim/rig/<name>", methods=["DELETE"])
+def api_anim_rig_delete(name):
+    guard = _anim_guard()
+    if guard:
+        return guard
+    ok = anim_service.delete_rig(name)
+    return (jsonify({"ok": True}), 200) if ok else (jsonify({"error": "not found"}), 404)
+
+
+@app.route("/api/anim/generate", methods=["POST"])
+def api_anim_generate():
+    guard = _anim_guard()
+    if guard:
+        return guard
+    data = request.get_json(silent=True) or {}
+    try:
+        rig = anim_service.generate_rig(data.get("archetype", "researcher"),
+                                        seed=data.get("seed"),
+                                        name=data.get("name", ""))
+    except (TypeError, ValueError) as exc:
+        return jsonify({"error": str(exc)}), 400
+    return jsonify(rig)
+
+
+@app.route("/api/anim/generate_scene", methods=["POST"])
+def api_anim_generate_scene():
+    """Template scene: bg palette + generated prop rigs placed as objects."""
+    guard = _anim_guard()
+    if guard:
+        return guard
+    data = request.get_json(silent=True) or {}
+    try:
+        scene = anim_service.generate_scene(data.get("template", "basic"),
+                                            seed=data.get("seed"),
+                                            name=data.get("name", ""))
+    except (TypeError, ValueError) as exc:
+        return jsonify({"error": str(exc)}), 400
+    return jsonify(scene)
+
+
+@app.route("/api/anim/scenes")
+def api_anim_scenes():
+    return _anim_guard() or jsonify(anim_service.list_scenes())
+
+
+@app.route("/api/anim/scenes", methods=["POST"])
+def api_anim_scene_save():
+    guard = _anim_guard()
+    if guard:
+        return guard
+    scene = request.get_json(silent=True) or {}
+    try:
+        return jsonify(anim_service.save_scene(scene))
+    except (TypeError, ValueError) as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+@app.route("/api/anim/scene/<name>", methods=["DELETE"])
+def api_anim_scene_delete(name):
+    guard = _anim_guard()
+    if guard:
+        return guard
+    ok = anim_service.delete_scene(name)
+    return (jsonify({"ok": True}), 200) if ok else (jsonify({"error": "not found"}), 404)
+
+
+@app.route("/api/anim/stories")
+def api_anim_stories():
+    return _anim_guard() or jsonify(anim_service.list_stories())
+
+
+@app.route("/api/anim/stories", methods=["POST"])
+def api_anim_story_save():
+    guard = _anim_guard()
+    if guard:
+        return guard
+    story = request.get_json(silent=True) or {}
+    try:
+        return jsonify(anim_service.save_story(story))
+    except (TypeError, ValueError) as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+@app.route("/api/anim/story/<name>", methods=["DELETE"])
+def api_anim_story_delete(name):
+    guard = _anim_guard()
+    if guard:
+        return guard
+    ok = anim_service.delete_story(name)
+    return (jsonify({"ok": True}), 200) if ok else (jsonify({"error": "not found"}), 404)
+
+
+@app.route("/api/anim/render_story", methods=["POST"])
+def api_anim_render_story():
+    """Render an ordered shot list (saved scene names) into one library mp4."""
+    guard = _anim_guard()
+    if guard:
+        return guard
+    data = request.get_json(silent=True) or {}
+    try:
+        job = anim_service.render_story(data.get("shots") or [],
+                                        out_name=data.get("out_name", ""))
+    except (TypeError, ValueError, RuntimeError) as exc:
+        return jsonify({"error": str(exc)}), 400
+    return jsonify(video_service.job_view(job))
+
+
+@app.route("/api/anim/render", methods=["POST"])
+def api_anim_render():
+    """Render a scene (sent inline) to an mp4 in the video library."""
+    guard = _anim_guard()
+    if guard:
+        return guard
+    scene = request.get_json(silent=True) or {}
+    try:
+        job = anim_service.render_scene(scene)
+    except (TypeError, ValueError, RuntimeError) as exc:
+        return jsonify({"error": str(exc)}), 400
+    return jsonify(video_service.job_view(job))
 
 
 @app.route("/api/animations")

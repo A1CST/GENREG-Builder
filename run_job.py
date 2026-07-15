@@ -65,6 +65,11 @@ def submit(node, script, args):
 
 
 def poll(node, job_id, interval=3):
+    # Remote logs can contain characters the local console codepage (cp1252)
+    # can't encode; without this the watcher dies mid-stream on a
+    # UnicodeEncodeError while the remote job keeps running.
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(errors="replace")
     last_len = 0
     while True:
         st = _http_json(node + f"/api/i2/admin/job/{job_id}/status")

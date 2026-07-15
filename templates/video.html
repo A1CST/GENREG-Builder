@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>GENREG — Video</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='vendor/xterm.css') }}" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+</head>
+<body class="tlm-body">
+  <header class="topbar">
+    <div class="brand">GENREG<span class="brand-sub">video · animation studio: rigs, scenes, edit and export (SVG + ffmpeg)</span></div>
+    <div class="status">
+      {% set nav_active = 'video' %}{% include '_nav.html' %}
+    </div>
+  </header>
+
+  <div class="tlm-layout">
+    <!-- ── sidebar ─────────────────────────────────────── -->
+    <aside class="sidebar left tlm-side">
+      <div class="side-head side-tabs" id="vd-views">
+        <button class="side-tab active" data-view="rigs">Rigs</button>
+        <button class="side-tab" data-view="scenes">Scenes</button>
+        <button class="side-tab" data-view="edit">Editor</button>
+      </div>
+
+      <!-- rigs: library of characters/objects + the lazy button -->
+      <div class="side-body control-panel" data-vpanel="rigs">
+        <div class="field">
+          <span class="field-hint">A rig is a layered SVG puppet: parts with pivots and
+          semantic tags (arms, legs, mouth shapes) that the animation verbs act on.
+          Build one by hand below, or generate a starting point and edit it.</span>
+        </div>
+        <div class="field">
+          <label>Generate <span class="tlm-card-sub">(the lazy button)</span></label>
+          <select id="gen-arch"></select>
+        </div>
+        <div class="field">
+          <label for="gen-seed">Seed <span class="tlm-card-sub">(blank = random)</span></label>
+          <input type="number" id="gen-seed" min="0" />
+        </div>
+        <div class="field">
+          <label for="gen-name">Name <span class="tlm-card-sub">(blank = auto)</span></label>
+          <input type="text" id="gen-name" placeholder="dr-reyes" />
+        </div>
+        <div class="tlm-actions">
+          <button id="gen-go" class="runs-btn tlm-primary">Generate rig</button>
+          <button id="rig-new" class="runs-btn">New blank rig</button>
+        </div>
+        <div class="tlm-actions">
+          <button id="rig-import" class="runs-btn">Import .json</button>
+          <input type="file" id="rig-import-file" accept=".json,application/json" multiple hidden />
+        </div>
+        <div class="tlm-status" id="rig-status">loading…</div>
+        <div class="field"><label>Rig library</label></div>
+        <div id="rig-list" class="vd-doclist"></div>
+      </div>
+
+      <!-- scenes: list + scene-level properties -->
+      <div class="side-body control-panel" data-vpanel="scenes" hidden>
+        <div class="field">
+          <span class="field-hint">A scene places rigs on a stage and scripts them with
+          verb actions (walk, talk, point, move, fade) plus caption/infobox overlays.
+          Render outputs an mp4 into the library for the Editor timeline.</span>
+        </div>
+        <div class="tlm-actions">
+          <button id="scn-new" class="runs-btn">New scene</button>
+          <button id="scn-save" class="runs-btn tlm-primary">Save scene</button>
+        </div>
+        <div class="tlm-status" id="scn-status"></div>
+        <div class="field"><label>Generate scene <span class="tlm-card-sub">(template + props)</span></label></div>
+        <div class="field vd-inline">
+          <select id="scn-template"></select>
+          <input type="number" id="scn-genseed" min="0" placeholder="seed" />
+        </div>
+        <div class="field vd-inline">
+          <input type="text" id="scn-genname" placeholder="name (blank = auto)" />
+          <button id="scn-generate" class="runs-btn vd-mini">Generate</button>
+        </div>
+        <span class="field-hint">props (trees, desks, buildings, …) are generated as
+        object rigs and placed for you — everything stays editable</span>
+        <div class="field"><label>Scene library</label></div>
+        <div id="scn-list" class="vd-doclist"></div>
+        <div class="field"><label>Scene properties</label></div>
+        <div class="field vd-inline">
+          <span>name</span><input type="text" id="scn-name" placeholder="scene-1" />
+        </div>
+        <div class="field vd-inline">
+          <span>size</span>
+          <input type="number" id="scn-w" value="1280" min="160" max="3840" step="2" />
+          <span>x</span>
+          <input type="number" id="scn-h" value="720" min="90" max="2160" step="2" />
+        </div>
+        <div class="field vd-inline">
+          <span>fps</span><input type="number" id="scn-fps" value="24" min="1" max="60" />
+          <span>dur (s)</span><input type="number" id="scn-dur" value="8" min="0.5" max="600" step="0.5" />
+        </div>
+        <div class="field vd-inline">
+          <span>sky</span><input type="color" id="scn-sky" value="#242a36" />
+          <span>floor</span><input type="color" id="scn-floor" value="#3a4150" />
+          <span>at</span><input type="number" id="scn-floory" value="0.82" min="0.1" max="1" step="0.01" />
+        </div>
+        <div class="field">
+          <label for="scn-audio">Voiceover / audio track <span class="tlm-card-sub">(from library)</span></label>
+          <select id="scn-audio"><option value="">none</option></select>
+          <span class="field-hint">upload mp3/wav in the Editor view's library; it's muxed
+          into the render (video is trimmed to the shorter of the two)</span>
+        </div>
+        <div class="tlm-actions">
+          <button id="scn-render" class="runs-btn tlm-primary">Render to library</button>
+        </div>
+        <div class="tlm-status" id="scn-render-status"></div>
+      </div>
+
+      <!-- editor: the original library + export settings -->
+      <div class="side-body control-panel" data-vpanel="edit" hidden>
+        <div class="field">
+          <label for="vd-upload">Add video / audio file(s)</label>
+          <input type="file" id="vd-upload" accept="video/*,audio/*,.mkv,.avi,.mov,.wmv,.flv,.ts,.mpg,.gif" multiple />
+        </div>
+        <div class="tlm-status" id="vd-lib-status">loading…</div>
+        <div id="vd-library" class="vd-library"></div>
+        <div class="field"><label>Export settings</label></div>
+        <div class="field">
+          <label for="vd-format">Container / format</label>
+          <select id="vd-format"></select>
+        </div>
+        <div class="field">
+          <label for="vd-crf">Quality (CRF)</label>
+          <input type="number" id="vd-crf" value="23" min="0" max="51" />
+          <span class="field-hint">lower = better quality, bigger file. 18-28 is the useful range.</span>
+        </div>
+        <div class="field">
+          <label for="vd-scale">Height (px, blank = keep)</label>
+          <input type="number" id="vd-scale" min="120" max="2160" step="2" placeholder="e.g. 720" />
+        </div>
+        <div class="field">
+          <label for="vd-fps">Frame rate (blank = keep / 30 for stitch)</label>
+          <input type="number" id="vd-fps" min="1" max="120" placeholder="e.g. 30" />
+        </div>
+        <div class="field">
+          <label for="vd-outname">Timeline export name</label>
+          <input type="text" id="vd-outname" placeholder="timeline" />
+        </div>
+      </div>
+    </aside>
+
+    <!-- ── main ─────────────────────────────────────────── -->
+    <main class="tlm-main">
+      <!-- rigs view -->
+      <div class="vd-viewwrap" data-vmain="rigs">
+        <section class="tlm-card">
+          <div class="tlm-card-head">
+            <h2>Rig stage <span class="tlm-card-sub" id="rig-title">no rig loaded</span></h2>
+            <div class="tlm-actions vd-head-actions">
+              <button class="runs-btn vd-mini" data-verbtest="idle">Idle</button>
+              <button class="runs-btn vd-mini" data-verbtest="walk">Walk</button>
+              <button class="runs-btn vd-mini" data-verbtest="talk">Talk</button>
+              <button class="runs-btn vd-mini" data-verbtest="point">Point</button>
+              <button class="runs-btn vd-mini" data-verbtest="open">Open</button>
+              <button class="runs-btn vd-mini" data-verbtest="">Stop</button>
+              <button id="rig-save" class="runs-btn tlm-primary">Save rig</button>
+              <button id="rig-export" class="runs-btn">Export .json</button>
+              <button id="rig-dup" class="runs-btn">Duplicate</button>
+              <button id="rig-del" class="runs-btn">Delete</button>
+            </div>
+          </div>
+          <div class="vd-stage-wrap vd-stage-tall">
+            <svg id="rig-stage" class="vd-stage" xmlns="http://www.w3.org/2000/svg"></svg>
+            <!-- floating panels over the stage -->
+            <div class="vd-float vd-float-left" id="rig-partsbox">
+              <div class="vd-float-head">
+                <span>Parts <span class="tlm-card-sub" id="part-count"></span></span>
+                <button class="vd-float-toggle" data-float="rig-partsbox">–</button>
+              </div>
+              <div class="vd-float-body">
+                <div class="tlm-actions">
+                  <button id="part-add" class="runs-btn vd-mini">Add</button>
+                  <button id="part-dup" class="runs-btn vd-mini">Dup</button>
+                  <button id="part-del" class="runs-btn vd-mini">Del</button>
+                </div>
+                <div id="part-list" class="vd-doclist vd-partlist"></div>
+              </div>
+            </div>
+            <div class="vd-float vd-float-right" id="rig-formbox">
+              <div class="vd-float-head">
+                <span>Selected part</span>
+                <button class="vd-float-toggle" data-float="rig-formbox">–</button>
+              </div>
+              <div class="vd-float-body">
+                <div id="part-form" class="vd-partform">
+                  <div class="im-placeholder">select a part</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="field-hint">click a part to select · drag its body to move ·
+          drag the round handle to rotate, the square handle to resize ·
+          crosshair = pivot · Ctrl+Z / Ctrl+Y undo/redo</div>
+        </section>
+      </div>
+
+      <!-- scenes view -->
+      <div class="vd-viewwrap" data-vmain="scenes" hidden>
+        <section class="tlm-card">
+          <div class="tlm-card-head">
+            <h2>Stage <span class="tlm-card-sub" id="scn-title">no scene</span></h2>
+            <div class="tlm-actions vd-head-actions">
+              <button id="scn-play" class="runs-btn vd-mini">Play</button>
+              <span class="tlm-card-sub" id="scn-timelabel">0.0s</span>
+            </div>
+          </div>
+          <div class="vd-stage-wrap">
+            <svg id="scn-stage" class="vd-stage" xmlns="http://www.w3.org/2000/svg"></svg>
+          </div>
+          <input type="range" id="scn-time" class="vd-scrub" min="0" max="8" step="0.05" value="0" />
+          <div class="field-hint">drag actors to reposition · scrub or play to preview
+          (browser preview mirrors the exact render math)</div>
+        </section>
+
+        <section class="tlm-card">
+          <div class="tlm-card-head">
+            <h2>Actors <span class="tlm-card-sub">character rigs — walk, talk, point, move, fade</span></h2>
+            <div class="tlm-actions vd-head-actions">
+              <select id="scn-addrig" class="vd-mini-select"></select>
+              <button id="scn-addactor" class="runs-btn vd-mini">Add actor</button>
+            </div>
+          </div>
+          <div id="scn-actors" class="vd-rows"></div>
+        </section>
+
+        <section class="tlm-card">
+          <div class="tlm-card-head">
+            <h2>Objects <span class="tlm-card-sub">object rigs — move and fade only</span></h2>
+            <div class="tlm-actions vd-head-actions">
+              <select id="scn-addobj" class="vd-mini-select"></select>
+              <button id="scn-addobject" class="runs-btn vd-mini">Add object</button>
+            </div>
+          </div>
+          <div id="scn-objects" class="vd-rows"></div>
+        </section>
+
+        <section class="tlm-card">
+          <div class="tlm-card-head">
+            <h2>Actions <span class="tlm-card-sub">run top to bottom — "after prev" chains,
+              "with prev" ties to the previous action (parallel), "at time" is explicit</span></h2>
+            <div class="tlm-actions vd-head-actions">
+              <button id="scn-addaction" class="runs-btn vd-mini">Add action</button>
+            </div>
+          </div>
+          <div id="scn-actions" class="vd-rows"></div>
+        </section>
+
+        <section class="tlm-card">
+          <div class="tlm-card-head">
+            <h2>Overlays <span class="tlm-card-sub">caption / title / infobox</span></h2>
+            <div class="tlm-actions vd-head-actions">
+              <button id="scn-addoverlay" class="runs-btn vd-mini">Add overlay</button>
+            </div>
+          </div>
+          <div id="scn-overlays" class="vd-rows"></div>
+        </section>
+
+        <section class="tlm-card">
+          <div class="tlm-card-head">
+            <h2>Storyboard <span class="tlm-card-sub">ordered shots (saved scenes) render into ONE mp4</span></h2>
+            <div class="tlm-actions vd-head-actions">
+              <select id="sb-scene" class="vd-mini-select"></select>
+              <button id="sb-add" class="runs-btn vd-mini">Add shot</button>
+              <button id="sb-render" class="runs-btn tlm-primary">Render story</button>
+            </div>
+          </div>
+          <div class="field vd-inline">
+            <span>story</span><input type="text" id="sb-name" placeholder="episode-1" />
+            <button id="sb-save" class="runs-btn vd-mini">Save story</button>
+            <span class="tlm-status" id="sb-status"></span>
+          </div>
+          <div id="sb-list" class="vd-doclist"></div>
+          <div id="sb-shots" class="vd-rows"></div>
+        </section>
+      </div>
+
+      <!-- editor view (original video editor) -->
+      <div class="vd-viewwrap" data-vmain="edit" hidden>
+        <section class="tlm-card">
+          <div class="tlm-card-head">
+            <h2>Preview <span class="tlm-card-sub" id="vd-player-meta">nothing loaded</span></h2>
+          </div>
+          <div class="vd-player-wrap">
+            <video id="vd-player" class="vd-player" controls preload="metadata" hidden></video>
+            <div class="im-placeholder" id="vd-player-placeholder">select a library file or timeline clip</div>
+          </div>
+        </section>
+
+        <section class="tlm-card">
+          <div class="tlm-card-head">
+            <h2>Timeline <span class="tlm-card-sub" id="vd-timeline-meta">empty</span></h2>
+            <div class="tlm-actions vd-head-actions">
+              <button id="vd-export" class="runs-btn tlm-primary">Export timeline</button>
+              <button id="vd-clear" class="runs-btn">Clear</button>
+            </div>
+          </div>
+          <div id="vd-timeline" class="vd-timeline">
+            <div class="im-placeholder">add clips from the library — each clip gets its own in/out cut points, then export stitches them in order</div>
+          </div>
+        </section>
+
+        <section class="tlm-card">
+          <div class="tlm-card-head">
+            <h2>Jobs <span class="tlm-card-sub" id="vd-jobs-meta"></span></h2>
+          </div>
+          <div id="vd-jobs" class="vd-jobs">
+            <div class="im-placeholder">no jobs yet</div>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <script src="{{ url_for('static', filename='animrig.js') }}"></script>
+  <script src="{{ url_for('static', filename='video.js') }}"></script>
+  <script src="{{ url_for('static', filename='animstudio.js') }}"></script>
+  <script src="{{ url_for('static', filename='cfgpersist.js') }}"></script>
+  <!-- shared daemon-backed terminal dock (same terminals as the build page) -->
+  <script src="{{ url_for('static', filename='vendor/xterm.js') }}"></script>
+  <script src="{{ url_for('static', filename='vendor/addon-fit.js') }}"></script>
+  <script src="{{ url_for('static', filename='termdock.js') }}"></script>
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
+  <script src="{{ url_for('static', filename='agentpanel.js') }}"></script>
+  <script src="{{ url_for('static', filename='configpanel.js') }}"></script>
+</body>
+</html>

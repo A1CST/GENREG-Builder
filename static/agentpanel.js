@@ -94,11 +94,17 @@
         n.title + (n.source ? ` — ${n.source}` : "");
       row.querySelector(".ap-time").textContent = (n.ts || "").replace("T", " ");
       if (n.body) row.querySelector(".ap-row-body").textContent = n.body;
-      if (n.run_id) {           // run notices deep-link to that run on /runs
+      // run/alert/test notices are actionable: deep-link to the specific run
+      // when we have its id, otherwise open the runs log so alerts never dead-end.
+      const linkable = n.run_id ||
+        ["run", "alert", "test"].includes(n.kind || "info");
+      if (linkable) {
         row.classList.add("linked");
-        row.title = "Open this run on the runs page";
+        row.title = n.run_id ? "Open this run on the runs page" : "Open the runs log";
         row.addEventListener("click", () => {
-          location.href = "/runs#" + encodeURIComponent(n.run_id);
+          location.href = n.run_id
+            ? "/runs#" + encodeURIComponent(n.run_id)
+            : "/runs";
         });
       }
       body.appendChild(row);

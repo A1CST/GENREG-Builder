@@ -17,10 +17,13 @@ ARTIFACT = os.path.join(ROOT, "corpora", "combined", "lm_intent.pkl")
 RUNS_DIR = os.path.join(ROOT, "runs")
 
 SPLIT_HEADER_RE = re.compile(r"=== training (\S+) \(")
+# fitness field is soft-fit (mean log-prob, can be negative) since the
+# GENREG_RULES §IV.1 soft-fitness switch; starved is the §III energy band.
 GEN_RE_BALANCED = re.compile(
-    r"gen\s+(\d+)\s+train-batch-acc=([\d.]+)\s+"
+    r"gen\s+(\d+)\s+soft-fit=(-?[\d.]+)\s+starved=\d+\s+"
     r"holdout-balanced-acc=([\d.]+)\s+holdout-raw-acc=([\d.]+)")
-GEN_RE_PLAIN = re.compile(r"gen\s+(\d+)\s+train-batch-acc=([\d.]+)\s+holdout-acc=([\d.]+)")
+GEN_RE_PLAIN = re.compile(
+    r"gen\s+(\d+)\s+soft-fit=(-?[\d.]+)\s+starved=\d+\s+holdout-acc=([\d.]+)")
 
 
 def per_split_logs(log_text):

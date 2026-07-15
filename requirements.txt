@@ -3,3 +3,4 @@ flask-sock>=0.7
 pywinpty>=2.0
 imageio
 imageio-ffmpeg
+resvg-py

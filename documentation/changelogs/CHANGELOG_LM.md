@@ -6,6 +6,34 @@ Seeded 2026-07-05 from the main changelog (keyword split, best effort).
 
 ---
 
+- **[2026-07-12] (Claude)** — Round 3: sem_next + grammar_real in a corpus-built
+  PPMI/eig feature space; no lookup tables in the model (full-vocab genome scoring
+  replaces follower pools at inference). Full details in main CHANGELOG.md same
+  date. Key results: grammar_real 56.3% balanced (validated); sem_next beat the
+  majority-frequency baseline once (30.1% vs 25.3%) but as a degenerate echo
+  genome; with echo negatives evolution truly climbs (0.128->0.233, loops gone)
+  yet the static per-word bias reward-hacked into word soup — SS XI's vbias
+  Goodhart reproduced. GA repairs shipped: relative per-tensor mutation, fixed
+  probe batch, lineage fitness EMA, SS VI bootstrap inits, logfreq-as-environment.
+  Energy starved band still unreached (known deviation). Runs:
+  `runs/lm/20260712-202708-lm-*`. Next levers: context-gated bias, two-phase
+  freeze, transition-only ablation. **Flask restart** needed for /lm.
+
+- **[2026-07-11] (Claude)** — GENREG_RULES compliance pass + hard negatives + rerank
+  generation, retrained (crash-recovery: rewrite was complete on disk, run never
+  launched; watcher crash root-caused to a cp1252 UnicodeEncodeError in `run_job.py`
+  poll(), fixed with stdout errors="replace"). Soft log-prob fitness (§IV.1) in all
+  trainers; energy homeostasis (§III) in ga_step (starved=0 observed all run — band
+  not reached, tune next round); HARD negatives for `next_word` (same-preceding-word
+  followers) + majority-frequency baseline; generate() switched to §VI rerank over
+  top-200 follower pools (mined into the artifact). Results: **next_word 21.16% —
+  beats 16.67% chance, does NOT beat the 26.92% majority-frequency baseline (honest
+  negative)**; fill_word 21.92%; punctuation/opener/length ~unchanged
+  (opener_question 0.7015 still best). Qualitative win: no more repetition loops —
+  varied, near-grammatical short sentences with correct intent-driven end marks.
+  Full details in the main CHANGELOG.md entry of the same date. 10 runs recorded at
+  `runs/lm/20260711-233847-lm-*/`. Live /lm needs a **Flask restart**.
+
 - **[2026-07-09] (Claude)** — New group **`next`** (`next_word`) — intent-conditioned,
   autoregressive next-word prediction, reviving the archived pipeline's Selection genome
   concept. **Honest negative result**: 24.25% holdout accuracy, essentially tied with

@@ -44,12 +44,13 @@ class Service:
 
     def _load(self):
         try:
-            self.D = mp.build_features()
-            self.Xte = mp.load_mnist()[4]
-            self.centroid = mp.centroid_baseline()
             if os.path.exists(CACHE):
                 with open(CACHE, "rb") as f:
                     self.champs = pickle.load(f)
+            fv = self.champs.get("feat_version", 2)
+            self.D = mp.build_features(fv)
+            self.Xte = mp.load_mnist()[4]
+            self.centroid = mp.centroid_baseline(fv)
             self.ready = True
         except Exception as exc:                   # pragma: no cover
             import traceback; traceback.print_exc()
@@ -74,7 +75,7 @@ class Service:
             n_det = len(self.champs.get("det", {}))
             n_pairs = len(self.champs.get("pairs", {}))
             params = sum(self._nparams(self.champs.get(k)) for k in
-                         ("det", "pairs", "mixer") if k in self.champs)
+                         ("det", "pairs", "mixer", "joint") if k in self.champs)
             s.update({
                 "nf": int(self.D["nf"]),
                 "train_n": int(len(self.D["ytr"])), "val_n": int(len(self.D["yva"])),

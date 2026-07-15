@@ -556,14 +556,19 @@ def _cap_thresh():
 R0_CACHE = os.path.join(OUT_DIR, "r0_cache.json")
 
 
-def _r0_key(seed, pop_size, gens, n_train, n_test, cap):
+def _r0_key(seed, pop_size, gens, n_train, n_test, cap, val_target=None):
+    vt = f"_vt{val_target:.3f}" if val_target else ""
     return (f"s{seed}_p{pop_size}_g{gens}_tr{n_train}_te{n_test}"
-            f"_cap{cap:.5f}_win{CAP_WINDOW}")
+            f"_cap{cap:.5f}_win{CAP_WINDOW}{vt}")
+
+
+def _r0_path(key):
+    return os.path.join(OUT_DIR, f"r0_{key}.json")   # per-key file: many R0s coexist
 
 
 def _load_r0(key):
     try:
-        with open(R0_CACHE) as f:
+        with open(_r0_path(key)) as f:
             c = json.load(f)
         if c.get("key") == key:
             gs = c["genomes"]
@@ -578,10 +583,29 @@ def _load_r0(key):
 
 def _save_r0(key, genomes):
     try:
-        with open(R0_CACHE, "w") as f:
+        with open(_r0_path(key), "w") as f:
             json.dump({"key": key, "n": len(genomes), "genomes": genomes}, f)
     except OSError as exc:
         print(f"[resnet-stack] R0 cache save failed (non-fatal): {exc}", flush=True)
+
+
+def _fit_logits(torch, Xf, Xv, Xte, Yf, yv):
+    """Closed-form ridge fit on Xf, lam picked by val accuracy; returns
+    (val_acc, val_logits, test_logits) for cross-seed ensembling."""
+    dev = Xf.device
+    mu, sd = Xf.mean(0), Xf.std(0) + 1e-6
+    A = torch.cat([(Xf - mu) / sd, torch.ones(len(Xf), 1, device=dev)], 1)
+    Bv = torch.cat([(Xv - mu) / sd, torch.ones(len(Xv), 1, device=dev)], 1)
+    Bt = torch.cat([(Xte - mu) / sd, torch.ones(len(Xte), 1, device=dev)], 1)
+    G = A.T @ A
+    I = torch.eye(A.shape[1], device=dev)
+    best = None
+    for lam in (1.0, 3.0, 10.0, 30.0):
+        W = torch.linalg.solve(G + lam * I, A.T @ Yf)
+        acc = float(((Bv @ W).argmax(1) == yv).float().mean())
+        if best is None or acc > best[0]:
+            best = (acc, (Bv @ W).cpu().numpy(), (Bt @ W).cpu().numpy())
+    return best
 MAX_SPACES = 6                  # guard rail; the economy usually stops sooner
 FREEZE_THRESH = 0.0005          # residual-gain bar to earn a slot
 
@@ -678,7 +702,7 @@ def feature_vec(torch, tp, prevF, g):
 
 
 def _evolve_space(torch, np_rng, pop_size, gens, max_rounds, n_fit, Yf, yv,
-                  base_prev, new_fn, mut_fn, feat_tr, log, verbose):
+                  base_prev, new_fn, mut_fn, feat_tr, log, verbose, val_target=None):
     """Evolve ONE space under the energy economy until it SATURATES (emergent
     cap). base_prev: (N, F) columns frozen in all EARLIER spaces (fitness is
     marginal contribution over these + this space's own frozen so far).
@@ -773,6 +797,10 @@ def _evolve_space(torch, np_rng, pop_size, gens, max_rounds, n_fit, Yf, yv,
             + (f"  d-val/{CAP_WINDOW}r +{wgain:.4f} (cap {thresh:.4f})"
                if wgain is not None else ""),
             verbose)
+        if val_target and a1 >= val_target:      # stop at a requested val level
+            log(f"    space reached val target {val_target:.3f} at {len(frozen)} "
+                f"genomes (val {a1:.4f})", verbose)
+            break
         if (wgain is not None and wgain < thresh) or empty >= 3:
             why = (f"val plateau (+{wgain:.4f} over {CAP_WINDOW} rounds < {thresh:.4f})"
                    if wgain is not None and wgain < thresh else "3 empty rounds")
@@ -784,7 +812,7 @@ def _evolve_space(torch, np_rng, pop_size, gens, max_rounds, n_fit, Yf, yv,
 
 def run_stacked(pop_size=64, gens=12, max_rounds=200, seed=5, smoke=False,
                 n_train=None, n_test=None, out_path=None, record=True, verbose=True,
-                rot_deg=1.0, rot_mode="block", reuse_r0=True):
+                rot_deg=1.0, rot_mode="block", reuse_r0=True, val_target=None):
     """Emergent-cap stacked residual evolution. Each space self-sizes under the
     energy economy; a full space's outputs become the next space's data. Depth
     emerges from scarcity, not a hyperparameter."""
@@ -849,7 +877,8 @@ def run_stacked(pop_size=64, gens=12, max_rounds=200, seed=5, smoke=False,
             src = f"space {si-1} maps ({C_prev} ch x {GRID}x{GRID} — spatial)"
 
         log(f"  [space {si}] opening — reads {src}", verbose)
-        r0key = _r0_key(seed, pop_size, gens, len(Xtr), len(Xte), _cap_thresh())
+        r0key = _r0_key(seed, pop_size, gens, len(Xtr), len(Xte), _cap_thresh(),
+                        val_target)
         cached = _load_r0(r0key) if (si == 0 and reuse_r0) else None
         if cached is not None:
             frozen = cached
@@ -859,7 +888,8 @@ def run_stacked(pop_size=64, gens=12, max_rounds=200, seed=5, smoke=False,
         else:
             frozen, fcols = _evolve_space(torch, rng, pop_size, gens, max_rounds,
                                           n_fit, Yf, yv, base_prev, new_fn, mut_fn,
-                                          feat_tr, log, verbose)
+                                          feat_tr, log, verbose,
+                                          val_target=(val_target if si == 0 else None))
             if si == 0 and reuse_r0 and frozen:
                 _save_r0(r0key, frozen)
                 log(f"  [space 0] cached {len(frozen)} R0 genomes for reuse", verbose)
@@ -902,6 +932,13 @@ def run_stacked(pop_size=64, gens=12, max_rounds=200, seed=5, smoke=False,
     for lam in (1.0, 3.0, 10.0, 30.0):
         _, acc = _ridge_soft(torch, Ftr, Fte, Yfull, yte_t, lam=lam)
         best = max(best, acc)
+    # logits for cross-seed ensembling: R0-only readout and full-stack readout,
+    # each fit on n_fit / lam picked on val, evaluated on val + test.
+    n_r0 = spaces[0]["n_frozen"] if spaces else 0
+    R0tr = torch.stack(all_tr[:n_r0], 1)
+    R0te = torch.stack(all_te[:n_r0], 1)
+    r0_va, r0_vlog, r0_tlog = _fit_logits(torch, R0tr[:n_fit], R0tr[n_fit:], R0te, Yf, yv)
+    st_va, st_vlog, st_tlog = _fit_logits(torch, Ftr[:n_fit], Ftr[n_fit:], Fte, Yf, yv)
     total = sum(s["n_frozen"] for s in spaces)
     out = {"phase": "resnet-stack (spatial-grid stacked residual)", "smoke": bool(smoke),
            "grid": GRID, "handoff": "spatial-grid (representations, not scalars)",
@@ -911,14 +948,18 @@ def run_stacked(pop_size=64, gens=12, max_rounds=200, seed=5, smoke=False,
            "val_final": spaces[-1]["val_after"] if spaces else 0.0,
            "space_caps": [s["n_frozen"] for s in spaces],
            "spaces": spaces,
+           "r0_val_acc": round(r0_va, 4), "stack_val_acc": round(st_va, 4),
            "references": {"radial_v1_class_tower": 0.6378, "coates_ng": 0.5904,
                           "grammar_v2_record": 0.7035,
                           "resnet_single_space": 0.6593},
            "seconds": round(time.time() - t0)}
+    # in-memory logits for the ensemble driver (NOT written to JSON)
+    out["_logits"] = {"r0_val": r0_vlog, "r0_test": r0_tlog,
+                      "stack_val": st_vlog, "stack_test": st_tlog}
     op = out_path or os.path.join(OUT_DIR,
                                   "resnet_stack_smoke.json" if smoke else "resnet_stack_cifar.json")
     with open(op, "w") as f:
-        json.dump(out, f, indent=1)
+        json.dump({k: v for k, v in out.items() if not k.startswith("_")}, f, indent=1)
     out["out_path"] = op
     if record:
         cfg = {"mode": "stacked", "pop_size": pop_size, "gens": gens, "seed": seed,

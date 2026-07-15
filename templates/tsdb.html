@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>GENREG — TSDB</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='vendor/xterm.css') }}" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+  <style>
+    /* page-local — the store demo is self-contained */
+    .tsdb-doc { color: var(--muted); line-height: 1.55; font-size: 13px; }
+    .tsdb-doc b { color: var(--text); }
+    .tsdb-doc code { font-family: var(--mono); color: var(--accent); font-size: 12px; }
+    .tsdb-manifest {
+      font-family: var(--mono); font-size: 11px; color: var(--muted);
+      white-space: pre-wrap; word-break: break-word; max-height: 320px;
+      overflow: auto; margin: 0;
+    }
+    .tsdb-bars { display: flex; flex-direction: column; gap: 6px; }
+    .tsdb-bar-row { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+    .tsdb-bar-lbl { flex: 0 0 96px; color: var(--muted); font-family: var(--mono); text-align: right; }
+    .tsdb-bar-track { flex: 1; height: 14px; background: rgba(255,255,255,.05);
+      border-radius: 3px; overflow: hidden; }
+    .tsdb-bar-fill { height: 100%; background: var(--accent); }
+    .tsdb-bar-val { flex: 0 0 60px; color: var(--text); font-family: var(--mono); font-size: 11px; }
+    .tsdb-matrix { border-collapse: collapse; font-family: var(--mono); font-size: 10px; }
+    .tsdb-matrix td, .tsdb-matrix th { width: 30px; height: 26px; text-align: center;
+      border: 1px solid var(--border); color: var(--text); }
+    .tsdb-matrix th { color: var(--muted); border: none; }
+    .tsdb-note { color: var(--accent); font-size: 11px; letter-spacing: .5px; }
+    .tsdb-ok { color: #3fb950; } .tsdb-bad { color: #f85149; }
+    .tsdb-setrow { display: flex; gap: 6px; margin: 0 0 10px; }
+    .tsdb-setrow .ts-set.active { background: var(--accent); color: var(--bg);
+      border-color: var(--accent); font-weight: 600; }
+    .tsdb-stress-cfg { display: flex; gap: 12px; margin: 0 0 8px; }
+    .tsdb-stress-cfg label { display: flex; flex-direction: column; gap: 3px;
+      font-size: 10px; letter-spacing: .5px; text-transform: uppercase; color: var(--muted); }
+    .tsdb-stress-cfg input { width: 88px; background: var(--bg); color: var(--text);
+      border: 1px solid var(--border); border-radius: 5px; padding: 4px 6px;
+      font-family: var(--mono); font-size: 12px; }
+    .tsdb-stress-cfg input:focus { outline: none; border-color: var(--accent); }
+  </style>
+</head>
+<body class="tlm-body">
+  <header class="topbar">
+    <div class="brand">GENREG<span class="brand-sub">tsdb · a Float64 block store, driven with real MNIST metrics</span></div>
+    <div class="status">
+      <span class="dot" id="ts-dot"></span>
+      <span id="ts-conn">loading…</span>
+      {% set nav_active = 'tsdb' %}{% include '_nav.html' %}
+    </div>
+  </header>
+
+  <div class="tlm-layout">
+    <!-- ── what TSDB is ─────────────────────────────── -->
+    <aside class="sidebar left tlm-side">
+      <div class="side-head">TSDB.md v1.3</div>
+      <div class="side-body control-panel">
+        <p class="tsdb-doc" style="margin:0 0 12px">
+          TSDB is a small <b>Float64 block store</b> for numeric row data. It
+          appends binary rows into physical <code>&lt;id&gt;.fabf</code> files
+          and keeps metadata in a <code>&lt;name&gt;.json</code> manifest. Not
+          a DBMS, ORM, query language, or market-data engine — it stays
+          <b>dumb, compact, append-oriented, and Float64-based</b>.
+        </p>
+        <p class="tsdb-doc" style="margin:0 0 12px">
+          The vocabulary: a <b>file</b> is a logical group, a <b>key</b> is a
+          schema lane inside it (<code>km = [fieldMap, rowLength]</code>), and a
+          <b>block</b> is the metadata for one bulk append —
+          <code>{ info, begin, ends, count, offset }</code>. The
+          <code>offset</code>/<code>count</code> let a reader pull only the
+          bytes it needs instead of the whole file.
+        </p>
+        <p class="tsdb-doc" style="margin:0 0 12px">
+          This page runs an <b>in-browser port</b> of the store
+          (<code>tsdb.js</code>): the physical layer is an in-memory byte
+          buffer instead of a <code>.fabf</code> on disk, but the manifest,
+          keys, schemas, sorted-block insert, and serialize/parse are the same.
+          It is fed real numbers from the frozen pipeline champions — pick the
+          set below.
+        </p>
+        <div class="tsdb-setrow">
+          <button class="runs-btn ts-set active" data-set="mnist">MNIST</button>
+          <button class="runs-btn ts-set" data-set="cifar">CIFAR</button>
+        </div>
+        <div class="tlm-actions">
+          <button id="ts-rebuild" class="runs-btn tlm-primary">Rebuild store</button>
+          <button id="ts-verify" class="runs-btn">Verify round-trip &amp; notify</button>
+        </div>
+        <div class="tlm-status" id="ts-status">loading…</div>
+
+        <div class="side-head" style="margin-top:18px">Push limits</div>
+        <p class="tsdb-doc" style="margin:8px 0 10px">
+          Hammer the store with a large synthetic load: many blocks appended in
+          <b>random begin-time order</b> to stress the sorted binary-search
+          insert (<code>bound</code>) and the growing physical buffer. Every
+          value is a reproducible hash, so read-back is checked against a
+          recomputed <b>checksum</b> — real integrity, not just a byte count.
+          Runs on the main thread; big loads will pause the tab briefly.
+        </p>
+        <div class="tsdb-stress-cfg">
+          <label>blocks <input id="ts-nblocks" type="number" value="400" min="1" max="4000"></label>
+          <label>rows/block <input id="ts-perblk" type="number" value="250" min="1" max="5000"></label>
+        </div>
+        <div class="tlm-actions">
+          <button id="ts-stress" class="runs-btn">Run stress load &amp; notify</button>
+        </div>
+        <pre id="ts-stress-out" class="tsdb-manifest" style="margin-top:8px">idle</pre>
+      </div>
+    </aside>
+
+    <!-- ── the store, live ──────────────────────────── -->
+    <main class="tlm-main">
+      <div class="tlm-tiles">
+        <div class="tlm-tile"><div class="tlm-tile-label">Physical bytes (.fabf)</div><div class="tlm-tile-value" id="ts-bytes">—</div></div>
+        <div class="tlm-tile"><div class="tlm-tile-label">Rows stored</div><div class="tlm-tile-value" id="ts-rows">—</div></div>
+        <div class="tlm-tile"><div class="tlm-tile-label">Files / keys / blocks</div><div class="tlm-tile-value" id="ts-fkb">—</div></div>
+        <div class="tlm-tile"><div class="tlm-tile-label">Round-trip</div><div class="tlm-tile-value" id="ts-rt">—</div></div>
+      </div>
+
+      <section class="tlm-card">
+        <div class="tlm-card-head">
+          <h2>Pipeline layers <span class="tlm-card-sub">file <code>layers</code> · key <code>stage</code> · schema <code>time,acc</code></span></h2>
+        </div>
+        <div class="field-hint" style="margin:0 0 10px">
+          The store's <code>time</code> axis is the pipeline stage index. Each
+          row is one held-out accuracy, appended as a Float64 block and read
+          straight back out for this chart — nothing is cached in JS.
+        </div>
+        <div id="ts-layers" class="tsdb-bars">—</div>
+      </section>
+
+      <section class="tlm-card" id="ts-det-card" style="display:none">
+        <div class="tlm-card-head">
+          <h2>Per-class detectors <span class="tlm-card-sub">file <code>detectors</code> · key <code>ovr</code> · schema <code>time,cls,acc</code></span></h2>
+        </div>
+        <div class="field-hint" style="margin:0 0 10px">
+          One-vs-rest specialist per class, one row each. Read back from the
+          block and drawn against a full-scale axis (0–1).
+        </div>
+        <div id="ts-det" class="tsdb-bars">—</div>
+      </section>
+
+      <section class="tlm-card">
+        <div class="tlm-card-head">
+          <h2>One-vs-one specialists <span class="tlm-card-sub">file <code>pairs</code> · key <code>ovo</code> · schema <code>time,a,b,acc</code></span></h2>
+        </div>
+        <div class="field-hint" style="margin:0 0 10px">
+          45 pairwise discriminators, one row each (<code>a</code>,
+          <code>b</code>, held-out <code>acc</code>). Read back from the block
+          and folded into a 10×10 map — darker = the harder pair to separate.
+        </div>
+        <div id="ts-matrix">—</div>
+      </section>
+
+      <section class="tlm-card">
+        <div class="tlm-card-head">
+          <h2>Manifest <span class="tlm-card-sub">the flushed <code>&lt;name&gt;.json</code> — files, keys, block index</span></h2>
+        </div>
+        <pre id="ts-manifest" class="tsdb-manifest">—</pre>
+      </section>
+    </main>
+  </div>
+
+  <script src="{{ url_for('static', filename='tsdb.js') }}"></script>
+  <script src="{{ url_for('static', filename='tsdbpage.js') }}"></script>
+  <!-- shared daemon-backed terminal dock -->
+  <script src="{{ url_for('static', filename='vendor/xterm.js') }}"></script>
+  <script src="{{ url_for('static', filename='vendor/addon-fit.js') }}"></script>
+  <script src="{{ url_for('static', filename='termdock.js') }}"></script>
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
+  <script src="{{ url_for('static', filename='agentpanel.js') }}"></script>
+  <script src="{{ url_for('static', filename='configpanel.js') }}"></script>
+</body>
+</html>

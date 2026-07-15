@@ -6,6 +6,7 @@ const connDot = document.getElementById("conn-dot");
 const connText = document.getElementById("conn-text");
 
 const terms = new Map();   // id -> {id, title, alive, term, fit, paneEl, tabEl}
+const held = new Map();    // id -> {tabEl, title, deadline, tick}  (closed, reopenable)
 let activeId = null;
 let ws = null;
 let wsReady = false;
@@ -148,6 +149,58 @@ function removeTerm(id) {
   }
 }
 
+// -- held (recently-closed) sessions --------------------------------------
+// A closed tab isn't gone: the daemon keeps its shell alive for a grace
+// window. We tear down the live pane but leave a dim "held" tab with a
+// countdown; clicking it re-opens the session with its scrollback + process.
+const mmss = (s) => `${Math.floor(s / 60)}:${String(Math.max(0, s % 60)).padStart(2, "0")}`;
+
+function holdTerm(id, title, graceSecs) {
+  // drop the live term/pane (the daemon still owns the process)
+  const t = terms.get(id);
+  if (t) {
+    try { t.term.dispose(); } catch (_) {}
+    t.paneEl.remove();
+    t.tabEl.remove();
+    terms.delete(id);
+    if (activeId === id) {
+      activeId = null;
+      const next = terms.keys().next();
+      if (!next.done) setActive(next.value);
+    }
+  }
+  releaseHeld(id);   // replace any existing held entry for this id
+
+  const tabEl = document.createElement("div");
+  tabEl.className = "tab held";
+  tabEl.innerHTML = `<span class="reopen-ico">↻</span><span class="title"></span>` +
+                    `<span class="held-timer"></span>`;
+  tabEl.title = "Session held — click to reopen";
+  tabEl.addEventListener("click", () => send({ op: "reopen", id }));
+  tabsEl.appendChild(tabEl);
+
+  const deadline = Date.now() + graceSecs * 1000;
+  const h = { tabEl, title, deadline, tick: null };
+  held.set(id, h);
+  tabEl.querySelector(".title").textContent = title;
+
+  const render = () => {
+    const left = Math.round((h.deadline - Date.now()) / 1000);
+    if (left <= 0) { releaseHeld(id); return; }   // daemon reaps ~now
+    tabEl.querySelector(".held-timer").textContent = mmss(left);
+  };
+  render();
+  h.tick = setInterval(render, 1000);
+}
+
+function releaseHeld(id) {
+  const h = held.get(id);
+  if (!h) return;
+  clearInterval(h.tick);
+  h.tabEl.remove();
+  held.delete(id);
+}
+
 function fitAndReport(t) {
   // Only the visible pane can be measured correctly.
   if (t.id !== activeId) return;
@@ -167,12 +220,29 @@ function handleEvent(ev) {
     case "snapshot": {
       const want = recallActiveTab();   // read BEFORE ensureTerm auto-activates tab 1
       for (const meta of ev.terminals) {
+        if (meta.detached) {            // closed but still held — show reopenable
+          holdTerm(meta.id, meta.title || `Terminal ${meta.id}`,
+                   meta.grace_remaining || 0);
+          continue;
+        }
         const t = ensureTerm(meta);
         t.term.reset();
         if (meta.data) t.term.write(meta.data);
       }
       // Restore this page's remembered tab (if it still exists).
       if (want != null && want !== activeId && terms.has(want)) setActive(want);
+      return;
+    }
+    case "terminal_detached":
+      holdTerm(ev.id, (terms.get(ev.id) || {}).title || `Terminal ${ev.id}`,
+               ev.grace || 0);
+      return;
+    case "terminal_restored": {         // reopen brought it back with scrollback
+      releaseHeld(ev.id);
+      const t = ensureTerm(ev);
+      t.term.reset();
+      if (ev.data) t.term.write(ev.data);
+      setActive(ev.id);
       return;
     }
     case "terminal_created": {
@@ -192,7 +262,7 @@ function handleEvent(ev) {
       }
       return;
     }
-    case "terminal_closed": removeTerm(ev.id); return;
+    case "terminal_closed": releaseHeld(ev.id); removeTerm(ev.id); return;
   }
   const t = terms.get(ev.id);
   if (!t) return;
@@ -256,10 +326,22 @@ document.getElementById("btn-stop").addEventListener("click", () => activeId != 
   if (!overlay || !body || !btn || !closeBtn) return;   // markup absent -> skip
 
   // per-project changelog: pages default to THEIR project's log
-  // (documentation/changelogs/CHANGELOG_<X>.md), toggleable to the main log
-  const PROJECT = { "/": "BUILD", "/tree": "TREE", "/diff": "DIFFEVO",
-                    "/animation": "ANIMATION", "/i2": "I2",
-                    "/lm": "LM", "/mnist": "MNIST" }[location.pathname] || null;
+  // (documentation/changelogs/CHANGELOG_<X>.md), toggleable to the main log.
+  // Prefix matching so sub-pages (/radial/demo, /radial/demo/cousins, ...)
+  // resolve to their project too.
+  const PROJECT = (() => {
+    const p = location.pathname;
+    if (p === "/") return "BUILD";
+    const rules = [["/radial", "RADIAL"], ["/cifar", "CIFAR"],
+                   ["/mnist", "MNIST"], ["/lm", "LM"], ["/diff", "DIFFEVO"],
+                   ["/animation", "ANIMATION"], ["/pure", "PURE"],
+                   ["/xray", "XRAY"], ["/i2", "I2"], ["/tree", "TREE"],
+                   ["/evolang", "EVOLANG"], ["/images", "IMAGES"],
+                   ["/video", "VIDEO"]];
+    for (const [pre, proj] of rules)
+      if (p === pre || p.startsWith(pre + "/")) return proj;
+    return null;   // meta pages (plan/runs/docs) keep the main log
+  })();
   let scope = PROJECT ? "project" : "main";
   const title = document.getElementById("changelog-title");
   let toggle = null;
@@ -284,7 +366,14 @@ document.getElementById("btn-stop").addEventListener("click", () => activeId != 
     fetch(url)
       .then((r) => (r.ok ? r.text() : Promise.reject(new Error(String(r.status)))))
       .then((t) => (body.textContent = t))
-      .catch(() => (body.textContent = "Failed to load changelog."));
+      .catch(() => {
+        if (scope === "project") {   // missing project log -> fall back to main
+          scope = "main";
+          load();
+        } else {
+          body.textContent = "Failed to load changelog.";
+        }
+      });
   };
   const open = () => {
     overlay.hidden = false;

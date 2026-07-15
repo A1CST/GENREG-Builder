@@ -1,99 +1,152 @@
-# GENREG LAB
+# GENREG — Gradient-Free Neuroevolution
 
-A **gradient-free neuroevolution research lab**. Every model here is evolved —
-no gradients, no backprop, no pretrained weights. The guiding thesis: *the
-fitness landscape is the only lever that matters — don't design the solution,
-design conditions where the only stable attractor is the solution.* Selection,
-energy homeostasis, and constraints do the work that gradient descent does
-elsewhere.
+**Evolve the features; don't design them.** Every model here is bred by
+selection, energy homeostasis, and constraints — *no gradients, no backprop, no
+pretrained weights*. The guiding thesis:
 
-The lab is a single Flask app that hosts several independent projects, all
-sharing one browser GUI with **real interactive terminals** (you can run the
-`claude` TUI right in the page) plus a floating **Agent panel** (shared notice
-feed) and **Run-Config panel** (live view of the current run + history).
+> The fitness landscape is the only lever that matters. Don't design the
+> solution — design conditions where the only stable attractor **is** the
+> solution.
 
-> The full rules and thesis live in [`documentation/GENREG_RULES.md`](documentation/GENREG_RULES.md)
-> and [`documentation/LLM__LM_RULES.md`](documentation/LLM__LM_RULES.md).
-> Every change is logged in [`CHANGELOG.md`](CHANGELOG.md) and a per-project
-> file under [`documentation/changelogs/`](documentation/changelogs/).
+The centerpiece is the **radial space**: a way of treating a dataset as an
+environment that evolved *feature programs* (genomes) navigate. On CIFAR-10, a
+population of tiny gradient-free genomes **passes hand-crafted features and keeps
+climbing** — all without a single gradient step.
 
-## Projects (pages)
+![CIFAR-10 accuracy, gradient-free](docs/images/cifar_progression.png)
 
-| Page          | What it is |
-|---------------|------------|
-| `/`  Build    | The neuroevolution **engine** — evolve tiny nets on Snake, 2048, CartPole, Humanoid, Language, under composable EEC constraints (energy, mortality, occlusion, scarcity, non-stationarity…). Live game board, microscope (watch a genome mutate), PO-metrics. |
-| `/evolang`  EvoLang | **Evolution-native language model** — a small fixed corpus, a tiny neural next-char predictor per genome, bred by tournament + elitism + energy homeostasis on soft log-prob fitness. No gradients, no attention, no n-gram tables. The fresh start after the LM/Tree line was archived (see [`documentation/EVOLANG_PIVOT.md`](documentation/EVOLANG_PIVOT.md)). |
-| `/diff`  DiffEvo | **Denoising diffusion by neuroevolution** — one shared population of ~90-param per-pixel denoisers per noise level; the reverse walk composes them. |
-| `/animation`  | Procedural animation / shape-evolution experiments. |
-| `/pure`       | **PURE** — assemble a model from a node graph (drag nodes onto the canvas and wire them). |
-| `/runs`       | **Runs dashboard** — every training run (filter, label, favorite, group, tag), metrics, embedding clouds, and per-run generation/replay. |
-| `/docs`       | Browsable project documentation (model cards, findings, changelogs). |
+---
 
-## The language line — archived, and why (the EvoLang pivot)
+## The radial space
 
-The earlier autoregressive campaign (`genreg_lm` / `genreg_attn` / `genreg_enc` /
-`genreg_trustmix` / `genreg_distill`) and the Tree-of-Models (`tree_service`)
-kept converging on the **same object — an n-gram lookup table** (1990s tech). We
-then proved the boundary honestly: you *cannot* gradient-free-train the tables
-away (the distillation verdict — top-5 recovered, top-1 not; generation
-gibberish). Compressing corpus statistics into weights at per-context precision
-is what gradients are for, and rule #1 forbids them.
+A **lens** is a deterministic feature program at a fixed address. Data flows
+through lenses; it is the *relative* motion between the data and the lens that
+manufactures signal diversity. Evolution doesn't build the embedding space — it
+is handed one built from the data's own statistics (patch-PCA maps: *"the
+features are the environment"*) and learns **one tiny relationship inside it**.
 
-So the whole line was **archived** (to `archive/lm_and_tree/`, nothing deleted)
-and replaced by **EvoLang** (`/evolang`, `genreg_train/evolang.py`) — an
-evolution-native LM that does not chase next-token statistics at all. The
-mapping of the boundary is preserved in the findings docs
-([`LM_STAGE1_FINDINGS.md`](documentation/LM_STAGE1_FINDINGS.md),
-[`LM_ENCODER_COMPONENT.md`](documentation/LM_ENCODER_COMPONENT.md)) and the full
-rationale in [`documentation/EVOLANG_PIVOT.md`](documentation/EVOLANG_PIVOT.md).
-
-## Browser terminals (the GUI infrastructure)
-
-```
-Browser  <-- WebSocket -->  Flask (app.py)  <-- TCP -->  Daemon  <-- ConPTY -->  PowerShell(s)
-        (xterm.js)                         (terminal_daemon.py)      (pywinpty)
+```mermaid
+flowchart LR
+  IMG["CIFAR image"] --> ENV["patch-PCA maps<br/>(the environment)"]
+  ENV --> G["genome<br/>evolved lens program"]
+  G --> F["one scalar / 4×4 grid<br/>per image"]
+  F --> FR{"decorrelated<br/>& contributing?"}
+  FR -- yes --> FROZEN["freeze into the bank"]
+  FR -- no --> CULL["starve / cull"]
+  FROZEN --> RIDGE["closed-form ridge<br/>read-out"]
+  FROZEN -.->|spatial grid| STACK["a new space<br/>reads these outputs"]
+  STACK --> ENV
 ```
 
-- **Real ConPTY pseudo-terminals** (via `pywinpty`) — arrow keys, colors, live
-  redraw, the `claude` TUI, REPLs all work. The dock is on every page.
-- They live in a **separate long-lived process** (`terminal_daemon.py`), so you
-  can restart Flask (e.g. while editing `app.py`) and your terminals and any
-  running programs keep going; Flask reconnects and replays the recent screen.
-- Controls: **+ New Tab**, **Claude** (launches the TUI cleanly), **Clear**,
-  **Restart**, **Stop**; resizing reflows the active terminal.
+Each round breeds a population under **tournament selection + energy
+homeostasis**, freezes the top *decorrelated, contributing* survivors as
+columns, and reads them out with a **closed-form ridge** — no gradient anywhere.
+When one space stops earning, its outputs become the data for a **new stacked
+space**, so depth emerges from scarcity rather than a hyperparameter.
 
-## Run
+Fingerprinting 647 evolved genomes by their behavior (their response over a
+fixed probe set) and projecting to a map shows what evolution actually built —
+a near-spherical cloud that fills behavior space isotropically, with an
+**effective dimensionality of 405 / 647** (≈9× more efficient than enumerating
+a lens bank):
+
+![The radial space — genome behavior map](docs/images/genome_map.png)
+
+---
+
+## The genome — an evolved feature program
+
+Nothing about the feature is hand-designed; every structural property is a
+**gene**. Evolution decides scale, which components to read, how deep to bend
+them, how to combine them, and where in the image to look.
+
+```mermaid
+flowchart TB
+  S["patch scale<br/>(gene: 4…14)"] --> CH["pick PCA channels"]
+  CH --> B["residual blocks<br/>h ← h + gain · act(a·(mix·h)+b)<br/>(depth, activation, gains all genes)"]
+  B --> W["soft spatial window<br/>(evolved center + σ)"]
+  W --> OUT["→ one scalar feature<br/>(or a 4×4 grid to stack)"]
+```
+
+The human contribution is only the math primitives — an 8-function activation
+catalog, a few combine ops and pooling stats — and the data statistics
+(patch-PCA, built *from* the images). The **residual skip** `h ← h + gain·f`
+is itself a gene: evolution rediscovers that residual depth is useful with zero
+gradient signal (deep blocks survive selection; new blocks bootstrap as
+near-no-ops and only "turn on" when the correction helps).
+
+---
+
+## Results
+
+CIFAR-10, full 50k train, **test touched exactly once**, gradient-free
+throughout. Non-evolved references in gray.
+
+| Method | Test acc | Notes |
+|--------|:--------:|-------|
+| raw pixels | 0.324 | reference |
+| PCA | 0.360 | reference |
+| Coates-Ng hand-crafted (2048-dim) | 0.590 | the classic unsupervised-feature bar |
+| **evolved genomes v1** | **0.620** | beats hand-crafted with ~650 scalar features |
+| **Phase-D stacked** | **0.635** | outputs of one space feed a second |
+| **grammar-v2** | **0.704** | every structural property a gene |
+| **4-seed cross-seed ensemble** | **0.757** | diversity is nearly free |
+| **7-substrate union** | **0.770** | best gradient-free result on this line |
+
+Gradient ResNet-20 (backprop) sits at ≈0.91 — a different regime. The story here
+is not "we matched ResNet"; it is that **evolution, with no gradients, discovers
+useful visual features and stacks them into a working hierarchy.**
+
+A recent thread (`documentation/changelogs/CHANGELOG_RESNET.md`) built evolved
+**residual** networks and showed gradient-free *stacking* beating a single deep
+space (0.6638 vs 0.6593) once each space passes **spatial grids** (not scalars)
+to the next and the base space is allowed to **mature** — the emergent-cap
+stacking idea in `documentation/stacking.txt`, realized.
+
+---
+
+## The rules (what "gradient-free" buys and costs)
+
+The full thesis and invariants live in
+[`documentation/GENREG_RULES.md`](documentation/GENREG_RULES.md). The load-bearing ones:
+
+- **No gradients, no backprop, no hybrid.** Evolution climbs staircases that
+  gradients can't — step functions, integer ops, conditionals.
+- **Soft fitness only** (mean log-prob, not `argmax==target`) so there is a
+  gradient to climb; **multiplicative over additive** so it can't collapse to a
+  mean-seeker.
+- **Energy is homeostatic, not a reward** — it decides who survives, targeting
+  3–15% starved per generation.
+- **The landscape is designed, not given.** Every scalar proxy gets
+  reward-hacked; anchor fitness to position-varying ground truth.
+- **Component-first**: each piece clears a local *and* a downstream bar before
+  it is frozen and composed.
+
+---
+
+## The lab (how to run it)
+
+The engine ships inside a small Flask app that hosts the projects behind one
+browser GUI (live game boards, a genome **microscope**, PO-metrics, and real
+in-page terminals). Radial-space work lives on the `/radial` and `/resnet`
+pages; every training run is captured on `/runs`.
 
 ```powershell
 cd $HOME\Documents\GENREG
-pip install -r requirements.txt      # first time only
-python app.py
+pip install -r requirements.txt     # first time
+python app.py                       # http://127.0.0.1:5000
 ```
 
-Then open <http://127.0.0.1:5000>. Training uses CUDA when available (the LM
-campaign was run on an RTX 4080) and falls back to CPU.
+CUDA is used when available (the CIFAR line was farmed on RTX 4080 / H100), CPU
+otherwise. Binds to `127.0.0.1` only.
 
-## Layout
+| Path | What it is |
+|------|-----------|
+| `radial_evo2.py`, `resnet_evo.py` | the gradient-free CIFAR engines (genomes, stacking) |
+| `radial_map.py`, `radial_baseline.py` | the radial-space map + baselines CLI |
+| `genreg_train/` | training services (`evolang.py`, `diffuse_service.py`, `runstore.py`) |
+| `documentation/` | rules, findings, per-project changelogs |
+| `app.py`, `templates/`, `static/` | the Flask app + browser GUI |
+| `docs/images/` | the charts in this README (regenerable from `radial_data/`) |
 
-| Path | Purpose |
-|------|---------|
-| `app.py` | Flask server, routes, WebSocket relays; auto-starts the daemon. |
-| `terminal_daemon.py` | Owns the ConPTY shells + scrollback; survives Flask restarts. |
-| `genreg_train/` | Training engines: `trainer.py` (engine), `evolang.py` (EvoLang), `diffuse_service.py` (DiffEvo), `runstore.py` (run persistence). The archived LM/Tree engines live in `archive/lm_and_tree/`. |
-| `agent_board.py`, `agent_notify.py` | The Agent-panel notice feed (post from Python or the CLI). |
-| `templates/`, `static/` | Pages + front-end (vendored xterm.js, no CDN at runtime). |
-| `documentation/` | Rules, model cards, findings, per-project changelogs. |
-| `project/` | The Gutenberg training corpus + upstream engine sources. |
-| `runs/` | Training-run artifacts (gitignored — regenerated locally). |
-
-## Notes
-
-- Binds to `127.0.0.1` only (Flask 5000, daemon 5001) — not exposed to the
-  network. Requires Windows (ConPTY via `pywinpty`).
-- Stop the **daemon** (not Flask) to end all terminals:
-  ```powershell
-  Get-CimInstance Win32_Process -Filter "Name='python.exe'" |
-    Where-Object { $_.CommandLine -match 'terminal_daemon\.py' } |
-    ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
-  ```
-- Licensed AGPL-3.0 (see `LICENSE`).
+Licensed AGPL-3.0.

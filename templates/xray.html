@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>GENREG — X-Ray</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='vendor/xterm.css') }}" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+  <style>
+    .xr-layout { display:flex; flex:1 1 auto; min-height:0; }
+
+    /* left controls */
+    .xr-side { flex:0 0 260px; overflow-y:auto; border-right:1px solid #1a1f26; padding:15px 16px; background:#0e1116; }
+    .xr-side h1 { font-size:15px; margin:0 0 4px; color:#e6ebf1; }
+    .xr-side p.lede { font-size:11.5px; color:#8b95a1; line-height:1.55; margin:0 0 14px; }
+    .xr-fld { margin-bottom:13px; }
+    .xr-fld label { display:block; font-size:11px; color:#8b95a1; margin-bottom:5px; text-transform:uppercase; letter-spacing:.04em; }
+    .xr-fld select, .xr-fld input[type=range] { width:100%; }
+    .xr-genomes { display:flex; flex-direction:column; gap:5px; }
+    .xr-gbtn { text-align:left; font-size:12px; padding:7px 9px; border:1px solid #232a33; border-radius:6px;
+      background:#11151b; color:#c7d0da; cursor:pointer; display:flex; justify-content:space-between; }
+    .xr-gbtn.active { background:#1c2733; border-color:#2f4152; color:#e6ebf1; }
+    .xr-gbtn .a { color:#6c7885; font-variant-numeric:tabular-nums; }
+    .xr-toggles { display:flex; gap:7px; }
+    .xr-tg { flex:1; font-size:11.5px; padding:6px 4px; text-align:center; border:1px solid #232a33; border-radius:6px;
+      background:#11151b; color:#8b95a1; cursor:pointer; }
+    .xr-tg.on { background:#16302a; border-color:#1e5138; color:#5fd39a; }
+    .xr-play { width:100%; margin-top:4px; }
+
+    /* stage */
+    .xr-stage { flex:1 1 auto; position:relative; background:#0b0d10; min-width:0; }
+    #xr-cv { width:100%; height:100%; display:block; }
+    .xr-cap { position:absolute; left:16px; top:12px; font-size:12px; color:#8b95a1; max-width:70%; line-height:1.5; }
+    .xr-cap b { color:#dbe2ea; }
+    .xr-scrub { position:absolute; left:16px; right:16px; bottom:14px; display:flex; align-items:center; gap:12px; }
+    .xr-scrub input { flex:1; }
+    .xr-phase { font-size:11px; color:#7f8b98; white-space:nowrap; font-variant-numeric:tabular-nums; }
+    .xr-busy { position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+      color:#8b95a1; font-size:13px; background:rgba(11,13,16,.6); }
+
+    /* right metrics */
+    .xr-metrics { flex:0 0 210px; overflow-y:auto; border-left:1px solid #1a1f26; padding:15px 16px; background:#0e1116; }
+    .xr-big { text-align:center; margin-bottom:16px; }
+    .xr-big b { display:block; font-size:34px; color:#5fd39a; line-height:1; font-variant-numeric:tabular-nums; }
+    .xr-big span { font-size:11px; color:#7f8b98; }
+    .xr-sec { font-size:10.5px; text-transform:uppercase; letter-spacing:.05em; color:#7f8b98; margin:14px 0 9px; }
+    .xr-drow { display:flex; align-items:center; gap:8px; margin-bottom:6px; font-size:11.5px; }
+    .xr-drow .sw { width:10px; height:10px; border-radius:2px; flex:0 0 auto; }
+    .xr-drow .lb { color:#b6c1cd; width:14px; }
+    .xr-bar { flex:1; height:6px; background:#1a2028; border-radius:3px; overflow:hidden; }
+    .xr-bar i { display:block; height:100%; background:#3a9ad9; }
+    .xr-drow .pc { color:#8b95a1; width:34px; text-align:right; font-variant-numeric:tabular-nums; }
+  </style>
+</head>
+<body class="tlm-body">
+  <header class="topbar">
+    <div class="brand">GENREG<span class="brand-sub">x-ray · watch a genome pull data into structure</span></div>
+    <div class="status">
+      {% set nav_active = 'xray' %}{% include '_nav.html' %}
+    </div>
+  </header>
+
+  <div class="xr-layout">
+    <aside class="xr-side">
+      <h1>Watch it separate</h1>
+      <p class="lede">Real MNIST digits, tangled in raw feature space. Pick a solved genome — it
+        acts on them and every dot migrates to the corner of the digit it reads. Colour is the
+        <em>true</em> digit, so a dot on a wrong-coloured corner is a visible mistake.</p>
+
+      <div class="xr-fld">
+        <label>Genome (all share the same starting cloud)</label>
+        <div class="xr-genomes" id="xr-genomes"></div>
+      </div>
+
+      <div class="xr-fld">
+        <label>Pipeline layers</label>
+        <div class="xr-toggles">
+          <div class="xr-tg on" id="xr-mixer" data-k="mixer">mixer</div>
+          <div class="xr-tg on" id="xr-pairs" data-k="pairs">pair referees</div>
+        </div>
+      </div>
+
+      <div class="xr-fld">
+        <label>Digits per class · <span id="xr-npc-v">50</span></label>
+        <input type="range" id="xr-npc" min="20" max="100" step="10" value="50" />
+      </div>
+
+      <button id="xr-apply" class="runs-btn tlm-primary xr-play">Apply genome</button>
+      <button id="xr-anim" class="runs-btn xr-play">Replay separation</button>
+    </aside>
+
+    <div class="xr-stage">
+      <canvas id="xr-cv"></canvas>
+      <div class="xr-cap" id="xr-cap"><b>Building features…</b> first run reads MNIST and builds the shared cloud (~10s).</div>
+      <div class="xr-scrub">
+        <span class="xr-phase">tangled</span>
+        <input type="range" id="xr-t" min="0" max="1000" value="0" />
+        <span class="xr-phase">separated</span>
+      </div>
+    </div>
+
+    <aside class="xr-metrics" id="xr-metrics">
+      <div class="xr-big"><b id="xr-acc">—</b><span>test accuracy</span></div>
+      <div class="xr-sec">Per-digit accuracy</div>
+      <div id="xr-perdigit"></div>
+    </aside>
+  </div>
+
+  <script src="{{ url_for('static', filename='xray.js') }}"></script>
+  <!-- shared daemon-backed terminal dock (same terminals as the build page) -->
+  <script src="{{ url_for('static', filename='vendor/xterm.js') }}"></script>
+  <script src="{{ url_for('static', filename='vendor/addon-fit.js') }}"></script>
+  <script src="{{ url_for('static', filename='termdock.js') }}"></script>
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
+  <script src="{{ url_for('static', filename='agentpanel.js') }}"></script>
+  <script src="{{ url_for('static', filename='configpanel.js') }}"></script>
+</body>
+</html>

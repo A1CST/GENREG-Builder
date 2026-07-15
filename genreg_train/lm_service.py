@@ -34,9 +34,11 @@ import pickle
 import numpy as np
 
 from genreg_train import lm_intent as li
+from genreg_train import lm_sem as ls
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ARTIFACT = os.path.join(ROOT, "corpora", "combined", "lm_intent.pkl")
+SEM_ARTIFACT = os.path.join(ROOT, "corpora", "combined", "lm_sem.pkl")
 
 
 class Service:
@@ -47,6 +49,9 @@ class Service:
         self.vocab = None
         self.stoi = None
         self.ctx_k = 6
+        self.followers = None         # legacy round-2 pools (unused by round 3)
+        self.global_top = None
+        self.sem = None               # round-3 artifact: feats/logfreq/sem/grammar
 
     def ensure(self):
         if self.ready or self.err:
@@ -64,6 +69,8 @@ class Service:
             self.vocab = art["vocab"]
             self.stoi = art["stoi"]
             self.ctx_k = art.get("ctx_k", 6)
+            self.followers = art.get("followers")
+            self.global_top = art.get("global_top")
             self.ready = (
                 self.splits is not None
                 and "length_continue" in self.splits
@@ -71,6 +78,9 @@ class Service:
             )
             if not self.ready:
                 self.err = "artifact missing length_continue/next_word — retrain needed"
+            if os.path.exists(SEM_ARTIFACT):
+                with open(SEM_ARTIFACT, "rb") as fh:
+                    self.sem = pickle.load(fh)
         except Exception as exc:                     # pragma: no cover
             self.err = str(exc)
 
@@ -151,11 +161,21 @@ class Service:
         length_continue "are we done?" before asking next_word "what word
         goes next?" (intent-conditioned, properly autoregressive — see
         NEXT_GROUP in lm_intent.py) — grow/stop is confidence-driven, not a
-        fixed target length. Returns the final text plus a trace of what
-        happened each tick (fits the diffusion framing: show the sentence
-        materializing)."""
+        fixed target length.
+
+        Word choice (round 3): NO lookup tables anywhere — the sem_next
+        genome scores the ENTIRE vocabulary through the fixed feature
+        space (evolved query + evolved bias + evolved logfreq weight +
+        evolved bilinear transition), the top pool by THAT score becomes
+        the candidates, and the grammar_real genome reranks them by how
+        real the word order would read. Both proposal and rerank are
+        evolved genomes' forward passes; the round-2 follower pools are
+        not consulted. Returns text plus a per-tick trace."""
         if not self.ready:
             return {"err": self.err or "not ready"}
+        if self.sem is None:
+            return {"err": "round-3 artifact missing (corpora/combined/lm_sem.pkl) "
+                           "— train genreg_train/run_lm_sem.py first"}
         toks = [w for w in li.tokenize(seed_word.lower()) if w.isalpha()]
         if not toks:
             return {"err": "no seed word given"}
@@ -186,19 +206,44 @@ class Service:
                 hit_max = False
                 break
 
-            left_ctx = np.asarray(([0] * ctx_k + words)[-ctx_k:], dtype=np.int32)
-            emb = next_export["emb"]
-            el = emb[left_ctx].mean(axis=0)
-            ie = next_export["intent_emb"][intent_id]
-            q = np.tanh(np.concatenate([el, ie]) @ next_export["Wq"] + next_export["bq"])
-            scores = (emb @ q).copy()
-            scores[0] = -1e9                              # never emit <unk>
-            probs = np.exp((scores - scores.max()) / max(temperature, 1e-3))
+            # sem_next proposes: score the WHOLE vocabulary, keep the top
+            # pool (a genome decision end to end, no tables)
+            sem = self.sem
+            sem_export = sem["splits"]["sem_next"]["genome"]
+            sem_stoi, sem_vocab = sem["stoi"], sem["vocab"]
+            left_sem = np.asarray(([0] * ctx_k +
+                                   [sem_stoi.get(self.vocab[w], 0) for w in words])[-ctx_k:],
+                                  dtype=np.int32)
+            scores = ls.sem_vocab_scores_export(sem_export, sem["feats"],
+                                                sem["logfreq"], left_sem, intent_id)
+            pool = np.argsort(-scores)[:60]
+            sem_s = scores[pool]
+
+            # grammar_real reranks: how real does the order read with each
+            # candidate appended?
+            gram_export = sem["splits"]["grammar_real"]["genome"]
+            m = gram_export["m"]
+            tail = ([0] * (m - 1) +
+                    [sem_stoi.get(self.vocab[w], 0) for w in words])[-(m - 1):]
+            wins = np.concatenate(
+                [np.tile(np.asarray(tail, np.int32), (len(pool), 1)),
+                 pool.astype(np.int32)[:, None]], axis=1)
+            gram_s = ls.grammar_logit_export(gram_export, sem["feats"], wins)
+
+            def z(a):
+                return (a - a.mean()) / (a.std() + 1e-9)
+
+            combined = z(sem_s) + z(gram_s)
+            probs = np.exp((combined - combined.max()) / max(temperature, 1e-3))
             probs /= probs.sum()
-            next_id = int(rng.choice(len(probs), p=probs))
+            pick = int(rng.choice(len(pool), p=probs))
+            next_word_str = sem_vocab[int(pool[pick])]
+            next_id = self.stoi.get(next_word_str, 0)
             words.append(next_id)
-            trace.append({"action": "fill", "word": self.vocab[next_id],
-                          "prob": float(probs[next_id])})
+            trace.append({"action": "fill", "word": next_word_str,
+                          "prob": float(probs[pick]), "pool": int(len(pool)),
+                          "sem_z": float(z(sem_s)[pick]),
+                          "gram_z": float(z(gram_s)[pick])})
 
         if hit_max:
             trace.append({"action": "end", "mark": target_mark, "note": "hit max length"})

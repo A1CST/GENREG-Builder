@@ -301,6 +301,16 @@ class ClassifierPop:
         pred = self.forward(i, ctx_ids, extra).argmax(axis=1)
         return float((pred == labels).mean())
 
+    def soft_fitness(self, i, ctx_ids, labels, extra=None):
+        """Mean log-prob of the TRUE class — GENREG_RULES §IV.1: soft fitness
+        only. Accuracy (argmax == target) is a step function with no climbing
+        gradient for evolution; log-prob rewards every incremental sharpening
+        of the right answer's probability, even before it flips the argmax."""
+        logits = self.forward(i, ctx_ids, extra)
+        logits = logits - logits.max(axis=1, keepdims=True)
+        logp = logits - np.log(np.exp(logits).sum(axis=1, keepdims=True))
+        return float(logp[np.arange(len(labels)), labels].mean())
+
     def balanced_accuracy(self, i, ctx_ids, labels, extra=None):
         """Mean per-class recall — the fair metric whenever classes aren't
         50/50 in the raw holdout. Plain accuracy on a skewed distribution
@@ -337,16 +347,47 @@ class ClassifierPop:
                 "D": self.D, "H": self.H, "n_out": self.n_out, "extra_dim": self.extra_dim}
 
 
+# Energy homeostasis (GENREG_RULES §III, mandatory): energy decides who is
+# even eligible to survive/reproduce, independent of this generation's
+# fitness rank. Rank-percentile delta (robust to the different fitness
+# scales across genome types); equilibrium energy = 2 * percentile, so a
+# genome persistently in the bottom ~10% decays below the floor and is
+# culled even if a lucky batch spikes its fitness once. Fresh offspring
+# start at 1.0. Target starved band: 3-15%/gen (§III) — logged by the
+# training loops as `starved`.
+ENERGY_DECAY = 0.9
+ENERGY_GAIN = 0.2       # rank-percentile delta scale; equilibrium e = 2*pct
+ENERGY_FLOOR = 0.2
+E_MAX = 1.5
+
+
 def ga_step(pop_obj, fits, rng, elite_frac=0.1, tourn_k=4):
-    """Tournament selection + elitism + self-adaptive mutation, in place."""
+    """Tournament selection + elitism + self-adaptive mutation + energy
+    homeostasis, in place. Starved genomes (energy < floor) are removed from
+    the survivor pool regardless of current fitness."""
     pop = pop_obj.pop
-    order = np.argsort(-fits)
+    if not hasattr(pop_obj, "energy"):
+        pop_obj.energy = np.full(pop, 1.0, dtype=np.float32)
+    ranks = np.empty(pop, dtype=np.float64)
+    ranks[np.argsort(fits)] = np.arange(pop)
+    pct = ranks / max(1, pop - 1)
+    pop_obj.energy = np.clip(pop_obj.energy * ENERGY_DECAY + ENERGY_GAIN * pct,
+                             0.0, E_MAX).astype(np.float32)
+    starved = pop_obj.energy < ENERGY_FLOOR
+    pop_obj.last_starved = int(starved.sum())
+    alive = np.flatnonzero(~starved)
+    if len(alive) < max(2, tourn_k):          # pathological all-starved guard
+        alive = np.argsort(-fits)[:max(2, tourn_k)]
+    alive_by_fit = alive[np.argsort(-fits[alive])]
     n_elite = max(1, int(pop * elite_frac))
-    new_order = order[:n_elite].tolist()
+    new_order = alive_by_fit[:n_elite].tolist()
+    new_energy = [float(pop_obj.energy[i]) for i in new_order]
     while len(new_order) < pop:
-        cand = rng.choice(pop, size=tourn_k, replace=False)
+        cand = rng.choice(alive, size=min(tourn_k, len(alive)), replace=False)
         new_order.append(int(cand[np.argmax(fits[cand])]))
+        new_energy.append(1.0)                 # offspring start fresh
     pop_obj.select_into(new_order)
+    pop_obj.energy = np.asarray(new_energy, dtype=np.float32)
     for i in range(n_elite, pop):
         pop_obj.mutate(i, rng)
 
@@ -385,12 +426,16 @@ def train_classifier(ctx, labels, n_out, gens=250, pop=120, D=16, H=24, ctx_k=6,
         else:
             bctx, blab = class_balanced_batch(ctx_tr, lab_tr, n_per_class, rng, n_out)
             bextra = None
-        fits = np.array([popn.accuracy(i, bctx, blab, bextra) for i in range(pop)])
+        # soft fitness (mean log-prob of true class), GENREG_RULES §IV.1 —
+        # accuracy is still what we REPORT, but log-prob is what selection
+        # climbs; argmax fitness is a step function evolution can't ascend.
+        fits = np.array([popn.soft_fitness(i, bctx, blab, bextra) for i in range(pop)])
         champ = int(np.argmax(fits))
         if g % 25 == 0 or g == gens - 1:
             ho_bal = popn.balanced_accuracy(champ, ctx_ho, lab_ho, extra_ho)
             ho_raw = popn.accuracy(champ, ctx_ho, lab_ho, extra_ho)
-            log(f"    gen {g:4d}  train-batch-acc={fits[champ]:.3f}  "
+            starved = getattr(popn, "last_starved", 0)
+            log(f"    gen {g:4d}  soft-fit={fits[champ]:.4f}  starved={starved}  "
                f"holdout-balanced-acc={ho_bal:.3f}  holdout-raw-acc={ho_raw:.3f}")
             if ho_bal > best_bal_acc:
                 best_bal_acc = ho_bal
@@ -495,6 +540,15 @@ class FillPop:
         s = self.score(i, q, cand_ids)
         return float((s.argmax(axis=1) == 0).mean())
 
+    def soft_fitness(self, i, left_ids, right_ids, cand_ids):
+        """Mean log-prob of the TRUE candidate under a softmax over the
+        candidate set — soft fitness per GENREG_RULES §IV.1."""
+        q = self.query(i, left_ids, right_ids)
+        s = self.score(i, q, cand_ids)
+        s = s - s.max(axis=1, keepdims=True)
+        logp = s - np.log(np.exp(s).sum(axis=1, keepdims=True))
+        return float(logp[:, 0].mean())
+
     def mutate(self, i, rng):
         s = self.sigma[i]
         self.emb[i] += rng.normal(0, s, self.emb[i].shape).astype(np.float32)
@@ -534,11 +588,13 @@ def train_fill(left, right, cand, gens=250, pop=120, D=24, ctx_k=6, batch_size=5
     for g in range(gens):
         bidx = rng.integers(0, len(cand_tr), size=min(batch_size, len(cand_tr)))
         bleft, bright, bcand = left_tr[bidx], right_tr[bidx], cand_tr[bidx]
-        fits = np.array([popn.accuracy(i, bleft, bright, bcand) for i in range(pop)])
+        # soft fitness (mean log-prob of the true candidate), §IV.1
+        fits = np.array([popn.soft_fitness(i, bleft, bright, bcand) for i in range(pop)])
         champ = int(np.argmax(fits))
         if g % 25 == 0 or g == gens - 1:
             ho_acc = popn.accuracy(champ, left_ho, right_ho, cand_ho)
-            log(f"    gen {g:4d}  train-batch-acc={fits[champ]:.3f}  holdout-acc={ho_acc:.3f}")
+            starved = getattr(popn, "last_starved", 0)
+            log(f"    gen {g:4d}  soft-fit={fits[champ]:.4f}  starved={starved}  holdout-acc={ho_acc:.3f}")
             if ho_acc > best_acc:
                 best_acc = ho_acc
                 best_export = popn.export(champ)
@@ -573,28 +629,62 @@ def fill_score_export(export, left_ids, right_ids, cand_ids):
 #      question) is fed in as an explicit small embedding alongside the
 #      context, a signal fill_word never had. "What word comes next" is a
 #      different question when the sentence is headed for "?" vs "!".
-# Negative sampling stays simple (random corpus positions, same as
-# fill_word) for this first pass — a deliberate scope choice, not an
-# oversight; harder negatives are a lever for later if this still collapses.
+# Negative sampling: HARD negatives, not random corpus positions. The first
+# pass (random negatives, same as fill_word) produced a near-tie with
+# fill_word (24.25% vs 24.08%) despite fixing the autoregressive mismatch
+# and adding intent-conditioning — an honest negative result pointing
+# straight at random negatives being too easy to beat via a handful of
+# generically "safe" embedding directions, regardless of architecture. Fix:
+# for a training example whose immediately-preceding word is W, draw
+# negatives from words that ACTUALLY FOLLOWED W somewhere else in the
+# corpus — genuinely confusable candidates (other things that plausibly
+# come after "the", not a random word like "purple" or "quickly"), not
+# noise the genome can shortcut past.
 # --------------------------------------------------------------------------
 NEXT_GROUP = "next"
 NEXT_SPLIT = {"key": "next_word", "group": NEXT_GROUP,
              "desc": "given the words before this one AND the sentence's target intent, "
-                    "does the TRUE next word score higher than a random corrupted candidate?",
+                    "does the TRUE next word score higher than a HARD corrupted candidate "
+                    "(a word that also followed the same preceding word elsewhere)?",
              "positive_name": "true-word-wins", "negative_name": "n/a"}
 N_INTENTS = 3   # period / exclaim / question — MARKS[0:3], the only sentence-final marks
 
 
-def mine_next_word_examples(tokens, stoi, ctx_k=6, n_samples=1_000_000, n_neg=5, seed=0):
+def _build_followers_index(words, bucket_cap, rng):
+    """words[i] -> words[i+1] pairs, grouped by the FIRST word into a
+    per-vocab-word array of words that followed it somewhere in the corpus
+    (capped per bucket so a common word like "the" doesn't blow up memory).
+    Built with one argsort over the whole corpus, not a python-level
+    per-pair loop — the same vectorized-first discipline that avoided the
+    earlier quadratic-mining mistake."""
+    V = int(words.max()) + 1
+    prev_ids, next_ids = words[:-1], words[1:]
+    order = np.argsort(prev_ids, kind="stable")
+    sorted_prev, sorted_next = prev_ids[order], next_ids[order]
+    boundaries = np.searchsorted(sorted_prev, np.arange(V + 1))
+    buckets = []
+    for v in range(V):
+        seg = sorted_next[boundaries[v]:boundaries[v + 1]]
+        if len(seg) > bucket_cap:
+            seg = rng.choice(seg, size=bucket_cap, replace=False)
+        buckets.append(seg)
+    return buckets
+
+
+def mine_next_word_examples(tokens, stoi, ctx_k=6, n_samples=1_000_000, n_neg=5,
+                            bucket_cap=2000, seed=0):
     """Build a flat word-only id array (marks stripped) PLUS a parallel
     intent array (which end mark . ! ? that word's SENTENCE terminates
     with) in one O(n) pass, then sample N positions and vectorized-slice
-    fixed-width LEFT-only windows around each (no right context — this is
-    the autoregressive fix over mine_fill_examples). Sentence end-mark is
-    only known once the mark is hit, so ranges are backfilled with a
-    vectorized slice assign per sentence (still O(n) total, not the
-    quadratic per-example rebuild mistake already caught once this
-    session)."""
+    fixed-width LEFT-only windows around each (no right context — the
+    autoregressive fix over mine_fill_examples). Sentence end-mark is only
+    known once the mark is hit, so ranges are backfilled with a vectorized
+    slice assign per sentence.
+
+    Negatives are HARD: drawn from _build_followers_index's per-preceding-
+    word buckets (see that function's docstring), falling back to a random
+    corpus word only for the rare preceding word with too few followers to
+    fill n_neg."""
     rng = np.random.default_rng(seed)
     words = []
     sentence_ranges = []   # (start_idx, end_idx_exclusive, mark_id)
@@ -620,8 +710,19 @@ def mine_next_word_examples(tokens, stoi, ctx_k=6, n_samples=1_000_000, n_neg=5,
     left = np.stack([words[p - ctx_k:p] for p in positions])
     true_word = words[positions]
     intent_feat = intents[positions]
-    neg_idx = rng.integers(0, n, size=(n_samples, n_neg))
-    negatives = words[neg_idx]
+
+    followers = _build_followers_index(words, bucket_cap, rng)
+    preceding_word = left[:, -1]
+    negatives = np.zeros((n_samples, n_neg), dtype=np.int32)
+    for row in range(n_samples):
+        pool = followers[preceding_word[row]]
+        if len(pool) >= n_neg:
+            negatives[row] = rng.choice(pool, size=n_neg, replace=False)
+        elif len(pool) > 0:
+            negatives[row] = rng.choice(pool, size=n_neg, replace=True)
+        else:
+            negatives[row] = rng.integers(0, n, size=n_neg)   # rare fallback
+
     candidates = np.concatenate([true_word[:, None], negatives], axis=1)
     return left, intent_feat, candidates
 
@@ -656,6 +757,15 @@ class NextWordPop:
         q = self.query(i, left_ids, intent_ids)
         s = self.score(i, q, cand_ids)
         return float((s.argmax(axis=1) == 0).mean())
+
+    def soft_fitness(self, i, left_ids, intent_ids, cand_ids):
+        """Mean log-prob of the TRUE candidate under a softmax over the
+        candidate set — soft fitness per GENREG_RULES §IV.1."""
+        q = self.query(i, left_ids, intent_ids)
+        s = self.score(i, q, cand_ids)
+        s = s - s.max(axis=1, keepdims=True)
+        logp = s - np.log(np.exp(s).sum(axis=1, keepdims=True))
+        return float(logp[:, 0].mean())
 
     def mutate(self, i, rng):
         s = self.sigma[i]
@@ -697,11 +807,13 @@ def train_next_word(left, intent_feat, cand, gens=250, pop=120, D=24, ctx_k=6,
     for g in range(gens):
         bidx = rng.integers(0, len(cand_tr), size=min(batch_size, len(cand_tr)))
         bleft, bintent, bcand = left_tr[bidx], intent_tr[bidx], cand_tr[bidx]
-        fits = np.array([popn.accuracy(i, bleft, bintent, bcand) for i in range(pop)])
+        # soft fitness (mean log-prob of the true candidate), §IV.1
+        fits = np.array([popn.soft_fitness(i, bleft, bintent, bcand) for i in range(pop)])
         champ = int(np.argmax(fits))
         if g % 25 == 0 or g == gens - 1:
             ho_acc = popn.accuracy(champ, left_ho, intent_ho, cand_ho)
-            log(f"    gen {g:4d}  train-batch-acc={fits[champ]:.3f}  holdout-acc={ho_acc:.3f}")
+            starved = getattr(popn, "last_starved", 0)
+            log(f"    gen {g:4d}  soft-fit={fits[champ]:.4f}  starved={starved}  holdout-acc={ho_acc:.3f}")
             if ho_acc > best_acc:
                 best_acc = ho_acc
                 best_export = popn.export(champ)
@@ -720,6 +832,41 @@ def next_word_score_export(export, left_ids, intent_id, cand_ids):
     q = np.tanh(combo @ export["Wq"] + export["bq"])
     w = emb[cand_ids]                                  # (K, D)
     return w @ q
+
+
+def build_generation_followers(tokens, stoi, top_n=200):
+    """Per-word candidate pools for RERANK generation (GENREG_RULES §VI:
+    propose candidates, then let the evolved genome rerank them — never
+    softmax over the whole vocabulary). For each vocab word, the top_n most
+    frequent words that followed it in the corpus, plus a global top_n
+    fallback for words with no followers on record.
+
+    This is the same distribution the hard negatives were mined from, so
+    training and generation finally see the SAME candidate universe — the
+    fix for the norm-domination failure (§XI: a handful of large-norm
+    embeddings dominating a full-vocab softmax they were never trained to
+    compete in). One vectorized pass (unique over packed bigram keys), no
+    per-pair python loop."""
+    words = np.asarray([stoi.get(t, 0) for t in tokens if MARK_ID.get(t) is None],
+                       dtype=np.int64)
+    V = int(words.max()) + 1
+    keys = words[:-1] * V + words[1:]
+    uniq, counts = np.unique(keys, return_counts=True)
+    prev = (uniq // V).astype(np.int32)
+    nxt = (uniq % V).astype(np.int32)
+    order = np.lexsort((-counts, prev))    # group by prev, most frequent first
+    prev_s, nxt_s = prev[order], nxt[order]
+    boundaries = np.searchsorted(prev_s, np.arange(V + 1))
+    followers = {}
+    for v in range(V):
+        seg = nxt_s[boundaries[v]:boundaries[v + 1]][:top_n]
+        seg = seg[seg != 0]                # never propose <unk>
+        if len(seg):
+            followers[int(v)] = seg.astype(np.int32)
+    word_counts = np.bincount(words, minlength=V)
+    word_counts[0] = 0                     # never propose <unk>
+    global_top = np.argsort(-word_counts)[:top_n].astype(np.int32)
+    return followers, global_top
 
 
 def recognize_mark(splits_export, ctx_ids):

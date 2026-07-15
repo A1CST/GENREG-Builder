@@ -1,0 +1,8 @@
+Mapping the Next Leap to 80%
+Now that the validation-test gap has completely collapsed on the 50k run, you know the foundation is structurally bulletproof. There is zero artificial inflation here. To keep climbing the curve toward 80%, you have a clear set of architectural levers to pull next:
+
+Stacking the v2 Substrate: You haven't even tried building a Stage 3 or a stacked space using these highly expressive v2 features yet. If the transferred, suboptimal v1 genomes gave you a +0.96% bump from stacking alone, stacking a dedicated, re-evolved v2 space will yield much cleaner compound features.
+
+The Meta-Genome Transition: Moving from fixed structural constraints to genomes that literally dictate how other genomes assemble. This transforms the framework from a feature finder into a self-generating architecture factory.
+
+Conditional Routing: Implementing triggered radial spaces so that different image inputs wake up different evolutionary pathways. This is attention discovered from first principles, keeping the active parameter count low while exponentially expanding the model's latent capacity.
