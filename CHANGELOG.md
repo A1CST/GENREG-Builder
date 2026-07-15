@@ -10,6 +10,22 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-14] (Claude)** — **Animation tab: "Run the checkpoint" panel is
+  live.** New `anim_infer.py`: loads the genome checkpoint
+  (radial_data/anim_model.json), replays the exact temporal feature pipeline
+  with genomes FIXED, refits the ridge head locally (closed-form — so
+  patch-PCA sign conventions can't break across machines), and serves
+  predictions for random HELD-OUT test sequences via new GET
+  /api/animation/infer (background one-time build; page polls). The
+  /animation page gets a "Run the checkpoint" section: each tile animates a
+  real 32x32 noisy test sequence with the model's call under it (green
+  check / red cross + true label on misses). VERIFIED headless on the 4080:
+  build 20s, local test acc 0.8843 over all 1,875 held-out sequences (pod
+  H100 measured 0.8971 — small cross-machine PCA-basis delta, the page
+  reports its own honest local number). Per-class: line 1.000, scurve 0.968,
+  diagonal 0.963 ... weakest are zigzag 0.645 and bounce 0.743 (fast
+  vertical reversals inside the 6-frame window). **Flask restart needed**
+  for /api/animation/radial + /api/animation/infer.
 - **[2026-07-14] (Claude)** — **Animation tab: REAL animations restored + model
   retrained on the actual dataset (user: "rewire not replace").** The temporal
   radial stack now trains on the animation dataset's OWN motion paths

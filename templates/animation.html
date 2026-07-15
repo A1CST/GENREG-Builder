@@ -45,6 +45,11 @@
     .an-note b { color:#9aa5b1; }
     .an-genome { border:1px solid #1c232c; border-radius:8px; background:#0d1117; padding:13px 15px; font-family:ui-monospace,monospace; font-size:12px; color:#c7d0da; line-height:1.9; overflow-x:auto; }
     .an-genome .g1 { color:#5fd39a; } .an-genome .g2 { color:#6fb3e0; } .an-genome .cm { color:#5a6672; }
+    .an-btn { font-size:12px; padding:7px 16px; border-radius:6px; border:1px solid #2f4152; background:#1c2733; color:#dbe2ea; cursor:pointer; }
+    .an-btn:disabled { opacity:.5; cursor:default; }
+    .an-run-status { display:inline-block; margin-left:10px; font-size:11px; color:#8b95a1; }
+    .an-clip .pd { font-size:10.5px; margin-top:3px; font-family:ui-monospace,monospace; }
+    .an-clip .pd.ok { color:#5fd39a; } .an-clip .pd.bad { color:#e07a6a; }
   </style>
 </head>
 <body class="tlm-body">
@@ -115,9 +120,21 @@
       </div>
     </div>
 
+    <div class="an-sec">Run the checkpoint</div>
+    <p class="an-lede">Watch the trained model work: each tile below is a real held-out
+      test sequence (exactly what the model sees — 32×32, noisy, random shape) with the
+      checkpoint's call under it. The first run rebuilds the model locally from the genome
+      checkpoint (~1–2 min, one time); after that it's instant.</p>
+    <div>
+      <button class="an-btn" id="an-run">Classify 12 held-out sequences</button>
+      <span class="an-run-status" id="an-run-status"></span>
+    </div>
+    <div class="an-grid" id="an-infer" style="margin-top:12px"></div>
+
     <div class="an-note">The previous evolved-shape-recognition rig is superseded by this
       page (its APIs remain available). Run: <b>radial_anim.py</b> · export:
-      <b>radial_data/anim_radial.json</b> · no gradients anywhere.</div>
+      <b>radial_data/anim_radial.json</b> · checkpoint: <b>radial_data/anim_model.json</b>
+      · no gradients anywhere.</div>
   </div></main>
 
   <script>
@@ -191,6 +208,72 @@
         d.frames + "-frame windows · grid " + d.grid + " · " + d.seconds + "s · " + d.task;
     }).catch(function (e) {
       document.getElementById("an-results").textContent = "load failed: " + e;
+    });
+
+    /* ---- run the checkpoint on held-out sequences ---- */
+    var runBtn = document.getElementById("an-run"),
+        runSt = document.getElementById("an-run-status"),
+        runBox = document.getElementById("an-infer"),
+        inferTimer = null, inferPlayers = [];
+
+    function showInfer(d) {
+      runBox.innerHTML = "";
+      inferPlayers = [];
+      d.items.forEach(function (it) {
+        var raw = atob(it.data), S = it.size, F = it.frames;
+        var card = document.createElement("div");
+        card.className = "an-clip";
+        var cv = document.createElement("canvas");
+        cv.width = S; cv.height = S;
+        var pd = document.createElement("div");
+        pd.className = "pd " + (it.correct ? "ok" : "bad");
+        pd.textContent = (it.correct ? "✓ " : "✗ ") + it.pred +
+          (it.correct ? "" : " (true: " + it.true + ")");
+        card.appendChild(cv); card.appendChild(pd);
+        runBox.appendChild(card);
+        var g = cv.getContext("2d"), imgs = [];
+        for (var f = 0; f < F; f++) {
+          var img = g.createImageData(S, S);
+          for (var p = 0; p < S * S; p++) {
+            var v = raw.charCodeAt(f * S * S + p);
+            img.data[4 * p] = img.data[4 * p + 1] = img.data[4 * p + 2] = v;
+            img.data[4 * p + 3] = 255;
+          }
+          imgs.push(img);
+        }
+        inferPlayers.push({ g: g, imgs: imgs });
+      });
+      var right = d.items.filter(function (i) { return i.correct; }).length;
+      runSt.textContent = right + "/" + d.items.length + " correct here · local test acc " +
+        d.test_acc.toFixed(4) + " over all " + d.n_test + " held-out sequences · " +
+        d.n_genomes + " genomes";
+      if (inferTimer) { clearInterval(inferTimer); }
+      var f = 0;
+      inferTimer = setInterval(function () {
+        inferPlayers.forEach(function (p) { p.g.putImageData(p.imgs[f % p.imgs.length], 0, 0); });
+        f++;
+      }, 260);
+    }
+
+    function pollInfer() {
+      fetch("/api/animation/infer?n=12").then(function (r) { return r.json(); })
+        .then(function (d) {
+          if (d.error) { runSt.textContent = d.error; runBtn.disabled = false; return; }
+          if (d.building) {
+            runSt.textContent = "building the model from the checkpoint… " +
+              (d.progress || "");
+            setTimeout(pollInfer, 2500);
+            return;
+          }
+          runBtn.disabled = false;
+          showInfer(d);
+        }).catch(function (e) { runSt.textContent = "failed: " + e; runBtn.disabled = false; });
+    }
+
+    runBtn.addEventListener("click", function () {
+      runBtn.disabled = true;
+      runSt.textContent = "running…";
+      pollInfer();
     });
   })();
   </script>
