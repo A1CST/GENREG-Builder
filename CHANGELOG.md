@@ -10,6 +10,20 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-15] (Claude)** — **30K PROBE: evolved embeddings TIE SVD through
+  the flat head and BEAT it through composition — the embedding gamble pays
+  in full.** RS table rebuilt at 30k words (same 120MB wiki corpus, same
+  fitness; 1293s pod). A/B with coverage matched: FAT RS-30k **0.3296 /
+  0.5821** vs SVD 0.3276 / 0.5843 (tie — the earlier -8.4 gap was ENTIRELY
+  the 5k coverage confound). LEAN RS-30k **0.2973 / 0.5009** vs SVD lean
+  0.2677 / 0.4464 — **best lean model yet** (+3.0 top-1, +5.5 top-5 at
+  1.09M params, 90% of its fat ceiling in 3 spaces). Verdict: evolution's
+  embeddings equal SVD for linear use and are strictly better as a
+  substrate for genome composition. METHODS NOTE: the intrinsic gate
+  flipped at 30k (spearman RS 0.1433 vs SVD 0.2900 — rare-word profiles
+  from 120MB are noisy) yet predicted nothing about task value; the task
+  A/B is the real gate. Artifacts pulled + mirrored (embed_rs.npz is now
+  the 30k table).
 - **[2026-07-15] (Claude)** — **RS EMBEDDING SWAP A/B: evolved embeddings are
   MORE COMPOSABLE than SVD.** Stage 2 of the user's embedding gamble: the
   evolved 128-d RS table (radial_embed.py, 120MB pure-wiki, spearman 0.3544
