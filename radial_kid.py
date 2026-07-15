@@ -420,11 +420,14 @@ def make_cloze_c(n_train=20000, n_test=5000, seed=0, noise=0.05,
               encoding="utf-8", errors="ignore") as f:
         f.seek(10_000_000)
         toks = _clean(f.read(8_000_000)).split()
+    ze = np.load(os.path.join(RD, "embed_rs.npz"), allow_pickle=True)
+    rs_vocab = {str(w): i for i, w in enumerate(ze["vocab"])}
     rng = np.random.default_rng(seed)
     n = n_train + n_test
     X = np.zeros((n, P_C, L_MAX, 32, 32), np.float32)
     y = np.zeros(n, np.int64)
     blank = np.zeros(n, np.int64)
+    ctx = np.full((n, P_C), -1, np.int32)     # RS-vocab ids; blank/OOV -1
     got = 0
     order = rng.permutation(len(toks) - P_C)
     for p in order:
@@ -439,6 +442,7 @@ def make_cloze_c(n_train=20000, n_test=5000, seed=0, noise=0.05,
         for s, w in enumerate(wds):
             if s == b:
                 continue                      # the blank: empty tiles
+            ctx[got, s] = rs_vocab.get(w, -1)
             for l, ch in enumerate(w):
                 X[got, s, l] = render_letter(ch, rng)
         got += 1
@@ -451,15 +455,21 @@ def make_cloze_c(n_train=20000, n_test=5000, seed=0, noise=0.05,
     X8 = (X * 255).astype(np.uint8)
     np.savez(path, Xtr=X8[:n_train], ytr=y[:n_train],
              Xte=X8[n_train:], yte=y[n_train:],
-             btr=blank[:n_train], bte=blank[n_train:])
+             btr=blank[:n_train], bte=blank[n_train:],
+             ctr=ctx[:n_train], cte=ctx[n_train:])
     print(f"kid_cloze: {n_train}/{n_test} {P_C}-word phrases, one blank, "
           f"target in V={V_B} -> {path}", flush=True)
     return path
 
 
 def stage_c(pop_size=64, gens=12, max_rounds=400, seed=9, max_spaces=8,
-            grid_size=8, verbose=True):
-    """B frozen as the word-eye per slot; new spaces compose context."""
+            grid_size=8, verbose=True, ears=False):
+    """B frozen as the word-eye per slot; new spaces compose context.
+    ears=True (Stage C2): each OBSERVED context word also arrives as its
+    RS-evolved semantic vector (evolution's own listening experience,
+    embed_rs.npz). The blank word gets no vector - it stays the unknown.
+    The curriculum remains fully evolution-made: eyes from pixels,
+    spelling on the eyes, meaning from the evolved distributional space."""
     import torch
     torch.backends.cuda.matmul.allow_tf32 = False
     rk.GRID = int(grid_size)
@@ -548,6 +558,30 @@ def stage_c(pop_size=64, gens=12, max_rounds=400, seed=9, max_spaces=8,
     bank_tr = ((torch.cat(wf_tr, 1) - zmu) / zsd).clamp(-8, 8)
     bank_te = ((torch.cat(wf_te, 1) - zmu) / zsd).clamp(-8, 8)
 
+    ears_tag = ""
+    if ears:
+        ze = np.load(os.path.join(RD, "embed_rs.npz"), allow_pickle=True)
+        E = torch.tensor(ze["feat"].astype(np.float32), device=dev)
+        zc = np.load(os.path.join(RD, "kid_cloze.npz"))
+
+        def ear_bank(ctx):
+            idx = torch.tensor(np.maximum(ctx.astype(np.int64), 0),
+                               device=dev)
+            msk = torch.tensor((ctx >= 0).astype(np.float32), device=dev)
+            cols = [E[idx[:, s]] * msk[:, s:s + 1] for s in range(P_C)]
+            eb = torch.cat(cols, 1)
+            return eb
+
+        eb_tr = ear_bank(zc["ctr"])
+        emu, esd = eb_tr.mean(0), eb_tr.std(0) + 1e-6
+        eb_tr = ((eb_tr - emu) / esd).clamp(-8, 8)
+        eb_te = ((ear_bank(zc["cte"]) - emu) / esd).clamp(-8, 8)
+        bank_tr = torch.cat([bank_tr, eb_tr], 1)
+        bank_te = torch.cat([bank_te, eb_te], 1)
+        ears_tag = "2"
+        log(f"[C2] ears attached: +{eb_tr.shape[1]} RS semantic channels "
+            f"(observed words only; the blank stays unknown)")
+
     # warm base: orderless bag of word features (mean over slots)
     bag_tr = torch.stack(wf_tr, 2).mean(2)
     bag_te = torch.stack(wf_te, 2).mean(2)
@@ -556,6 +590,9 @@ def stage_c(pop_size=64, gens=12, max_rounds=400, seed=9, max_spaces=8,
     bag_te = ((bag_te - bmu) / bsd).clamp(-8, 8)
     all_tr = [bag_tr[:, j] for j in range(nB)]
     all_te = [bag_te[:, j] for j in range(nB)]
+    if ears:
+        all_tr.extend(eb_tr[:, j] for j in range(eb_tr.shape[1]))
+        all_te.extend(eb_te[:, j] for j in range(eb_te.shape[1]))
     base_all = torch.stack(all_tr, 1)
     _, val_prev = _ridge_soft(torch, base_all[:n_fit], base_all[n_fit:],
                               Yf, yv)
@@ -644,9 +681,10 @@ def stage_c(pop_size=64, gens=12, max_rounds=400, seed=9, max_spaces=8,
                     "eye; new spaces compose words into context.")
                    % (P_C, V_B),
            "seconds": round(time.time() - t0)}
-    with open(os.path.join(RD, "kid_stageC.json"), "w") as f:
+    out["ears"] = bool(ears)
+    with open(os.path.join(RD, f"kid_stageC{ears_tag}.json"), "w") as f:
         json.dump(out, f, indent=1)
-    with open(os.path.join(RD, "kid_modelC.json"), "w") as f:
+    with open(os.path.join(RD, f"kid_modelC{ears_tag}.json"), "w") as f:
         json.dump({"grid": G, "eye": A, "word_spaces": B,
                    "spaces": space_genomes, "label": "cloze",
                    "stage": "C"}, f)
@@ -665,7 +703,10 @@ def stage_c(pop_size=64, gens=12, max_rounds=400, seed=9, max_spaces=8,
 
 if __name__ == "__main__":
     import sys
-    if "C" in sys.argv:
+    if "C2" in sys.argv:
+        make_cloze_c()                        # regen: ctx ids now stored
+        stage_c(ears=True)
+    elif "C" in sys.argv:
         if not os.path.exists(os.path.join(RD, "kid_cloze.npz")) \
                 or "--regen" in sys.argv:
             make_cloze_c()

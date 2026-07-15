@@ -10,6 +10,16 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-15] (Claude)** — **Stage C2: EARS attached (the RS-evolved
+  semantic layer as listening experience) - cloze DOUBLES to 0.1212 top-1
+  / 0.2684 top-5 (baseline 0.0608 -> 0.1085) but the gate still fails and
+  evolution earned zero.** The curriculum stays evolution-made (eyes from
+  pixels, ears from evolved co-occurrence separation; blank word gets no
+  vector). Sharpened diagnosis: RS ears carry SIMILARITY; cloze needs
+  SEQUENCE experience - heard word-order, not meaning clusters. Candidate
+  next ear: an RS-style EVOLVED CONTINUATION layer (genomes that separate
+  contexts by what follows them - the evolutionary counterpart of the
+  continuation tables). Module 20 on /lm; Stage D remains gated.
 - **[2026-07-15] (Claude)** — **CURRICULUM Stage C: CLOZE - GATE FAILED
   honestly, and the failure is the curriculum's most important lesson.**
   Word-bag baseline 0.0608; evolution earned NOTHING (first space zero
