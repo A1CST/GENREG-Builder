@@ -90,6 +90,12 @@
       (universal grammar, emergent-cap stacked spaces, no gradients) is wired to
       both below; results update live from the run exports.</p>
 
+    <div class="an-sec">Model footprint — tiny, gradient-free, CPU inference</div>
+    <div id="an-fp-hero" style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:12px">
+      loading footprint…</div>
+    <div id="an-fp"></div>
+    <div class="an-cl" id="an-fp-note"></div>
+
     <div class="an-sec">The dataset — the animations, live</div>
     <div class="an-grid" id="an-clips">loading animations…</div>
     <div class="an-cl">The canonical clips (24 frames, 64×64), each a unique shape on a
@@ -454,6 +460,51 @@ live from the checkpoint files, exactly as evolution wrote them</div>
   <script>
   (function () {
     "use strict";
+    /* ---- Model footprint: params + on-disk size + CPU inference ---- */
+    fetch("/api/animation/footprint").then(function (r) { return r.json(); })
+      .then(function (d) {
+        var hero = document.getElementById("an-fp-hero");
+        if (!d || d.error || d.pending) {
+          hero.textContent = (d && d.error) || "footprint not generated yet"; return;
+        }
+        var t = d.totals;
+        function fmt(n) { return n.toLocaleString(); }
+        function tile(num, lb, accent) {
+          return "<div style='flex:1 1 120px;min-width:110px;border:1px solid #1c232c;" +
+            "border-radius:8px;background:#0d1117;padding:10px 12px'>" +
+            "<div style='font-size:20px;font-family:ui-monospace,monospace;font-variant-numeric:" +
+            "tabular-nums;color:" + (accent || "#dbe2ea") + "'>" + num + "</div>" +
+            "<div style='font-size:10.5px;color:#7f8b98;margin-top:2px'>" + lb + "</div></div>";
+        }
+        hero.innerHTML =
+          tile(fmt(t.evolved_params), "evolved parameters, total", "#5fd39a") +
+          tile((t.disk_bytes / 1024 / 1024).toFixed(2) + " MB", "all checkpoints on disk") +
+          tile(fmt(t.genomes), "evolved genomes") +
+          tile(t.n_models, "models on this page") +
+          tile("CPU", "inference device", "#6fb3e0") +
+          tile("0", "gradients / backprop", "#6fb3e0");
+        var rows = d.models.map(function (m) {
+          var head = m.head_params != null ? fmt(m.head_params) : "<span style='color:#647082'>refit</span>";
+          return "<tr><td>" + m.name + "</td><td class='ds'>" + m.role + "</td><td>" +
+            fmt(m.genomes) + "</td><td><b style='color:#9fe0bf'>" + fmt(m.evolved_params) +
+            "</b></td><td>" + head + "</td><td>" + (m.disk_bytes / 1024).toFixed(0) +
+            " KB</td><td style='color:#6fb3e0'>CPU</td></tr>";
+        }).join("");
+        document.getElementById("an-fp").innerHTML =
+          "<table class='an-vtbl'><tr><th>model</th><th>role</th><th>genomes</th>" +
+          "<th>evolved params</th><th>readout</th><th>on disk</th><th>device</th></tr>" +
+          rows + "</table>";
+        document.getElementById("an-fp-note").innerHTML =
+          "Every model here is <b>evolved</b> — no gradients, no backprop, anywhere — and runs " +
+          "inference on the <b>CPU</b>. <b>Evolved params</b> are the numeric genes evolution " +
+          "produced (the model); the <b>readout</b> is a closed-form linear layer (the motion " +
+          "models refit theirs at load). On-disk sizes are the raw human-readable JSON " +
+          "checkpoints. The entire page is <b>" + fmt(t.evolved_params) + " evolved parameters</b> " +
+          "across " + t.n_models + " models — smaller than a single layer of most networks.";
+      }).catch(function (e) {
+        document.getElementById("an-fp-hero").textContent = "footprint load failed: " + e;
+      });
+
     /* ---- the real dataset animations, from /api/animations ---- */
     fetch("/api/animations").then(function (r) { return r.json(); }).then(function (clips) {
       if (!Array.isArray(clips)) { throw new Error(clips.error || "bad payload"); }

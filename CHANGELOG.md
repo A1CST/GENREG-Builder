@@ -10,6 +10,18 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-15] (Claude)** — **Animation page: model-footprint panel (params +
+  on-disk size + CPU).** Added a top-of-page panel surfacing the three headline
+  facts for every model: evolved-parameter count, on-disk checkpoint size, and
+  CPU-inference / gradient-free status. New `anim_footprint.py` computes it from
+  the checkpoints (evolved params = numeric genes via count_params; readout = W
+  where stored, refit for the motion models; disk = raw JSON size) ->
+  radial_data/anim_footprint.json; new /api/animation/footprint route; hero
+  stat-tiles + per-model table on the page. Numbers: the WHOLE page is **93,217
+  evolved parameters across 6 models (~2 MB on disk), CPU-only, zero backprop** —
+  motion 30.2k, tracker 8.8k, classifier 11.4k, etc. Also mirrored into the
+  standalone GENREG-RADIAL demo repo (baked footprint endpoint, pushed). Flask
+  restart needed for the new route.
 - **[2026-07-15] (Claude)** — **CURRICULUM Stage B: WORDS - the model learns
   to SPELL. TEST 0.7066 top-1 / 0.9358 top-5 (V=500, pixels only, 30s).**
   Words as 8-letter tile strips; Stage A's 515 letter genomes frozen as

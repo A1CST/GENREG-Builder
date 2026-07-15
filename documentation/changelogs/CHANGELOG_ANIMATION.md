@@ -6,6 +6,16 @@ Seeded 2026-07-05 from the main changelog (keyword split, best effort).
 
 ---
 
+## 2026-07-15 (Claude) — Model-footprint panel (params + disk + CPU)
+
+Top-of-page panel showing every model's evolved-parameter count, on-disk
+checkpoint size, and CPU-inference / gradient-free status. `anim_footprint.py`
+computes it from the checkpoints -> radial_data/anim_footprint.json; new
+/api/animation/footprint route; hero stat-tiles + per-model table. The whole
+page is 93,217 evolved params across 6 models (~2 MB on disk), CPU-only, no
+backprop. Mirrored into the standalone GENREG-RADIAL demo (baked). Flask restart
+needed.
+
 ## 2026-07-15 (Claude) — Run recording for the dot line (AGENTS.md 3 & 4)
 
 The attention trainers weren't recording runs or alerting on completion. New

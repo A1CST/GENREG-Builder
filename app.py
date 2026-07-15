@@ -1313,6 +1313,24 @@ def animation_shape():
         return jsonify({"error": f"animation shape failed: {exc}"}), 500
 
 
+@app.route("/api/animation/footprint")
+def animation_footprint():
+    """Parameter counts + on-disk size for every model on the page (how tiny
+    these gradient-free, CPU-inference models are)."""
+    try:
+        import json as _json
+        base = os.path.dirname(os.path.abspath(__file__))
+        for rel in ("radial_data/anim_footprint.json",
+                    "runpod_shadow/radial_data/anim_footprint.json"):
+            p = os.path.join(base, rel)
+            if os.path.exists(p):
+                with open(p) as f:
+                    return jsonify(_json.load(f))
+        return jsonify({"pending": True})
+    except Exception as exc:
+        return jsonify({"error": f"animation footprint failed: {exc}"}), 500
+
+
 @app.route("/api/animation/ood")
 def animation_ood():
     """Attention thread — out-of-distribution stress tests for the tracker +
