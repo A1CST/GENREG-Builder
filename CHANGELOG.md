@@ -10,6 +10,21 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-15] (Claude)** — **MODULE 17 (vision LM) FIRST ATTEMPT:
+  language-grounded-in-vision launched (user's pivot - the glyph line
+  resurrected at word level: 12-word strips rendered as 32x32 tiles, NO
+  embeddings/tables/one-hots, pixels are the whole environment). Result:
+  R0 froze ZERO genomes (round 0 gain +0.0000 vs cap) - the same machinery
+  that instantly earns on ID-based words gets nothing from word-tile
+  perception. Diagnosis queue: window-MEAN over 12 tiles likely washes out
+  per-word variance (try window-max / per-slot fitness), tiles may be too
+  small for whole words at 32x32 (try 48px, fewer words), check candidate
+  fitness distribution. Also: empty-stack guard needed (crashed at
+  torch.stack on zero features). Strip data (36k strips) rendered + cached
+  on pod (lm_vis.npz) so iterations are cheap. The thesis is untested, not
+  disproven - perception must earn before the language question can be
+  asked. radial_lm_vision.py committed; not yet a page module (no result
+  to show honestly).
 - **[2026-07-15] (Claude)** — **GRAMMAR CONTRACT FIX (user's call: fix the
   environment, don't strap on monitors).** The generation bug's true root:
   feature_vec's GATE normalized its stream with RUNTIME BATCH statistics -
