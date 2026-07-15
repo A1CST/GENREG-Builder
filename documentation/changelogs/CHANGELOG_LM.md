@@ -6,6 +6,20 @@ Seeded 2026-07-05 from the main changelog (keyword split, best effort).
 
 ---
 
+- **[2026-07-15] (Claude)** — **GENERATION SALAD ROOT-CAUSED: the model is
+  fine; the single-row step pipeline is buggy.** Parity check (30 held-out
+  windows, step argmax vs verified batch preds): 15/30 MISMATCH, and every
+  step-side prediction is the same attractor set (your/how/that) while the
+  batch side predicts sensible words. All reported metrics (0.5663/0.5671
+  etc.) came from the verified batch path and stand. The word-salad samples
+  in Module 16's export are the BUG's output, not the model's. Known wart:
+  the uni-backoff cont branch builds zeros where training used the unigram
+  distribution; a block-diff diagnostic (debug hook in
+  lm_generate3._step_logits + gen_diag.py on the pod) is bisecting the
+  first divergent feature block on a mismatched row. Fix, re-verify parity
+  to 30/30, THEN regenerate. Lesson recorded: any reimplementation of a
+  feature pipeline gets a parity test BEFORE its output is trusted.
+
 - **[2026-07-15] (Claude)** — **MODULE 16 - third crank: TEST 0.5663 top-1 /
   0.7280 top-5 - the top-5 usefulness bar (60-70%) is CROSSED.** True
   4-gram table (last three words - never tabulated before) + far skips

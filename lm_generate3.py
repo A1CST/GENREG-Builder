@@ -103,7 +103,7 @@ class Gen(Env4):
         j = win[s]
         return self.vocab[j] if j >= 0 else None
 
-    def _step_logits(self, win):
+    def _step_logits(self, win, debug=False):
         torch, dev = self.torch, self.dev
         W, V, D = self.W, self.V, self.D
         ctx = np.array([win], np.int32)
@@ -182,6 +182,10 @@ class Gen(Env4):
         c3_cols, bank = space_cols(self.cont3_spaces, self.cont3_stats, bank)
         bank = torch.cat([bank, t4], 1)
         c4_cols, bank = space_cols(self.cont4_spaces, self.cont4_stats, bank)
+        if debug:
+            return {"B0": B0, "skipAB": skipAB, "far": far, "t4": t4,
+                    "lean": lean_cols, "c2": c2_cols, "c3": c3_cols,
+                    "c4": c4_cols}
         F1 = torch.cat(lean_cols + c2_cols
                        + [skipAB[:, 2 * V:], far[:, 2 * V:]] + c3_cols
                        + [t4[:, 3 * V:]] + c4_cols

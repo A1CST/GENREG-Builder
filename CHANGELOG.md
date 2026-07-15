@@ -10,6 +10,19 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-15] (Claude)** — **GENERATION SALAD ROOT-CAUSED: the model is
+  fine; the single-row step pipeline is buggy.** Parity check (30 held-out
+  windows, step argmax vs verified batch preds): 15/30 MISMATCH, and every
+  step-side prediction is the same attractor set (your/how/that) while the
+  batch side predicts sensible words. All reported metrics (0.5663/0.5671
+  etc.) came from the verified batch path and stand. The word-salad samples
+  in Module 16's export are the BUG's output, not the model's. Known wart:
+  the uni-backoff cont branch builds zeros where training used the unigram
+  distribution; a block-diff diagnostic (debug hook in
+  lm_generate3._step_logits + gen_diag.py on the pod) is bisecting the
+  first divergent feature block on a mismatched row. Fix, re-verify parity
+  to 30/30, THEN regenerate. Lesson recorded: any reimplementation of a
+  feature pipeline gets a parity test BEFORE its output is trusted.
 - **[2026-07-15] (Claude)** — **Attention line: OOD stress-test module on
   /animation.** New `dot_ood.py` pushes the frozen tracker + 10-class classifier
   out of their single training regime along 10 axes and measures degradation
