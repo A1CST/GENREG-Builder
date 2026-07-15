@@ -139,8 +139,50 @@ def _embed_bank(torch, dev, ctx, feat_t, mu, sd):
     return torch.cat(cols, 1)
 
 
+# ── content-based addressing: the attend genome ─────────────────────
+# An evolved query (per-slot weights over the context embeddings) scores
+# the V candidate embeddings; softmax(beta*scores) attends over the
+# candidate-probability channels -> one scalar. W+2 evolved params. This
+# makes the un-tabulatable relationship (far context x candidate list)
+# ONE GENE instead of a needle in a million-pair conjunction space.
+
+def new_attend_genome(rng, Wn):
+    return {"kind": "attend",
+            "w": [float(x) for x in rng.normal(0, 1, Wn)],
+            "beta": float(rng.uniform(1.0, 8.0)),
+            "bend": [float(rng.uniform(0.5, 2.5)), float(rng.uniform(-1, 1))]}
+
+
+def mutate_attend(rng, g, sc):
+    c = json.loads(json.dumps(g))
+    w = np.array(c["w"])
+    w += rng.normal(0, sc, len(w)) * (rng.random(len(w)) < 0.4)
+    c["w"] = [float(x) for x in w]
+    c["beta"] = float(np.clip(c["beta"] + rng.normal(0, sc * 3), 0.3, 20.0))
+    c["bend"][0] = float(np.clip(c["bend"][0] + rng.normal(0, sc), 0.1, 4.0))
+    c["bend"][1] = float(np.clip(c["bend"][1] + rng.normal(0, sc), -2.0, 2.0))
+    return c
+
+
+def feature_attend(torch, g, slot_scores, prob):
+    """slot_scores: list of W (N, V) per-slot query-score tensors;
+    prob: (N, V) candidate probabilities. -> (N,) attended feature."""
+    w = g["w"]
+    s = None
+    for j, sw in enumerate(w):
+        if abs(sw) < 1e-3:
+            continue
+        s = slot_scores[j] * sw if s is None else s + slot_scores[j] * sw
+    if s is None:
+        s = slot_scores[-1]
+    a = torch.softmax(g["beta"] * s.float(), dim=1)
+    v = (a * prob).sum(1)
+    aa, bb = g["bend"]
+    return torch.tanh(aa * v * 10.0 + bb)
+
+
 def run(pop_size=64, gens=12, max_rounds=400, seed=5, max_spaces=16,
-        out_path=None, verbose=True):
+        out_path=None, verbose=True, lean=False, lean_head_extra=False):
     import torch
     torch.backends.cuda.matmul.allow_tf32 = False
     from radial_evo import _ridge_soft
@@ -279,8 +321,33 @@ def run(pop_size=64, gens=12, max_rounds=400, seed=5, max_spaces=16,
         return torch.cat([emb, _identity(ctx, W - 2), _identity(ctx, W - 1),
                           _cont_bank(ctx, cont_raw)], 1)
 
+    _cont_te_raw = _cont_raw(ctx_te)
     B0_tr = _bank0(ctx_tr, _cont_tr_raw)  # (Ntr, W*D + 2V + N_CONT)
-    B0_te = _bank0(ctx_te)
+    B0_te = _bank0(ctx_te, _cont_te_raw)
+
+    # attend-genome substrate: per-slot query scores + candidate probs
+    featV_np = np.zeros((V, D), np.float32)
+    for k, wd_ in enumerate(targets):
+        j = w2i.get(wd_)
+        if j is not None:
+            featV_np[k] = feat[j]
+    featV = torch.tensor(featV_np, device=dev)
+    featV = featV / (featV.norm(dim=1, keepdim=True) + 1e-6)
+
+    def _slot_scores(ctx):
+        idx = torch.tensor(np.maximum(ctx.astype(np.int64), 0), device=dev)
+        mask = torch.tensor((ctx >= 0).astype(np.float32), device=dev)
+        out = []
+        for f in range(W):
+            e = feat_t[idx[:, f]] * mask[:, f:f + 1]
+            e = e / (e.norm(dim=1, keepdim=True) + 1e-6)
+            out.append((e @ featV.T).half())
+        return out
+
+    ss_tr = _slot_scores(ctx_tr)
+    ss_te = _slot_scores(ctx_te)
+    prob_tr = _cont_tr_raw[:, 2 * D:]
+    prob_te = _cont_te_raw[:, 2 * D:]
 
     n_fit = int(Ntr * 0.8)
     yv = torch.tensor(ytr[n_fit:], device=dev)
@@ -305,6 +372,11 @@ def run(pop_size=64, gens=12, max_rounds=400, seed=5, max_spaces=16,
 
     def _san(v):
         return torch.nan_to_num(v, nan=0.0, posinf=0.0, neginf=0.0).clamp(-1e6, 1e6)
+
+    if lean:
+        return _run_lean(torch, tp, rng, dev, log, log_lines,
+                         pop_size, gens, max_rounds, max_spaces, out_path,
+                         verbose, locals(), head_extra=lean_head_extra)
 
     # ---- R0: PER-WORD perception, the animation wiring ----------------
     # each context word is a row; a genome is a word-property detector
@@ -591,9 +663,195 @@ def run(pop_size=64, gens=12, max_rounds=400, seed=5, max_spaces=16,
     return out
 
 
+def _run_lean(torch, tp, rng, dev, log, log_lines, pop_size, gens,
+              max_rounds, max_spaces, out_path, verbose, env,
+              head_extra=False):
+    """LEAN mode: the head reads ONLY genome outputs — genomes must
+    compress. Mixed populations: attend genomes (content addressing over
+    the candidate list) + vec genomes over [environment | prior outputs].
+    The fat anchor is reported for comparison but NEVER enters the head
+    or the fitness base — genomes carry the whole model."""
+    import time as _time
+    t0 = _time.time()
+    W_, V_ = W, V
+    B0_tr, B0_te = env["B0_tr"], env["B0_te"]
+    ss_tr, ss_te = env["ss_tr"], env["ss_te"]
+    prob_tr, prob_te = env["prob_tr"], env["prob_te"]
+    ctx_te, yte = env["ctx_te"], env["yte"]
+    ytr = env["ytr"]
+    Ntr, Nte = env["Ntr"], env["Nte"]
+    n_fit, yv, yte_t = env["n_fit"], env["yv"], env["yte_t"]
+    Yf, Yfull = env["Yf"], env["Yfull"]
+    targets, vocab, w2i = env["targets"], env["vocab"], env["w2i"]
+    tgt_i = env["tgt_i"]
+    uni_c, bi_c, tri_c = env["uni_c"], env["bi_c"], env["tri_c"]
+    oh_test = env["oh_test"]
+    _san = env["_san"]
+    from radial_evo import _ridge_soft
+
+    spaces, space_genomes, space_stats = [], [], []
+    all_tr, all_te = [], []
+    bank_tr, bank_te = B0_tr, B0_te
+    val_prev = 0.0
+    p_att = 0.5
+
+    for si in range(max_spaces):
+        C = bank_tr.shape[1]
+
+        def new_fn(r, C=C):
+            if r.random() < p_att:
+                return new_attend_genome(r, W_)
+            return rk.new_vec_genome(r, C)
+
+        def mut_fn(r, g, sc, C=C):
+            if g.get("kind") == "attend":
+                return mutate_attend(r, g, sc)
+            return rk.mutate_vec(r, g, sc, C)
+
+        def feat_tr(g, b=bank_tr):
+            if g.get("kind") == "attend":
+                return _san(feature_attend(torch, g, ss_tr, prob_tr))
+            return _san(rk.feature_vec(torch, tp, b, g))
+
+        def feat_te(g, b=bank_te):
+            if g.get("kind") == "attend":
+                return _san(feature_attend(torch, g, ss_te, prob_te))
+            return _san(rk.feature_vec(torch, tp, b, g))
+
+        log(f"  [lean space {si}] opening — bank {C} channels "
+            f"(head will NOT see them)")
+        base_prev = (torch.stack(all_tr, 1) if all_tr
+                     else torch.zeros((Ntr, 0), device=dev))
+        frozen, fcols = rk._evolve_space(torch, rng, pop_size, gens,
+                                         max_rounds, n_fit, Yf, yv, base_prev,
+                                         new_fn, mut_fn, feat_tr, log, verbose)
+        if not frozen:
+            log(f"  [lean space {si}] produced nothing — stop")
+            break
+        space_genomes.append(frozen)
+        f_tr = torch.stack(fcols, 1)
+        f_te = torch.stack([feat_te(g) for g in frozen], 1)
+        zmu, zsd = f_tr.mean(0), f_tr.std(0) + 1e-6
+        space_stats.append((zmu, zsd))
+        f_tr = ((f_tr - zmu) / zsd).clamp(-8, 8)
+        f_te = ((f_te - zmu) / zsd).clamp(-8, 8)
+        all_tr.extend(f_tr[:, j] for j in range(f_tr.shape[1]))
+        all_te.extend(f_te[:, j] for j in range(f_te.shape[1]))
+        base_all = torch.stack(all_tr, 1)
+        _, val_now = _ridge_soft(torch, base_all[:n_fit], base_all[n_fit:],
+                                 Yf, yv)
+        gain = val_now - val_prev
+        n_att = sum(1 for g in frozen if g.get("kind") == "attend")
+        spaces.append({"space": si, "n_frozen": len(frozen),
+                       "n_attend": n_att,
+                       "val_after": round(float(val_now), 4),
+                       "val_gain": round(float(gain), 4)})
+        log(f"  [lean space {si}] FULL: {len(frozen)} genomes ({n_att} "
+            f"attend), val {val_now:.4f} (+{gain:.4f}) "
+            f"({round(_time.time()-t0)}s)")
+        bank_tr = torch.cat([bank_tr, f_tr], 1)
+        bank_te = torch.cat([bank_te, f_te], 1)
+        val_prev = val_now
+        if si > 0 and gain < rk.MIN_SPACE_GAIN:
+            log(f"  [lean space {si}] gain {gain:.4f} — done")
+            break
+        if os.path.exists(_STOP):
+            break
+
+    if not all_tr:
+        log("[lean] no genomes at all — aborting")
+        return None
+    if head_extra:
+        # HYBRID: the head also sees the 2D continuation-EMBEDDING
+        # channels (semantic summary of the candidate list) — but never
+        # the V raw prob channels or 2V identities that bloat it
+        N_CONT_ = env["N_CONT"]
+        ce_tr = B0_tr[:, -N_CONT_:-V_]
+        ce_te = B0_te[:, -N_CONT_:-V_]
+        all_tr.extend(ce_tr[:, j] for j in range(ce_tr.shape[1]))
+        all_te.extend(ce_te[:, j] for j in range(ce_te.shape[1]))
+        log(f"  [lean] hybrid head: +{ce_tr.shape[1]} continuation-embedding "
+            "channels")
+    Ftr = torch.stack(all_tr, 1)
+    Fte = torch.stack(all_te, 1)
+
+    def _fit(Xf, Yf_, lam):
+        n, d = Xf.shape
+        hm, hs = Xf.mean(0), Xf.std(0) + 1e-6
+        A = torch.hstack([(Xf - hm) / hs, torch.ones(n, 1, device=dev)])
+        G = (A.T @ A).double() + lam * torch.eye(d + 1, device=dev,
+                                                 dtype=torch.float64)
+        Wm = torch.linalg.solve(G, (A.T @ Yf_).double()).float()
+        return hm, hs, Wm
+
+    best = (3.0, -1.0)
+    for lam in (1.0, 3.0, 10.0, 30.0):
+        hm, hs, Wm = _fit(Ftr[:n_fit], Yf, lam)
+        s = torch.hstack([(Ftr[n_fit:] - hm) / hs,
+                          torch.ones(Ntr - n_fit, 1, device=dev)]) @ Wm
+        a = float((s.argmax(1) == yv).float().mean())
+        if a > best[1]:
+            best = (lam, a)
+    hm, hs, Wm = _fit(Ftr, Yfull, best[0])
+    s = torch.hstack([(Fte - hm) / hs, torch.ones(Nte, 1, device=dev)]) @ Wm
+    top1 = float((s.argmax(1) == yte_t).float().mean())
+    top5 = float((s.topk(5, dim=1).indices == yte_t.view(-1, 1))
+                 .any(1).float().mean())
+
+    from anim_infer import count_params
+    genome_params = sum(count_params(g) for sp in space_genomes for g in sp)
+    head_params = int(Wm.numel())
+    n_genomes = sum(len(sp) for sp in space_genomes)
+
+    baselines = word_ngram_baselines(
+        np.array([[vocab[c] if c >= 0 else "<oov>" for c in row]
+                  for row in ctx_te]), yte, targets)
+    out = {"phase": "radial-lm-word LEAN (genomes carry the model)",
+           "context_words": W_, "vocab": V_, "n_train": Ntr, "n_test": Nte,
+           "chance": round(1.0 / V_, 4), "mode": "lean",
+           "n_spaces": len(spaces),
+           "space_caps": [sp["n_frozen"] for sp in spaces],
+           "n_attend": sum(sp["n_attend"] for sp in spaces),
+           "test_acc": round(top1, 4), "test_top5": round(top5, 4),
+           "fat_anchor_test": round(float(oh_test), 4),
+           "val_final": spaces[-1]["val_after"] if spaces else 0.0,
+           "spaces": spaces, "baselines": baselines,
+           "n_genomes": n_genomes,
+           "genome_params": genome_params, "head_params": head_params,
+           "total_params": genome_params + head_params,
+           "task": f"LEAN head: {n_genomes} genome features -> {V_} classes "
+                   f"({head_params:,} head params vs the fat anchor's "
+                   "millions); attend genomes do content-based addressing "
+                   "over the candidate list",
+           "seconds": round(_time.time() - t0)}
+    op = out_path or os.path.join(_HERE, "radial_data",
+                                  "lm_radial_word_lean.json")
+    with open(op, "w") as f:
+        json.dump(out, f, indent=1)
+    with open(os.path.join(_HERE, "radial_data",
+                           "lm_model_word_lean.json"), "w") as f:
+        json.dump({"context_words": W_, "vocab": V_, "spaces": space_genomes,
+                   "label": "next-word", "mode": "lean"}, f)
+    rk._record_run(
+        {"env": "lm-word-lean", "context_words": W_, "vocab": V_,
+         "n_train": Ntr, "pop_size": pop_size, "gens": gens, "seed": None},
+        [{"round": sp["space"], "added": sp["n_frozen"],
+          "val_acc": sp["val_after"], "n": sp["n_frozen"]} for sp in spaces],
+        {"test_acc": round(top1, 4), "test_top5": round(top5, 4),
+         "fat_anchor_test": round(float(oh_test), 4),
+         "n_frozen_total": n_genomes, "total_params": genome_params + head_params},
+        log_lines, ["lm", "word", "lean", "radial"])
+    print(f"[radial-lm-word LEAN] DONE: {len(spaces)} spaces "
+          f"{out['space_caps']} ({out['n_attend']} attend), TEST top1 "
+          f"{top1:.4f} top5 {top5:.4f} with {genome_params + head_params:,} "
+          f"params (fat anchor {oh_test:.4f} with millions) "
+          f"({round(_time.time()-t0)}s)", flush=True)
+    return out
+
+
 if __name__ == "__main__":
     import sys
     if not os.path.exists(os.path.join(_HERE, "radial_data", "lm_word.npz")) \
             or "--regen" in sys.argv:
         make_word_data()
-    run()
+    run(lean="--lean" in sys.argv)

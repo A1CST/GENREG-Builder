@@ -10,6 +10,18 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-15] (Claude)** — **Docs: TEMPORAL_RADIAL_STACK_GUIDE (.md +
+  .pdf)** — domain-agnostic setup guide for the temporal radial stack:
+  gradient-free by construction (evolution = structure, closed-form ridge =
+  weights, environment = statistics, labels never touch it), the
+  time-as-channels hand-off, anchors as honesty instruments, the emergent-
+  cap pressure, the six numerical rails (each bought with a real failure),
+  measured laws, reference results table, and pseudocode skeleton. ALSO:
+  RS embedding stage-1b on 120MB pure-wiki corpus: **spearman RS 0.3544 vs
+  SVD 0.1196** on held-out profiles (caveat: metric is domain-matched to
+  RS); neighbors now clearly real — king: ii frederick eldest emperor
+  prince / said: told stated explained knew says asked / city: municipal
+  county district borough. Stage-2 (plug into prediction) awaits user gate.
 - **[2026-07-15] (Claude)** — **VOCAB SCALING: V=1000 local + V=2000 on the new
   pod (RTX PRO 6000 Blackwell 96GB) — a scaling law emerges.** Top-1 vs
   vocab: V=500 0.3684 / V=1000 0.3394 / V=2000 **0.3273** (16-word context,
