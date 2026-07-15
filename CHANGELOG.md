@@ -10,6 +10,26 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-15] (Claude)** — **LM "how far can we go" campaign: bigram broken
+  decisively; trigram is the contested line; context-dilution law measured;
+  three scale bugs fixed for good.** Best hardened result: seed 101, 6 spaces,
+  **TEST 0.4060** vs unigram 0.2144 / bigram 0.2894 / trigram 0.4150 (multi-
+  seed spread 0.3856-0.4060; the earlier 0.4172 single-seed crossing predates
+  the numeric hardening — by our own +-1.4pt law the trigram crossing is SOFT,
+  the bigram break (+11 pts, every seed) is ROCK SOLID). **CONTEXT-DILUTION
+  LAW:** widening context HURTS uniform channel search — T=6: 0.4172/0.4060,
+  T=8: 0.3644 (0.3472 even at pop 128), T=10: 0.3410. Every added slot
+  quadratically dilutes the odds a random conjunction lands on the informative
+  last positions; fix = position-aware mutation operators (next session).
+  **Numeric fixes (permanent):** (1) dummy-variable trap — one-hot slots
+  sum-to-one collinear with intercept, now 26-ch dummy coding; (2) TF32
+  matmul poisoned the scorer's gram at 80k rows — fp64 gram+factor+solve in
+  make_scorer AND _ridge_soft (fp32 solves went quietly wrong: val collapse,
+  no error); (3) frozen genome columns exploding on out-of-region text —
+  train-stat standardize + clamp +-8sd both sides (a 4-seed union went val
+  0.4639 / test 0.3071 before this + the region-shift effect). Union/
+  interleaved-split experiments stopped per user; artifacts kept. 5-gram
+  ceiling added to the ladder (0.567). lm_radial.json = seed-101 best.
 - **[2026-07-15] (Claude)** — **LM PAGE REWIRED: the radial stack BREAKS THE
   BIGRAM CEILING — and the trigram ceiling — on isolated sequential
   composition.** Per user direction, one variable at a time: `radial_lm.py`

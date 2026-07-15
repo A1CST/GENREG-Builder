@@ -136,6 +136,7 @@
                   ["one-hot ridge (NO genomes)", d.onehot_ridge_test, "dim"],
                   ["trigram ceiling", b.trigram, "ceil"],
                   ["4-gram ceiling", b["4-gram"], "ceil"],
+                  ["5-gram ceiling", b["5-gram"], "ceil"],
                   ["genome stack (val)", d.val_final, ""],
                   ["genome stack (TEST)", d.test_acc, ""]];
       var max = Math.max.apply(0, rows.map(function (r2) { return r2[1] || 0; })) * 1.15;

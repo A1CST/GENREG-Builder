@@ -295,7 +295,13 @@ def _ridge_soft(torch, Xf, Xv, Yf, yval, lam=3.0):
     mu, sd = Xf.mean(0), Xf.std(0) + 1e-6
     A = torch.hstack([(Xf - mu) / sd, torch.ones(n, 1, device=Xf.device)])
     B = torch.hstack([(Xv - mu) / sd, torch.ones(len(Xv), 1, device=Xf.device)])
-    W = torch.linalg.solve(A.T @ A + lam * torch.eye(d + 1, device=Xf.device), A.T @ Yf)
+    # gram + solve in fp64: fp32 (and TF32) solves go quietly wrong once
+    # near-duplicate columns appear at large n — val collapses, no error
+    A64 = A.double()
+    W = torch.linalg.solve(
+        A64.T @ A64 + lam * torch.eye(d + 1, device=Xf.device,
+                                      dtype=torch.float64),
+        A64.T @ Yf.double()).float()
     s = B @ W
     soft = float(torch.log_softmax(s, 1)[torch.arange(len(yval)), yval].mean())
     acc = float((s.argmax(1) == yval).float().mean())

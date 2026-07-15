@@ -93,8 +93,9 @@ def ngram_baselines(ctx_te, y_te):
     region — the honest ceilings."""
     train_text, _ = _load_regions()
     ids = np.array([_IDX[c] for c in train_text], np.int32)
-    counts = [np.zeros((N_CLASSES ** k, N_CLASSES), np.int64) for k in range(4)]
-    for k in range(4):
+    KMAX = 5                             # up to 5-gram (4-char context)
+    counts = [np.zeros((N_CLASSES ** k, N_CLASSES), np.int64) for k in range(KMAX)]
+    for k in range(KMAX):
         if k == 0:
             np.add.at(counts[0], (np.zeros(len(ids) - 1, np.int64), ids[1:]), 1)
         else:
@@ -103,7 +104,8 @@ def ngram_baselines(ctx_te, y_te):
                 kk = kk * N_CLASSES + ids[j:len(ids) - k + j]
             np.add.at(counts[k], (kk, ids[k:]), 1)
     out = {}
-    for k, name in enumerate(["unigram", "bigram", "trigram", "4-gram"]):
+    for k, name in enumerate(["unigram", "bigram", "trigram", "4-gram",
+                              "5-gram"]):
         hits = 0
         for i in range(len(y_te)):
             kb = k
@@ -121,18 +123,25 @@ def ngram_baselines(ctx_te, y_te):
 
 
 def _onehot(torch, dev, ctx):
-    """(N, T) ids -> (N, T*27) float one-hot channels."""
+    """(N, T) ids -> (N, T*26) one-hot channels. The space char is the
+    all-zeros code per slot (dummy coding) — same information, but avoids
+    the exact sum-to-one collinearity with the ridge intercept that makes
+    the Cholesky singular at scale."""
     N = len(ctx)
-    B = torch.zeros((N, T * N_CLASSES), device=dev)
+    C = N_CLASSES - 1                    # 26 letters; space = all zeros
+    B = torch.zeros((N, T * C), device=dev)
     idx = torch.tensor(ctx.astype(np.int64), device=dev)
+    ar = torch.arange(N, device=dev)
     for f in range(T):
-        B[torch.arange(N, device=dev), f * N_CLASSES + idx[:, f]] = 1.0
+        m = idx[:, f] < C
+        B[ar[m], f * C + idx[m, f]] = 1.0
     return B
 
 
 def run(pop_size=64, gens=12, max_rounds=400, seed=5, max_spaces=16,
         out_path=None, verbose=True):
     import torch
+    torch.backends.cuda.matmul.allow_tf32 = False   # scoring needs true fp32
     rng = np.random.default_rng(seed)
     dev = "cuda" if torch.cuda.is_available() else "cpu"
     tp = _tprims(torch)
@@ -178,12 +187,17 @@ def run(pop_size=64, gens=12, max_rounds=400, seed=5, max_spaces=16,
     all_tr.extend(base_cols_tr); all_te.extend(base_cols_te)
     val_prev = oh_val
 
+    def _san(v):
+        """exp-family prims on gated values can emit inf/NaN — one poisoned
+        column makes the scorer's gram 'not positive-definite'."""
+        return torch.nan_to_num(v, nan=0.0, posinf=0.0, neginf=0.0).clamp(-1e6, 1e6)
+
     for si in range(max_spaces):
         C = bank_tr.shape[1]
         new_fn = lambda r: rk.new_vec_genome(r, C)
         mut_fn = lambda r, g, sc: rk.mutate_vec(r, g, sc, C)
-        feat_tr = lambda g: rk.feature_vec(torch, tp, bank_tr, g)
-        feat_te = lambda g: rk.feature_vec(torch, tp, bank_te, g)
+        feat_tr = lambda g: _san(rk.feature_vec(torch, tp, bank_tr, g))
+        feat_te = lambda g: _san(rk.feature_vec(torch, tp, bank_te, g))
         src = (f"{C} channels (raw one-hots"
                + (f" + space {si-1} outputs)" if si else ")"))
         log(f"  [space {si}] opening — reads {src}")
@@ -196,7 +210,16 @@ def run(pop_size=64, gens=12, max_rounds=400, seed=5, max_spaces=16,
             break
         space_genomes.append(frozen)
         fte = [feat_te(g) for g in frozen]
-        all_tr.extend(fcols); all_te.extend(fte)
+        # standardize by TRAIN stats and clamp both sides to +-8 sd: a
+        # genome tame on train can explode on the disjoint test region
+        # (gate/exp saturation flips) and one such column wrecks the head
+        f_tr = torch.stack(fcols, 1)
+        f_te2 = torch.stack(fte, 1)
+        zmu, zsd = f_tr.mean(0), f_tr.std(0) + 1e-6
+        f_tr = ((f_tr - zmu) / zsd).clamp(-8, 8)
+        f_te2 = ((f_te2 - zmu) / zsd).clamp(-8, 8)
+        all_tr.extend(f_tr[:, j] for j in range(f_tr.shape[1]))
+        all_te.extend(f_te2[:, j] for j in range(f_te2.shape[1]))
         base_all = torch.stack(all_tr, 1)
         _, val_now = _ridge_soft(torch, base_all[:n_fit], base_all[n_fit:], Yf, yv)
         gain = val_now - val_prev
@@ -205,11 +228,8 @@ def run(pop_size=64, gens=12, max_rounds=400, seed=5, max_spaces=16,
                        "val_gain": round(float(gain), 4)})
         log(f"  [space {si}] FULL: {len(frozen)} genomes, val {val_now:.4f} "
             f"(+{gain:.4f}) ({round(time.time()-t0)}s)")
-        f_tr = torch.stack(fcols, 1)
-        f_te2 = torch.stack(fte, 1)
-        zmu, zsd = f_tr.mean(0), f_tr.std(0) + 1e-6
-        bank_tr = torch.cat([B0_tr, (f_tr - zmu) / zsd], 1)
-        bank_te = torch.cat([B0_te, (f_te2 - zmu) / zsd], 1)
+        bank_tr = torch.cat([B0_tr, f_tr], 1)
+        bank_te = torch.cat([B0_te, f_te2], 1)
         val_prev = val_now
         if si > 0 and gain < rk.MIN_SPACE_GAIN:
             log(f"  [space {si}] gain {gain:.4f} < {rk.MIN_SPACE_GAIN} — done")
@@ -252,6 +272,88 @@ def run(pop_size=64, gens=12, max_rounds=400, seed=5, max_spaces=16,
     print(f"[radial-lm] DONE: {len(spaces)} spaces {out['space_caps']}, "
           f"one-hot ridge {oh_test:.4f}, stack TEST {best:.4f} "
           f"vs baselines {baselines} ({round(time.time()-t0)}s)", flush=True)
+    return out
+
+
+def _replay(torch, tp, model, B0_tr, B0_te):
+    """Deterministic feature replay of a saved stack: genome columns only
+    (B0 is shared across seeds, so the union adds it once)."""
+    def _san(v):
+        return torch.nan_to_num(v, nan=0.0, posinf=0.0, neginf=0.0).clamp(-1e6, 1e6)
+    cols_tr, cols_te = [], []
+    bank_tr, bank_te = B0_tr, B0_te
+    for sp in model["spaces"]:
+        s_tr = torch.stack([_san(rk.feature_vec(torch, tp, bank_tr, g))
+                            for g in sp], 1)
+        s_te = torch.stack([_san(rk.feature_vec(torch, tp, bank_te, g))
+                            for g in sp], 1)
+        zmu, zsd = s_tr.mean(0), s_tr.std(0) + 1e-6
+        s_tr = ((s_tr - zmu) / zsd).clamp(-8, 8)      # train-stat clamp,
+        s_te = ((s_te - zmu) / zsd).clamp(-8, 8)      # both sides
+        cols_tr.extend(s_tr[:, j] for j in range(s_tr.shape[1]))
+        cols_te.extend(s_te[:, j] for j in range(s_te.shape[1]))
+        bank_tr = torch.cat([B0_tr, s_tr], 1)
+        bank_te = torch.cat([B0_te, s_te], 1)
+    return cols_tr, cols_te
+
+
+def union(seeds, out_path=None):
+    """Union of several seeds' genome vocabularies + ONE head refit —
+    the seed-farming lever, ported from the CIFAR campaign."""
+    import torch
+    torch.backends.cuda.matmul.allow_tf32 = False
+    dev = "cuda" if torch.cuda.is_available() else "cpu"
+    tp = _tprims(torch)
+    t0 = time.time()
+    z = np.load(os.path.join(_HERE, "radial_data", "lm_ids.npz"))
+    ytr, yte = z["ytr"], z["yte"]
+    Ntr, Nte = len(ytr), len(yte)
+    B0_tr = _onehot(torch, dev, z["ctx_tr"])
+    B0_te = _onehot(torch, dev, z["ctx_te"])
+    yte_t = torch.tensor(yte, device=dev)
+    yv = torch.tensor(ytr[int(Ntr * 0.8):], device=dev)
+    n_fit = int(Ntr * 0.8)
+    Yf = -torch.ones((n_fit, N_CLASSES), device=dev)
+    Yf[torch.arange(n_fit), torch.tensor(ytr[:n_fit], device=dev)] = 1.0
+    Yfull = -torch.ones((Ntr, N_CLASSES), device=dev)
+    Yfull[torch.arange(Ntr), torch.tensor(ytr, device=dev)] = 1.0
+
+    all_tr = [B0_tr[:, j] for j in range(B0_tr.shape[1])]
+    all_te = [B0_te[:, j] for j in range(B0_te.shape[1])]
+    per_seed = {}
+    for s in seeds:
+        with open(os.path.join(_HERE, "radial_data",
+                               f"lm_model_seed{s}.json")) as f:
+            model = json.load(f)
+        ctr, cte = _replay(torch, tp, model, B0_tr, B0_te)
+        all_tr.extend(ctr); all_te.extend(cte)
+        per_seed[s] = len(ctr)
+        print(f"  seed {s}: {len(ctr)} genome columns replayed "
+              f"({round(time.time()-t0)}s)", flush=True)
+
+    Ftr = torch.stack(all_tr, 1)
+    Fte = torch.stack(all_te, 1)
+    # lambda picked on the val split, test touched once
+    best_lam, best_val = 3.0, -1.0
+    for lam in (1.0, 3.0, 10.0, 30.0):
+        _, v = _ridge_soft(torch, Ftr[:n_fit], Ftr[n_fit:], Yf, yv, lam=lam)
+        if v > best_val:
+            best_lam, best_val = lam, v
+    _, test = _ridge_soft(torch, Ftr, Fte, Yfull, yte_t, lam=best_lam)
+
+    baselines = ngram_baselines(z["ctx_te"], yte)
+    out = {"phase": "radial-lm UNION (seed farming)", "seeds": list(seeds),
+           "genomes_per_seed": per_seed,
+           "n_genomes": sum(per_seed.values()),
+           "val": round(float(best_val), 4), "test_acc": round(float(test), 4),
+           "baselines": baselines, "lam": best_lam,
+           "seconds": round(time.time() - t0)}
+    op = out_path or os.path.join(_HERE, "radial_data", "lm_radial_union.json")
+    with open(op, "w") as f:
+        json.dump(out, f, indent=1)
+    print(f"[radial-lm] UNION {list(seeds)}: val {best_val:.4f} "
+          f"TEST {test:.4f} vs {baselines} ({round(time.time()-t0)}s)",
+          flush=True)
     return out
 
 

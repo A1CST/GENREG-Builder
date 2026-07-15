@@ -241,9 +241,14 @@ def make_scorer(torch, base, n_fit, Yf, yv, lam=3.0):
         Bfz = torch.ones(n_fit, 1, device=dev)
         Bvz = torch.ones(nv, 1, device=dev)
     F1 = Bfz.shape[1]
-    A = Bfz.T @ Bfz + lam * torch.eye(F1, device=dev)
+    # gram + factor + solve in fp64: fp32 matmul runs in TF32 on Ampere+
+    # (~1e-3 relative), whose error scales with n and swamps lam once
+    # near-duplicate columns appear (seen at n_fit 80k). fp64 matmul
+    # bypasses TF32. Bulk candidate matmuls stay fp32.
+    A = Bfz.double().T @ Bfz.double() + lam * torch.eye(F1, device=dev,
+                                                        dtype=torch.float64)
     L = torch.linalg.cholesky(A)
-    W0 = torch.cholesky_solve(Bfz.T @ Yf, L)          # (F1, 10)
+    W0 = torch.cholesky_solve((Bfz.T @ Yf).double(), L).float()  # (F1, 10)
     S0 = Bvz @ W0                                      # (nv, 10)
     b_soft = float(torch.log_softmax(S0, 1)[torch.arange(nv), yv].mean())
     b_acc = float((S0.argmax(1) == yv).float().mean())
@@ -254,7 +259,7 @@ def make_scorer(torch, base, n_fit, Yf, yv, lam=3.0):
         Cfz = (Cf - cmu) / csd
         Cvz = (C[n_fit:] - cmu) / csd
         U = Bfz.T @ Cfz                                # (F1, K)
-        P = torch.cholesky_solve(U, L)                 # (F1, K)
+        P = torch.cholesky_solve(U.double(), L).float()  # (F1, K)
         d = torch.clamp((Cfz * Cfz).sum(0) + lam - (U * P).sum(0), min=1e-6)
         W2 = (Cfz.T @ Yf - U.T @ W0) / d.view(-1, 1)   # (K, 10)
         Q = Cvz - Bvz @ P                              # (nv, K)
