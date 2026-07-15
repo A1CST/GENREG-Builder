@@ -10,6 +10,22 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-15] (Claude)** — **/lm REBUILT AS AN APPEND-ONLY ITERATION LOG**
+  (per user: build like the animation page; only ADD from now on). The page
+  is now a module stack, newest at the bottom, with AUTO-SNAP to the newest
+  module on load (+ a floating "newest" button). Data-driven: modules come
+  from radial_data/lm_modules.json (append-only registry; adding an
+  iteration = one new entry + its export json — no template edits). Each
+  module shows the model's OUTPUT (samples verbatim) and PARAMS (total/
+  evolved/head chips) plus the ceiling ladder and per-space table; embed
+  modules show the spearman gate + nearest neighbors. Eleven modules seeded
+  covering the whole line: char-isolated (0.406) -> glyph (0.295) -> word
+  fat SVD (0.3273) -> lean (0.2201) -> hybrid (0.2677) -> RS-5k embeddings
+  -> swap A/B -> RS-30k embeddings -> RS-30k fat (0.3296, ties SVD) ->
+  RS-30k lean (0.2973, best lean). The LIVE autocomplete module stays
+  pinned at the bottom. New endpoints /api/lm/modules +
+  /api/lm/export/<name> (whitelisted). All exports verified present and
+  parsing. **Flask restart needed.**
 - **[2026-07-15] (Claude)** — **30K PROBE: evolved embeddings TIE SVD through
   the flat head and BEAT it through composition — the embedding gamble pays
   in full.** RS table rebuilt at 30k words (same 120MB wiki corpus, same

@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>GENREG — LM · Temporal Radial</title>
+  <title>GENREG — LM · Iteration Log</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='vendor/xterm.css') }}" />
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
   <style>
@@ -12,335 +12,255 @@
     .lm-h1 { font-size:17px; color:#e6ebf1; margin:6px 0 4px; }
     .lm-lede { font-size:12px; color:#8b95a1; line-height:1.6; margin:0 0 16px; }
     .lm-lede b { color:#c7d0da; }
-    .lm-sec { font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:#7f8b98; margin:22px 0 10px; border-bottom:1px solid #161b22; padding-bottom:6px; }
-    .lm-pipe { display:flex; flex-wrap:wrap; }
-    .lm-stage { flex:1 1 200px; min-width:200px; border:1px solid #1c232c; border-radius:8px; background:#0d1117; padding:11px 13px; margin:0 12px 12px 0; position:relative; }
-    .lm-stage:after { content:"→"; position:absolute; right:-13px; top:45%; color:#3a4552; font-size:15px; }
-    .lm-stage:last-child:after { content:""; }
-    .lm-stage h3 { font-size:12.5px; color:#dbe2ea; margin:0 0 6px; }
-    .lm-stage p { font-size:11px; color:#8b95a1; line-height:1.55; margin:0; }
-    .lm-stage p b { color:#b6c1cd; }
-    .lm-stage .tag { display:inline-block; font-size:9.5px; padding:1px 7px; border-radius:8px; margin-bottom:7px; text-transform:uppercase; letter-spacing:.05em; }
-    .tag.t0 { background:#12263a; color:#6fb3e0; } .tag.t1 { background:#12301f; color:#5fd39a; }
-    .tag.t2 { background:#332611; color:#e0b46f; } .tag.t3 { background:#2e1a2e; color:#d08ad0; }
+    .lm-mod { border:1px solid #1c232c; border-radius:10px; background:#0d1117; padding:16px 18px; margin:0 0 18px; }
+    .lm-mod.newest { border-color:#2e7d5b; }
+    .lm-mod h2 { font-size:13.5px; color:#dbe2ea; margin:0 0 3px; }
+    .lm-mod .dt { font-size:10px; color:#5a6672; font-family:ui-monospace,monospace; }
+    .lm-mod .ds { font-size:11.5px; color:#8b95a1; line-height:1.55; margin:7px 0 12px; }
+    .lm-chips { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px; }
+    .lm-chip { font-size:10.5px; padding:3px 10px; border-radius:10px; background:#11151b; border:1px solid #232a33; color:#aeb8c2; font-family:ui-monospace,monospace; }
+    .lm-chip b { color:#dbe2ea; }
     .lm-cols { display:flex; gap:14px; flex-wrap:wrap; }
-    .lm-col { flex:1 1 460px; min-width:400px; }
-    .lm-cl { font-size:10.5px; color:#6c7885; margin-top:5px; line-height:1.5; }
-    .lm-bar { display:flex; align-items:center; gap:8px; margin-bottom:6px; font-size:11px; }
+    .lm-col { flex:1 1 440px; min-width:380px; }
+    .lm-bar { display:flex; align-items:center; gap:8px; margin-bottom:5px; font-size:11px; }
     .lm-bar .lb { flex:0 0 190px; color:#8b95a1; text-align:right; }
-    .lm-bar .tr { flex:1; height:13px; background:#10151c; border-radius:3px; overflow:hidden; }
+    .lm-bar .tr { flex:1; height:12px; background:#10151c; border-radius:3px; overflow:hidden; }
     .lm-bar .fl { height:100%; border-radius:3px; background:#2e7d5b; }
     .lm-bar.dim .fl { background:#2f4152; }
     .lm-bar.ceil .fl { background:#7a5a2e; }
     .lm-bar .vl { flex:0 0 52px; color:#dbe2ea; font-family:ui-monospace,monospace; font-variant-numeric:tabular-nums; }
-    table.lm-tbl { width:100%; border-collapse:collapse; font-size:11.5px; }
-    table.lm-tbl th { text-align:right; color:#7f8b98; font-weight:400; padding:4px 6px; border-bottom:1px solid #232a33; }
+    table.lm-tbl { width:100%; border-collapse:collapse; font-size:11px; }
+    table.lm-tbl th { text-align:right; color:#7f8b98; font-weight:400; padding:3px 6px; border-bottom:1px solid #232a33; }
     table.lm-tbl th:first-child, table.lm-tbl td:first-child { text-align:left; }
-    table.lm-tbl td { text-align:right; padding:5px 6px; border-bottom:1px solid #141a21; color:#c7d0da; font-variant-numeric:tabular-nums; font-family:ui-monospace,monospace; }
-    .lm-note { font-size:11px; color:#6c7885; line-height:1.6; margin-top:14px; border-top:1px solid #161b22; padding-top:10px; }
-    .lm-note b { color:#9aa5b1; }
-    .lm-win { display:flex; align-items:center; gap:4px; margin-bottom:8px; font-family:ui-monospace,monospace; }
-    .lm-win canvas { width:44px; height:44px; image-rendering:pixelated; border:1px solid #171d24; border-radius:4px; background:#000; }
-    .lm-win .arr { color:#3a4552; margin:0 4px; }
-    .lm-win .nx { font-size:16px; color:#5fd39a; border:1px dashed #2e7d5b; border-radius:4px; padding:8px 12px; }
-    .lm-genome { border:1px solid #1c232c; border-radius:8px; background:#0d1117; padding:13px 15px; font-family:ui-monospace,monospace; font-size:12px; color:#c7d0da; line-height:1.9; overflow-x:auto; }
-    .lm-genome .g1 { color:#5fd39a; } .lm-genome .g2 { color:#6fb3e0; } .lm-genome .cm { color:#5a6672; }
+    table.lm-tbl td { text-align:right; padding:4px 6px; border-bottom:1px solid #141a21; color:#c7d0da; font-variant-numeric:tabular-nums; font-family:ui-monospace,monospace; }
+    .lm-genome { border:1px solid #1c232c; border-radius:8px; background:#0b0e12; padding:11px 13px; font-family:ui-monospace,monospace; font-size:11.5px; color:#c7d0da; line-height:1.8; overflow-x:auto; margin-bottom:8px; }
+    .lm-genome .g2 { color:#6fb3e0; } .lm-genome .cm { color:#5a6672; }
+    .lm-nn { font-family:ui-monospace,monospace; font-size:11px; color:#c7d0da; line-height:1.8; }
+    .lm-nn b { color:#5fd39a; }
+    .lm-foot { font-size:10px; color:#5a6672; margin-top:10px; border-top:1px solid #161b22; padding-top:7px; font-family:ui-monospace,monospace; }
+    .lm-btn { font-size:12px; padding:8px 16px; border-radius:6px; border:1px solid #2f4152; background:#1c2733; color:#dbe2ea; cursor:pointer; }
+    .lm-btn:disabled { opacity:.5; cursor:default; }
+    #lm-snap { position:fixed; right:26px; bottom:26px; z-index:50; border-radius:18px; padding:8px 15px; font-size:12px; background:#1c2733; color:#dbe2ea; border:1px solid #2e7d5b; cursor:pointer; }
   </style>
 </head>
 <body class="tlm-body">
   <header class="topbar">
-    <div class="brand">GENREG<span class="brand-sub">lm · the temporal radial stack, pointed at language</span></div>
+    <div class="brand">GENREG<span class="brand-sub">lm · iteration log — append only, newest at the bottom</span></div>
     <div class="status">{% set nav_active = 'lm' %}{% include '_nav.html' %}</div>
   </header>
 
-  <main class="lm-main"><div class="lm-wrap">
-    <h1 class="lm-h1">The radial stack on language — sequential composition, isolated</h1>
-    <p class="lm-lede">One variable at a time. The model gets character <b>identity for
-      free</b> — a 6-char context enters as (position × char) one-hot channels — and must
-      predict the <b>next character</b> (27 classes). The anchor is a closed-form ridge
-      on those raw channels with <b>no genomes at all</b>: that additive model literally
-      contains the bigram table but <b>cannot represent interactions</b> ("t then h").
-      Genome spaces only earn fitness for what they add <b>beyond</b> it — conjunctions
-      composed across positions. If the stack climbs past the one-hot ridge and the
-      bigram ceiling toward the trigram mark, sequential composition was learned, not
-      assumed. (Stage 2 — glyph frames, vision + language at once — already ran:
-      0.2950 vs bigram 0.2894; preserved in lm_radial_glyph.json.)</p>
+  <main class="lm-main" id="lm-main"><div class="lm-wrap">
+    <h1 class="lm-h1">The LM line — every iteration, in order</h1>
+    <p class="lm-lede">This page is an <b>append-only log</b>: each experiment adds a
+      module at the bottom and nothing old is rewritten, so the whole path from
+      character bigrams to evolved embedding spaces stays visible. Every module shows
+      the model's <b>numbers, parameters, and raw output</b>. All gradient-free:
+      evolution builds structure, a closed-form ridge maps it to classes. The page
+      snaps to the newest module on load.</p>
 
-    <div class="lm-sec">The wiring</div>
-    <div class="lm-pipe">
-      <div class="lm-stage"><span class="tag t0">input</span>
-        <h3>Character IDs, one-hot</h3>
-        <p>A window is (position × char) = <b>162 binary channels</b>. No pixels, no
-        perception problem — identity is given so only <b>composition</b> is under
-        test. Test windows come from a <b>disjoint corpus region</b>.</p></div>
-      <div class="lm-stage"><span class="tag t1">anchor</span>
-        <h3>The no-genome ridge</h3>
-        <p>A closed-form head on the raw channels. Additive by construction: it holds
-        the full bigram table plus per-slot unigram tilts, but <b>no interactions</b>.
-        Every genome's fitness is measured as residual gain <b>over this anchor</b>.</p></div>
-      <div class="lm-stage"><span class="tag t2">genomes</span>
-        <h3>Conjunctions across positions</h3>
-        <p>Vec-grammar genomes fold channels with ×, min, |−| and gates:
-        <b>min(t@5, h@6)</b> is a trigram detector. Every space also keeps the raw
-        one-hot skip bank, so identity stays reachable at any depth.</p></div>
-      <div class="lm-stage"><span class="tag t3">stack</span>
-        <h3>Emergent-cap spaces</h3>
-        <p>Frozen conjunctions become channels for the next space — compositions of
-        compositions. Depth decided by the cap pressure, not by hand. Closed-form
-        27-way head; test touched once.</p></div>
-    </div>
+    <div id="lm-mods"><span class="lm-lede">loading modules…</span></div>
 
-    <div class="lm-sec">What a compositional genome can say</div>
-    <div class="lm-genome">
-      <span class="cm"># expressible in the vec grammar over [raw one-hots | prior spaces]:</span><br>
-      trigram&nbsp;&nbsp;&nbsp;= <span class="g1">min( t@slot5 , h@slot6 )</span> <span class="cm"># "..th" → e</span><br>
-      4-gram&nbsp;&nbsp;&nbsp;&nbsp;= <span class="g2">min( genome_trigram(x) , space@slot4 )</span> <span class="cm"># " th" — a composition OF a composition</span><br>
-      <span class="cm"># the additive anchor cannot write either of these; the genomes can</span>
-    </div>
-
-    <div class="lm-sec">The task — real windows from the corpus</div>
-    <div id="lm-wins"><span class="lm-cl">loading examples…</span></div>
-    <div class="lm-cl">Live test windows: six context characters (␣ = space), and the
-      dashed box is the next character the model must predict. Data:
-      combined_corpus.txt, train and test from disjoint regions.</div>
-
-    <div class="lm-sec">Results, live — the stack vs the n-gram ceilings</div>
-    <div class="lm-cols">
-      <div class="lm-col">
-        <div id="lm-results">loading run results…</div>
-        <div class="lm-note" id="lm-task"></div>
+    <div class="lm-mod newest" id="lm-live">
+      <h2>LIVE · autocomplete with the latest checkpoint</h2>
+      <div class="dt">always the newest word model on disk</div>
+      <div class="ds">Type a few words; the current checkpoint continues them
+        (calibrated sharpness, top-5 sampling, repetition penalty). The first
+        completion builds the model once (~2-3 min); after that it is instant.
+        Model parameters appear after the first completion.</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <input id="lmw-prompt" type="text" placeholder="type the start of a sentence…"
+               style="flex:1 1 340px;min-width:240px;padding:8px 10px;font-size:13px;
+                      font-family:ui-monospace,monospace;background:#0b0e12;
+                      color:#dbe2ea;border:1px solid #2f4152;border-radius:6px" />
+        <button class="lm-btn" id="lmw-go">Complete</button>
+        <span id="lmw-go-status" style="font-size:11px;color:#8b95a1"></span>
       </div>
-      <div class="lm-col">
-        <table class="lm-tbl" id="lm-spaces"></table>
-      </div>
+      <div id="lmw-out" style="margin-top:10px"></div>
+      <div class="lm-foot" id="lmw-params">model parameters appear here after the
+        first completion</div>
     </div>
-
-    <div class="lm-sec">Generated text — sampling the stack, character by character</div>
-    <div id="lm-samples"><span class="lm-cl">no samples in the export yet</span></div>
-    <div class="lm-cl">Temperature sampling from the 27-way head, one character at a
-      time, the window sliding as it writes. At char-level top-1 ~0.4 the output is
-      word-shaped English fragments — the honest state of the model, shown rather than
-      described.</div>
-
-    <div class="lm-sec" style="margin-top:34px">WORD LEVEL — the pivot: composing meaning, not spelling</div>
-    <p class="lm-lede">Character prediction fights n-gram tables at their own game.
-      Word level moves the fight to <b>composition over meaning</b>: the six context
-      words enter as their <b>128-d corpus-SVD embeddings</b> (the semantic space is
-      pre-built from corpus statistics — features are the environment), and the model
-      predicts the next word over the top-500 vocabulary. The anchor is again the
-      no-genome ridge — linear-from-embeddings — and genomes only earn for what they
-      compose beyond it. Word n-gram ceilings fit on the full train region.</p>
-
-    <div class="lm-cols">
-      <div class="lm-col">
-        <div id="lmw-results">loading word-model results…</div>
-        <div class="lm-note" id="lmw-task"></div>
-      </div>
-      <div class="lm-col">
-        <table class="lm-tbl" id="lmw-spaces"></table>
-        <div id="lmw-samples" style="margin-top:12px"></div>
-      </div>
-    </div>
-
-    <div class="lm-sec">Try it — autocomplete with the latest checkpoint</div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-      <input id="lmw-prompt" type="text" placeholder="type the start of a sentence…"
-             style="flex:1 1 340px;min-width:240px;padding:8px 10px;font-size:13px;
-                    font-family:ui-monospace,monospace;background:#0d1117;
-                    color:#dbe2ea;border:1px solid #2f4152;border-radius:6px" />
-      <button class="an-btn" id="lmw-go"
-              style="font-size:12px;padding:8px 16px;border-radius:6px;
-                     border:1px solid #2f4152;background:#1c2733;color:#dbe2ea;
-                     cursor:pointer">Complete</button>
-      <span id="lmw-go-status" style="font-size:11px;color:#8b95a1"></span>
-    </div>
-    <div id="lmw-out" style="margin-top:10px"></div>
-    <div class="lm-note" id="lmw-params">The first completion builds the model from the
-      checkpoint (~2–3 min, once per server start); after that it is instant. Model
-      parameters appear here after the build.</div>
-
-    <div class="lm-note">The previous intent-genome rebuild is superseded on this page
-      (its pipeline and APIs remain in genreg_train/). Char run: <b>radial_lm.py</b> ·
-      word run: <b>radial_lm_word.py</b> · exports: <b>radial_data/lm_radial*.json</b> ·
-      no gradients anywhere.</div>
   </div></main>
+
+  <button id="lm-snap" title="jump to newest">newest ▼</button>
 
   <script>
   (function () {
     "use strict";
-    /* ---- results vs n-gram ceilings ---- */
-    fetch("/api/lm/radial").then(function (r) { return r.json(); }).then(function (d) {
-      var box = document.getElementById("lm-results");
-      if (d.error) { box.textContent = d.error; return; }
-      if (d.pending) { box.textContent = "run in progress — no export yet"; return; }
-      var b = d.baselines || {};
-      var rows = [["chance (27 classes)", d.chance, "dim"],
-                  ["unigram ceiling", b.unigram, "ceil"],
-                  ["bigram ceiling", b.bigram, "ceil"],
-                  ["one-hot ridge (NO genomes)", d.onehot_ridge_test, "dim"],
-                  ["trigram ceiling", b.trigram, "ceil"],
-                  ["4-gram ceiling", b["4-gram"], "ceil"],
-                  ["5-gram ceiling", b["5-gram"], "ceil"],
-                  ["genome stack (val)", d.val_final, ""],
-                  ["genome stack (TEST)", d.test_acc, ""]];
-      var max = Math.max.apply(0, rows.map(function (r2) { return r2[1] || 0; })) * 1.15;
-      box.innerHTML = rows.filter(function (r2) { return r2[1] != null; }).map(function (r2) {
-        return '<div class="lm-bar ' + r2[2] + '"><div class="lb">' + r2[0] +
+    var mods = document.getElementById("lm-mods");
+
+    function chip(label, val) {
+      return val == null ? "" :
+        '<span class="lm-chip">' + label + " <b>" + val + "</b></span>";
+    }
+
+    function bars(rows) {
+      var vals = rows.filter(function (r) { return r[1] != null; });
+      if (!vals.length) { return ""; }
+      var max = Math.max.apply(0, vals.map(function (r) { return r[1]; })) * 1.12;
+      return vals.map(function (r) {
+        return '<div class="lm-bar ' + (r[2] || "") + '"><div class="lb">' + r[0] +
           '</div><div class="tr"><div class="fl" style="width:' +
-          (100 * r2[1] / max).toFixed(1) + '%"></div></div><div class="vl">' +
-          r2[1].toFixed(4) + "</div></div>";
+          (100 * r[1] / max).toFixed(1) + '%"></div></div><div class="vl">' +
+          r[1].toFixed(4) + "</div></div>";
       }).join("");
-      var t = document.getElementById("lm-spaces");
-      t.innerHTML = "<tr><th>space</th><th>genomes</th><th>val after</th><th>gain</th></tr>";
-      (d.spaces || []).forEach(function (s) {
-        var tr = document.createElement("tr");
-        tr.innerHTML = "<td>R" + s.space + "</td><td>" + s.n_frozen + "</td><td>" +
-          s.val_after.toFixed(4) + "</td><td>+" + s.val_gain.toFixed(4) + "</td>";
-        t.appendChild(tr);
-      });
-      document.getElementById("lm-task").innerHTML =
-        "<b>" + d.n_train + "</b> train / <b>" + d.n_test + "</b> test windows · " +
-        d.frames + "-char context · " + d.seconds + "s · " + d.task;
-      if (d.samples && d.samples.length) {
-        document.getElementById("lm-samples").innerHTML = d.samples.map(function (s) {
-          var pr = s.prompt, rest = s.text.slice(pr.length);
-          return '<div class="lm-genome" style="margin-bottom:8px">' +
-            '<span class="g2">' + pr + '</span>' + rest +
-            ' <span class="cm"># temp ' + s.temp + '</span></div>';
-        }).join("");
-      }
-    }).catch(function (e) {
-      document.getElementById("lm-results").textContent = "load failed: " + e;
-    });
+    }
 
-    /* ---- word-level panel ---- */
-    fetch("/api/lm/radial/word").then(function (r) { return r.json(); }).then(function (d) {
-      var box = document.getElementById("lmw-results");
-      if (d.error) { box.textContent = d.error; return; }
-      if (d.pending) { box.textContent = "word run in progress — no export yet"; return; }
+    function renderRun(m, d) {
       var b = d.baselines || {};
-      var rows = [["chance (top-" + d.vocab + ")", d.chance, "dim"],
-                  ["word unigram ceiling", b.unigram, "ceil"],
-                  ["word bigram ceiling", b.bigram, "ceil"],
-                  ["word trigram ceiling", b.trigram, "ceil"],
-                  ["anchor (NO genomes)", d.embed_ridge_test, "dim"],
-                  ["genome stack (TEST top-1)", d.test_acc, ""],
-                  ["trigram top-5 ceiling", d.trigram_top5, "ceil"],
-                  ["anchor top-5", d.anchor_top5, "dim"],
-                  ["genome stack (TEST top-5)", d.test_top5, ""]];
-      var max = Math.max.apply(0, rows.map(function (r2) { return r2[1] || 0; })) * 1.15;
-      box.innerHTML = rows.filter(function (r2) { return r2[1] != null; }).map(function (r2) {
-        return '<div class="lm-bar ' + r2[2] + '"><div class="lb">' + r2[0] +
-          '</div><div class="tr"><div class="fl" style="width:' +
-          (100 * r2[1] / max).toFixed(1) + '%"></div></div><div class="vl">' +
-          r2[1].toFixed(4) + "</div></div>";
-      }).join("");
-      var t = document.getElementById("lmw-spaces");
-      t.innerHTML = "<tr><th>space</th><th>genomes</th><th>val after</th><th>gain</th></tr>";
-      (d.spaces || []).forEach(function (s) {
-        var tr = document.createElement("tr");
-        tr.innerHTML = "<td>R" + s.space + "</td><td>" + s.n_frozen + "</td><td>" +
-          s.val_after.toFixed(4) + "</td><td>+" + s.val_gain.toFixed(4) + "</td>";
-        t.appendChild(tr);
-      });
-      document.getElementById("lmw-task").innerHTML =
-        "<b>" + d.n_train + "</b> train / <b>" + d.n_test + "</b> test windows · " +
-        d.context_words + "-word context · top-" + d.vocab + " vocab covers " +
-        (100 * d.coverage).toFixed(0) + "% of tokens · " + d.seconds + "s · " + d.task;
+      var html = '<div class="lm-chips">' +
+        chip("test top-1", d.test_acc) + chip("top-5", d.test_top5) +
+        chip("genomes", d.n_genomes) + chip("spaces", d.n_spaces) +
+        chip("attend", d.n_attend) +
+        chip("params", d.total_params != null ? d.total_params.toLocaleString() : null) +
+        chip("evolved", d.genome_params != null ? d.genome_params.toLocaleString() : null) +
+        chip("head", d.head_params != null ? d.head_params.toLocaleString() : null) +
+        chip("vocab", d.vocab) + chip("context", d.context_words || d.frames) +
+        chip("train s", d.seconds) + "</div>";
+      html += '<div class="lm-cols"><div class="lm-col">' + bars([
+        ["chance", d.chance, "dim"],
+        ["unigram ceiling", b.unigram, "ceil"],
+        ["bigram ceiling", b.bigram, "ceil"],
+        ["trigram ceiling", b.trigram, "ceil"],
+        ["4-gram ceiling", b["4-gram"], "ceil"],
+        ["5-gram ceiling", b["5-gram"], "ceil"],
+        ["anchor (no genomes)", d.embed_ridge_test != null ? d.embed_ridge_test
+                              : d.onehot_ridge_test != null ? d.onehot_ridge_test
+                              : d.fat_anchor_test, "dim"],
+        ["model TEST top-1", d.test_acc, ""],
+        ["trigram top-5", d.trigram_top5, "ceil"],
+        ["model TEST top-5", d.test_top5, ""]]) + "</div>";
+      html += '<div class="lm-col">';
+      if (d.spaces && d.spaces.length) {
+        html += '<table class="lm-tbl"><tr><th>space</th><th>genomes</th>' +
+          "<th>val after</th><th>gain</th></tr>" +
+          d.spaces.map(function (s) {
+            return "<tr><td>R" + s.space + "</td><td>" + s.n_frozen + "</td><td>" +
+              s.val_after.toFixed(4) + "</td><td>+" + s.val_gain.toFixed(4) +
+              "</td></tr>";
+          }).join("") + "</table>";
+      }
+      html += "</div></div>";
       if (d.samples && d.samples.length) {
-        document.getElementById("lmw-samples").innerHTML =
-          '<div class="lm-sec" style="margin-top:0">Generated word samples</div>' +
-          d.samples.map(function (s) {
-            var parts = s.text.split(" | ");
-            return '<div class="lm-genome" style="margin-bottom:8px">' +
-              '<span class="g2">' + parts[0] + '</span> | ' + (parts[1] || "") +
-              ' <span class="cm"># temp ' + s.temp + '</span></div>';
-          }).join("");
+        html += '<div style="margin-top:10px">' + d.samples.map(function (s) {
+          var parts = s.text.split(" | ");
+          return '<div class="lm-genome"><span class="g2"></span> | <span class="tx"></span>' +
+            ' <span class="cm"># output, temp ' + s.temp + "</span></div>";
+        }).join("") + "</div>";
       }
-    }).catch(function (e) {
-      document.getElementById("lmw-results").textContent = "load failed: " + e;
-    });
+      return html;
+    }
 
-    /* ---- interactive autocomplete on the latest word checkpoint ---- */
-    (function () {
-      var btn = document.getElementById("lmw-go"),
-          inp = document.getElementById("lmw-prompt"),
-          st = document.getElementById("lmw-go-status"),
-          out = document.getElementById("lmw-out"),
-          pbox = document.getElementById("lmw-params");
-      function go() {
-        var prompt = inp.value.trim();
-        if (!prompt) { st.textContent = "type a few words first"; return; }
-        btn.disabled = true;
-        st.textContent = "completing…";
-        fetch("/api/lm/autocomplete?n=24&prompt=" + encodeURIComponent(prompt))
-          .then(function (r) { return r.json(); })
-          .then(function (d) {
-            if (d.error) { st.textContent = d.error; btn.disabled = false; return; }
-            if (d.building) {
-              st.textContent = "building from the checkpoint… " + (d.progress || "");
-              setTimeout(go2, 3000);
-              return;
-            }
-            btn.disabled = false;
-            st.textContent = "";
-            var div = document.createElement("div");
-            div.className = "lm-genome";
-            div.style.marginBottom = "8px";
-            div.innerHTML = '<span class="g2"></span> <span class="cmp"></span>';
-            div.querySelector(".g2").textContent = d.prompt;
-            div.querySelector(".cmp").textContent = d.completion;
-            out.insertBefore(div, out.firstChild);
-            var p = d.params;
-            pbox.innerHTML = "<b>Model parameters: " + p.total.toLocaleString() +
-              "</b> — " + p.genome.toLocaleString() + " evolved across " +
-              p.n_genomes + " genomes + " + p.head.toLocaleString() +
-              " closed-form head (" + (p.total * 4 / 1024 / 1024).toFixed(1) +
-              " MB fp32) · vocab " + d.vocab + " · context " + d.context +
-              " words · val top-1 " + d.val_acc.toFixed(4) +
-              " · decode scale ×" + d.decode_scale;
-          }).catch(function (e) { st.textContent = "failed: " + e; btn.disabled = false; });
-      }
-      function go2() { go(); }
-      btn.addEventListener("click", go);
-      inp.addEventListener("keydown", function (e) {
-        if (e.key === "Enter") { go(); }
+    function fillSamples(el, d) {
+      if (!d.samples) { return; }
+      var gs = el.querySelectorAll(".lm-genome");
+      d.samples.forEach(function (s, i) {
+        if (!gs[i]) { return; }
+        var parts = s.text.split(" | ");
+        gs[i].querySelector(".g2").textContent = parts[0];
+        gs[i].querySelector(".tx").textContent = parts[1] || "";
       });
-    })();
+    }
 
-    /* ---- example windows, drawn like the training frames ---- */
-    fetch("/api/lm/radial/examples?n=3").then(function (r) { return r.json(); })
-      .then(function (d) {
-        if (d.error || d.pending) { return; }
-        var box = document.getElementById("lm-wins");
-        box.innerHTML = "";
-        d.examples.forEach(function (ex) {
-          var row = document.createElement("div");
-          row.className = "lm-win";
-          ex.context.split("").forEach(function (ch, f) {
-            var cell = document.createElement("span");
-            cell.className = "nx";
-            cell.style.borderStyle = "solid";
-            cell.style.borderColor = "#2f4152";
-            cell.style.color = "#c7d0da";
-            cell.textContent = ch === " " ? "␣" : ch;
-            row.appendChild(cell);
-            if (f < ex.context.length - 1) {
-              var a = document.createElement("span");
-              a.className = "arr"; a.textContent = "·";
-              row.appendChild(a);
-            }
+    function renderEmbed(m, d) {
+      var html = '<div class="lm-chips">' +
+        chip("words", d.n_words) + chip("dims", d.n_dims) +
+        chip("spearman RS", d.spearman_rs) + chip("spearman SVD", d.spearman_svd) +
+        chip("evolved params", d.genome_params != null ?
+             d.genome_params.toLocaleString() : null) +
+        chip("build s", d.seconds) + "</div>";
+      html += bars([["SVD (held-out gate)", d.spearman_svd, "ceil"],
+                    ["RS evolved (held-out gate)", d.spearman_rs, ""]]);
+      if (d.neighbors) {
+        html += '<div class="lm-nn" style="margin-top:10px">' +
+          Object.keys(d.neighbors).map(function (w) {
+            return "<b>" + w + "</b> → " + d.neighbors[w].join(" ");
+          }).join("<br>") + "</div>";
+      }
+      return html;
+    }
+
+    fetch("/api/lm/modules").then(function (r) { return r.json(); })
+      .then(function (reg) {
+        mods.innerHTML = "";
+        var list = reg.modules || [];
+        return list.reduce(function (p, m, idx) {
+          return p.then(function () {
+            return fetch("/api/lm/export/" + m.export)
+              .then(function (r) { return r.json(); })
+              .then(function (d) {
+                var el = document.createElement("div");
+                el.className = "lm-mod" + (idx === list.length - 1 ? " newest" : "");
+                var body = (d.error || d.pending)
+                  ? '<div class="ds">export not available: ' + m.export + "</div>"
+                  : (m.kind === "embed" ? renderEmbed(m, d) : renderRun(m, d));
+                el.innerHTML = "<h2>" + m.title + '</h2><div class="dt">' + m.date +
+                  '</div><div class="ds">' + m.desc + "</div>" + body +
+                  '<div class="lm-foot">export: ' + m.export + "</div>";
+                mods.appendChild(el);
+                if (!d.error && !d.pending) { fillSamples(el, d); }
+              }).catch(function () {
+                var el = document.createElement("div");
+                el.className = "lm-mod";
+                el.innerHTML = "<h2>" + m.title +
+                  '</h2><div class="ds">failed to load ' + m.export + "</div>";
+                mods.appendChild(el);
+              });
           });
-          var arr = document.createElement("span");
-          arr.className = "arr"; arr.textContent = "→";
-          row.appendChild(arr);
-          var nx = document.createElement("span");
-          nx.className = "nx";
-          nx.textContent = ex.next === " " ? "␣" : ex.next;
-          row.appendChild(nx);
-          box.appendChild(row);
-        });
-      }).catch(function () {});
+        }, Promise.resolve()).then(snap);
+      }).catch(function (e) {
+        mods.innerHTML = '<div class="lm-mod"><div class="ds">modules failed: ' +
+          e + "</div></div>";
+      });
+
+    /* ---- auto-snap to the newest module ---- */
+    var main = document.getElementById("lm-main");
+    function snap() {
+      main.scrollTop = main.scrollHeight;
+      window.scrollTo(0, document.body.scrollHeight);
+    }
+    document.getElementById("lm-snap").addEventListener("click", snap);
+
+    /* ---- live autocomplete (always the bottom module) ---- */
+    var btn = document.getElementById("lmw-go"),
+        inp = document.getElementById("lmw-prompt"),
+        st = document.getElementById("lmw-go-status"),
+        out = document.getElementById("lmw-out"),
+        pbox = document.getElementById("lmw-params");
+    function go() {
+      var prompt = inp.value.trim();
+      if (!prompt) { st.textContent = "type a few words first"; return; }
+      btn.disabled = true;
+      st.textContent = "completing…";
+      fetch("/api/lm/autocomplete?n=24&prompt=" + encodeURIComponent(prompt))
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          if (d.error) { st.textContent = d.error; btn.disabled = false; return; }
+          if (d.building) {
+            st.textContent = "building from the checkpoint… " + (d.progress || "");
+            setTimeout(go, 3000);
+            return;
+          }
+          btn.disabled = false;
+          st.textContent = "";
+          var div = document.createElement("div");
+          div.className = "lm-genome";
+          div.innerHTML = '<span class="g2"></span> <span class="tx"></span>';
+          div.querySelector(".g2").textContent = d.prompt;
+          div.querySelector(".tx").textContent = d.completion;
+          out.insertBefore(div, out.firstChild);
+          var p = d.params;
+          pbox.textContent = "model parameters: " + p.total.toLocaleString() +
+            " (" + p.genome.toLocaleString() + " evolved across " + p.n_genomes +
+            " genomes + " + p.head.toLocaleString() + " head) · vocab " + d.vocab +
+            " · context " + d.context + " words · val top-1 " +
+            d.val_acc.toFixed(4) + " · decode scale x" + d.decode_scale;
+          snap();
+        }).catch(function (e) { st.textContent = "failed: " + e; btn.disabled = false; });
+    }
+    btn.addEventListener("click", go);
+    inp.addEventListener("keydown", function (e) {
+      if (e.key === "Enter") { go(); }
+    });
   })();
   </script>
   <script src="{{ url_for('static', filename='vendor/xterm.js') }}"></script>
