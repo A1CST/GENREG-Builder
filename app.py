@@ -1328,7 +1328,15 @@ def animation_cursor_field():
         seed = int(request.args.get("seed", 1))
         stride = max(1, min(4, int(request.args.get("stride", 2))))
         import dot_live
-        return jsonify(dot_live.compute(seed, stride=stride))
+        try:
+            return jsonify(dot_live.compute(seed, stride=stride))
+        except Exception:
+            try:                                    # transient GPU OOM: free and retry once
+                import torch
+                torch.cuda.empty_cache()
+            except Exception:
+                pass
+            return jsonify(dot_live.compute(seed, stride=stride))
     except Exception as exc:
         return jsonify({"error": f"animation cursor_field failed: {exc}"}), 500
 

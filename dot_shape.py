@@ -30,14 +30,16 @@ CROP = 20                                   # attended-window size (native px)
 NSH = 10
 
 
-def gen_labeled(n, res, seed, distractors, noise=0.03, shapes=None, overlap=0.6):
+def gen_labeled(n, res, seed, distractors, noise=0.03, shapes=None, overlap=0.6,
+                jitter=0.45):
     """Frames + the TARGET shape label + the true cursor pixel position (res-space).
     `shapes` restricts the target to a subset of shape indices (label = index in
     the subset). `overlap`: fraction of examples where a distractor is deliberately
-    drawn LARGE and CENTERED on the target so it ENCOMPASSES it (behind it). This
-    is the figure-ground / occlusion case — the target is drawn on top (in front),
-    so the model must learn to read the shape the cursor sits on, not the bigger
-    encompassing shape around it."""
+    drawn LARGE and CENTERED on the target so it ENCOMPASSES it (behind it) — the
+    occlusion / figure-ground case. `jitter`: the cursor is placed at a random
+    point WITHIN the target (up to jitter*r off center), not dead-center, so the
+    model can read the shape from anywhere on its body (free hovering), not only
+    when perfectly centered."""
     rng = np.random.default_rng(seed)
     S = ad.SIZE
     SH = ra.SHAPES
@@ -54,7 +56,7 @@ def gen_labeled(n, res, seed, distractors, noise=0.03, shapes=None, overlap=0.6)
             if big and k == 0:                       # large, centered on target, BEHIND it
                 dx = float(np.clip(x + rng.uniform(-4, 4), 8, S - 8))
                 dy = float(np.clip(y + rng.uniform(-4, 4), 8, S - 8))
-                da = dsfn(dx, dy, r=float(rng.uniform(9.0, 13.0)))
+                da = dsfn(dx, dy, r=float(rng.uniform(11.0, 15.0)))
             else:
                 da = dsfn(float(rng.uniform(8, S - 8)), float(rng.uniform(8, S - 8)),
                           r=float(rng.uniform(3.0, 9.0)))
@@ -62,12 +64,17 @@ def gen_labeled(n, res, seed, distractors, noise=0.03, shapes=None, overlap=0.6)
         li = int(rng.integers(len(subset)))
         ti = subset[li]
         ysh[i] = li
-        sa = SH[ti](x, y, r=float(rng.uniform(5.0, 7.5)))     # target — random color, like distractors
+        tr = float(rng.uniform(6.0, 9.5))
+        sa = SH[ti](x, y, r=tr)                               # target — random color, like distractors
         X[i, 0] = _rand_color(rng)[None, None, :] * sa[..., None] + X[i, 0] * (1.0 - sa[..., None])
-        da = ad.circle(x, y, r=float(rng.uniform(2.5, 3.8)))
+        jm = float(rng.uniform(0, jitter)) * tr              # cursor within the shape, off-center
+        ja = float(rng.uniform(0, 2 * np.pi))
+        cx = float(np.clip(x + jm * np.cos(ja), 6, S - 6))
+        cy = float(np.clip(y + jm * np.sin(ja), 6, S - 6))
+        da = ad.circle(cx, cy, r=float(rng.uniform(2.5, 3.8)))
         X[i, 0] = np.array([1., 0., 0.], np.float32)[None, None, :] * da[..., None] \
             + X[i, 0] * (1.0 - da[..., None])
-        pos[i] = [x, y]
+        pos[i] = [cx, cy]                                     # tracker target = the cursor
     X = ra._downscale(X, res)[:, 0]
     X = np.clip(X + rng.normal(0, noise, X.shape).astype(np.float32), 0, 1)
     return X.astype(np.float32), pos * (res / S), ysh
@@ -230,7 +237,8 @@ def main(rounds=80, pop=64, gens=10, freeze_top=8, seed=0, use_true=False, shape
     Wf = torch.linalg.solve(Af.T @ Af + best_lam * torch.eye(Af.shape[1], device=dev),
                             Af.T @ Yfull)
     pred_lbl = (Bf @ Wf).argmax(1).cpu().numpy()
-    _export_demo(Xte, ap_te, pred_lbl, yte, shapes, res, use_true)
+    if shapes is None:                          # the page demo/result are the full 10-class run
+        _export_demo(Xte, ap_te, pred_lbl, yte, shapes, res, use_true)
     # save a checkpoint so live/interactive inference can reload the classifier
     subset = shapes if shapes is not None else list(range(NSH))
     ckpt = {"genomes": frozen, "W": Wf.cpu().numpy().tolist(),
@@ -238,7 +246,7 @@ def main(rounds=80, pop=64, gens=10, freeze_top=8, seed=0, use_true=False, shape
             "crop": CROP, "res": res, "distractors": dist, "best_lam": best_lam,
             "classes": [ra.SHAPE_NAMES[i] for i in subset]}
     if save:
-        ck_name = "dot_shape_cs_model.json" if shapes is not None else "dot_shape_model.json"
+        ck_name = "dot_shape_sub_model.json" if shapes is not None else "dot_shape_model.json"
         with open(os.path.join(_HERE, "radial_data", ck_name), "w") as f:
             json.dump(ckpt, f)
     out = {"experiment": "shape-at-cursor (attention-gated classify on the tracker)",
@@ -247,8 +255,9 @@ def main(rounds=80, pop=64, gens=10, freeze_top=8, seed=0, use_true=False, shape
            "attention": "true" if use_true else "tracker-predicted",
            "n_feats": len(frozen), "test_acc": round(best, 4),
            "seconds": round(time.time() - t0)}
-    with open(os.path.join(_HERE, "radial_data", "dot_shape.json"), "w") as f:
-        json.dump(out, f, indent=1)
+    if shapes is None:
+        with open(os.path.join(_HERE, "radial_data", "dot_shape.json"), "w") as f:
+            json.dump(out, f, indent=1)
     print(f"[dot-shape] DONE: shape acc {best:.4f} (chance 0.10) on the "
           f"{'tracker-attended' if not use_true else 'true'} crop, "
           f"{len(frozen)} feats ({out['seconds']}s)", flush=True)
@@ -267,7 +276,7 @@ def main(rounds=80, pop=64, gens=10, freeze_top=8, seed=0, use_true=False, shape
             depth[f"{ov:.2f}"] = round(acc, 4)
             print(f"[dot-shape] eval overlap={ov:.2f}: acc {acc:.4f}", flush=True)
         out["depth"] = depth
-        if save:
+        if save and shapes is None:
             with open(os.path.join(_HERE, "radial_data", "dot_shape.json"), "w") as f:
                 json.dump(out, f, indent=1)
     return out

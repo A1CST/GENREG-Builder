@@ -10,6 +10,28 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-15] (Claude)** — **Interactive Model-1b reworked (was "really
+  bad") — mouse-driven, now actually works.** User reported the interactive
+  cursor was offset up-left of the mouse and reads were near-random. Root causes
+  found and fixed: (1) canvas coordinate bug — mouse mapped without accounting
+  for the element's border/CSS-vs-bitmap scale; now uses rect-scaling with the
+  border on a wrapper. (2) The model trained with the cursor ALWAYS at a shape's
+  center, so free hovering was OOD — added cursor JITTER (cursor at a random
+  point within the shape) + bigger shapes so it reads a shape from anywhere on
+  its body. (3) It always output some class even over blank space — added a
+  geometric gate (cursor inside a shape's extent) so off-shape reads "nothing".
+  (4) BIG one: `radial_evo2.Env` standardises test maps by the TEST batch's own
+  std, and a single scene's field is a narrow batch, so normalisation was wrong
+  (~0.73 core acc); added a cached-basis projector (`Basis`) that fits the
+  patch-PCA ONCE at load and normalises by the training-reference std — fixes
+  accuracy AND removes the per-request SVD (the local CUDA-OOM cause), 3x faster
+  (~0.4-1.5s/scene). (5) Interactive uses a distinct-5 shape classifier
+  (circle/square/triangle/plus/xcross) with the read = majority vote over each
+  shape's CORE — a stable ~0.85-0.89 per-shape read with a confidence. Endpoint
+  hardened (OOM retry). dot_shape.py: `jitter` param, `dot_shape_sub_model.json`
+  subset checkpoint, subset runs no longer clobber the 10-class page result.
+  **Flask restart needed.** Reproduce: dot_shape.py (shapes=[0,1,2,5,6]),
+  dot_live.py.
 - **[2026-07-15] (Claude)** — **MODULE 16 - third crank: TEST 0.5663 top-1 /
   0.7280 top-5 - the top-5 usefulness bar (60-70%) is CROSSED.** True
   4-gram table (last three words - never tabulated before) + far skips

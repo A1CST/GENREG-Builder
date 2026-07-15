@@ -6,6 +6,23 @@ Seeded 2026-07-05 from the main changelog (keyword split, best effort).
 
 ---
 
+## 2026-07-15 (Claude) — Interactive Model-1b reworked (was broken)
+
+User: the interactive was "really bad" — cursor offset up-left of the mouse,
+reads near-random. Fixes: (1) canvas coordinate bug (rect-scaling, border on a
+wrapper). (2) cursor JITTER training + bigger shapes so a shape reads from
+anywhere on its body (was trained cursor-at-center only, so free hover was OOD).
+(3) geometric gate — off-shape reads "nothing". (4) THE big one: Env normalises
+test maps by the test-batch std, and one scene's field is a narrow batch, so
+normalisation was wrong (~0.73 core acc); added `Basis`, a cached patch-PCA
+projector that fits once at load and normalises by the training-reference std —
+fixes accuracy AND kills the per-request SVD (local CUDA-OOM cause), 3x faster.
+(5) interactive uses a distinct-5 classifier (circle/square/triangle/plus/xcross)
+with the read = majority over each shape's CORE — stable ~0.85-0.89 per-shape
+read + confidence. `dot_shape.py`: `jitter` param, `dot_shape_sub_model.json`
+subset checkpoint; subset runs no longer overwrite the 10-class page result.
+Flask restart needed.
+
 ## 2026-07-15 (Claude) — Attention line: depth/occlusion fix + interactive mode
 
 User spotted Model 1b's misses were an occlusion failure — when a bigger

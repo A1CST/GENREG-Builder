@@ -422,9 +422,10 @@ live from the checkpoint files, exactly as evolution wrote them</div>
       Hover a shape's clear body and it reads it; drag into an <b>overlap</b> to probe its depth
       sense (occlusion is hard, so it slips there). <b>Shuffle</b> for a new random scene.</div>
     <div id="an-live" style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap;margin-bottom:12px">
-      <div style="position:relative;width:320px;height:320px;flex:0 0 auto">
+      <div style="position:relative;flex:0 0 auto;border:1px solid #2f4152;border-radius:8px;
+        overflow:hidden;line-height:0;background:#000">
         <canvas id="an-live-cv" width="320" height="320"
-          style="width:320px;height:320px;border:1px solid #2f4152;border-radius:8px;cursor:none;background:#000"></canvas>
+          style="width:320px;height:320px;display:block;cursor:none"></canvas>
       </div>
       <div style="flex:1 1 220px;min-width:220px">
         <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
@@ -1371,70 +1372,13 @@ live from the checkpoint files, exactly as evolution wrote them</div>
       var cv = document.getElementById("an-live-cv");
       if (!cv) { return; }
       var g = cv.getContext("2d");
-      var SCALE = 5;                              // 64 -> 320
-      var field = null, seed = 1, busy = false, mx = -1, my = -1;
+      var field = null, seed = 1, busy = false, base = null, cursor = null;
       var statusEl = document.getElementById("an-live-status");
       var readEl = document.getElementById("an-live-read");
       var subEl = document.getElementById("an-live-sub");
       var noteEl = document.getElementById("an-live-note");
 
-      function drawScene() {
-        if (!field) { return; }
-        var res = field.res, raw = atob(field.canvas);
-        var img = g.createImageData(res, res);
-        for (var p = 0; p < res * res; p++) {
-          var o = p * 3;
-          img.data[4 * p] = raw.charCodeAt(o);
-          img.data[4 * p + 1] = raw.charCodeAt(o + 1);
-          img.data[4 * p + 2] = raw.charCodeAt(o + 2);
-          img.data[4 * p + 3] = 255;
-        }
-        var tmp = document.createElement("canvas"); tmp.width = res; tmp.height = res;
-        tmp.getContext("2d").putImageData(img, 0, 0);
-        g.imageSmoothingEnabled = false;
-        g.clearRect(0, 0, cv.width, cv.height);
-        g.drawImage(tmp, 0, 0, cv.width, cv.height);
-        if (mx >= 0) { overlay(); }
-      }
-
-      function nearest(v) {                       // map a res-px coord to a grid index
-        var gs = field.grid, best = 0, bd = 1e9;
-        for (var i = 0; i < gs.length; i++) {
-          var d = Math.abs(gs[i] - v); if (d < bd) { bd = d; best = i; }
-        }
-        return best;
-      }
-
-      function overlay() {
-        drawSceneBase();
-        var res = field.res;
-        var rx = mx / SCALE, ry = my / SCALE;      // res-space cursor
-        var ix = nearest(rx), iy = nearest(ry);
-        var tp = field.track_field[iy][ix];        // model's tracked point (normalised)
-        var cls = field.classes[field.shape_field[iy][ix]];
-        // green crosshair at the model's tracked position
-        var tx = tp[0] * cv.width, ty = tp[1] * cv.height;
-        g.strokeStyle = "#5fd39a"; g.lineWidth = 1.5;
-        g.beginPath();
-        g.moveTo(tx - 7, ty); g.lineTo(tx + 7, ty);
-        g.moveTo(tx, ty - 7); g.lineTo(tx, ty + 7); g.stroke();
-        g.strokeRect(tx - 4, ty - 4, 8, 8);
-        // the red cursor at the mouse
-        g.fillStyle = "#ff2b2b";
-        g.beginPath(); g.arc(mx, my, 5, 0, 6.2832); g.fill();
-        g.strokeStyle = "rgba(255,255,255,.5)"; g.lineWidth = 1; g.stroke();
-        readEl.textContent = cls;
-        subEl.textContent = "cursor (" + Math.round(rx) + ", " + Math.round(ry) +
-          ") · model tracks (" + Math.round(tp[0] * res) + ", " + Math.round(tp[1] * res) + ")";
-      }
-
-      var _base = null;
-      function drawSceneBase() {
-        if (_base) { g.clearRect(0, 0, cv.width, cv.height); g.drawImage(_base, 0, 0); return; }
-        drawScene();
-      }
-      function cacheBase() {
-        _base = document.createElement("canvas"); _base.width = cv.width; _base.height = cv.height;
+      function buildBase() {                       // offscreen scaled scene image
         var res = field.res, raw = atob(field.canvas);
         var img = g.createImageData(res, res);
         for (var p = 0; p < res * res; p++) {
@@ -1444,40 +1388,93 @@ live from the checkpoint files, exactly as evolution wrote them</div>
         }
         var tmp = document.createElement("canvas"); tmp.width = res; tmp.height = res;
         tmp.getContext("2d").putImageData(img, 0, 0);
-        var bg = _base.getContext("2d");
+        base = document.createElement("canvas"); base.width = cv.width; base.height = cv.height;
+        var bg = base.getContext("2d");
         bg.imageSmoothingEnabled = false;
         bg.drawImage(tmp, 0, 0, cv.width, cv.height);
       }
 
+      function shapeAt(rx, ry) {                    // which scene shape contains this res-px point
+        for (var i = 0; i < field.shapes.length; i++) {
+          var s = field.shapes[i];
+          if ((rx - s.x) * (rx - s.x) + (ry - s.y) * (ry - s.y) <= (s.r + 1.5) * (s.r + 1.5)) {
+            return s;
+          }
+        }
+        return null;
+      }
+      function gidx(v) {
+        var gs = field.grid, best = 0, bd = 1e9;
+        for (var i = 0; i < gs.length; i++) { var d = Math.abs(gs[i] - v); if (d < bd) { bd = d; best = i; } }
+        return best;
+      }
+
+      function render() {
+        if (!field || !base) { return; }
+        var K = cv.width / field.res;              // px per res-unit
+        g.clearRect(0, 0, cv.width, cv.height);
+        g.drawImage(base, 0, 0);
+        if (!cursor) { return; }
+        var s = shapeAt(cursor.rx, cursor.ry);
+        if (s) {                                    // highlight the shape being read
+          g.strokeStyle = "rgba(95,211,154,.9)"; g.lineWidth = 2;
+          g.beginPath(); g.arc(s.x * K, s.y * K, (s.r + 2) * K, 0, 6.2832); g.stroke();
+        }
+        // green crosshair = the model's tracked cursor position
+        var tp = field.track_field[gidx(cursor.ry)][gidx(cursor.rx)];
+        var tx = tp[0] * cv.width, ty = tp[1] * cv.height;
+        g.strokeStyle = "#5fd39a"; g.lineWidth = 1.5;
+        g.beginPath(); g.moveTo(tx - 7, ty); g.lineTo(tx + 7, ty);
+        g.moveTo(tx, ty - 7); g.lineTo(tx, ty + 7); g.stroke();
+        // the red cursor at the mouse
+        g.beginPath(); g.arc(cursor.px, cursor.py, 5, 0, 6.2832);
+        g.fillStyle = "#ff2b2b"; g.fill();
+        g.strokeStyle = "rgba(255,255,255,.6)"; g.lineWidth = 1; g.stroke();
+        if (s) {
+          readEl.textContent = field.classes[s.read];
+          readEl.style.color = "#dbe2ea";
+          subEl.textContent = "confidence " + Math.round((s.conf || 0) * 100) + "%  ·  true: " + s.name;
+        } else {
+          readEl.textContent = "—"; readEl.style.color = "#647082";
+          subEl.textContent = "no shape under the cursor";
+        }
+      }
+
       function load() {
         if (busy) { return; }
-        busy = true; _base = null;
-        statusEl.textContent = "computing field…";
+        busy = true; base = null;
+        statusEl.textContent = "computing…";
+        readEl.textContent = "…"; subEl.textContent = "";
         fetch("/api/animation/cursor_field?seed=" + seed + "&stride=2")
           .then(function (r) { return r.json(); })
           .then(function (d) {
             busy = false;
-            if (d.error && !d.pending) { statusEl.textContent = d.error; return; }
             if (d.pending) { statusEl.textContent = d.error || "models not trained yet"; return; }
-            field = d; cacheBase(); drawScene();
-            statusEl.textContent = d.shapes.length + " shapes · grid " +
-              d.grid.length + "×" + d.grid.length;
-            noteEl.innerHTML = "The scene and every readout are computed <b>server-side by the " +
-              "same gradient-free models</b> (the frozen tracker + the overlap-trained shape " +
-              "classifier), on a full grid of cursor positions, so your mouse reads answers " +
-              "instantly. Endpoint <b>/api/animation/cursor_field</b>, module <b>dot_live.py</b>.";
+            if (d.error) { statusEl.textContent = d.error; return; }
+            field = d; buildBase(); render();
+            statusEl.textContent = d.shapes.length + " shapes · reads: " + d.classes.join(", ");
+            readEl.textContent = "move over the canvas"; readEl.style.color = "#647082";
+            noteEl.innerHTML = "Every readout is the <b>same gradient-free models</b> (frozen " +
+              "tracker + shape classifier) run <b>server-side</b> over a grid of cursor positions — " +
+              "your mouse just reads the answer. The label is the model's majority vote over each " +
+              "shape's core, so it is stable as you move within a shape. The set is 5 visually " +
+              "distinct shapes (" + d.classes.join(", ") + "). Endpoint " +
+              "<b>/api/animation/cursor_field</b>, module <b>dot_live.py</b>.";
           }).catch(function (e) { busy = false; statusEl.textContent = "load failed: " + e; });
       }
 
       cv.addEventListener("mousemove", function (e) {
         if (!field) { return; }
         var rect = cv.getBoundingClientRect();
-        mx = e.clientX - rect.left; my = e.clientY - rect.top;
-        overlay();
+        var px = (e.clientX - rect.left) * (cv.width / rect.width);
+        var py = (e.clientY - rect.top) * (cv.height / rect.height);
+        cursor = { px: px, py: py, rx: px / (cv.width / field.res), ry: py / (cv.height / field.res) };
+        render();
       });
       cv.addEventListener("mouseleave", function () {
-        mx = my = -1; if (field) { drawScene(); }
-        readEl.textContent = "move over the canvas"; subEl.textContent = "";
+        cursor = null; render();
+        if (field) { readEl.textContent = "move over the canvas"; readEl.style.color = "#647082"; }
+        subEl.textContent = "";
       });
       document.getElementById("an-live-shuffle").addEventListener("click", function () {
         seed = (seed % 100000) + 1; load();
