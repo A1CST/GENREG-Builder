@@ -104,6 +104,14 @@
    "export": "lm_radial_word_cont.json",
    "title": "13 · CONTINUE-TRAIN on the blind spot - method works, repair does not",
    "desc": "The animation Module-3 warm start ported to language: frozen 285-genome base, new spaces on a 3x table-miss-weighted mix, head refit on the true distribution. No forgetting (has-target class held), overall +0.2, but the miss class barely moved (0.0040 to 0.0056) and evolution went dry after 10 genomes. Finding: continue-training cannot conjure signal the environment does not carry - the miss class needs NEW environment statistics (skip-gram tables, syntax-position profiles), not more search over the same channels."
+  },
+  {
+   "id": "continue-skipgram",
+   "date": "2026-07-15",
+   "kind": "run",
+   "export": "lm_radial_word_cont2.json",
+   "title": "14 · SKIP-GRAM ENVIRONMENT + CONTINUE-TRAIN - the loop closes: 0.3992, best model of the line",
+   "desc": "Module 13 said the miss class needs new environment statistics. Added: skip-gram continuation tables keyed (w-3,w-1) and (w-3,w-2) - wider context the trigram tables cannot see - as 4,256 new channels, with a headroom diagnostic first (45.9% of blind windows answerable). Continue-trained the same frozen base: +65 genomes, 45s. TEST 0.2974 -> 0.3992 top-1, 0.5010 -> 0.5981 top-5; the blind class went 0.0040 -> 0.1106 (28x); every slice improved; no forgetting. This lean model now beats every fat head ever built here (best 0.3296) at ~1.1M params. The probe -> environment-gap -> continue-train loop is validated on language."
   }
  ]
 }

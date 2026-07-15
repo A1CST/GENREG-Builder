@@ -10,6 +10,19 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-15] (Claude)** — **MODULE 14 - THE LOOP CLOSES: skip-gram
+  environment channels + continue-train take the lean model to TEST 0.3992
+  top-1 / 0.5981 top-5 - the best model of the entire LM line, beating
+  every fat head (best 0.3296) at ~1.1M params.** Module 13's finding
+  applied: the miss class needed NEW environment statistics. Added skipA
+  (w-3,w-1) and skipB (w-3,w-2) continuation tables from the independent
+  slice (+4,256 channels, cached lm_skip_tables.pkl); HEADROOM diagnostic
+  before evolving: 45.9% of blind windows answerable by the new tables.
+  Continue-train on the same frozen 285-genome base: +65 genomes in 3
+  spaces, 45s pod. Blind class 0.0040 -> 0.1106 top-1 (28x), 0.2521 top-5;
+  unigram-backoff 0.058 -> 0.214; has-target 0.480 -> 0.579 - improvement
+  EVERYWHERE, zero forgetting. The probe -> environment-gap ->
+  continue-train method is validated on language. Module 14 on /lm.
 - **[2026-07-15] (Claude)** — **Attention line (animation): the payoff — WHERE
   unlocks WHAT.** Three gradient-free models toward a little agent. (1) TRACKING
   (dot_track.py, the lab's first REGRESSION task): a red cursor pinned to a
