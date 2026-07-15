@@ -172,6 +172,7 @@ def main(rounds=80, pop=64, gens=10, freeze_top=8, seed=0, use_true=False, shape
     rng = np.random.default_rng(seed)
 
     frozen, fcols = [], []
+    hist = []
     for rnd in range(rounds):
         base = torch.stack(fcols, 1) if fcols else torch.zeros((len(Ctr), 0), device=dev)
         scorer, s0, a0 = make_scorer(torch, base, n_fit, Yf, yv)
@@ -218,6 +219,7 @@ def main(rounds=80, pop=64, gens=10, freeze_top=8, seed=0, use_true=False, shape
                 frozen.append(pg[idx]); fcols.append(c); added += 1
         base = torch.stack(fcols, 1)
         _, a1 = _ridge_soft(torch, base[:n_fit], base[n_fit:], Yf, yv)
+        hist.append({"round": rnd, "fitness": round(float(a1), 4), "added": added, "n": len(frozen)})
         print(f"  round {rnd:3d}  +{added} (feats {len(frozen)})  val acc {a1:.4f}  "
               f"({round(time.time()-t0)}s)", flush=True)
         if os.path.exists(_STOP) or (added == 0 and rnd > 3):
@@ -279,6 +281,17 @@ def main(rounds=80, pop=64, gens=10, freeze_top=8, seed=0, use_true=False, shape
         if save and shapes is None:
             with open(os.path.join(_HERE, "radial_data", "dot_shape.json"), "w") as f:
                 json.dump(out, f, indent=1)
+    try:
+        import dot_runs
+        cfg = {"rounds": rounds, "pop": pop, "gens": gens, "freeze_top": freeze_top,
+               "seed": seed, "shapes": shapes, "overlap": overlap, "n_classes": nsh,
+               "crop": CROP, "attention": "true" if use_true else "tracker"}
+        kind = "circle-vs-square" if nsh == 2 else (f"{nsh}-shape subset" if shapes else "10-shape")
+        dot_runs.record("animation", cfg, hist, out,
+                        label=f"shape-at-cursor ({kind}) acc {best:.3f}, {len(frozen)} feats",
+                        tags=["attention", "classifier", "model1b"])
+    except Exception as exc:
+        print(f"[dot-shape] run record skipped: {exc}", flush=True)
     return out
 
 

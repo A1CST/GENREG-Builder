@@ -6,6 +6,16 @@ Seeded 2026-07-05 from the main changelog (keyword split, best effort).
 
 ---
 
+## 2026-07-15 (Claude) — Run recording for the dot line (AGENTS.md 3 & 4)
+
+The attention trainers weren't recording runs or alerting on completion. New
+`dot_runs.py` writes the five-file run record into `runs/animation/<run-id>/`
+(so attention runs appear on /runs) and posts a `kind=run` notice with the
+run_id when a run ends. Wired into dot_track.run and dot_shape.main (now
+accumulate per-round history). Verified with a real subset train
+(run ...-animation-97dbba, 80 history rows, notice #401). Records gitignored
+like other runs/; runstore auto-discovers the env.
+
 ## 2026-07-15 (Claude) — OOD stress-test module (tracker + classifier)
 
 `dot_ood.py` pushes the frozen tracker + 10-class classifier out of their single

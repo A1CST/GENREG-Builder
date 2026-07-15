@@ -118,6 +118,7 @@ def run(n_train=6000, n_test=1500, res=32, rounds=60, pop=64, gens=10,
         return r2, px
 
     frozen, fcols = [], []
+    hist = []
     for rnd in range(rounds):
         # current residual on the FIT split (what the frozen bank can't explain)
         if fcols:
@@ -171,6 +172,7 @@ def run(n_train=6000, n_test=1500, res=32, rounds=60, pop=64, gens=10,
             if not dup:
                 frozen.append(pgen[idx]); fcols.append(c); added += 1
         r2, px = r2_err(torch.stack(fcols, 1))
+        hist.append({"round": rnd, "fitness": round(r2, 4), "added": added, "n": len(frozen)})
         if verbose:
             print(f"  round {rnd:3d}  +{added} (feats {len(frozen)})  val R2 {r2:.4f}  "
                   f"err {px:.2f}px  ({round(time.time()-t0)}s)", flush=True)
@@ -208,6 +210,16 @@ def run(n_train=6000, n_test=1500, res=32, rounds=60, pop=64, gens=10,
     print(f"[dot-track] DONE: {len(frozen)} feats, test R2 {test_r2:.4f}, "
           f"mean err {err_px:.2f}px (median {med_px:.2f}px) on a {ad.SIZE}px frame "
           f"({out['seconds']}s)", flush=True)
+    try:
+        import dot_runs
+        cfg = {"n_train": n_train, "n_test": n_test, "res": res, "rounds": rounds,
+               "pop": pop, "gens": gens, "freeze_top": freeze_top, "seed": seed,
+               "distractors": distractors}
+        dot_runs.record("animation", cfg, hist, out,
+                        label=f"cursor tracker {len(frozen)} feats, {err_px:.2f}px",
+                        tags=["attention", "tracker", "model1"])
+    except Exception as exc:
+        print(f"[dot-track] run record skipped: {exc}", flush=True)
     return out
 
 

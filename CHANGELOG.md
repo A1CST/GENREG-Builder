@@ -10,6 +10,18 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-15] (Claude)** — **Attention line: paid down run-recording debt
+  (AGENTS.md rules 3 & 4).** The dot-line trainers (dot_track / dot_shape) were
+  not writing run records or raising end-of-run alerts. New `dot_runs.py`:
+  writes the standard five-file record (config/history/summary/meta/report) into
+  `runs/animation/<run-id>/` so attention runs show up on /runs next to every
+  other project, AND posts a `kind=run` Agent-panel notice (with the run_id)
+  when a run ends. Both best-effort (never break training). Wired into
+  dot_track.run and dot_shape.main (they now accumulate per-round history).
+  Verified: a real 5-shape subset train recorded run
+  `...-animation-97dbba` (80 history rows) + notice #401. runstore auto-discovers
+  the `animation` env, no registration needed; records are gitignored like other
+  runs/.
 - **[2026-07-15] (Claude)** — **GENERATION SALAD ROOT-CAUSED: the model is
   fine; the single-row step pipeline is buggy.** Parity check (30 held-out
   windows, step argmax vs verified batch preds): 15/30 MISMATCH, and every
