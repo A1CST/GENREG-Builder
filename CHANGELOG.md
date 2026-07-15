@@ -10,6 +10,15 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-15] (Claude)** — **Synth end-to-end stack test: TRAINED TO
+  COMPLETION — test 0.9943 in 165 s.** Spaces self-sized [354, 76, 78];
+  space 0 (motif detectors) val 0.9892, deep spaces added +0.9 pts with
+  gates heavily adopted (30/78 in space 2). Validates the whole harness:
+  R0 evolution + caching, emergent caps, deep vector spaces earning,
+  graceful convergence, 100%-ceiling reachable. Honest nuance: only 25
+  latent configurations, and grammar-v2's order-2/3 terms let space 0 nearly
+  enumerate the pair table — for a stacking-NECESSITY stress, raise latent
+  size (12x12 pairs or triplets). Export radial_stack_synth.json (mirrored).
 - **[2026-07-15] (Claude)** — **Synthetic hierarchical task for end-to-end
   stack tests** (`radial_synth.py`; user: simpler than CIFAR, trainable to
   completion, complex enough). 32x32 images: one of 5 shape motifs top, one
