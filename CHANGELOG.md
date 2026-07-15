@@ -10,6 +10,17 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-15] (Claude)** — **Synthetic hierarchical task for end-to-end
+  stack tests** (`radial_synth.py`; user: simpler than CIFAR, trainable to
+  completion, complex enough). 32x32 images: one of 5 shape motifs top, one
+  of 5 bottom (jitter + noise + brightness, single gray tint so SHAPE is the
+  only signal); label = (5*top + bottom) mod 10 — the class exists only in
+  the PAIRING and mod-10 is linearly inseparable from perfect one-hot
+  detections, so space 0 must become motif detectors and deep spaces MUST
+  compose pairs: stacking has necessary work, unlike CIFAR where deep spaces
+  starved. Deterministic rules => ~100% reachable. Same npz layout as
+  cifar_full; `run_stacked(data_npz=...)` hook added (dataset is part of the
+  R0 cache key). Full end-to-end run launched on the pod (12k/3k).
 - **[2026-07-15] (Claude)** — **Rotation ablation: NEUTRAL at this scale.**
   No-rotation arm (rot_deg=0, same seed/cap): spaces [424, 31], val 0.6538,
   test 0.6378 vs the rotation arm's [424, 22, 6] / 0.6532 / 0.6390 — the

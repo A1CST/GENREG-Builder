@@ -332,20 +332,21 @@ def _evolve_space(torch, rng, pop_size, gens, max_rounds, n_fit, Yf, yv,
 # the stacked run
 # ---------------------------------------------------------------------------
 
-def _r0_cache_path(seed, pop_size, gens, max_rounds, n_train, n_test, smoke):
+def _r0_cache_path(seed, pop_size, gens, max_rounds, n_train, n_test, smoke,
+                   data_npz=None):
     """Space 0 is deterministic given its config, so it is trained once and
     cached. The key covers everything that shapes its evolution EXCEPT the
     live cap threshold — reusing an R0 across cap settings is exactly the
     point (identical substrate for A/B arms)."""
     key = hashlib.sha1(json.dumps(
         [int(seed), int(pop_size), int(gens), int(max_rounds),
-         n_train, n_test, bool(smoke)]).encode()).hexdigest()[:10]
+         n_train, n_test, bool(smoke), data_npz or "cifar"]).encode()).hexdigest()[:10]
     return os.path.join(OUT_DIR, f"radial_stack_r0_{key}.json")
 
 
 def run_stacked(pop_size=64, gens=12, max_rounds=200, seed=5, smoke=False,
                 n_train=None, n_test=None, out_path=None, record=True, verbose=True,
-                rot_deg=1.0, r0_cache=True):
+                rot_deg=1.0, r0_cache=True, data_npz=None):
     """Emergent-cap stacked CIFAR grammar evolution. Space 0 = spatial
     grammar-v2 genomes over the patch-PCA environment; deeper spaces = vector
     grammar genomes (terms + gates) over the previous space's outputs. Depth
@@ -363,7 +364,7 @@ def run_stacked(pop_size=64, gens=12, max_rounds=200, seed=5, smoke=False,
         n_train = n_train or 3000
         n_test = n_test or 800
 
-    z = np.load(os.path.join(_HERE, "radial_data", "cifar_full.npz"))
+    z = np.load(data_npz or os.path.join(_HERE, "radial_data", "cifar_full.npz"))
     Xtr = z["Xtr"].astype(np.float32) / 255.0
     Xte = z["Xte"].astype(np.float32) / 255.0
     ytr, yte = z["ytr"], z["yte"]
@@ -418,7 +419,7 @@ def run_stacked(pop_size=64, gens=12, max_rounds=200, seed=5, smoke=False,
         log(f"  [space {si}] opening — reads {src}", verbose)
         frozen = None
         r0_path = _r0_cache_path(seed, pop_size, gens, max_rounds,
-                                 n_train, n_test, smoke)
+                                 n_train, n_test, smoke, data_npz)
         if si == 0 and r0_cache and os.path.exists(r0_path):
             with open(r0_path) as f:
                 frozen = json.load(f)["genomes"]
