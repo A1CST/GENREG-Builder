@@ -142,6 +142,23 @@
       </div>
     </div>
 
+    <div class="lm-sec">Try it — autocomplete with the latest checkpoint</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <input id="lmw-prompt" type="text" placeholder="type the start of a sentence…"
+             style="flex:1 1 340px;min-width:240px;padding:8px 10px;font-size:13px;
+                    font-family:ui-monospace,monospace;background:#0d1117;
+                    color:#dbe2ea;border:1px solid #2f4152;border-radius:6px" />
+      <button class="an-btn" id="lmw-go"
+              style="font-size:12px;padding:8px 16px;border-radius:6px;
+                     border:1px solid #2f4152;background:#1c2733;color:#dbe2ea;
+                     cursor:pointer">Complete</button>
+      <span id="lmw-go-status" style="font-size:11px;color:#8b95a1"></span>
+    </div>
+    <div id="lmw-out" style="margin-top:10px"></div>
+    <div class="lm-note" id="lmw-params">The first completion builds the model from the
+      checkpoint (~2–3 min, once per server start); after that it is instant. Model
+      parameters appear here after the build.</div>
+
     <div class="lm-note">The previous intent-genome rebuild is superseded on this page
       (its pipeline and APIs remain in genreg_train/). Char run: <b>radial_lm.py</b> ·
       word run: <b>radial_lm_word.py</b> · exports: <b>radial_data/lm_radial*.json</b> ·
@@ -243,6 +260,53 @@
     }).catch(function (e) {
       document.getElementById("lmw-results").textContent = "load failed: " + e;
     });
+
+    /* ---- interactive autocomplete on the latest word checkpoint ---- */
+    (function () {
+      var btn = document.getElementById("lmw-go"),
+          inp = document.getElementById("lmw-prompt"),
+          st = document.getElementById("lmw-go-status"),
+          out = document.getElementById("lmw-out"),
+          pbox = document.getElementById("lmw-params");
+      function go() {
+        var prompt = inp.value.trim();
+        if (!prompt) { st.textContent = "type a few words first"; return; }
+        btn.disabled = true;
+        st.textContent = "completing…";
+        fetch("/api/lm/autocomplete?n=24&prompt=" + encodeURIComponent(prompt))
+          .then(function (r) { return r.json(); })
+          .then(function (d) {
+            if (d.error) { st.textContent = d.error; btn.disabled = false; return; }
+            if (d.building) {
+              st.textContent = "building from the checkpoint… " + (d.progress || "");
+              setTimeout(go2, 3000);
+              return;
+            }
+            btn.disabled = false;
+            st.textContent = "";
+            var div = document.createElement("div");
+            div.className = "lm-genome";
+            div.style.marginBottom = "8px";
+            div.innerHTML = '<span class="g2"></span> <span class="cmp"></span>';
+            div.querySelector(".g2").textContent = d.prompt;
+            div.querySelector(".cmp").textContent = d.completion;
+            out.insertBefore(div, out.firstChild);
+            var p = d.params;
+            pbox.innerHTML = "<b>Model parameters: " + p.total.toLocaleString() +
+              "</b> — " + p.genome.toLocaleString() + " evolved across " +
+              p.n_genomes + " genomes + " + p.head.toLocaleString() +
+              " closed-form head (" + (p.total * 4 / 1024 / 1024).toFixed(1) +
+              " MB fp32) · vocab " + d.vocab + " · context " + d.context +
+              " words · val top-1 " + d.val_acc.toFixed(4) +
+              " · decode scale ×" + d.decode_scale;
+          }).catch(function (e) { st.textContent = "failed: " + e; btn.disabled = false; });
+      }
+      function go2() { go(); }
+      btn.addEventListener("click", go);
+      inp.addEventListener("keydown", function (e) {
+        if (e.key === "Enter") { go(); }
+      });
+    })();
 
     /* ---- example windows, drawn like the training frames ---- */
     fetch("/api/lm/radial/examples?n=3").then(function (r) { return r.json(); })

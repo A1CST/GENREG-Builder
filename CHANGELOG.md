@@ -10,6 +10,23 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-15] (Claude)** — **VOCAB SCALING: V=1000 local + V=2000 on the new
+  pod (RTX PRO 6000 Blackwell 96GB) — a scaling law emerges.** Top-1 vs
+  vocab: V=500 0.3684 / V=1000 0.3394 / V=2000 **0.3273** (16-word context,
+  150k windows, 89.8% token coverage) — doubling the vocabulary twice cost
+  only ~4 points total while n-gram ceilings fell faster (trigram 0.1822 at
+  V=2k; we hold 1.8x trigram at every scale). Top-5: 0.5843. Pod run took
+  286s (the 4080 needed ~1h for V=1k — and that hour exposed ANOTHER zombie
+  python from a TaskStop'd run hogging the GPU since last night; killed,
+  lesson re-learned). Pod staged with the full module set + table cache +
+  corpus slice, mirrored in runpod_shadow/genreg-lm/. First V=2k attempt
+  OOM'd at 200k windows/pop 64 (score tensor 19GB on top of 76GB resident)
+  -> 150k/pop 48 fits. NEW: /api/lm/autocomplete + type-to-complete box on
+  /lm (lm_word_infer.py builds from the latest checkpoint in ~2-3min once,
+  then ~1s/completion; params displayed: evolved genome + head + total).
+  V=2000 checkpoint now live for the page + autocomplete (restart Flask
+  AFTER this pull if a build already ran). Genomes remain flat at every
+  scale — the content-addressing primitive stays the next structural move.
 - **[2026-07-15] (Claude)** — **WORD-LEVEL LM: 0.3684 top-1 / 0.6268 top-5 on
   500-vocab next-word — and it GENERATES ENGLISH.** The pivot from chars
   (user's call: composition over meaning, not spelling). `radial_lm_word.py`:
