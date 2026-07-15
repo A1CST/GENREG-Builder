@@ -10,6 +10,25 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-14] (Claude)** — **ResNet STACKED spaces: gradient-free stacking
+  BEATS single-space (TEST 0.6638 vs 0.6593).** Implemented the emergent-cap
+  stacking idea (`documentation/stacking.txt`) in `resnet_evo.py`
+  (`run_stacked`, `--stack`): each space self-sizes under a per-space energy
+  economy (no hard cap; scarcity sets the size), and a full space's outputs
+  become the next space's data. Two fixes crossed the line, both from the user's
+  diagnoses: (1) **pass spatial GRIDs, not scalars** — each space emits a 4×4
+  map per genome so "where" survives and deeper spaces build hierarchical
+  features (0.6259→0.6413); (2) **let R0 MATURE** — a patient windowed cap
+  (flat over 5 rounds, live-tunable via `F:\Resnet\cap.txt`) instead of tripping
+  on the first flat round, so R0 climbed 333/0.630 → 447/0.6586 (→ **0.6638**,
+  beating the single-space record). Final: 4 spaces, emergent caps
+  **447→54→27→23 = 551 genomes**, val 0.6756, gradient-free. **Rotation
+  investigated and recorded as a dead end** (single-axis embed = zero effect at
+  every angle; the block-rotation bump was dense remixing, not rotation). Added
+  an R0 cache (deterministic, downstream-independent → reuse in ~40 s) and a
+  live-tunable cap file; all artifacts on `F:\Resnet`, never C:. Full arc in
+  `documentation/changelogs/CHANGELOG_RESNET.md`. One seed; test touched once.
+
 - **[2026-07-15] (Claude)** — **THE HAND-OFF FIX IS VALIDATED (realigned
   positional test).** New rule="rel" synth task: ring anchor + satellite
   motif anywhere (global translation, identity distractors, 1.5x noise);

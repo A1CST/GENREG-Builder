@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>GENREG — ResNet (gradient-free)</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='vendor/xterm.css') }}" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+  <style>
+    .rn-layout { display:flex; flex:1 1 auto; min-height:0; }
+    .rn-side { flex:0 0 260px; overflow-y:auto; border-right:1px solid #1a1f26; padding:15px 16px; background:#0e1116; }
+    .rn-side h1 { font-size:15px; margin:0 0 3px; color:#e6ebf1; }
+    .rn-side p.lede { font-size:11px; color:#8b95a1; line-height:1.5; margin:0 0 14px; }
+    .rn-side p.lede b { color:#c7d0da; }
+    .rn-sec { font-size:10.5px; text-transform:uppercase; letter-spacing:.05em; color:#7f8b98; margin:16px 0 8px; border-top:1px solid #161b22; padding-top:12px; }
+    .rn-gene { border:1px solid #171d24; border-radius:6px; background:#0c0f13; padding:8px 10px; margin-bottom:8px; }
+    .rn-gene .g { font-size:11px; color:#dbe2ea; font-weight:500; }
+    .rn-gene .d { font-size:10.5px; color:#8b95a1; line-height:1.45; margin-top:2px; }
+    .rn-btn { width:100%; margin-top:6px; }
+    .rn-note { font-size:10.5px; color:#6c7885; line-height:1.5; margin-top:14px; border-top:1px solid #161b22; padding-top:10px; }
+    .rn-note code { color:#9ab; }
+
+    .rn-main { flex:1 1 auto; display:flex; flex-direction:column; min-width:0; background:#0b0d10; overflow-y:auto; }
+    .rn-explain { font-size:12px; color:#aeb8c2; line-height:1.55; padding:11px 16px; background:#0f141b; border-bottom:1px solid #1a1f26; }
+    .rn-explain b { color:#dbe2ea; }
+    .rn-eq { font-family:ui-monospace,monospace; color:#7fd0a8; background:#0c1310; border:1px solid #14261c; border-radius:5px; padding:3px 8px; display:inline-block; margin-top:6px; font-size:12px; }
+
+    .rn-hero { display:flex; gap:12px; margin:12px 16px 0; flex-wrap:wrap; }
+    .rn-stat { flex:1 1 140px; border:1px solid #171d24; border-radius:8px; background:#0c0f13; padding:12px 14px; }
+    .rn-stat .k { font-size:10px; text-transform:uppercase; letter-spacing:.05em; color:#7f8b98; }
+    .rn-stat .v { font-size:26px; font-family:ui-monospace,monospace; color:#e6ebf1; font-variant-numeric:tabular-nums; margin-top:3px; }
+    .rn-stat .v.hi { color:#5fd39a; }
+    .rn-stat .sub { font-size:10.5px; color:#6c7885; margin-top:2px; }
+
+    .rn-panels { display:flex; flex:1 1 auto; min-height:0; margin:12px 16px; gap:12px; flex-wrap:wrap; }
+    .rn-panel { flex:1 1 340px; min-width:0; border:1px solid #171d24; border-radius:8px; background:#0c0f13; padding:10px 12px 12px; display:flex; flex-direction:column; }
+    .rn-ptitle { flex:0 0 auto; font-size:12px; font-weight:500; color:#dbe2ea; margin:0 0 8px; }
+    .rn-ptitle span { color:#7f8b98; font-weight:400; font-size:10.5px; }
+    .rn-cv { width:100%; height:200px; display:block; border:1px solid #14191f; border-radius:5px; background:#0b0e12; }
+    .rn-bars { margin-top:2px; }
+    .rn-brow { display:flex; align-items:center; gap:8px; margin-bottom:5px; font-size:10.5px; }
+    .rn-brow .lb { flex:0 0 96px; color:#8b95a1; text-align:right; font-family:ui-monospace,monospace; }
+    .rn-brow .tr { flex:1; height:12px; background:#11151b; border-radius:3px; position:relative; overflow:hidden; }
+    .rn-brow .fl { position:absolute; left:0; top:0; bottom:0; background:#2f4152; border-radius:3px; }
+    .rn-brow .fl.hi { background:#2e7d5b; }
+    .rn-brow .vl { flex:0 0 40px; color:#dbe2ea; font-family:ui-monospace,monospace; font-variant-numeric:tabular-nums; }
+    .rn-status { font-size:11px; color:#8b95a1; margin:0 16px 14px; min-height:15px; }
+    .rn-status.err { color:#e07070; }
+    .rn-refs { font-size:11px; color:#8b95a1; line-height:1.9; }
+    .rn-refs .sw { display:inline-block; width:8px; height:8px; border-radius:2px; margin-right:6px; vertical-align:0; }
+    .rn-refs b { color:#dbe2ea; font-family:ui-monospace,monospace; }
+
+    /* --- residual demo --- */
+    .rn-demo { margin:12px 16px 0; border:1px solid #171d24; border-radius:8px; background:#0c0f13; padding:12px 14px; }
+    .rn-demo-head { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:8px; }
+    .rn-demo-head .rn-ptitle { margin:0; }
+    .rn-ctrls { display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
+    .rn-ctrl { display:flex; align-items:center; gap:6px; font-size:10.5px; color:#8b95a1; text-transform:uppercase; letter-spacing:.04em; }
+    .rn-ctrl input[type=range] { width:96px; accent-color:#2e7d5b; }
+    .rn-ctrl select { background:#11151b; color:#dbe2ea; border:1px solid #232a33; border-radius:4px; font-size:11px; padding:2px 4px; }
+    .rn-ctrl .v { color:#c7d0da; font-family:ui-monospace,monospace; min-width:30px; text-transform:none; }
+    .rn-seg { display:flex; }
+    .rn-seg div { font-size:11px; padding:4px 10px; border:1px solid #232a33; background:#11151b; color:#8b95a1; cursor:pointer; user-select:none; }
+    .rn-seg div:first-child { border-radius:5px 0 0 5px; } .rn-seg div:last-child { border-radius:0 5px 5px 0; border-left:none; }
+    .rn-seg div.on { background:#1c2733; color:#dbe2ea; border-color:#2f4152; }
+    .rn-demo-cv { width:100%; height:330px; display:block; border:1px solid #14191f; border-radius:6px; background:#0b0e12; }
+    .rn-demo-cap { font-size:11.5px; color:#aeb8c2; line-height:1.5; margin-top:8px; }
+    .rn-demo-cap b { color:#dbe2ea; }
+    .rn-demo-cap .warn { color:#e0a050; } .rn-demo-cap .ok { color:#5fd39a; }
+  </style>
+</head>
+<body class="tlm-body">
+  <header class="topbar">
+    <div class="brand">GENREG<span class="brand-sub">resnet · gradient-free evolved residual networks</span></div>
+    <div class="status">{% set nav_active = 'resnet' %}{% include '_nav.html' %}</div>
+  </header>
+
+  <div class="rn-layout">
+    <aside class="rn-side">
+      <h1>ResNet — gradient-free</h1>
+      <p class="lede">The whole lab is <b>gradient-free</b> (rule #1: no
+        gradients, no backprop, no hybrid). This page asks the ResNet question
+        <b>inside</b> that law: can evolution <b>discover the residual skip</b>
+        and stack it usefully, scored only by a closed-form linear read-out on
+        a held-back val split? Same machinery as <a href="/radial" style="color:#6ea8dc">Radial v2</a>
+        — swapped grammar.</p>
+
+      <div class="rn-sec" style="margin-top:0;border-top:none;padding-top:0">The residual genome</div>
+      <div class="rn-gene"><div class="g">stem</div><div class="d">2–4 label-free
+        patch-PCA channel maps (the environment). Channel count fixed through the
+        stack so the identity add stays valid.</div></div>
+      <div class="rn-gene"><div class="g">residual blocks — depth is a gene</div>
+        <div class="d">h ← h + gain·act(a·(mix·h)+b). The <b>skip</b> is the
+        ResNet gene; mix is the 1×1-conv analog; act is the 8-function catalog.
+        New blocks bootstrap as near-no-op then evolve.</div></div>
+      <div class="rn-gene"><div class="g">head</div><div class="d">weighted
+        channel collapse → one map → evolved soft spatial window (cx, cy, σ) →
+        one scalar per image via mean / max / std.</div></div>
+
+      <div class="rn-sec">Read-out</div>
+      <p class="lede">Each round breeds a population (comma-GA, tournament +
+        elitism), freezes the top decorrelated survivors as columns, and reads
+        them out with a <b>closed-form ridge</b>. Test touched exactly once. No
+        gradients anywhere.</p>
+
+      <button class="rn-btn" id="rn-reload">Reload latest result</button>
+
+      <div class="rn-note">Pipeline: <code>resnet_evo.py</code>. Artifacts
+        (checkpoint + result JSON) write to <code>F:\Resnet</code>, not C:.
+        Full run: <code>python resnet_evo.py</code>. Smoke:
+        <code>python resnet_evo.py --smoke</code>. Runs appear on
+        <a href="/runs" style="color:#6ea8dc">Runs</a> under
+        <code>resnet_evo</code>.</div>
+    </aside>
+
+    <main class="rn-main">
+      <div class="rn-explain"><b>One residual network → one scalar feature.</b>
+        Evolution is the only optimizer — it sets scale, channels, depth,
+        mixing, activations, residual gains, and the read-out window. The bank
+        of frozen residual features is scored by a linear head that never sees a
+        gradient.
+        <div class="rn-eq">h ← h + gain · act( a · (mix · h) + b )</div></div>
+
+      <section class="rn-demo">
+        <div class="rn-demo-head">
+          <div class="rn-ptitle">How a residual block works
+            <span>— drag a signal through the stack and watch the skip keep it alive</span></div>
+          <div class="rn-ctrls">
+            <label class="rn-ctrl">skip
+              <span class="rn-seg" id="rd2-skip">
+                <div class="on" data-v="1">residual</div><div data-v="0">plain (no skip)</div>
+              </span></label>
+            <label class="rn-ctrl">depth <input type="range" id="rd2-depth" min="1" max="8" step="1" value="5" />
+              <span class="v" id="rd2-depth-v">5</span></label>
+            <label class="rn-ctrl">gain <input type="range" id="rd2-gain" min="0" max="1.5" step="0.05" value="0.6" />
+              <span class="v" id="rd2-gain-v">0.60</span></label>
+            <label class="rn-ctrl">act
+              <select id="rd2-act">
+                <option value="tanh" selected>tanh</option>
+                <option value="relu">relu</option>
+                <option value="sin">sin</option>
+                <option value="gauss">gauss</option>
+                <option value="sq">sq</option>
+                <option value="soft">soft</option>
+                <option value="abs">abs</option>
+                <option value="id">id</option>
+              </select></label>
+            <span class="rn-seg" id="rd2-boot"><div data-v="boot">bootstrap (gain→0)</div></span>
+          </div>
+        </div>
+        <canvas class="rn-demo-cv" id="rd2-cv"></canvas>
+        <div class="rn-demo-cap" id="rd2-cap"></div>
+      </section>
+
+      <div class="rn-hero" id="rn-hero"></div>
+      <div class="rn-status" id="rn-status">loading latest result…</div>
+
+      <div class="rn-panels">
+        <div class="rn-panel">
+          <div class="rn-ptitle">Val accuracy over rounds <span id="rn-curve-sub"></span></div>
+          <canvas class="rn-cv" id="rn-curve"></canvas>
+          <div class="rn-sec" style="border:none;padding:0;margin:12px 0 6px">Reference lines</div>
+          <div class="rn-refs" id="rn-refs"></div>
+        </div>
+        <div class="rn-panel">
+          <div class="rn-ptitle">What evolution chose <span>(distribution over frozen genomes)</span></div>
+          <div class="rn-sec" style="border:none;padding:0;margin:2px 0 6px">Residual depth</div>
+          <div class="rn-bars" id="rn-depth"></div>
+          <div class="rn-sec" style="border:none;padding:0;margin:12px 0 6px">Channel width</div>
+          <div class="rn-bars" id="rn-width"></div>
+          <div class="rn-sec" style="border:none;padding:0;margin:12px 0 6px">Read-out stat</div>
+          <div class="rn-bars" id="rn-stat"></div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="{{ url_for('static', filename='resnet_demo.js') }}"></script>
+  <script src="{{ url_for('static', filename='resnet.js') }}"></script>
+  <script src="{{ url_for('static', filename='vendor/xterm.js') }}"></script>
+  <script src="{{ url_for('static', filename='vendor/addon-fit.js') }}"></script>
+  <script src="{{ url_for('static', filename='termdock.js') }}"></script>
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
+  <script src="{{ url_for('static', filename='agentpanel.js') }}"></script>
+  <script src="{{ url_for('static', filename='configpanel.js') }}"></script>
+</body>
+</html>
