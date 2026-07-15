@@ -332,9 +332,20 @@ def _evolve_space(torch, rng, pop_size, gens, max_rounds, n_fit, Yf, yv,
 # the stacked run
 # ---------------------------------------------------------------------------
 
+def _r0_cache_path(seed, pop_size, gens, max_rounds, n_train, n_test, smoke):
+    """Space 0 is deterministic given its config, so it is trained once and
+    cached. The key covers everything that shapes its evolution EXCEPT the
+    live cap threshold — reusing an R0 across cap settings is exactly the
+    point (identical substrate for A/B arms)."""
+    key = hashlib.sha1(json.dumps(
+        [int(seed), int(pop_size), int(gens), int(max_rounds),
+         n_train, n_test, bool(smoke)]).encode()).hexdigest()[:10]
+    return os.path.join(OUT_DIR, f"radial_stack_r0_{key}.json")
+
+
 def run_stacked(pop_size=64, gens=12, max_rounds=200, seed=5, smoke=False,
                 n_train=None, n_test=None, out_path=None, record=True, verbose=True,
-                rot_deg=1.0):
+                rot_deg=1.0, r0_cache=True):
     """Emergent-cap stacked CIFAR grammar evolution. Space 0 = spatial
     grammar-v2 genomes over the patch-PCA environment; deeper spaces = vector
     grammar genomes (terms + gates) over the previous space's outputs. Depth
@@ -405,9 +416,32 @@ def run_stacked(pop_size=64, gens=12, max_rounds=200, seed=5, smoke=False,
             src = f"space {si-1} outputs ({F_prev} feats{rot_note}, vector grammar + gates)"
 
         log(f"  [space {si}] opening — reads {src}", verbose)
-        frozen, fcols = _evolve_space(torch, rng, pop_size, gens, max_rounds,
-                                      n_fit, Yf, yv, base_prev, new_fn, mut_fn,
-                                      feat_tr, log, verbose)
+        frozen = None
+        r0_path = _r0_cache_path(seed, pop_size, gens, max_rounds,
+                                 n_train, n_test, smoke)
+        if si == 0 and r0_cache and os.path.exists(r0_path):
+            with open(r0_path) as f:
+                frozen = json.load(f)["genomes"]
+            for g in frozen:
+                g["terms"] = [{"c": t["c"], "prog": [tuple(s) for s in t["prog"]]}
+                              for t in g["terms"]]
+            fcols = [feat_tr(g) for g in frozen]
+            log(f"  [space 0] CACHED — reused {len(frozen)} genomes from "
+                f"{os.path.basename(r0_path)} (deterministic R0)", verbose)
+        if frozen is None:
+            frozen, fcols = _evolve_space(torch, rng, pop_size, gens, max_rounds,
+                                          n_fit, Yf, yv, base_prev, new_fn, mut_fn,
+                                          feat_tr, log, verbose)
+            if si == 0 and r0_cache and frozen:
+                tmp = r0_path + ".tmp"
+                with open(tmp, "w") as f:
+                    json.dump({"genomes": frozen,
+                               "config": {"seed": seed, "pop_size": pop_size,
+                                          "gens": gens, "max_rounds": max_rounds,
+                                          "n_train": n_train, "n_test": n_test,
+                                          "smoke": bool(smoke)}}, f)
+                os.replace(tmp, r0_path)
+                log(f"  [space 0] cached -> {os.path.basename(r0_path)}", verbose)
         if not frozen:
             log(f"  [space {si}] produced nothing — stop stacking", verbose)
             break

@@ -10,6 +10,15 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-15] (Claude)** — radial_stack: **R0 (space 0) is now cached and
+  reused** (user directive — it's deterministic, so train it once). Cache key
+  = (seed, pop, gens, max_rounds, n_train, n_test, smoke); the live cap is
+  deliberately EXCLUDED from the key so A/B arms (e.g. the rotation ablation
+  `rot_deg=1.0` vs `0.0`) share an identical substrate. On hit, genomes load
+  and their columns recompute deterministically in seconds (pod smoke: run 1
+  wrote `radial_stack_r0_<key>.json`, run 2 reused it — 8s -> 2s total; deep
+  spaces then explore with fresh randomness, as intended for arms). Disable
+  with `r0_cache=False`.
 - **[2026-07-15] (Claude)** — **radial_stack full run #1: the speed/quality
   dial, measured.** Emergent-cap stacked run (cap 0.0014): **11.5 min** (10x
   faster than the v2 record's 114) — uncapped freezing banked 24-37 genomes
