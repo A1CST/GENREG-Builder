@@ -112,6 +112,14 @@
    "export": "lm_radial_word_cont2.json",
    "title": "14 · SKIP-GRAM ENVIRONMENT + CONTINUE-TRAIN - the loop closes: 0.3992, best model of the line",
    "desc": "Module 13 said the miss class needs new environment statistics. Added: skip-gram continuation tables keyed (w-3,w-1) and (w-3,w-2) - wider context the trigram tables cannot see - as 4,256 new channels, with a headroom diagnostic first (45.9% of blind windows answerable). Continue-trained the same frozen base: +65 genomes, 45s. TEST 0.2974 -> 0.3992 top-1, 0.5010 -> 0.5981 top-5; the blind class went 0.0040 -> 0.1106 (28x); every slice improved; no forgetting. This lean model now beats every fat head ever built here (best 0.3296) at ~1.1M params. The probe -> environment-gap -> continue-train loop is validated on language."
+  },
+  {
+   "id": "continue-farskip",
+   "date": "2026-07-15",
+   "kind": "run",
+   "export": "lm_radial_word_cont3.json",
+   "title": "15 · SECOND CRANK: far skip-grams take it to 0.4832 - simple-neural-LM territory",
+   "desc": "The loop again, on the Module-14 model: rebuild verified (0.3987 vs 0.3992), far tables keyed (w-4,w-1)/(w-5,w-1) added, headroom 64.9% of remaining errors answerable. Continue-train: +178 genomes, 64s. TEST 0.3992 -> 0.4832 top-1, 0.5981 -> 0.6643 top-5. Blind class 0.1106 -> 0.2051; bigram-backoff 0.327 -> 0.476. Cumulative crank: 0.2974 -> 0.3992 -> 0.4832 at ~1.2M params, gradient-free."
   }
  ]
 }

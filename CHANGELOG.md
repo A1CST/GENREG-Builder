@@ -10,6 +10,15 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-15] (Claude)** — **MODULE 15 - second crank: far skip-grams
+  (w-4,w-1)/(w-5,w-1) take the lean model to TEST 0.4832 top-1 / 0.6643
+  top-5 - the user's "simple neural LM territory" band, gradient-free at
+  ~1.2M params.** Loop repeated on the Module-14 model: cont2 rebuild
+  verified (0.3987 vs 0.3992), headroom 64.9% of remaining errors
+  answerable by the far tables, continue-train +178 genomes in 64s. Blind
+  class 0.1106 -> 0.2051, bigram-backoff 0.327 -> 0.476, every slice up,
+  no forgetting. Cumulative crank: 0.2974 -> 0.3992 -> 0.4832. Module 15
+  on /lm.
 - **[2026-07-15] (Claude)** — **Attention line: fixed a WHITE-TARGET leak and
   retrained — the cursor is now genuinely necessary.** The tracker's target
   shape was always drawn WHITE while distractors were colored, so the model
