@@ -10,6 +10,17 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-15] (Claude)** — **Suite v3 (centroid moments): +1.5 on clean
+  relations — best rel_sep yet (0.9480).** Completing the moment family
+  (comx/comy joining mean/max/std) let genomes read LOCATION as a statistic;
+  displacement became expressible and evolution used it: rel_sep 0.9327 →
+  0.9480 (val-test gap 0.0008 — honest), spaces [291, 290, 120, 33, 14].
+  Overlapping-rel unchanged (0.9047) — |z|-weighted centroids are corrupted
+  when objects merge, so that task's residual is perception, as previously
+  isolated. easy/hard unchanged (~0.99). Relational ladder: 0.8503 → 0.8700
+  → 0.9127 → 0.9327 → **0.9480**; remaining gap ~5 pts, current suspect:
+  per-channel maps respond to BOTH objects (role separation), so centroids
+  average across roles. Exports universal3_*.json (mirrored).
 - **[2026-07-15] (Claude)** — **Universal suite v2 (residual gene): NEUTRAL.**
   easy 0.9943 / hard 0.9870 / rel 0.9073 / rel_sep 0.9280 — all within noise
   of v1. The resnet skip (arch gene, bootstrap-no-op, evolvable depth) is now

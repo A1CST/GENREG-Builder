@@ -176,16 +176,25 @@ def _to_grid(torch, z, grid=None):
 
 
 def _window_pool(torch, z, g):
-    """Evolved soft spatial window -> one scalar per image."""
+    """Evolved soft spatial window -> one scalar per image. The stat catalog
+    is the MOMENT family: mean (zeroth), max, std (second), and the FIRST
+    spatial moments comx/comy — the centroid of activation magnitude, which
+    makes location a readable quantity (and displacement an expressible
+    genome: |comx(A) - comx(B)|)."""
     H, W = z.shape[1], z.shape[2]
     ys = torch.linspace(0, 1, H, device=z.device).view(H, 1)
     xs = torch.linspace(0, 1, W, device=z.device).view(1, W)
     sig = float(np.exp(g["lsig"]))
     wgt = torch.exp(-(((xs - g["cx"]) ** 2) + ((ys - g["cy"]) ** 2)) / (2 * sig * sig))
-    stat = ["mean", "max", "std"][g["stat"]]
+    stat = ["mean", "max", "std", "comx", "comy"][g["stat"] % 5]
     if stat == "max":
         wn = wgt / (wgt.max() + 1e-9)
         return (z * wn + (wn - 1.0) * 30.0).amax((1, 2))
+    if stat in ("comx", "comy"):
+        w = wgt * torch.abs(z)
+        wsum = w.sum((1, 2)) + 1e-9
+        ax = xs.expand(H, W) if stat == "comx" else ys.expand(H, W)
+        return (w * ax).sum((1, 2)) / wsum
     wsum = wgt.sum() + 1e-9
     m = (z * wgt).sum((1, 2)) / wsum
     if stat == "mean":
@@ -263,7 +272,7 @@ def _new_res_genome(rng, C_prev):
          "blocks": [_rand_rblock(rng, C)
                     for _ in range(1 if rng.random() < 0.6 else 2)],
          "wout": [float(rng.normal(0, 1)) for _ in range(C)],
-         "stat": int(rng.integers(3)),
+         "stat": int(rng.integers(5)),
          "cx": float(rng.uniform(0.1, 0.9)), "cy": float(rng.uniform(0.1, 0.9)),
          "lsig": float(rng.uniform(np.log(0.15), np.log(1.5))),
          "gate": None}
@@ -299,7 +308,7 @@ def _mutate_res(rng, g, sc, C_prev):
     for i in range(C):
         c["wout"][i] = float(c["wout"][i] + rng.normal(0, sc))
     if rng.random() < 0.08:
-        c["stat"] = int(rng.integers(3))
+        c["stat"] = int(rng.integers(5))
     c["cx"] = float(np.clip(c["cx"] + rng.normal(0, sc * 0.5), 0.0, 1.0))
     c["cy"] = float(np.clip(c["cy"] + rng.normal(0, sc * 0.5), 0.0, 1.0))
     c["lsig"] = float(np.clip(c["lsig"] + rng.normal(0, sc * 0.5),
@@ -354,7 +363,7 @@ def new_grid_genome(rng, C_prev):
                              for _ in range(1 if rng.random() < 0.7 else 2)]}
                    for _ in range(order)],
          "op": int(rng.integers(len(_OPS))),
-         "stat": int(rng.integers(3)),
+         "stat": int(rng.integers(5)),
          "cx": float(rng.uniform(0.1, 0.9)), "cy": float(rng.uniform(0.1, 0.9)),
          "lsig": float(rng.uniform(np.log(0.15), np.log(1.5)))}
     if rng.random() < 0.3:
@@ -386,7 +395,7 @@ def mutate_grid_g(rng, g, sc, C_prev):
             t["sh"] = [int(np.clip(t["sh"][0] + rng.integers(-1, 2), -m, m)),
                        int(np.clip(t["sh"][1] + rng.integers(-1, 2), -m, m))]
     if rng.random() < 0.08:
-        out["stat"] = int(rng.integers(3))
+        out["stat"] = int(rng.integers(5))
     out["cx"] = float(np.clip(g["cx"] + rng.normal(0, sc * 0.5), 0.0, 1.0))
     out["cy"] = float(np.clip(g["cy"] + rng.normal(0, sc * 0.5), 0.0, 1.0))
     out["lsig"] = float(np.clip(g["lsig"] + rng.normal(0, sc * 0.5),
