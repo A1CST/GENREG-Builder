@@ -64,12 +64,14 @@ class Env4(Env3):
         bank_tr = torch.cat([self.bank2_tr, self.far_tr], 1)
         bank_te = torch.cat([self.bank2_te, self.far_te], 1)
         self.cont3_cols_tr, self.cont3_cols_te = [], []
+        self.cont3_stats = []
         for sp in self.cont3_spaces:
             f_tr = torch.stack([self._feat2(g, bank_tr, self.ss_tr,
                                             self.probs_tr) for g in sp], 1)
             f_te = torch.stack([self._feat2(g, bank_te, self.ss_te,
                                             self.probs_te) for g in sp], 1)
             zmu, zsd = f_tr.mean(0), f_tr.std(0) + 1e-6
+            self.cont3_stats.append((zmu, zsd))
             f_tr = ((f_tr - zmu) / zsd).clamp(-8, 8)
             f_te = ((f_te - zmu) / zsd).clamp(-8, 8)
             self.cont3_cols_tr.append(f_tr)
@@ -135,6 +137,7 @@ class Env4(Env3):
         t4_te = torch.cat([self.q_p_te, self.e_p_te, self.f_p_te,
                            qE_te, eE_te, fE_te], 1)
         tmu, tsd = t4_tr.mean(0), t4_tr.std(0) + 1e-6
+        self.tmu, self.tsd = tmu, tsd
         self.t4_tr = ((t4_tr - tmu) / tsd).clamp(-8, 8)
         self.t4_te = ((t4_te - tmu) / tsd).clamp(-8, 8)
         self.t4_emb_tr = self.t4_tr[:, 3 * V:]

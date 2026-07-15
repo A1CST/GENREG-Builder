@@ -88,12 +88,14 @@ class Env3(Env2):
         bank_tr = torch.cat([self.bank_tr, self.new_tr], 1)
         bank_te = torch.cat([self.bank_te, self.new_te], 1)
         self.cont2_cols_tr, self.cont2_cols_te = [], []
+        self.cont2_stats = []
         for sp in self.cont2_spaces:
             f_tr = torch.stack([feat2(g, bank_tr, self.ss_tr, self.probs_tr)
                                 for g in sp], 1)
             f_te = torch.stack([feat2(g, bank_te, self.ss_te, self.probs_te)
                                 for g in sp], 1)
             zmu, zsd = f_tr.mean(0), f_tr.std(0) + 1e-6
+            self.cont2_stats.append((zmu, zsd))
             f_tr = ((f_tr - zmu) / zsd).clamp(-8, 8)
             f_te = ((f_te - zmu) / zsd).clamp(-8, 8)
             self.cont2_cols_tr.append(f_tr)
@@ -148,6 +150,7 @@ class Env3(Env2):
         far_tr = torch.cat([self.skC_p_tr, self.skD_p_tr, cE_tr, dE_tr], 1)
         far_te = torch.cat([self.skC_p_te, self.skD_p_te, cE_te, dE_te], 1)
         fmu, fsd = far_tr.mean(0), far_tr.std(0) + 1e-6
+        self.fmu, self.fsd = fmu, fsd
         self.far_tr = ((far_tr - fmu) / fsd).clamp(-8, 8)
         self.far_te = ((far_te - fmu) / fsd).clamp(-8, 8)
         self.far_emb_tr = self.far_tr[:, 2 * V:]

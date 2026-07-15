@@ -111,6 +111,7 @@ class Env2(LeanModel):
         new_tr = torch.cat([self.skA_p_tr, self.skB_p_tr, skA_e_tr, skB_e_tr], 1)
         new_te = torch.cat([self.skA_p_te, self.skB_p_te, skA_e_te, skB_e_te], 1)
         nmu, nsd = new_tr.mean(0), new_tr.std(0) + 1e-6
+        self.nmu, self.nsd = nmu, nsd
         self.new_tr = ((new_tr - nmu) / nsd).clamp(-8, 8)
         self.new_te = ((new_te - nmu) / nsd).clamp(-8, 8)
         # the skip EMBEDDING blocks (2D cols at the end) also join the head

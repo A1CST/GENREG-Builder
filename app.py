@@ -1531,7 +1531,7 @@ def lm_export(name):
     try:
         import json as _json
         import re as _re
-        if not _re.fullmatch(r"(lm_radial|embed_report)[A-Za-z0-9_]*\.json",
+        if not _re.fullmatch(r"(lm_radial|lm_probe|embed_report)[A-Za-z0-9_]*\.json",
                              name):
             return jsonify({"error": "not an lm export"}), 404
         base = os.path.dirname(os.path.abspath(__file__))

@@ -135,7 +135,8 @@
           "<th>val after</th><th>gain</th></tr>" +
           d.spaces.map(function (s) {
             return "<tr><td>R" + s.space + "</td><td>" + s.n_frozen + "</td><td>" +
-              s.val_after.toFixed(4) + "</td><td>+" + s.val_gain.toFixed(4) +
+              (s.val_after != null ? s.val_after.toFixed(4) : "-") + "</td><td>" +
+              (s.val_gain != null ? "+" + s.val_gain.toFixed(4) : "-") +
               "</td></tr>";
           }).join("") + "</table>";
       }
