@@ -65,9 +65,12 @@
       but the shape riding the path is randomized, the window starts anywhere in the
       clip, and the whole path is shifted by a random offset. Shape is a decoy and
       position is decorrelated: <b>only the motion between frames</b> names the
-      animation (10 classes, chance 0.10). The current best radial setup (universal
-      grammar, emergent-cap stacked spaces, no gradients) is wired to it below;
-      results update live from the run export.</p>
+      animation (10 classes, chance 0.10). A <b>twin model</b> trains on the same
+      sequences with the labels flipped — name the <b>shape</b>, with the motion as
+      the decoy — so the two stacks show where evolution puts the work when the
+      answer lives in a frame versus between frames. The current best radial setup
+      (universal grammar, emergent-cap stacked spaces, no gradients) is wired to
+      both below; results update live from the run exports.</p>
 
     <div class="an-sec">The dataset — the animations, live</div>
     <div class="an-grid" id="an-clips">loading animations…</div>
@@ -109,27 +112,40 @@
       <span class="cm"># the same primitives that composed space, composing time</span>
     </div>
 
-    <div class="an-sec">Results, live</div>
+    <div class="an-sec">Results, live — the twin stacks</div>
     <div class="an-cols">
       <div class="an-col">
-        <div id="an-results">loading run results…</div>
-        <div class="an-note" id="an-task"></div>
+        <h3 style="font-size:12.5px;color:#dbe2ea;margin:0 0 8px">Model A — name the MOTION (shape is the decoy)</h3>
+        <div id="an-results-path">loading run results…</div>
+        <table class="an-tbl" id="an-spaces-path" style="margin-top:8px"></table>
+        <div class="an-note" id="an-task-path"></div>
       </div>
       <div class="an-col">
-        <table class="an-tbl" id="an-spaces"></table>
+        <h3 style="font-size:12.5px;color:#dbe2ea;margin:0 0 8px">Model B — name the SHAPE (motion is the decoy)</h3>
+        <div id="an-results-shape">loading run results…</div>
+        <table class="an-tbl" id="an-spaces-shape" style="margin-top:8px"></table>
+        <div class="an-note" id="an-task-shape"></div>
       </div>
     </div>
 
-    <div class="an-sec">Run the checkpoint</div>
-    <p class="an-lede">Watch the trained model work: each tile below is a real held-out
-      test sequence (exactly what the model sees — 32×32, noisy, random shape) with the
-      checkpoint's call under it. The first run rebuilds the model locally from the genome
-      checkpoint (~1–2 min, one time); after that it's instant.</p>
-    <div>
-      <button class="an-btn" id="an-run">Classify 12 held-out sequences</button>
-      <span class="an-run-status" id="an-run-status"></span>
+    <div class="an-sec">Run the checkpoints</div>
+    <p class="an-lede">Watch the trained models work: each tile is a real held-out test
+      sequence (exactly what the model sees — 32×32, noisy) with the checkpoint's call
+      under it. The first run of each model rebuilds it locally from its genome
+      checkpoint (~20 s, one time); after that it's instant. Both models see the
+      <b>same kind of clip</b> — one answers with the motion, the other with the shape.</p>
+    <div class="an-cols">
+      <div class="an-col">
+        <button class="an-btn" id="an-run-path">Classify MOTION — 12 held-out clips</button>
+        <span class="an-run-status" id="an-run-status-path"></span>
+        <div class="an-grid" id="an-infer-path" style="margin-top:12px"></div>
+      </div>
+      <div class="an-col">
+        <button class="an-btn" id="an-run-shape">Classify SHAPE — 12 held-out clips</button>
+        <span class="an-run-status" id="an-run-status-shape"></span>
+        <div class="an-grid" id="an-infer-shape" style="margin-top:12px"></div>
+      </div>
     </div>
-    <div class="an-grid" id="an-infer" style="margin-top:12px"></div>
 
     <div class="an-note">The previous evolved-shape-recognition rig is superseded by this
       page (its APIs remain available). Run: <b>radial_anim.py</b> · export:
@@ -179,102 +195,110 @@
       document.getElementById("an-clips").textContent = "animations failed to load: " + e;
     });
 
-    /* ---- live results ---- */
-    fetch("/api/animation/radial").then(function (r) { return r.json(); }).then(function (d) {
-      var box = document.getElementById("an-results");
-      if (d.error) { box.textContent = d.error; return; }
-      if (d.pending) { box.textContent = "run in progress — no export yet"; return; }
-      var rows = [["chance (" + d.n_classes + " animations)", d.chance, "dim"],
-                  ["R0 only (per-frame)", d.spaces && d.spaces.length ? d.spaces[0].val_after : null, "dim"],
-                  ["full temporal stack (val)", d.val_final, ""],
-                  ["full temporal stack (TEST)", d.test_acc, ""]];
-      var max = 1.0;
-      box.innerHTML = rows.filter(function (r2) { return r2[1] != null; }).map(function (r2) {
-        return '<div class="an-bar ' + r2[2] + '"><div class="lb">' + r2[0] +
-          '</div><div class="tr"><div class="fl" style="width:' +
-          (100 * r2[1] / max).toFixed(1) + '%"></div></div><div class="vl">' +
-          r2[1].toFixed(4) + "</div></div>";
-      }).join("");
-      var t = document.getElementById("an-spaces");
-      t.innerHTML = "<tr><th>space</th><th>genomes</th><th>val after</th><th>gain</th></tr>";
-      (d.spaces || []).forEach(function (s) {
-        var tr = document.createElement("tr");
-        tr.innerHTML = "<td>R" + s.space + "</td><td>" + s.n_frozen + "</td><td>" +
-          s.val_after.toFixed(4) + "</td><td>+" + s.val_gain.toFixed(4) + "</td>";
-        t.appendChild(tr);
-      });
-      document.getElementById("an-task").innerHTML =
-        "<b>" + d.n_train + "</b> train / <b>" + d.n_test + "</b> test sequences · " +
-        d.frames + "-frame windows · grid " + d.grid + " · " + d.seconds + "s · " + d.task;
-    }).catch(function (e) {
-      document.getElementById("an-results").textContent = "load failed: " + e;
-    });
-
-    /* ---- run the checkpoint on held-out sequences ---- */
-    var runBtn = document.getElementById("an-run"),
-        runSt = document.getElementById("an-run-status"),
-        runBox = document.getElementById("an-infer"),
-        inferTimer = null, inferPlayers = [];
-
-    function showInfer(d) {
-      runBox.innerHTML = "";
-      inferPlayers = [];
-      d.items.forEach(function (it) {
-        var raw = atob(it.data), S = it.size, F = it.frames;
-        var card = document.createElement("div");
-        card.className = "an-clip";
-        var cv = document.createElement("canvas");
-        cv.width = S; cv.height = S;
-        var pd = document.createElement("div");
-        pd.className = "pd " + (it.correct ? "ok" : "bad");
-        pd.textContent = (it.correct ? "✓ " : "✗ ") + it.pred +
-          (it.correct ? "" : " (true: " + it.true + ")");
-        card.appendChild(cv); card.appendChild(pd);
-        runBox.appendChild(card);
-        var g = cv.getContext("2d"), imgs = [];
-        for (var f = 0; f < F; f++) {
-          var img = g.createImageData(S, S);
-          for (var p = 0; p < S * S; p++) {
-            var v = raw.charCodeAt(f * S * S + p);
-            img.data[4 * p] = img.data[4 * p + 1] = img.data[4 * p + 2] = v;
-            img.data[4 * p + 3] = 255;
-          }
-          imgs.push(img);
-        }
-        inferPlayers.push({ g: g, imgs: imgs });
-      });
-      var right = d.items.filter(function (i) { return i.correct; }).length;
-      runSt.textContent = right + "/" + d.items.length + " correct here · local test acc " +
-        d.test_acc.toFixed(4) + " over all " + d.n_test + " held-out sequences · " +
-        d.n_genomes + " genomes";
-      if (inferTimer) { clearInterval(inferTimer); }
-      var f = 0;
-      inferTimer = setInterval(function () {
-        inferPlayers.forEach(function (p) { p.g.putImageData(p.imgs[f % p.imgs.length], 0, 0); });
-        f++;
-      }, 260);
+    /* ---- live results, one loader per twin model ---- */
+    function loadResults(task) {
+      fetch("/api/animation/radial?task=" + task)
+        .then(function (r) { return r.json(); }).then(function (d) {
+          var box = document.getElementById("an-results-" + task);
+          if (d.error) { box.textContent = d.error; return; }
+          if (d.pending) { box.textContent = "run in progress — no export yet"; return; }
+          var rows = [["chance (" + d.n_classes + " classes)", d.chance, "dim"],
+                      ["R0 only (per-frame)", d.spaces && d.spaces.length ? d.spaces[0].val_after : null, "dim"],
+                      ["full temporal stack (val)", d.val_final, ""],
+                      ["full temporal stack (TEST)", d.test_acc, ""]];
+          box.innerHTML = rows.filter(function (r2) { return r2[1] != null; }).map(function (r2) {
+            return '<div class="an-bar ' + r2[2] + '"><div class="lb">' + r2[0] +
+              '</div><div class="tr"><div class="fl" style="width:' +
+              (100 * r2[1]).toFixed(1) + '%"></div></div><div class="vl">' +
+              r2[1].toFixed(4) + "</div></div>";
+          }).join("");
+          var t = document.getElementById("an-spaces-" + task);
+          t.innerHTML = "<tr><th>space</th><th>genomes</th><th>val after</th><th>gain</th></tr>";
+          (d.spaces || []).forEach(function (s) {
+            var tr = document.createElement("tr");
+            tr.innerHTML = "<td>R" + s.space + "</td><td>" + s.n_frozen + "</td><td>" +
+              s.val_after.toFixed(4) + "</td><td>+" + s.val_gain.toFixed(4) + "</td>";
+            t.appendChild(tr);
+          });
+          document.getElementById("an-task-" + task).innerHTML =
+            "<b>" + d.n_train + "</b> train / <b>" + d.n_test + "</b> test sequences · " +
+            d.frames + "-frame windows · grid " + d.grid + " · " + d.seconds + "s · " + d.task;
+        }).catch(function (e) {
+          document.getElementById("an-results-" + task).textContent = "load failed: " + e;
+        });
     }
+    loadResults("path");
+    loadResults("shape");
 
-    function pollInfer() {
-      fetch("/api/animation/infer?n=12").then(function (r) { return r.json(); })
-        .then(function (d) {
-          if (d.error) { runSt.textContent = d.error; runBtn.disabled = false; return; }
-          if (d.building) {
-            runSt.textContent = "building the model from the checkpoint… " +
-              (d.progress || "");
-            setTimeout(pollInfer, 2500);
-            return;
+    /* ---- run a checkpoint on held-out sequences (one runner per model) ---- */
+    function makeRunner(task) {
+      var btn = document.getElementById("an-run-" + task),
+          st = document.getElementById("an-run-status-" + task),
+          box = document.getElementById("an-infer-" + task),
+          timer = null, players = [];
+
+      function show(d) {
+        box.innerHTML = "";
+        players = [];
+        d.items.forEach(function (it) {
+          var raw = atob(it.data), S = it.size, F = it.frames;
+          var card = document.createElement("div");
+          card.className = "an-clip";
+          var cv = document.createElement("canvas");
+          cv.width = S; cv.height = S;
+          var pd = document.createElement("div");
+          pd.className = "pd " + (it.correct ? "ok" : "bad");
+          pd.textContent = (it.correct ? "✓ " : "✗ ") + it.pred +
+            (it.correct ? "" : " (true: " + it.true + ")");
+          card.appendChild(cv); card.appendChild(pd);
+          box.appendChild(card);
+          var g = cv.getContext("2d"), imgs = [];
+          for (var f = 0; f < F; f++) {
+            var img = g.createImageData(S, S);
+            for (var p = 0; p < S * S; p++) {
+              var v = raw.charCodeAt(f * S * S + p);
+              img.data[4 * p] = img.data[4 * p + 1] = img.data[4 * p + 2] = v;
+              img.data[4 * p + 3] = 255;
+            }
+            imgs.push(img);
           }
-          runBtn.disabled = false;
-          showInfer(d);
-        }).catch(function (e) { runSt.textContent = "failed: " + e; runBtn.disabled = false; });
-    }
+          players.push({ g: g, imgs: imgs });
+        });
+        var right = d.items.filter(function (i) { return i.correct; }).length;
+        st.textContent = right + "/" + d.items.length + " correct here · local test acc " +
+          d.test_acc.toFixed(4) + " over all " + d.n_test + " held-out · " +
+          d.n_genomes + " genomes";
+        if (timer) { clearInterval(timer); }
+        var f = 0;
+        timer = setInterval(function () {
+          players.forEach(function (p) { p.g.putImageData(p.imgs[f % p.imgs.length], 0, 0); });
+          f++;
+        }, 260);
+      }
 
-    runBtn.addEventListener("click", function () {
-      runBtn.disabled = true;
-      runSt.textContent = "running…";
-      pollInfer();
-    });
+      function poll() {
+        fetch("/api/animation/infer?n=12&task=" + task)
+          .then(function (r) { return r.json(); })
+          .then(function (d) {
+            if (d.error) { st.textContent = d.error; btn.disabled = false; return; }
+            if (d.building) {
+              st.textContent = "building from the checkpoint… " + (d.progress || "");
+              setTimeout(poll, 2500);
+              return;
+            }
+            btn.disabled = false;
+            show(d);
+          }).catch(function (e) { st.textContent = "failed: " + e; btn.disabled = false; });
+      }
+
+      btn.addEventListener("click", function () {
+        btn.disabled = true;
+        st.textContent = "running…";
+        poll();
+      });
+    }
+    makeRunner("path");
+    makeRunner("shape");
   })();
   </script>
   <script src="{{ url_for('static', filename='vendor/xterm.js') }}"></script>

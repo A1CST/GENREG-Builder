@@ -45,7 +45,8 @@ except ImportError:                     # pod: flat copy of the module
 PATHS = [(name, path) for name, path, _shape in ad.ANIMATIONS]
 SHAPES = [shape for _name, _path, shape in ad.ANIMATIONS]
 PATH_NAMES = [n for n, _ in PATHS]
-N_CLASSES = len(PATHS)                  # 10 — one per animation
+SHAPE_NAMES = [s.__name__ for s in SHAPES]
+N_CLASSES = len(PATHS)                  # 10 — one per animation / per shape
 
 
 def make_anim_data(n_train=7500, n_test=1875, seed=0, noise=0.05,
@@ -59,11 +60,13 @@ def make_anim_data(n_train=7500, n_test=1875, seed=0, noise=0.05,
     rng = np.random.default_rng(seed)
     n = n_train + n_test
     y = rng.integers(0, N_CLASSES, n)
+    y_shape = np.zeros(n, np.int64)
     X = np.zeros((n, T, 32, 32), np.float32)
     F = ad.FRAMES
     for i in range(n):
         pfn = PATHS[y[i]][1]
-        sfn = SHAPES[rng.integers(0, len(SHAPES))]
+        y_shape[i] = rng.integers(0, len(SHAPES))   # independent of the path
+        sfn = SHAPES[y_shape[i]]
         s = rng.integers(0, F - T + 1)              # window start
         oy, ox = rng.uniform(-6, 6), rng.uniform(-6, 6)
         for f in range(T):
@@ -78,15 +81,20 @@ def make_anim_data(n_train=7500, n_test=1875, seed=0, noise=0.05,
     X8 = (np.repeat(X[..., None], 3, axis=4) * 255).astype(np.uint8)
     np.savez(path,
              Xtr=X8[:n_train], ytr=y[:n_train].astype(np.int64),
-             Xte=X8[n_train:], yte=y[n_train:].astype(np.int64))
-    print(f"anim_seq: {n_train}/{n_test} x {T}-frame windows of "
-          f"{N_CLASSES} motion paths -> {path} "
-          f"(balance {np.bincount(y, minlength=N_CLASSES).tolist()})", flush=True)
+             Xte=X8[n_train:], yte=y[n_train:].astype(np.int64),
+             ytr_shape=y_shape[:n_train], yte_shape=y_shape[n_train:])
+    print(f"anim_seq: {n_train}/{n_test} x {T}-frame windows, both labels "
+          f"(path + shape, {N_CLASSES} classes each) -> {path} "
+          f"(path balance {np.bincount(y, minlength=N_CLASSES).tolist()})",
+          flush=True)
     return path
 
 
 def run(pop_size=64, gens=12, max_rounds=200, seed=5, max_spaces=16,
-        grid_size=8, out_path=None, verbose=True):
+        grid_size=8, out_path=None, verbose=True, task="path"):
+    """task="path": which animation (motion is the answer, shape the decoy).
+    task="shape": which shape (shape is the answer, motion the decoy).
+    Same sequences either way — only the label column flips."""
     import torch
     rk.GRID = int(grid_size)
     rng = np.random.default_rng(seed)
@@ -96,10 +104,12 @@ def run(pop_size=64, gens=12, max_rounds=200, seed=5, max_spaces=16,
     if os.path.exists(_STOP):
         os.remove(_STOP)
 
+    suffix = "" if task == "path" else "_shape"
+    class_names = PATH_NAMES if task == "path" else SHAPE_NAMES
     z = np.load(os.path.join(_HERE, "radial_data", "anim_seq.npz"))
     Xtr = z["Xtr"].astype(np.float32) / 255.0        # (N, T, 32, 32, 3)
     Xte = z["Xte"].astype(np.float32) / 255.0
-    ytr, yte = z["ytr"], z["yte"]
+    ytr, yte = z["ytr" + suffix], z["yte" + suffix]
     Ntr, Nte = len(ytr), len(yte)
     # every frame is an environment row; sequence n frame f = row n*T + f
     env = Env(torch, dev, Xtr.reshape(Ntr * T, 32, 32, 3),
@@ -199,18 +209,23 @@ def run(pop_size=64, gens=12, max_rounds=200, seed=5, max_spaces=16,
            "n_spaces": len(spaces), "space_caps": [s["n_frozen"] for s in spaces],
            "test_acc": round(best, 4),
            "val_final": spaces[-1]["val_after"] if spaces else 0.0,
-           "spaces": spaces, "grid": G, "classes": PATH_NAMES,
-           "task": "which motion path (the animation dataset's 10 clips); "
-                   "shape random, window random, position offset random — "
-                   "only the motion between frames answers",
+           "spaces": spaces, "grid": G, "classes": class_names,
+           "label": task,
+           "task": ("which motion path (the animation dataset's 10 clips); "
+                    "shape random, window random, position offset random — "
+                    "only the motion between frames answers") if task == "path"
+                   else ("which SHAPE rides the path; motion path, window and "
+                         "offset random — the decoys and the answer swap"),
            "seconds": round(time.time() - t0)}
-    op = out_path or os.path.join(_HERE, "radial_data", "anim_radial.json")
+    op = out_path or os.path.join(_HERE, "radial_data",
+                                  f"anim_radial{suffix}.json")
     with open(op, "w") as f:
         json.dump(out, f, indent=1)
     # full model checkpoint: every space's genomes (structure only — heads are
     # refit wherever the model is loaded, so PCA sign conventions can't break it)
-    model = {"frames": T, "grid": G, "spaces": space_genomes}
-    with open(os.path.join(_HERE, "radial_data", "anim_model.json"), "w") as f:
+    model = {"frames": T, "grid": G, "spaces": space_genomes, "label": task}
+    with open(os.path.join(_HERE, "radial_data",
+                           f"anim_model{suffix}.json"), "w") as f:
         json.dump(model, f)
     print(f"[radial-anim] DONE: {len(spaces)} spaces {out['space_caps']}, "
           f"val {out['val_final']}, TEST {best:.4f} -> {op} "
@@ -223,4 +238,4 @@ if __name__ == "__main__":
     if not os.path.exists(os.path.join(_HERE, "radial_data", "anim_seq.npz")) \
             or "--regen" in sys.argv:
         make_anim_data()
-    run()
+    run(task="shape" if "shape" in sys.argv else "path")

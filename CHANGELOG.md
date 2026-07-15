@@ -10,6 +10,21 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-14] (Claude)** — **Animation tab SCALED: twin checkpoints — and
+  the cleanest architecture-sizes-itself result yet.** Same sequences, labels
+  flipped: Model A names the MOTION (shape = decoy), new Model B names the
+  SHAPE (motion = decoy). radial_anim.py run(task="path"|"shape"); the npz
+  now stores both label columns (sequences bit-identical, so the motion
+  checkpoint stayed valid). THE CONTRAST: motion needed 5 spaces with R1 the
+  largest (467 genomes, +29 pts) -> TEST 0.8971; shape stopped at 2 spaces —
+  R0 alone hit val 1.0 with 190 genomes, R1 added ONE genome and +0.0000,
+  the emergent cap shut the stack down -> TEST 0.9989 (pod) / **1.0000
+  local, every class perfect**. Evolution builds temporal machinery only
+  when the answer lives between frames. anim_infer.py + /api/animation/infer
+  now take ?task=; /api/animation/radial too. Page shows both stacks side by
+  side and has TWO run-the-checkpoint panels (motion / shape). Verified
+  locally: shape 1.0000 (16s build), motion 0.8843 (20s). Flask restart
+  needed if not already done for today's endpoints.
 - **[2026-07-14] (Claude)** — **Animation tab: "Run the checkpoint" panel is
   live.** New `anim_infer.py`: loads the genome checkpoint
   (radial_data/anim_model.json), replays the exact temporal feature pipeline

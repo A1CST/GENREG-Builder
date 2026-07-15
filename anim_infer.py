@@ -1,15 +1,19 @@
-"""anim_infer.py — run the saved temporal-radial checkpoint on demand.
+"""anim_infer.py — run the saved temporal-radial checkpoints on demand.
 
-Loads the genome checkpoint (radial_data/anim_model.json) and replays the
-exact feature pipeline from radial_anim.run() over the stored dataset —
-but with the genomes FIXED (no evolution). The ridge head is refit locally
-(closed-form, the only "training"), so patch-PCA sign conventions can
-never mismatch between machines. Predictions are served for HELD-OUT test
-sequences the model never trained on; the locally measured test accuracy
-is reported alongside so the page's number is honest for this machine.
+Two checkpoints, same sequences, opposite labels:
+  task="path"  — which animation (motion answers, shape is the decoy)
+  task="shape" — which shape (shape answers, motion is the decoy)
 
-Build is one-time per process (background thread, ~1-2 min on the 4080);
-after that a classify call is a table lookup. No gradients anywhere.
+Loads the genome checkpoint (radial_data/anim_model[_shape].json) and
+replays the exact feature pipeline from radial_anim.run() with the genomes
+FIXED (no evolution). The ridge head is refit locally (closed-form, the
+only "training"), so patch-PCA sign conventions can never mismatch between
+machines. Predictions are served for HELD-OUT test sequences the model
+never trained on; the locally measured test accuracy is reported so the
+page's number is honest for this machine.
+
+Build is one-time per process per task (background thread, ~20 s on the
+4080); after that a classify call is a table lookup. No gradients anywhere.
 """
 import base64
 import json
@@ -20,22 +24,28 @@ import numpy as np
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _LOCK = threading.Lock()
-_STATE = {"status": "idle", "error": None}   # idle | building | ready | error
-_M = {}                                       # built artifacts
+TASKS = ("path", "shape")
+_STATE = {t: {"status": "idle", "error": None} for t in TASKS}
+_M = {t: {} for t in TASKS}                   # built artifacts per task
 
 
-def _build():
+def _build(task):
     import torch
 
     from radial_evo import _tprims
     from radial_evo2 import Env
     import radial_stack as rk
-    from radial_anim import T, PATH_NAMES
+    from radial_anim import T, PATH_NAMES, SHAPE_NAMES
+
+    st, M = _STATE[task], _M[task]
+    suffix = "" if task == "path" else "_shape"
+    names = PATH_NAMES if task == "path" else SHAPE_NAMES
 
     dev = "cuda" if torch.cuda.is_available() else "cpu"
     tp = _tprims(torch)
 
-    with open(os.path.join(_HERE, "radial_data", "anim_model.json")) as f:
+    with open(os.path.join(_HERE, "radial_data",
+                           f"anim_model{suffix}.json")) as f:
         ckpt = json.load(f)
     rk.GRID = int(ckpt["grid"])
     G = rk.GRID
@@ -43,12 +53,11 @@ def _build():
     z = np.load(os.path.join(_HERE, "radial_data", "anim_seq.npz"))
     Xtr = z["Xtr"].astype(np.float32) / 255.0
     Xte = z["Xte"].astype(np.float32) / 255.0
-    ytr, yte = z["ytr"], z["yte"]
+    ytr, yte = z["ytr" + suffix], z["yte" + suffix]
     Ntr, Nte = len(ytr), len(yte)
     env = Env(torch, dev, Xtr.reshape(Ntr * T, 32, 32, 3),
               Xte.reshape(Nte * T, 32, 32, 3), max_cached=6)
 
-    _STATE["status"] = "building"
     all_tr, all_te = [], []
     prev_tr = prev_te = None
     for si, genomes in enumerate(ckpt["spaces"]):
@@ -66,7 +75,7 @@ def _build():
             g_te = lambda g: rk.feature_grid_g(torch, tp, prev_te, g, want_grid=True)
         all_tr.extend(f_tr(g) for g in genomes)
         all_te.extend(f_te(g) for g in genomes)
-        _STATE["progress"] = f"space {si}: {len(genomes)} genomes replayed"
+        st["progress"] = f"space {si}: {len(genomes)} genomes replayed"
         if si + 1 < len(ckpt["spaces"]):
             if si == 0:      # temporal hand-off: (genome x frame) channels
                 prev_tr = torch.cat([g_tr(g) for g in genomes], 1).half()
@@ -79,7 +88,6 @@ def _build():
     Ftr = torch.stack(all_tr, 1).float()
     Fte = torch.stack(all_te, 1).float()
     ytr_t = torch.tensor(ytr, device=dev)
-    yte_t = torch.tensor(yte, device=dev)
     Y = -torch.ones((Ntr, 10), device=dev)
     Y[torch.arange(Ntr), ytr_t] = 1.0
 
@@ -104,54 +112,57 @@ def _build():
     s = torch.hstack([(Fte - mu) / sd, torch.ones(Nte, 1, device=dev)]) @ W
     preds = s.argmax(1).cpu().numpy()
 
-    _M.update(
-        preds=preds, yte=yte, names=PATH_NAMES, frames=T,
+    M.update(
+        preds=preds, yte=yte, names=names, frames=T,
         Xte_u8=z["Xte"][..., 0],               # (Nte, T, 32, 32) grayscale
         test_acc=float((preds == yte).mean()),
-        per_class={PATH_NAMES[c]: float((preds[yte == c] == c).mean())
-                   for c in range(len(PATH_NAMES))},
+        per_class={names[c]: float((preds[yte == c] == c).mean())
+                   for c in range(len(names))},
         lam=best_lam,
         n_genomes=sum(len(sp) for sp in ckpt["spaces"]),
     )
-    _STATE["status"] = "ready"
+    st["status"] = "ready"
 
 
-def _build_safe():
+def _build_safe(task):
     try:
-        _build()
+        _build(task)
     except Exception as exc:                   # surfaced via the endpoint
-        _STATE.update(status="error", error=str(exc))
+        _STATE[task].update(status="error", error=str(exc))
 
 
-def status():
-    return dict(_STATE)
+def status(task="path"):
+    return dict(_STATE[task])
 
 
-def classify(n=12, seed=None):
+def classify(n=12, seed=None, task="path"):
     """n random held-out test sequences with the checkpoint's predictions.
     Kicks off the one-time build if needed; returns building status until
     it is ready."""
+    if task not in TASKS:
+        return {"error": f"unknown task {task!r} (have {TASKS})"}
+    st, M = _STATE[task], _M[task]
     with _LOCK:
-        if _STATE["status"] in ("idle", "error"):
-            _STATE.update(status="building", error=None, progress="starting")
-            threading.Thread(target=_build_safe, daemon=True,
-                             name="anim-infer-build").start()
-    if _STATE["status"] != "ready":
-        return {"building": _STATE["status"] == "building",
-                "status": _STATE["status"],
-                "progress": _STATE.get("progress"), "error": _STATE["error"]}
+        if st["status"] in ("idle", "error"):
+            st.update(status="building", error=None, progress="starting")
+            threading.Thread(target=_build_safe, args=(task,), daemon=True,
+                             name=f"anim-infer-build-{task}").start()
+    if st["status"] != "ready":
+        return {"building": st["status"] == "building",
+                "status": st["status"],
+                "progress": st.get("progress"), "error": st["error"]}
     rng = np.random.default_rng(seed)
-    idx = rng.choice(len(_M["yte"]), size=min(int(n), 32), replace=False)
+    idx = rng.choice(len(M["yte"]), size=min(int(n), 32), replace=False)
     items = []
     for i in idx:
         i = int(i)
         items.append({
-            "true": _M["names"][int(_M["yte"][i])],
-            "pred": _M["names"][int(_M["preds"][i])],
-            "correct": bool(_M["preds"][i] == _M["yte"][i]),
-            "size": 32, "frames": _M["frames"],
-            "data": base64.b64encode(_M["Xte_u8"][i].tobytes()).decode("ascii"),
+            "true": M["names"][int(M["yte"][i])],
+            "pred": M["names"][int(M["preds"][i])],
+            "correct": bool(M["preds"][i] == M["yte"][i]),
+            "size": 32, "frames": M["frames"],
+            "data": base64.b64encode(M["Xte_u8"][i].tobytes()).decode("ascii"),
         })
-    return {"items": items, "test_acc": _M["test_acc"],
-            "per_class": _M["per_class"], "n_test": len(_M["yte"]),
-            "n_genomes": _M["n_genomes"], "lam": _M["lam"]}
+    return {"items": items, "task": task, "test_acc": M["test_acc"],
+            "per_class": M["per_class"], "n_test": len(M["yte"]),
+            "n_genomes": M["n_genomes"], "lam": M["lam"]}
