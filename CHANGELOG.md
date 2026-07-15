@@ -10,6 +10,37 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-15] (Claude)** — **AGENTS.md created (repo root): standing
+  instructions for every AI agent.** Per user: (1) every change logged in
+  the MAIN changelog AND the project changelog; (2) new-project checklist -
+  runs/<project>/ folder, navbar entry in _nav.html, project changelog +
+  changelog-modal mapping, announcement entry + notice, Flask-restart note;
+  (3) agent alerts - every task/test posts a notice and EVERY training run
+  raises an end-of-run alert (wired into the job hub, no silent runs);
+  (4) all projects' training runs also record into the RUNS project (the
+  standard five-file trio) so /runs is the shared instrument for testing
+  run data; (5) house rules restated (no gradients, append-only pages,
+  test-once, raw output in reports, never restart Flask, pod shadow
+  copies + zombie checks).
+- **[2026-07-15] (Claude)** — **Animation scaling campaign (6 modules) +
+  continue-training method.** Grew the `/animation` page with a stack of
+  robustness/scaling experiment modules (each with live animated visuals + a
+  `/api/animation/*` route): (1) random-color backgrounds (0.854→0.745, R0-fatness
+  law held on a new task); (2) inverted B&W on the frozen color model (keys on a
+  bright blob, breaks to 0.31); (3) **continue-training** — NEW warm-start method
+  (`anim_continue.py`: load a model, freeze its patch-PCA basis, keep stacking) —
+  repaired inversion 0.31→0.79 with no restart; (4) random shape size (graceful,
+  0.63 worst); (5) resolution **crank** — made the pipeline resolution-aware
+  (`Env`, `radial_anim`, `radial_stack.feature_r0` per-map dims), trained at
+  32/48/64, small-shape floor recovers 0.625→0.707; (6) **one model, many
+  resolutions** — a single-res model doesn't generalize, but continue-training on
+  a resolution MIX (merging in the resolution-invariant grid space,
+  `anim_continue_res.py`) yields one model handling 32/48/64 (0.745/0.779/0.821),
+  and a low→high curriculum (res-32 + 64) gets 0.760/0.762 without forgetting.
+  All gradient-free; pod = fresh RTX PRO 6000 Blackwell. Per-project log +
+  file list: `documentation/changelogs/CHANGELOG_ANIMATION.md`. Flask restart
+  needed for the new routes/template.
+
 - **[2026-07-15] (Claude)** — **/lm REBUILT AS AN APPEND-ONLY ITERATION LOG**
   (per user: build like the animation page; only ADD from now on). The page
   is now a module stack, newest at the bottom, with AUTO-SNAP to the newest
