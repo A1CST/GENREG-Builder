@@ -6,6 +6,19 @@ Seeded 2026-07-05 from the main changelog (keyword split, best effort).
 
 ---
 
+- **[2026-07-15] (Claude)** — **THE ENGLISH CURRICULUM (user's design) begins:
+  Stage A - LETTERS - gate PASSED at TEST 0.9960 in 7 seconds.** The plan:
+  learn language like a kid - A: identify letters; B: identify words
+  (word = strip of letter tiles, stage-A genomes frozen as the eye);
+  C: cloze (name the blank in a short phrase); D: autoregression - each
+  stage its own model warm-started on the previous, no stage advances
+  before its gate. Stage A (radial_kid.py): 25k letter tiles (14-26px,
+  jitter +-4, noise), 515 R0 genomes, self-stopped at 2 spaces
+  [515, 82] exactly like the animation shape twin. Retroactive diagnosis
+  of the sentence-strip failure: single-glyph perception earns instantly -
+  the vision line needed a childhood, not bigger strips. Module 17 on
+  /lm; checkpoint kid_modelA.json is Stage B's perceptual base.
+
 - **[2026-07-15] (Claude)** — **MODULE 17 (vision LM) FIRST ATTEMPT:
   language-grounded-in-vision launched (user's pivot - the glyph line
   resurrected at word level: 12-word strips rendered as 32x32 tiles, NO

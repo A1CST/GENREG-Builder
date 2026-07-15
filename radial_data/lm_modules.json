@@ -128,6 +128,14 @@
    "export": "lm_radial_word_cont4.json",
    "title": "16 · THIRD CRANK: 4-gram + far skips -> 0.5663 top-1 / 0.7280 top-5 - past the usefulness bar",
    "desc": "True 4-gram table (last three words) + skips (w-6,w-1)/(w-5,w-2). Headroom: 84.5% of remaining errors answerable, quad alone 68%. Continue-train: +80 genomes, 32s. TEST 0.4832 -> 0.5663 top-1, 0.6643 -> 0.7280 top-5 - top-5 crosses the genuinely-useful band (60-70%). Blind class 0.2051 -> 0.2938. Cumulative crank: 0.2974 -> 0.3992 -> 0.4832 -> 0.5663 at ~1.2M params, gradient-free, one frozen base grown by continue-training."
+  },
+  {
+   "id": "kid-stage-a",
+   "date": "2026-07-15",
+   "kind": "run",
+   "export": "kid_stageA.json",
+   "title": "17 · THE CURRICULUM begins - Stage A: letters. TEST 0.9960 in 7 seconds",
+   "desc": "The user's design: build models that learn English like a kid - letters, then words (fill-in-the-blank), then cloze phrases, then autoregression; each stage its own model or continue-trained on the previous. Stage A: identify single rendered letters (26 classes, sizes 14-26px, jitter, noise). 515 perception genomes, self-stopped at 2 spaces, TEST 0.9960 - gate PASSED. This is also the diagnosis of the sentence-strip failure: perception earns instantly on single glyphs; the vision line needed a childhood. Stage A's frozen genomes become Stage B's eye."
   }
  ]
 }
