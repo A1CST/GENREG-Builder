@@ -1,9 +1,13 @@
 """radial_anim.py — TEMPORAL radial stack for the Animation tab.
 
-The task: 6-frame animations of a shape that GROWS (rate is a class) and
-either drifts or holds still (motion is a class). Start size, position, and
-shape identity are randomized, so no single frame answers — the value is
-carried BETWEEN frames. Label = growth-rate(4) x moving(2) = 8 classes.
+The task is the ANIMATION DATASET's motion paths (genreg_train/
+animation_data.py: line, diagonal, swoop, loop, figure8, zigzag, wave,
+spiral, bounce, scurve). A sequence is a T-frame window of one of those
+paths — but the SHAPE riding the path is random (any of the ten shapes),
+the window starts anywhere in the clip, and the whole path is shifted by a
+random offset. So no single frame answers: shape is a decoy and position
+is decorrelated — only the MOTION between frames names the animation.
+Label = which path, 10 classes, chance 0.10.
 
 The wiring (current best radial setup, made temporal):
   R0  — grammar-v2 spatial genomes evolve on ALL frames at once (the env
@@ -31,45 +35,53 @@ from radial_evo2 import Env, make_scorer, new_genome, mutate
 import radial_stack as rk
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
-T = 6                                   # frames per sequence
-RATES = [0.35, 0.85, 1.35, 1.85]        # growth px/frame — the temporal signal
+T = 6                                   # frames per sequence window
+
+try:
+    from genreg_train import animation_data as ad
+except ImportError:                     # pod: flat copy of the module
+    import animation_data as ad
+
+PATHS = [(name, path) for name, path, _shape in ad.ANIMATIONS]
+SHAPES = [shape for _name, _path, shape in ad.ANIMATIONS]
+PATH_NAMES = [n for n, _ in PATHS]
+N_CLASSES = len(PATHS)                  # 10 — one per animation
 
 
-def make_anim_data(n_train=7500, n_test=1875, seed=0, noise=0.07,
+def make_anim_data(n_train=7500, n_test=1875, seed=0, noise=0.05,
                    path=os.path.join(_HERE, "radial_data", "anim_seq.npz")):
+    """Sequences from the REAL animation dataset's motion paths.
+
+    Per sequence: path class = the label; shape = random (decoy); window =
+    T consecutive frames starting anywhere in the 24-frame clip; the whole
+    path is shifted by a random per-sequence offset (position decorrelated
+    from path identity). 64x64 renders are 2x2 mean-pooled to 32x32."""
     rng = np.random.default_rng(seed)
     n = n_train + n_test
-    rate_c = rng.integers(0, 4, n)
-    moving = rng.integers(0, 2, n)
-    y = rate_c * 2 + moving             # 8 classes, all temporal
+    y = rng.integers(0, N_CLASSES, n)
     X = np.zeros((n, T, 32, 32), np.float32)
-    yy, xx = np.mgrid[0:32, 0:32].astype(np.float32)
+    F = ad.FRAMES
     for i in range(n):
-        r = rng.uniform(3.0, 6.0)
-        cy, cx = rng.uniform(10, 22), rng.uniform(10, 22)
-        ring = rng.random() < 0.5       # shape identity: distractor
-        if moving[i]:
-            ang = rng.uniform(0, 2 * np.pi)
-            dy, dx = 2.0 * np.sin(ang), 2.0 * np.cos(ang)
-        else:
-            dy = dx = 0.0
+        pfn = PATHS[y[i]][1]
+        sfn = SHAPES[rng.integers(0, len(SHAPES))]
+        s = rng.integers(0, F - T + 1)              # window start
+        oy, ox = rng.uniform(-6, 6), rng.uniform(-6, 6)
         for f in range(T):
-            rad = r + RATES[rate_c[i]] * f
-            d = np.sqrt((yy - cy) ** 2 + (xx - cx) ** 2)
-            if ring:
-                X[i, f] = ((d > rad - 1.6) & (d < rad + 1.6)).astype(np.float32)
-            else:
-                X[i, f] = (d < rad).astype(np.float32)
-            cy += dy; cx += dx
-            cy = float(np.clip(cy, 6, 26)); cx = float(np.clip(cx, 6, 26))
+            t = (s + f) / (F - 1)
+            cx, cy = pfn(t)
+            cx = float(np.clip(cx + ox, 4, ad.SIZE - 4))
+            cy = float(np.clip(cy + oy, 4, ad.SIZE - 4))
+            im = sfn(cx, cy)                        # (64, 64) in [0,1]
+            X[i, f] = im.reshape(32, 2, 32, 2).mean((1, 3))
     X = X * rng.uniform(0.7, 1.0, (n, 1, 1, 1)).astype(np.float32)
     X = np.clip(X + rng.normal(0, noise, X.shape).astype(np.float32), 0, 1)
     X8 = (np.repeat(X[..., None], 3, axis=4) * 255).astype(np.uint8)
     np.savez(path,
              Xtr=X8[:n_train], ytr=y[:n_train].astype(np.int64),
              Xte=X8[n_train:], yte=y[n_train:].astype(np.int64))
-    print(f"anim_seq: {n_train}/{n_test} x {T} frames -> {path} "
-          f"(class balance {np.bincount(y, minlength=8).tolist()})", flush=True)
+    print(f"anim_seq: {n_train}/{n_test} x {T}-frame windows of "
+          f"{N_CLASSES} motion paths -> {path} "
+          f"(balance {np.bincount(y, minlength=N_CLASSES).tolist()})", flush=True)
     return path
 
 
@@ -107,6 +119,7 @@ def run(pop_size=64, gens=12, max_rounds=200, seed=5, max_spaces=16,
 
     G = rk.GRID
     spaces, all_tr, all_te = [], [], []
+    space_genomes = []
     prev_grid_tr = prev_grid_te = None
     val_prev = 0.0
 
@@ -144,6 +157,7 @@ def run(pop_size=64, gens=12, max_rounds=200, seed=5, max_spaces=16,
         if not frozen:
             log(f"  [space {si}] produced nothing — stop")
             break
+        space_genomes.append(frozen)
         fte = [feat_te(g) for g in frozen]
         all_tr.extend(fcols); all_te.extend(fte)
         base_all = torch.stack(all_tr, 1)
@@ -180,17 +194,24 @@ def run(pop_size=64, gens=12, max_rounds=200, seed=5, max_spaces=16,
         _, acc = _ridge_soft(torch, Ftr, Fte, Yfull, yte_t, lam=lam)
         best = max(best, acc)
     out = {"phase": "radial-anim (temporal stack)", "frames": T,
-           "n_train": Ntr, "n_test": Nte, "n_classes": 8, "chance": 0.125,
+           "n_train": Ntr, "n_test": Nte, "n_classes": N_CLASSES,
+           "chance": round(1.0 / N_CLASSES, 4),
            "n_spaces": len(spaces), "space_caps": [s["n_frozen"] for s in spaces],
            "test_acc": round(best, 4),
            "val_final": spaces[-1]["val_after"] if spaces else 0.0,
-           "spaces": spaces, "grid": G,
-           "task": "growth-rate(4) x moving(2); start size/position/shape random"
-                   " — value carried between frames",
+           "spaces": spaces, "grid": G, "classes": PATH_NAMES,
+           "task": "which motion path (the animation dataset's 10 clips); "
+                   "shape random, window random, position offset random — "
+                   "only the motion between frames answers",
            "seconds": round(time.time() - t0)}
     op = out_path or os.path.join(_HERE, "radial_data", "anim_radial.json")
     with open(op, "w") as f:
         json.dump(out, f, indent=1)
+    # full model checkpoint: every space's genomes (structure only — heads are
+    # refit wherever the model is loaded, so PCA sign conventions can't break it)
+    model = {"frames": T, "grid": G, "spaces": space_genomes}
+    with open(os.path.join(_HERE, "radial_data", "anim_model.json"), "w") as f:
+        json.dump(model, f)
     print(f"[radial-anim] DONE: {len(spaces)} spaces {out['space_caps']}, "
           f"val {out['val_final']}, TEST {best:.4f} -> {op} "
           f"({round(time.time()-t0)}s)", flush=True)

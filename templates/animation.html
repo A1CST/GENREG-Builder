@@ -13,6 +13,11 @@
     .an-lede { font-size:12px; color:#8b95a1; line-height:1.6; margin:0 0 16px; }
     .an-lede b { color:#c7d0da; }
     .an-sec { font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:#7f8b98; margin:22px 0 10px; border-bottom:1px solid #161b22; padding-bottom:6px; }
+    .an-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)); gap:10px; }
+    .an-clip { border:1px solid #171d24; border-radius:8px; background:#0b0e12; padding:8px 8px 6px; }
+    .an-clip canvas { width:100%; aspect-ratio:1; display:block; image-rendering:pixelated; border-radius:4px; background:#000; }
+    .an-clip .nm { font-size:11px; color:#dbe2ea; margin-top:6px; font-family:ui-monospace,monospace; }
+    .an-clip .sh { font-size:10px; color:#6c7885; }
     .an-pipe { display:flex; flex-wrap:wrap; }
     .an-stage { flex:1 1 200px; min-width:200px; border:1px solid #1c232c; border-radius:8px; background:#0d1117; padding:11px 13px; margin:0 12px 12px 0; position:relative; }
     .an-stage:after { content:"→"; position:absolute; right:-13px; top:45%; color:#3a4552; font-size:15px; }
@@ -25,10 +30,9 @@
     .tag.t2 { background:#332611; color:#e0b46f; } .tag.t3 { background:#2e1a2e; color:#d08ad0; }
     .an-cols { display:flex; gap:14px; flex-wrap:wrap; }
     .an-col { flex:1 1 460px; min-width:400px; }
-    .an-anim { width:100%; height:240px; display:block; border:1px solid #171d24; border-radius:8px; background:#0b0e12; }
     .an-cl { font-size:10.5px; color:#6c7885; margin-top:5px; line-height:1.5; }
     .an-bar { display:flex; align-items:center; gap:8px; margin-bottom:6px; font-size:11px; }
-    .an-bar .lb { flex:0 0 150px; color:#8b95a1; text-align:right; }
+    .an-bar .lb { flex:0 0 170px; color:#8b95a1; text-align:right; }
     .an-bar .tr { flex:1; height:13px; background:#10151c; border-radius:3px; overflow:hidden; }
     .an-bar .fl { height:100%; border-radius:3px; background:#2e7d5b; }
     .an-bar.dim .fl { background:#2f4152; }
@@ -50,13 +54,21 @@
   </header>
 
   <main class="an-main"><div class="an-wrap">
-    <h1 class="an-h1">The temporal radial stack — growth as a class</h1>
-    <p class="an-lede">Six-frame animations of a shape that <b>grows</b> at one of four
-      rates and either drifts or holds still. Start size, position, and shape are all
-      random, so <b>no single frame can answer</b> — the label (rate × motion, 8
-      classes) exists only in what changes <b>between frames</b>. The current best
-      radial setup (universal grammar, emergent-cap stacked spaces, no gradients)
-      is wired to it below; results update live from the run export.</p>
+    <h1 class="an-h1">The temporal radial stack — naming the animation from its motion</h1>
+    <p class="an-lede">The animations below are the dataset. The model watches a
+      <b>6-frame window</b> of one of them and must say <b>which animation it is</b> —
+      but the shape riding the path is randomized, the window starts anywhere in the
+      clip, and the whole path is shifted by a random offset. Shape is a decoy and
+      position is decorrelated: <b>only the motion between frames</b> names the
+      animation (10 classes, chance 0.10). The current best radial setup (universal
+      grammar, emergent-cap stacked spaces, no gradients) is wired to it below;
+      results update live from the run export.</p>
+
+    <div class="an-sec">The dataset — the animations, live</div>
+    <div class="an-grid" id="an-clips">loading animations…</div>
+    <div class="an-cl">The canonical clips (24 frames, 64×64), each a unique shape on a
+      unique motion path. Training sequences are 6-frame windows of these paths with the
+      shape swapped at random — so the model can never use the shape to name the path.</div>
 
     <div class="an-sec">The wiring</div>
     <div class="an-pipe">
@@ -69,13 +81,13 @@
         <h3>Per-frame perception</h3>
         <p>Grammar-v2 spatial genomes evolve as usual; a genome's fitness column
         is its per-frame scalar <b>averaged over the sequence</b>. R0 becomes
-        size / shape / position detectors — it cannot see rate.</p></div>
+        shape / position detectors — it cannot see motion.</p></div>
       <div class="an-stage"><span class="tag t2">hand-off</span>
         <h3>Time becomes channels</h3>
         <p>Each frozen R0 genome emits its spatial grid map for <b>every frame</b>;
         the R1 bank is laid out (genome × frame). The universal grammar's folds,
-        shifts and moment stats now compose <b>across time</b> for free:
-        com(g@f5) − com(g@f0) <b>is</b> growth.</p></div>
+        shifts and moment stats now compose <b>across time</b> for free: the
+        centroid's trajectory across frames <b>is</b> the path.</p></div>
       <div class="an-stage"><span class="tag t3">R1+</span>
         <h3>Temporal composition</h3>
         <p>Standard emergent-cap stacked spaces over the temporal bank — depth,
@@ -86,24 +98,20 @@
     <div class="an-sec">What a temporal genome can say</div>
     <div class="an-genome">
       <span class="cm"># expressible in the universal grammar over the (genome × frame) bank:</span><br>
-      growth&nbsp;&nbsp;= <span class="g1">|comx-pool( blob-detector @ frame5 ) − comx-pool( blob-detector @ frame0 )|</span><br>
-      drift&nbsp;&nbsp;&nbsp;= <span class="g2">|com( detector @ f4 ) − com( shift(detector @ f1, dy,dx) )|</span>
-      <span class="cm"># same primitives that composed space, composing time</span>
+      falling&nbsp;&nbsp;= <span class="g1">comy-pool( shape-detector @ frame5 ) − comy-pool( shape-detector @ frame0 )</span><br>
+      turning&nbsp;&nbsp;= <span class="g2">|com( detector @ f4 ) − com( shift(detector @ f2, dy,dx) )|</span><br>
+      <span class="cm"># zigzag reverses comy, loop bends comx AND comy, line holds comy flat —</span><br>
+      <span class="cm"># the same primitives that composed space, composing time</span>
     </div>
 
-    <div class="an-sec">The task, live</div>
+    <div class="an-sec">Results, live</div>
     <div class="an-cols">
       <div class="an-col">
-        <canvas id="an-cv" class="an-anim"></canvas>
-        <div class="an-cl">Four sample sequences looping (drawn from the same generator
-          rules as the dataset): ring/blob, random start size and position, one of four
-          growth rates, drifting or static. The label under each is what the model must
-          recover from the frames alone.</div>
+        <div id="an-results">loading run results…</div>
+        <div class="an-note" id="an-task"></div>
       </div>
       <div class="an-col">
-        <div id="an-results">loading run results…</div>
-        <table class="an-tbl" id="an-spaces" style="margin-top:10px"></table>
-        <div class="an-note" id="an-task"></div>
+        <table class="an-tbl" id="an-spaces"></table>
       </div>
     </div>
 
@@ -115,12 +123,51 @@
   <script>
   (function () {
     "use strict";
+    /* ---- the real dataset animations, from /api/animations ---- */
+    fetch("/api/animations").then(function (r) { return r.json(); }).then(function (clips) {
+      if (!Array.isArray(clips)) { throw new Error(clips.error || "bad payload"); }
+      var box = document.getElementById("an-clips");
+      box.innerHTML = "";
+      var players = clips.map(function (c) {
+        var raw = atob(c.data), S = c.size, F = c.frames;
+        var card = document.createElement("div");
+        card.className = "an-clip";
+        var cv = document.createElement("canvas");
+        cv.width = S; cv.height = S;
+        var nm = document.createElement("div");
+        nm.className = "nm"; nm.textContent = c.name;
+        var sh = document.createElement("div");
+        sh.className = "sh"; sh.textContent = "shape: " + c.shape + " (decoy)";
+        card.appendChild(cv); card.appendChild(nm); card.appendChild(sh);
+        box.appendChild(card);
+        var g = cv.getContext("2d");
+        var imgs = [];
+        for (var f = 0; f < F; f++) {
+          var img = g.createImageData(S, S);
+          for (var p = 0; p < S * S; p++) {
+            var v = raw.charCodeAt(f * S * S + p);
+            img.data[4 * p] = img.data[4 * p + 1] = img.data[4 * p + 2] = v;
+            img.data[4 * p + 3] = 255;
+          }
+          imgs.push(img);
+        }
+        return { g: g, imgs: imgs };
+      });
+      var f = 0;
+      setInterval(function () {
+        players.forEach(function (p) { p.g.putImageData(p.imgs[f % p.imgs.length], 0, 0); });
+        f++;
+      }, 1000 / 12);
+    }).catch(function (e) {
+      document.getElementById("an-clips").textContent = "animations failed to load: " + e;
+    });
+
     /* ---- live results ---- */
     fetch("/api/animation/radial").then(function (r) { return r.json(); }).then(function (d) {
       var box = document.getElementById("an-results");
       if (d.error) { box.textContent = d.error; return; }
       if (d.pending) { box.textContent = "run in progress — no export yet"; return; }
-      var rows = [["chance (8 classes)", d.chance, "dim"],
+      var rows = [["chance (" + d.n_classes + " animations)", d.chance, "dim"],
                   ["R0 only (per-frame)", d.spaces && d.spaces.length ? d.spaces[0].val_after : null, "dim"],
                   ["full temporal stack (val)", d.val_final, ""],
                   ["full temporal stack (TEST)", d.test_acc, ""]];
@@ -141,62 +188,10 @@
       });
       document.getElementById("an-task").innerHTML =
         "<b>" + d.n_train + "</b> train / <b>" + d.n_test + "</b> test sequences · " +
-        d.frames + " frames · grid " + d.grid + " · " + d.seconds + "s · " + d.task;
+        d.frames + "-frame windows · grid " + d.grid + " · " + d.seconds + "s · " + d.task;
     }).catch(function (e) {
       document.getElementById("an-results").textContent = "load failed: " + e;
     });
-
-    /* ---- looping dataset illustration (same generator rules, drawn in JS) ---- */
-    var cv = document.getElementById("an-cv"), ctx = cv.getContext("2d");
-    var RATES = [0.35, 0.85, 1.35, 1.85];
-    var seqs = [];
-    function reseed() {
-      seqs = [];
-      for (var i = 0; i < 4; i++) {
-        seqs.push({ ring: Math.random() < 0.5, r: 3 + Math.random() * 3,
-                    rate: Math.floor(Math.random() * 4),
-                    moving: Math.random() < 0.5,
-                    ang: Math.random() * 6.283,
-                    cy: 10 + Math.random() * 12, cx: 10 + Math.random() * 12 });
-      }
-    }
-    reseed();
-    var frame = 0, tick = 0;
-    function draw() {
-      var W = cv.width = cv.clientWidth * 2, H = cv.height = cv.clientHeight * 2;
-      ctx.clearRect(0, 0, W, H);
-      var cell = Math.min(W / 4 - 20, H - 60), s = cell / 32;
-      ctx.font = "18px ui-monospace,monospace";
-      for (var i = 0; i < 4; i++) {
-        var q = seqs[i];
-        var ox = i * (W / 4) + (W / 4 - cell) / 2, oy = 14;
-        ctx.strokeStyle = "#1a212b";
-        ctx.strokeRect(ox, oy, cell, cell);
-        var rad = q.r + RATES[q.rate] * frame;
-        var cy = q.cy + (q.moving ? 2 * Math.sin(q.ang) * frame : 0);
-        var cx = q.cx + (q.moving ? 2 * Math.cos(q.ang) * frame : 0);
-        cy = Math.max(6, Math.min(26, cy)); cx = Math.max(6, Math.min(26, cx));
-        ctx.strokeStyle = "#9fd0b0"; ctx.fillStyle = "#9fd0b0";
-        ctx.lineWidth = 3;
-        ctx.beginPath();
-        ctx.arc(ox + cx * s, oy + cy * s, Math.max(1, rad * s), 0, 6.283);
-        if (q.ring) { ctx.stroke(); } else { ctx.fill(); }
-        ctx.lineWidth = 1;
-        ctx.fillStyle = "#7f8b98";
-        ctx.fillText("rate " + q.rate + (q.moving ? " · drift" : " · static") +
-                     "  → class " + (q.rate * 2 + (q.moving ? 1 : 0)),
-                     ox, oy + cell + 24);
-        ctx.fillStyle = "#5a6672";
-        ctx.fillText("f" + frame, ox + cell - 30, oy + 22);
-      }
-    }
-    setInterval(function () {
-      tick++;
-      frame = tick % 8;
-      if (frame > 5) { if (frame === 7) reseed(); draw(); return; }
-      draw();
-    }, 420);
-    draw();
   })();
   </script>
   <script src="{{ url_for('static', filename='vendor/xterm.js') }}"></script>

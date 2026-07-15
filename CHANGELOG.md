@@ -10,6 +10,19 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-14] (Claude)** — **Animation tab: REAL animations restored + model
+  retrained on the actual dataset (user: "rewire not replace").** The temporal
+  radial stack now trains on the animation dataset's OWN motion paths
+  (genreg_train/animation_data.py: line/diagonal/swoop/loop/figure8/zigzag/
+  wave/spiral/bounce/scurve). Task: 6-frame window, which animation is it —
+  shape randomized (decoy), window start random, path offset random, so only
+  the MOTION answers (10 classes, chance 0.10). RESULT: R0 0.585 -> R1 +29.0
+  pts (467 genomes — the temporal space is now the LARGEST in the stack) ->
+  5 spaces [270,467,175,119,28], val 0.924, **TEST 0.8971**. The /animation
+  page now shows the ten real clips animating live (decoded from
+  /api/animations, the same canonical frames the old page used) instead of
+  the synthetic circle preview; copy updated to the motion-path task.
+  radial_anim.py also saves a full genome checkpoint (anim_model.json).
 - **[2026-07-15] (Claude)** — **ANIMATION TAB REWIRED: the temporal radial
   stack — and the strongest depth result of the campaign.** New
   `radial_anim.py`: 6-frame animations (shape grows at one of 4 rates,
