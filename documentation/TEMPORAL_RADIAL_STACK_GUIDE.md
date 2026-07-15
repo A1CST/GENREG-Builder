@@ -267,5 +267,3 @@ They will, on some substrates. In order:
    carry the model - you lose absolute accuracy, you gain a model whose
    every parameter composes (measured: 14x fewer params at 67% of the
    fat accuracy, 4.6x better accuracy-per-parameter).
-
-*GENREG lab - gradient-free by construction, honest by habit.*
