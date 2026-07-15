@@ -10,6 +10,17 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-15] (Claude)** — **UNIVERSAL SUITE VERDICT: the frozen grammar
+  generalizes.** Same config, zero per-task toggles, four tasks: easy 0.9963,
+  hard 0.9933, rel 0.9030, rel_sep 0.9327 — every score matches (within ~1σ)
+  or beats the per-task-tuned bests. Evolution allocated the primitives per
+  task on its own (identity tasks stayed shallow: hard = 2 spaces; relational
+  tasks went deep: rel_sep = 6 spaces). The handcrafting objection is
+  answered: the grammar needs no per-task curation. HONEST REMAINDER: the
+  relational tasks plateau at ~0.90-0.93 with every tried primitive in the
+  pool including raw-environment skips — the residual gap (binding/boundary
+  precision, or R0's selection criterion) is the open architecture question.
+  Export universal_suite.json (mirrored).
 - **[2026-07-15] (Claude)** — **THE UNIVERSAL GRAMMAR (user's correction:
   "seems like you are handcrafting genomes").** The completeness ladder had
   become directed architecture search — per-task primitive additions after
