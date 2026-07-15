@@ -194,12 +194,8 @@ def run(rounds=300, pop_size=64, gens=12, freeze_top=8, seed=21, p_cross=0.5,
     if os.path.exists(_STOP):
         os.remove(_STOP)
 
-    ck_list = (list(stage1_ckpt) if isinstance(stage1_ckpt, (list, tuple))
-               else [stage1_ckpt])
-    g1 = []
-    for ckp in ck_list:
-        with open(os.path.join(_HERE, ckp)) as f:
-            g1 += json.load(f)["frozen"]
+    with open(os.path.join(_HERE, stage1_ckpt)) as f:
+        g1 = json.load(f)["frozen"]
     for g in g1:
         g["terms"] = [{"c": t["c"], "prog": [tuple(s) for s in t["prog"]],
                        **({"src": t["src"]} if "src" in t else {})}
