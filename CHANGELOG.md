@@ -10,6 +10,18 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-15] (Claude)** — **Universal suite v2 (residual gene): NEUTRAL.**
+  easy 0.9943 / hard 0.9870 / rel 0.9073 / rel_sep 0.9280 — all within noise
+  of v1. The resnet skip (arch gene, bootstrap-no-op, evolvable depth) is now
+  in the pool and harmless but was not the missing relational capability.
+  The ~0.90-0.93 relational plateau has survived SEVEN eliminations: spatial
+  hand-off, shift genes, raw-env skips, depth, grid resolution, overlap,
+  residual blocks. Open proposal for review (not implemented — handcrafting
+  line): complete the pooling-stat family with FIRST SPATIAL MOMENTS
+  (centroid-x/-y joining mean/max/std) — displacement then becomes
+  expressible as |comx(A)-comx(B)| at the stat level; a moment statistic is
+  the same primitive family as mean/std, not a task hack. Exports
+  universal2_*.json (mirrored).
 - **[2026-07-15] (Claude)** — **UNIVERSAL SUITE VERDICT: the frozen grammar
   generalizes.** Same config, zero per-task toggles, four tasks: easy 0.9963,
   hard 0.9933, rel 0.9030, rel_sep 0.9327 — every score matches (within ~1σ)
