@@ -21,7 +21,8 @@ import sys
 import threading
 import time
 
-from flask import Flask, render_template, jsonify, request, send_from_directory
+from flask import (Flask, render_template, jsonify, request, send_file,
+                   send_from_directory)
 from flask_sock import Sock
 
 app = Flask(__name__)
@@ -120,6 +121,14 @@ try:
 except Exception:                             # pragma: no cover
     agent_board, BOARD_OK = None, False
 
+# PIA — Personal AI: local Ollama RAG assistant over the project docs. The
+# Ollama server is only ever started from the PIA page (never automatically).
+try:
+    import pia_service
+    PIA_OK, PIA_ERR = True, None
+except Exception as _e:                        # pragma: no cover
+    pia_service, PIA_OK, PIA_ERR = None, False, str(_e)
+
 DAEMON_HOST = "127.0.0.1"
 DAEMON_PORT = 5001
 DAEMON_SCRIPT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "terminal_daemon.py")
@@ -168,6 +177,17 @@ def ensure_daemon():
 def index():
     # no-store so the browser never serves a stale HTML shell against fresh JS.
     resp = app.make_response(render_template("index.html"))
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
+
+
+@app.route("/plan")
+def plan_page():
+    """Personal day-plan tracker — Sunday, July 12, 2026 full-day schedule.
+    Self-contained page: every block logs DONE / PARTIAL / SKIPPED plus notes,
+    an unscheduled-break log, and an end-of-day scorecard. All state persists in
+    the browser's localStorage (no backend), so it survives reloads."""
+    resp = app.make_response(render_template("plan.html"))
     resp.headers["Cache-Control"] = "no-store"
     return resp
 
@@ -230,6 +250,77 @@ def api_doc_file(relpath):
     if ext == ".pdf":
         return send_from_directory(DOCS_DIR, relpath, mimetype="application/pdf")
     return send_from_directory(DOCS_DIR, relpath, as_attachment=True)
+
+
+# --------------------------------------------------------------------------
+# PIA — Personal AI (Ollama RAG over docs + changelogs)
+# --------------------------------------------------------------------------
+@app.route("/pia")
+def pia_page():
+    resp = app.make_response(render_template("pia.html"))
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
+
+
+@app.route("/api/pia/status")
+def api_pia_status():
+    if not PIA_OK:
+        return jsonify({"available": False, "error": PIA_ERR})
+    st = pia_service.status()
+    st["available"] = True
+    return jsonify(st)
+
+
+@app.route("/api/pia/start", methods=["POST"])
+def api_pia_start():
+    if not PIA_OK:
+        return jsonify({"ok": False, "message": PIA_ERR or "unavailable"}), 503
+    ok, msg = pia_service.start_server()
+    return jsonify({"ok": ok, "message": msg})
+
+
+@app.route("/api/pia/stop", methods=["POST"])
+def api_pia_stop():
+    if not PIA_OK:
+        return jsonify({"ok": False, "message": PIA_ERR or "unavailable"}), 503
+    ok, msg = pia_service.stop_server()
+    return jsonify({"ok": ok, "message": msg})
+
+
+@app.route("/api/pia/pull", methods=["POST"])
+def api_pia_pull():
+    if not PIA_OK:
+        return jsonify({"ok": False, "message": PIA_ERR or "unavailable"}), 503
+    if not pia_service.is_running():
+        return jsonify({"ok": False,
+                        "message": "Start Ollama first."}), 400
+    pia_service.pull_models_async()
+    return jsonify({"ok": True, "message": "Pulling models..."})
+
+
+@app.route("/api/pia/reindex", methods=["POST"])
+def api_pia_reindex():
+    if not PIA_OK:
+        return jsonify({"ok": False, "message": PIA_ERR or "unavailable"}), 503
+    if not pia_service.is_running():
+        return jsonify({"ok": False,
+                        "message": "Start Ollama first."}), 400
+    pia_service.build_index_async()
+    return jsonify({"ok": True, "message": "Rebuilding index..."})
+
+
+@app.route("/api/pia/chat", methods=["POST"])
+def api_pia_chat():
+    if not PIA_OK:
+        return jsonify({"error": PIA_ERR or "PIA unavailable"}), 503
+    data = request.get_json(silent=True) or {}
+    message = (data.get("message") or "").strip()
+    if not message:
+        return jsonify({"error": "empty message"}), 400
+    history = data.get("history") or []
+    result = pia_service.chat(message, history)
+    code = 200 if "answer" in result else 400
+    return jsonify(result), code
 
 
 @app.route("/runs")
@@ -1052,6 +1143,425 @@ def radial_training_state():
         return jsonify({"ladder": ladder, "seeds": seeds})
     except Exception as exc:
         return jsonify({"error": f"training state failed: {exc}"}), 500
+
+
+@app.route("/api/animation/radial")
+def animation_radial_state():
+    """Live results for the rewired Animation tab: the temporal radial runs.
+    ?task=path (default) or ?task=shape — same sequences, opposite labels."""
+    try:
+        import json as _json
+        base = os.path.dirname(os.path.abspath(__file__))
+        sfx = "_shape" if request.args.get("task") == "shape" else ""
+        for rel in (f"radial_data/anim_radial{sfx}.json",
+                    f"runpod_shadow/radial_data/anim_radial{sfx}.json"):
+            path = os.path.join(base, rel)
+            if os.path.exists(path):
+                with open(path) as f:
+                    return jsonify(_json.load(f))
+        return jsonify({"pending": True})
+    except Exception as exc:
+        return jsonify({"error": f"animation radial failed: {exc}"}), 500
+
+
+@app.route("/api/animation/infer")
+def animation_infer():
+    """Run the saved temporal-radial checkpoint on random held-out test
+    sequences. First call kicks off a one-time local rebuild (genomes from
+    the checkpoint, head refit closed-form); returns {building: true} until
+    ready — the page polls."""
+    try:
+        import anim_infer
+        n = request.args.get("n", 12, type=int)
+        task = request.args.get("task", "path")
+        return jsonify(anim_infer.classify(n=max(1, min(32, n)), task=task))
+    except Exception as exc:
+        return jsonify({"error": f"animation infer failed: {exc}"}), 500
+
+
+@app.route("/api/animation/ablation")
+def animation_ablation():
+    """Shape-checkpoint ablation suite results (unseen motion regimes)."""
+    try:
+        import json as _json
+        base = os.path.dirname(os.path.abspath(__file__))
+        for rel in ("radial_data/anim_ablation.json",
+                    "runpod_shadow/radial_data/anim_ablation.json"):
+            path = os.path.join(base, rel)
+            if os.path.exists(path):
+                with open(path) as f:
+                    return jsonify(_json.load(f))
+        return jsonify({"pending": True})
+    except Exception as exc:
+        return jsonify({"error": f"animation ablation failed: {exc}"}), 500
+
+
+@app.route("/api/animation/validation")
+def animation_validation():
+    """Adversarial validation suite results (anim_validate.py)."""
+    try:
+        import json as _json
+        base = os.path.dirname(os.path.abspath(__file__))
+        for rel in ("radial_data/anim_validation.json",
+                    "runpod_shadow/radial_data/anim_validation.json"):
+            path = os.path.join(base, rel)
+            if os.path.exists(path):
+                with open(path) as f:
+                    return jsonify(_json.load(f))
+        return jsonify({"pending": True})
+    except Exception as exc:
+        return jsonify({"error": f"animation validation failed: {exc}"}), 500
+
+
+@app.route("/api/animation/bg")
+def animation_bg():
+    """Scaling module — background-robustness A/B: the motion model trained on
+    solid-black vs per-frame random-color backgrounds (matched settings)."""
+    try:
+        import json as _json
+        base = os.path.dirname(os.path.abspath(__file__))
+        out = {}
+        for tag in ("black", "color"):
+            for rel in (f"radial_data/anim_radial_{tag}.json",
+                        f"runpod_shadow/radial_data/anim_radial_{tag}.json"):
+                path = os.path.join(base, rel)
+                if os.path.exists(path):
+                    with open(path) as f:
+                        out[tag] = _json.load(f)
+                    break
+        if not out:
+            return jsonify({"pending": True})
+        return jsonify(out)
+    except Exception as exc:
+        return jsonify({"error": f"animation bg failed: {exc}"}), 500
+
+
+_BG_SAMPLE_KINDS = {"black": "black", "color": "randcolor", "inv": "inv"}
+
+
+@app.route("/api/animation/bg_samples")
+def animation_bg_samples():
+    """Animated preview sequences for the scaling modules — a few 6-frame
+    windows per background treatment as base64 RGB frames. ?kinds=black,color,inv
+    (default black,color)."""
+    try:
+        import base64
+        import radial_anim as ra
+        n = max(1, min(12, request.args.get("n", 6, type=int)))
+        size = request.args.get("size", "fixed")
+        res = max(16, min(64, request.args.get("res", 32, type=int)))
+        kinds = [k for k in request.args.get("kinds", "black,color").split(",")
+                 if k in _BG_SAMPLE_KINDS]
+        out = {}
+        for tag in kinds:
+            X8, y, ysh = ra.sample_seqs(n=n, bg=_BG_SAMPLE_KINDS[tag], seed=7,
+                                        size=size, res=res)
+            out[tag] = [{"data": base64.b64encode(X8[i].tobytes()).decode(),
+                         "size": int(X8.shape[2]), "frames": int(X8.shape[1]),
+                         "path": ra.PATH_NAMES[int(y[i])],
+                         "shape": ra.SHAPE_NAMES[int(ysh[i])]} for i in range(len(X8))]
+        return jsonify(out)
+    except Exception as exc:
+        return jsonify({"error": f"animation bg samples failed: {exc}"}), 500
+
+
+@app.route("/api/animation/cursor")
+def animation_cursor():
+    """Attention thread, Model 1 — the cursor tracker following a moving cursor
+    (dot_infer.py demo + dot_track.py metrics)."""
+    try:
+        import json as _json
+        base = os.path.dirname(os.path.abspath(__file__))
+
+        def _load(name):
+            for rel in (f"radial_data/{name}", f"runpod_shadow/radial_data/{name}"):
+                p = os.path.join(base, rel)
+                if os.path.exists(p):
+                    with open(p) as f:
+                        return _json.load(f)
+            return None
+        demo = _load("dot_cursor_demo.json")
+        if not demo:
+            return jsonify({"pending": True})
+        demo["metrics"] = _load("dot_track.json")
+        return jsonify(demo)
+    except Exception as exc:
+        return jsonify({"error": f"animation cursor failed: {exc}"}), 500
+
+
+@app.route("/api/animation/shape")
+def animation_shape():
+    """Attention thread, Model 1b — recognize the shape under the cursor via the
+    tracker's own attention (dot_shape.py demo + result)."""
+    try:
+        import json as _json
+        base = os.path.dirname(os.path.abspath(__file__))
+
+        def _load(name):
+            for rel in (f"radial_data/{name}", f"runpod_shadow/radial_data/{name}"):
+                p = os.path.join(base, rel)
+                if os.path.exists(p):
+                    with open(p) as f:
+                        return _json.load(f)
+            return None
+        demo = _load("dot_shape_demo.json")
+        if not demo:
+            return jsonify({"pending": True})
+        demo["result"] = _load("dot_shape.json")
+        return jsonify(demo)
+    except Exception as exc:
+        return jsonify({"error": f"animation shape failed: {exc}"}), 500
+
+
+@app.route("/api/animation/multires")
+def animation_multires():
+    """Scaling module 6 — one model across resolutions: the generalization
+    matrix + the continue-on-resolution-mix repairs."""
+    try:
+        import json as _json
+        base = os.path.dirname(os.path.abspath(__file__))
+
+        def _load(name):
+            for rel in (f"radial_data/{name}", f"runpod_shadow/radial_data/{name}"):
+                p = os.path.join(base, rel)
+                if os.path.exists(p):
+                    with open(p) as f:
+                        return _json.load(f)
+            return None
+        out = {"matrix": _load("anim_multires.json"),
+               "mix": _load("anim_continue_res.json"),
+               "lowhigh": _load("anim_res_lowhigh.json")}
+        if not any(out.values()):
+            return jsonify({"pending": True})
+        return jsonify(out)
+    except Exception as exc:
+        return jsonify({"error": f"animation multires failed: {exc}"}), 500
+
+
+@app.route("/api/animation/res")
+def animation_res():
+    """Scaling module 5 — resolution scaling (crank): motion model trained
+    natively at 32/48/64 (anim_res.py)."""
+    try:
+        import json as _json
+        base = os.path.dirname(os.path.abspath(__file__))
+        for rel in ("radial_data/anim_res.json",
+                    "runpod_shadow/radial_data/anim_res.json"):
+            path = os.path.join(base, rel)
+            if os.path.exists(path):
+                with open(path) as f:
+                    return jsonify(_json.load(f))
+        return jsonify({"pending": True})
+    except Exception as exc:
+        return jsonify({"error": f"animation res failed: {exc}"}), 500
+
+
+@app.route("/api/animation/size")
+def animation_size():
+    """Scaling module 4 — the random-color motion model, frozen, on shape sizes
+    it never trained on (anim_size.py)."""
+    try:
+        import json as _json
+        base = os.path.dirname(os.path.abspath(__file__))
+        for rel in ("radial_data/anim_size.json",
+                    "runpod_shadow/radial_data/anim_size.json"):
+            path = os.path.join(base, rel)
+            if os.path.exists(path):
+                with open(path) as f:
+                    return jsonify(_json.load(f))
+        return jsonify({"pending": True})
+    except Exception as exc:
+        return jsonify({"error": f"animation size failed: {exc}"}), 500
+
+
+@app.route("/api/animation/continue")
+def animation_continue():
+    """Scaling module 3 — continue-training (warm-start) repairing the
+    inverted-B&W weakness (anim_continue.py)."""
+    try:
+        import json as _json
+        base = os.path.dirname(os.path.abspath(__file__))
+        for rel in ("radial_data/anim_continue.json",
+                    "runpod_shadow/radial_data/anim_continue.json"):
+            path = os.path.join(base, rel)
+            if os.path.exists(path):
+                with open(path) as f:
+                    return jsonify(_json.load(f))
+        return jsonify({"pending": True})
+    except Exception as exc:
+        return jsonify({"error": f"animation continue failed: {exc}"}), 500
+
+
+@app.route("/api/animation/bg_ood")
+def animation_bg_ood():
+    """Scaling module 2 — the random-color motion model, frozen, on B&W /
+    inverted-B&W regimes it never trained on (anim_bg_ood.py)."""
+    try:
+        import json as _json
+        base = os.path.dirname(os.path.abspath(__file__))
+        for rel in ("radial_data/anim_bg_ood.json",
+                    "runpod_shadow/radial_data/anim_bg_ood.json"):
+            path = os.path.join(base, rel)
+            if os.path.exists(path):
+                with open(path) as f:
+                    return jsonify(_json.load(f))
+        return jsonify({"pending": True})
+    except Exception as exc:
+        return jsonify({"error": f"animation bg ood failed: {exc}"}), 500
+
+
+@app.route("/api/animation/genomes")
+def animation_genomes():
+    """Sample real genomes from a checkpoint so users can inspect the
+    actual evolved parameters. ?task=path|shape&n=6"""
+    try:
+        import json as _json
+        import random as _random
+        task = request.args.get("task", "shape")
+        n = max(1, min(12, request.args.get("n", 6, type=int)))
+        sfx = "_shape" if task == "shape" else ""
+        base = os.path.dirname(os.path.abspath(__file__))
+        for rel in (f"radial_data/anim_model{sfx}.json",
+                    f"runpod_shadow/radial_data/anim_model{sfx}.json"):
+            path = os.path.join(base, rel)
+            if os.path.exists(path):
+                with open(path) as f:
+                    ck = _json.load(f)
+                import anim_infer
+                rnd = _random.Random(request.args.get("seed", 0, type=int))
+                out = []
+                for si, sp in enumerate(ck["spaces"]):
+                    for g in rnd.sample(sp, min(len(sp), max(1, n // len(ck["spaces"])))):
+                        out.append({"space": si,
+                                    "params": anim_infer.count_params(g),
+                                    "genome": g})
+                return jsonify({"task": task, "genomes": out[:n],
+                                "n_spaces": len(ck["spaces"])})
+        return jsonify({"pending": True})
+    except Exception as exc:
+        return jsonify({"error": f"animation genomes failed: {exc}"}), 500
+
+
+@app.route("/api/animation/file/<name>")
+def animation_file(name):
+    """Download the raw artifacts (checkpoints + run exports) so anyone can
+    audit them. Whitelisted names only."""
+    allowed = {"anim_model.json", "anim_model_shape.json",
+               "anim_radial.json", "anim_radial_shape.json",
+               "anim_ablation.json", "anim_validation.json"}
+    if name not in allowed:
+        return jsonify({"error": "unknown artifact"}), 404
+    base = os.path.dirname(os.path.abspath(__file__))
+    for rel in ("radial_data", os.path.join("runpod_shadow", "radial_data")):
+        path = os.path.join(base, rel, name)
+        if os.path.exists(path):
+            return send_file(path, as_attachment=True, download_name=name)
+    return jsonify({"error": "artifact not generated yet"}), 404
+
+
+@app.route("/api/lm/radial")
+def lm_radial_state():
+    """Live results for the rewired LM tab: the temporal radial stack on
+    glyph-frame next-char prediction (+ n-gram ceilings in the export)."""
+    try:
+        import json as _json
+        base = os.path.dirname(os.path.abspath(__file__))
+        path = os.path.join(base, "radial_data", "lm_radial.json")
+        if os.path.exists(path):
+            with open(path) as f:
+                return jsonify(_json.load(f))
+        return jsonify({"pending": True})
+    except Exception as exc:
+        return jsonify({"error": f"lm radial failed: {exc}"}), 500
+
+
+@app.route("/api/lm/radial/word")
+def lm_radial_word_state():
+    """Word-level radial LM results (radial_lm_word.py export)."""
+    try:
+        import json as _json
+        base = os.path.dirname(os.path.abspath(__file__))
+        path = os.path.join(base, "radial_data", "lm_radial_word.json")
+        if os.path.exists(path):
+            with open(path) as f:
+                return jsonify(_json.load(f))
+        return jsonify({"pending": True})
+    except Exception as exc:
+        return jsonify({"error": f"lm word failed: {exc}"}), 500
+
+
+@app.route("/api/lm/modules")
+def lm_modules():
+    """The append-only module registry for the LM page."""
+    try:
+        import json as _json
+        base = os.path.dirname(os.path.abspath(__file__))
+        path = os.path.join(base, "radial_data", "lm_modules.json")
+        if os.path.exists(path):
+            with open(path) as f:
+                return jsonify(_json.load(f))
+        return jsonify({"modules": []})
+    except Exception as exc:
+        return jsonify({"error": f"lm modules failed: {exc}"}), 500
+
+
+@app.route("/api/lm/export/<name>")
+def lm_export(name):
+    """Serve a module's export json (whitelisted patterns only)."""
+    try:
+        import json as _json
+        import re as _re
+        if not _re.fullmatch(r"(lm_radial|embed_report)[A-Za-z0-9_]*\.json",
+                             name):
+            return jsonify({"error": "not an lm export"}), 404
+        base = os.path.dirname(os.path.abspath(__file__))
+        path = os.path.join(base, "radial_data", name)
+        if not os.path.exists(path):
+            return jsonify({"pending": True})
+        with open(path) as f:
+            return jsonify(_json.load(f))
+    except Exception as exc:
+        return jsonify({"error": f"lm export failed: {exc}"}), 500
+
+
+@app.route("/api/lm/autocomplete")
+def lm_autocomplete():
+    """Autocomplete a prompt with the latest word-level radial checkpoint.
+    First call kicks off a one-time background build; the page polls."""
+    try:
+        import lm_word_infer
+        prompt = request.args.get("prompt", "", type=str)
+        n = request.args.get("n", 24, type=int)
+        temp = request.args.get("temp", 1.0, type=float)
+        return jsonify(lm_word_infer.complete(prompt, n_words=n, temp=temp))
+    except Exception as exc:
+        return jsonify({"error": f"autocomplete failed: {exc}"}), 500
+
+
+@app.route("/api/lm/radial/examples")
+def lm_radial_examples():
+    """A few real test windows (context chars + the next char) for display."""
+    try:
+        import numpy as np
+        base = os.path.dirname(os.path.abspath(__file__))
+        path = os.path.join(base, "radial_data", "lm_ids.npz")
+        if not os.path.exists(path):
+            return jsonify({"pending": True})
+        import radial_lm
+        z = np.load(path)
+        n = max(1, min(8, request.args.get("n", 3, type=int)))
+        rng = np.random.default_rng(request.args.get("seed", 0, type=int))
+        idx = rng.choice(len(z["yte"]), size=n, replace=False)
+        out = []
+        for i in idx:
+            i = int(i)
+            out.append({
+                "context": "".join(radial_lm.CHARS[c] for c in z["ctx_te"][i]),
+                "next": radial_lm.CHARS[int(z["yte"][i])],
+            })
+        return jsonify({"examples": out})
+    except Exception as exc:
+        return jsonify({"error": f"lm examples failed: {exc}"}), 500
 
 
 @app.route("/api/radial/baselines")

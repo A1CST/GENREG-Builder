@@ -10,6 +10,28 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-15] (Claude)** — **Attention line (animation): the payoff — WHERE
+  unlocks WHAT.** Three gradient-free models toward a little agent. (1) TRACKING
+  (dot_track.py, the lab's first REGRESSION task): a red cursor pinned to a
+  moving shape amid 3 colored distractor shapes; radial features evolved by
+  greedy residual-boosting, closed-form ridge to (x,y). Follows the moving
+  cursor at ~1.5px mean error on a 64px frame (static-frame R² 0.9895),
+  isolating the red cursor by color-based figure-ground — the selective
+  attention the clutter wall lacked. dot_infer.py animates it (green
+  crosshair). (2) RECOGNIZE (dot_shape.py): use the frozen tracker's OWN
+  predicted position as an attention spotlight, crop the 20px window, evolve a
+  shape classifier on the crop — "where" is the tracker's, only "what" is
+  learned. Result: **0.9955 on 10 shapes, 0.9985 circle-vs-square**, both amid
+  distractors that fall OUTSIDE the crop and are ignored for free. Ceiling
+  check (true-position crop) 0.9985 — the tracker's attention loses nothing.
+  BASIS BUG fixed en route: a frozen model's genomes only mean something under
+  THEIR OWN training PCA basis; building the tracker's Env on the shape data
+  re-fit the wrong basis and gave 21px error / 0.27 acc. Rebuilding the basis
+  from gen_dot (the tracker's regime) restored it — the SAME lesson as the
+  resolution work, now firm. New /api/animation/shape route + Model-1b module
+  on /animation (attended point, the crop, the model's shape call).
+  Reproduce: dot_track.py, dot_infer.py, dot_shape.py (--cs). Next: Model 2
+  (control — hand the model the cursor and train it to MOVE).
 - **[2026-07-15] (Claude)** — **LM modules 12+13: PROBE + CONTINUE-TRAIN (the
   animation Module-3 method ported to language).** PROBE (read-only on the
   RS-30k lean checkpoint): the model NEVER overrides its tables - when the

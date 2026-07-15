@@ -6,6 +6,86 @@ Seeded 2026-07-05 from the main changelog (keyword split, best effort).
 
 ---
 
+## 2026-07-15 (Claude) — Attention line: WHERE unlocks WHAT
+
+After the clutter wall (the stack cannot attend), a new "Attention & control"
+section builds a little agent from the ground up on a red cursor. Three
+gradient-free models planned: 1) tracking, 2) control, 3) action.
+
+- **Model 1 · tracking** (`dot_track.py`, `dot_infer.py`) — the lab's first
+  REGRESSION task. Red cursor pinned to a moving shape amid 3 colored distractor
+  shapes; radial features by greedy residual-boosting, ridge to (x,y). Follows
+  the moving cursor at ~1.5px mean error (64px frame, static R² 0.9895),
+  isolating it by color-based figure-ground. Green-crosshair demo on the page.
+- **Model 1b · recognize** (`dot_shape.py`) — attention-gated classify: the
+  frozen tracker's OWN predicted position is a spotlight; crop the 20px window,
+  evolve a shape classifier on the crop. "Where" is the tracker's, only "what"
+  is learned. **0.9955 on 10 shapes, 0.9985 circle-vs-square** (= the true-crop
+  ceiling); distractors fall outside the crop and are ignored for free. New
+  `/api/animation/shape` route + Model-1b module (attended point, the crop, the
+  model's shape call).
+- **Basis bug** fixed: a frozen model's genomes only mean something under THEIR
+  OWN training PCA basis. Building the tracker's Env on the shape data re-fit the
+  wrong basis (21px / 0.27 acc); rebuild from `gen_dot` restored 1.5px / 0.99.
+  Same lesson as the resolution work.
+
+Next: Model 2 (control — hand the model the cursor, train it to MOVE).
+
+## 2026-07-15 (Claude) — Scaling & robustness campaign + continue-training method
+
+Scaling the temporal radial motion model (`radial_anim.py`) with a growing stack
+of experiment **modules** down the `/animation` page (Scaling & robustness
+section). **Every module has live animated visuals** (canvas sample rows) +
+result bars + an honest note; each has a `/api/animation/<x>` route reading a
+`radial_data/*.json` export. New capability: **continue-training** (warm-start on
+a saved model). Pod work on a fresh RTX PRO 6000 Blackwell (see
+runpod memory); all evals gradient-free, frozen genomes+head unless stated.
+
+- **Module 1 — background robustness.** Frames' solid-black background → per-frame
+  **random RGB color** (`make_anim_data(bg="randcolor")`, RGB pipeline). Motion
+  task, matched settings (grid 8): black **0.854** → random color **0.745**
+  (−11 pts, still 7.5× chance). Confirmed the [[r0-fatness-law]] on an
+  un-designed task — the color distractor is perception-bound, so R0 grew fatter
+  (332 vs 249) and the stack shallower (6 vs 7). `anim_bg_ab.py`.
+- **Module 2 — inverted B&W (frozen color model).** The color model, genomes+head
+  frozen, on new regimes: plain B&W (black bg/white shape) **0.785** (removing
+  color *helps* — it was a distractor); **inverted** (white bg/black shape)
+  **0.307** — it keys on a *bright* blob, so flipping polarity breaks R0
+  (honest limit), but 3× chance survives. `anim_bg_ood.py`.
+- **Module 3 — continue-training repair.** NEW METHOD `anim_continue.py`: load a
+  finished model, keep the patch-PCA **basis frozen** (loaded genomes only mean
+  something under it), rebuild columns + temporal grid on new data, keep stacking
+  new spaces. Repaired the inversion: warm base 6 spaces + 4 new → inverted
+  **0.31 → 0.79** (small color give-back 0.76→0.70) = polarity-robust, 31 s.
+- **Module 4 — random shape size (frozen color model).** Per-sequence radius scale
+  (`gen(size=...)`). Random size costs ~4 pts; small (0.4–0.7×) worst at
+  **0.634** but still 6.3× chance; large 0.676 — graceful degradation (tracks a
+  moving *region*). `anim_size.py`.
+- **Module 5 — resolution scaling (crank).** Made the whole pipeline
+  resolution-aware: `Env` reads input size from the data (was hardcoded 32),
+  `make_anim_data`/`sample_seqs`/`gen` take `res=` (composite at native 64,
+  area-downscale), `run()` infers res. Trained separate models at 32/48/64:
+  test **0.79 → 0.82 → 0.84**, and the small-shape floor **recovers 0.625 →
+  0.707** (+8 pts) — the Module-4 weakness was largely *resolution-bound*.
+  `anim_res.py`.
+- **Module 6 — one model, many resolutions.** Fixed `feature_r0` to read spatial
+  size from the map (`√L`) not the basis, so one Env handles test-res ≠
+  basis-res. Generalization matrix (`anim_multires.py`): a single-resolution
+  model does NOT generalize (train64@test32 = 0.43). Continue-training on a
+  resolution mix (`anim_continue_res.py` — merges each resolution's frames in the
+  resolution-invariant grid space) fixes it: from res-64 → **0.745/0.779/0.821**
+  at 32/48/64; low→high (res-32 base + 64) → **0.760/0.762**, gains high-res
+  without forgetting low. One model, all resolutions, gradient-free.
+
+Files: `anim_bg_ab.py`, `anim_bg_ood.py`, `anim_continue.py`, `anim_size.py`,
+`anim_res.py`, `anim_multires.py`, `anim_continue_res.py`; `radial_anim.py`
+(res-aware + `sample_seqs`), `radial_evo2.py` (Env res-aware), `radial_stack.py`
+(`feature_r0` per-map dims); `app.py` (+7 `/api/animation/*` routes);
+`templates/animation.html` (6 modules). Artifacts on the pod +
+`radial_data/anim_*.json` local. NOTE: Flask restart needed to serve the new
+routes/template.
+
+
 - **[2026-07-05] (Claude)** — Animation Evo: **per-clip presentation regime** (user: the genome
   must NOT see all 240 frames at once). Now ONE clip per generation — the population is scored
   only on a single clip's 24 frames, presented in temporal order (shape moving along its path);
