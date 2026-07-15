@@ -52,6 +52,8 @@ def make_data(n_train=12000, n_test=3000, seed=0, noise=0.08, rule="hard",
     bot = rng.integers(0, 5, n)
     if rule == "rel":
         return _make_rel(rng, M, n, n_train, n_test, noise, path)
+    if rule == "rel_sep":
+        return _make_rel(rng, M, n, n_train, n_test, noise, path, sep_cheb=12)
     if rule == "hard":
         y = (top + bot) % 5 + 5 * (top == bot).astype(np.int64)
     else:
@@ -78,7 +80,7 @@ if __name__ == "__main__":
     make_data()
 
 
-def _make_rel(rng, M, n, n_train, n_test, noise, path):
+def _make_rel(rng, M, n, n_train, n_test, noise, path, sep_cheb=0):
     """rule="rel": a RING anchor + one satellite motif (identity irrelevant),
     both placed anywhere (global translation). Label = OCTANT of the satellite
     relative to the ring (8 classes). No absolute-position feature answers it;
@@ -93,8 +95,8 @@ def _make_rel(rng, M, n, n_train, n_test, noise, path):
             ry, rx = rng.integers(0, 21), rng.integers(0, 21)
             sy, sx = rng.integers(0, 21), rng.integers(0, 21)
             dy, dx = sy - ry, sx - rx
-            if dy * dy + dx * dx >= 64:            # min separation 8 px
-                break
+            if dy * dy + dx * dx >= 64 and max(abs(dy), abs(dx)) >= sep_cheb:
+                break                              # sep_cheb>=12 => NO overlap
         X[i, ry:ry + 12, rx:rx + 12] += M[1]        # ring anchor
         X[i, sy:sy + 12, sx:sx + 12] += M[int(rng.choice(sats))]
         ang = np.arctan2(dy, dx)                    # image coords

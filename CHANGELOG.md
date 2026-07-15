@@ -10,6 +10,21 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-15] (Claude)** — **THE UNIVERSAL GRAMMAR (user's correction:
+  "seems like you are handcrafting genomes").** The completeness ladder had
+  become directed architecture search — per-task primitive additions after
+  peeking at failures. Consolidated: ONE frozen grammar, everything
+  permanently in the gene pool — spatial hand-off grids, per-term SHIFT
+  genes (relative-offset compare, range scales with grid), per-term SOURCE
+  genes (prev-space channel OR raw-environment skip: a 240-channel bank of
+  all scales' components at grid resolution, so relation genomes read
+  first-hand positional evidence, not just R0's label-shaped maps), gates,
+  meta-terms, all scales. Ladder context: shift gene +4.3 (0.9127), grid-16
+  neutral (quantization exonerated), no-overlap +2.0 (0.9327), depth
+  reproduced exactly (not binding). Legitimacy test now running: the SAME
+  config (grid 8, cap 0.0005, max_spaces 16, seed 5) across all four synth
+  tasks with zero per-task toggles — evolution alone decides which
+  primitives each task deserves. CIFAR/resnet untouched.
 - **[2026-07-14] (Claude)** — **ResNet STACKED spaces: gradient-free stacking
   BEATS single-space (TEST 0.6638 vs 0.6593).** Implemented the emergent-cap
   stacking idea (`documentation/stacking.txt`) in `resnet_evo.py`

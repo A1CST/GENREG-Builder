@@ -241,6 +241,7 @@ def new_grid_genome(rng, C_prev):
     (dy, dx) so folds can compare relative positions across channels."""
     order = 2 if rng.random() < 0.7 else 3
     g = {"terms": [{"c": int(rng.integers(C_prev)),
+                    "src": "raw" if rng.random() < 0.3 else "prev",
                     "sh": [int(rng.integers(-(GRID // 2), GRID // 2 + 1)),
                            int(rng.integers(-(GRID // 2), GRID // 2 + 1))],
                     "prog": [(int(rng.integers(len(_PRIMS))),
@@ -270,6 +271,10 @@ def mutate_grid_g(rng, g, sc, C_prev):
     for t in out["terms"]:
         if "sh" not in t or t["sh"] is None:
             t["sh"] = [0, 0]
+        if "src" not in t:
+            t["src"] = "prev"
+        if rng.random() < 0.08:
+            t["src"] = "raw" if t["src"] == "prev" else "prev"
         if rng.random() < 0.20:                    # the shift gene walks
             m = GRID // 2
             t["sh"] = [int(np.clip(t["sh"][0] + rng.integers(-1, 2), -m, m)),
@@ -283,13 +288,17 @@ def mutate_grid_g(rng, g, sc, C_prev):
     return out
 
 
-def feature_grid_g(torch, tp, gridT, g, want_grid=False):
+def feature_grid_g(torch, tp, gridT, g, want_grid=False, rawT=None):
     """Grammar genome over the previous space's (N, C_prev, GRID, GRID) maps —
     stacking REPRESENTATIONS, not scalars. Terms apply their SHIFT gene before
-    folding, so products compare relative positions across channels."""
+    folding, so products compare relative positions across channels. A term
+    with src=="raw" reads the RAW env map bank (skip to the environment):
+    relation features get first-hand positional evidence, not just R0's
+    label-shaped outputs."""
     z = None
     for t in g["terms"]:
-        v = gridT[:, t["c"] % gridT.shape[1]].float()
+        bank = rawT if (t.get("src") == "raw" and rawT is not None) else gridT
+        v = bank[:, t["c"] % bank.shape[1]].float()
         sh = t.get("sh") or [0, 0]
         v = _shift2d(torch, v, int(sh[0]), int(sh[1]))
         for prim, a, b in t["prog"]:
@@ -527,7 +536,23 @@ def run_stacked(pop_size=64, gens=12, max_rounds=200, seed=5, smoke=False,
         Xtr, ytr = Xtr[:n_train], ytr[:n_train]
     if n_test:
         Xte, yte = Xte[:n_test], yte[:n_test]
-    env = Env(torch, dev, Xtr, Xte)
+    env = Env(torch, dev, Xtr, Xte, max_cached=6)
+    # universal raw-environment skip bank: every scale's components, coarsened
+    # to GRID — deep-space terms with src=="raw" read first-hand evidence
+    raw_tr = raw_te = None
+    if handoff == "grid":
+        import torch.nn.functional as Fn
+        from radial_evo2 import SCALES as _SCALES
+        bt, be = [], []
+        for ps in _SCALES:
+            Mtr_, Mte_, H_, W_ = env.maps(ps)
+            bt.append(Fn.adaptive_avg_pool2d(
+                Mtr_.float().view(len(Mtr_), -1, H_, W_), (GRID, GRID)))
+            be.append(Fn.adaptive_avg_pool2d(
+                Mte_.float().view(len(Mte_), -1, H_, W_), (GRID, GRID)))
+        raw_tr = torch.cat(bt, 1).half()
+        raw_te = torch.cat(be, 1).half()
+        del bt, be
     n_fit = int(len(Xtr) * 0.8)
     yv = torch.tensor(ytr[n_fit:], device=dev)
     yte_t = torch.tensor(yte, device=dev)
@@ -562,12 +587,14 @@ def run_stacked(pop_size=64, gens=12, max_rounds=200, seed=5, smoke=False,
             C_prev = prev_grid_tr.shape[1]
             new_fn = lambda r: new_grid_genome(r, C_prev)
             mut_fn = lambda r, g, sc: mutate_grid_g(r, g, sc, C_prev)
-            feat_tr = lambda g: feature_grid_g(torch, tp, prev_grid_tr, g)
-            feat_te = lambda g: feature_grid_g(torch, tp, prev_grid_te, g)
+            feat_tr = lambda g: feature_grid_g(torch, tp, prev_grid_tr, g,
+                                               rawT=raw_tr)
+            feat_te = lambda g: feature_grid_g(torch, tp, prev_grid_te, g,
+                                               rawT=raw_te)
             grid_tr_of = lambda g: feature_grid_g(torch, tp, prev_grid_tr, g,
-                                                  want_grid=True)
+                                                  want_grid=True, rawT=raw_tr)
             grid_te_of = lambda g: feature_grid_g(torch, tp, prev_grid_te, g,
-                                                  want_grid=True)
+                                                  want_grid=True, rawT=raw_te)
             src = (f"space {si-1} maps ({C_prev} ch x {GRID}x{GRID} — "
                    f"spatial grammar + gates)")
         else:                                   # scalar hand-off ablation arm
