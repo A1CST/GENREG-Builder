@@ -6,6 +6,19 @@ Seeded 2026-07-05 from the main changelog (keyword split, best effort).
 
 ---
 
+## 2026-07-15 (Claude) — Attention line: fixed the white-target leak, retrained
+
+The tracker's target shape was always WHITE while distractors were colored, so
+the model could track "the white shape" and never use the red cursor — the
+cursor-as-designator premise was untested. Fix (`_rand_color`, across
+dot_track/dot_shape/dot_infer): the target now takes a random non-red color from
+the SAME distribution as the distractors, so only the cursor on it marks it.
+Retrained: tracker 1.84px mean / 1.47px median (R² 0.9817) static, 3.44px mean /
+2.81px median moving over an 80-seq pool (demo shows a representative spread now).
+Shape-ID via the tracker's attention, reading shape regardless of color: 0.9485
+(10 shapes) / 0.9825 (circle-vs-square) — honest drops from the leaky
+0.9955/0.9985; the cursor now does real work. Right foundation for Model 2.
+
 ## 2026-07-15 (Claude) — Attention line: WHERE unlocks WHAT
 
 After the clutter wall (the stack cannot attend), a new "Attention & control"

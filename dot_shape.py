@@ -18,7 +18,7 @@ import numpy as np
 from radial_evo import _tprims, _ridge_soft, _STOP
 from radial_evo2 import Env, make_scorer, new_genome, mutate, feature
 import radial_anim as ra
-from dot_track import _DCOL, gen_dot
+from dot_track import _rand_color, gen_dot
 
 try:
     from genreg_train import animation_data as ad
@@ -44,16 +44,16 @@ def gen_labeled(n, res, seed, distractors, noise=0.03, shapes=None):
     for i in range(n):
         x = float(rng.uniform(10, S - 10))
         y = float(rng.uniform(10, S - 10))
-        for k in rng.permutation(len(_DCOL))[:distractors]:
+        for k in range(distractors):
             dsfn = SH[int(rng.integers(len(SH)))]
             da = dsfn(float(rng.uniform(8, S - 8)), float(rng.uniform(8, S - 8)),
                       r=float(rng.uniform(3.0, 9.0)))
-            X[i, 0] = _DCOL[k][None, None, :] * da[..., None] + X[i, 0] * (1.0 - da[..., None])
+            X[i, 0] = _rand_color(rng)[None, None, :] * da[..., None] + X[i, 0] * (1.0 - da[..., None])
         li = int(rng.integers(len(subset)))
         ti = subset[li]
         ysh[i] = li
-        sa = SH[ti](x, y, r=float(rng.uniform(5.0, 7.5)))
-        X[i, 0] = sa[..., None] + X[i, 0] * (1.0 - sa[..., None])
+        sa = SH[ti](x, y, r=float(rng.uniform(5.0, 7.5)))     # target — random color, like distractors
+        X[i, 0] = _rand_color(rng)[None, None, :] * sa[..., None] + X[i, 0] * (1.0 - sa[..., None])
         da = ad.circle(x, y, r=float(rng.uniform(2.5, 3.8)))
         X[i, 0] = np.array([1., 0., 0.], np.float32)[None, None, :] * da[..., None] \
             + X[i, 0] * (1.0 - da[..., None])

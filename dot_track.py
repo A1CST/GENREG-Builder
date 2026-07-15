@@ -34,6 +34,16 @@ _DCOL = np.array([[0.2, 0.85, 0.25], [0.2, 0.45, 1.0], [0.1, 0.85, 0.9],
                   [0.95, 0.9, 0.2], [0.75, 0.35, 0.95], [0.6, 0.6, 0.6]], np.float32)
 
 
+def _rand_color(rng):
+    """A random visible NON-red color. The target shape AND the distractors both
+    draw from this, so the target is indistinguishable by color — the red cursor
+    on it is the ONLY cue that marks it as the thing to track."""
+    while True:
+        c = rng.uniform(0.15, 1.0, 3).astype(np.float32)
+        if not (c[0] > 0.6 and c[1] < 0.4 and c[2] < 0.4):   # keep red for the cursor
+            return c
+
+
 def gen_dot(n, res=32, seed=0, noise=0.03, with_shape=True, distractors=0):
     """n frames (res,res,3): a red CURSOR dot pinned to the centre of a (white)
     shape; targets = the normalised (x, y) in [0,1]. The model must output the
@@ -48,17 +58,17 @@ def gen_dot(n, res=32, seed=0, noise=0.03, with_shape=True, distractors=0):
     for i in range(n):
         x = float(rng.uniform(10, S - 10))
         y = float(rng.uniform(10, S - 10))
-        cidx = rng.permutation(len(_DCOL))[:distractors]
         for k in range(distractors):               # colored distractor shapes (behind)
             dsfn = SH[int(rng.integers(len(SH)))]
             da = dsfn(float(rng.uniform(8, S - 8)), float(rng.uniform(8, S - 8)),
                       r=float(rng.uniform(3.0, 9.0)))
-            col = _DCOL[cidx[k]]
+            col = _rand_color(rng)
             X[i, 0] = col[None, None, :] * da[..., None] + X[i, 0] * (1.0 - da[..., None])
-        if with_shape:                              # white target shape (over distractors)
-            sfn = SH[int(rng.integers(len(SH)))]
+        if with_shape:                              # target shape — a random color, like the
+            sfn = SH[int(rng.integers(len(SH)))]    # distractors; only the cursor marks it
             sa = sfn(x, y, r=float(rng.uniform(4.5, 7.0)))
-            X[i, 0] = sa[..., None] + X[i, 0] * (1.0 - sa[..., None])
+            tcol = _rand_color(rng)
+            X[i, 0] = tcol[None, None, :] * sa[..., None] + X[i, 0] * (1.0 - sa[..., None])
         da = ad.circle(x, y, r=float(rng.uniform(2.5, 3.8)))   # red cursor on top
         red = np.array([1.0, 0.0, 0.0], np.float32)
         X[i, 0] = red[None, None, :] * da[..., None] + X[i, 0] * (1.0 - da[..., None])

@@ -10,6 +10,23 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-15] (Claude)** — **Attention line: fixed a WHITE-TARGET leak and
+  retrained — the cursor is now genuinely necessary.** The tracker's target
+  shape was always drawn WHITE while distractors were colored, so the model
+  could locate "the white shape" and never actually use the red cursor — the
+  cursor's whole premise (it designates WHICH object is the target) was
+  untested, and Models 2/3 would have been built on sand. Fix (`_rand_color` in
+  dot_track.py, applied across dot_track/dot_shape/dot_infer): the target shape
+  now takes a random NON-red color from the SAME distribution as the
+  distractors, so nothing but the cursor on it marks it. Retrained gradient-free
+  and it HOLDS: tracker **1.84px mean / 1.47px median, R² 0.9817** static;
+  moving-follow **3.44px mean / 2.81px median** over an 80-sequence pool (the
+  demo now shows a representative spread, not a lucky 6-draw). Shape-ID via the
+  tracker's attention, reading shape regardless of color: **0.9485 on 10 shapes,
+  0.9825 circle-vs-square** (honest drops from the leaky 0.9955/0.9985; the
+  cursor now does real work). Page notes + demos updated to the any-color
+  regime. This is a genuine cursor-as-designator, the right foundation for
+  Model 2 (control).
 - **[2026-07-15] (Claude)** — **MODULE 14 - THE LOOP CLOSES: skip-gram
   environment channels + continue-train take the lean model to TEST 0.3992
   top-1 / 0.5981 top-5 - the best model of the entire LM line, beating

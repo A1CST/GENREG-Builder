@@ -398,7 +398,10 @@ live from the checkpoint files, exactly as evolution wrote them</div>
 
     <div class="an-cl" style="margin:0 0 8px"><b style="color:#dbe2ea;font-size:12.5px">Model 1 ·
       Tracking</b> — the model watches the red cursor glide (pinned to a moving shape) amid
-      <b>colored distractor shapes</b> and outputs its position each frame. The
+      <b>colored distractor shapes</b> and outputs its position each frame. The target shape is
+      a <b>random color, drawn from the same palette as the distractors</b> — so nothing but the
+      <b>red cursor on it</b> marks it as the thing to follow (an earlier version drew the target
+      white, a shortcut that let the model skip the cursor). The
       <b style="color:#5fd39a">green crosshair</b> is the model's prediction; it should stay
       on the red dot and ignore the clutter.</div>
     <div class="an-grid" id="an-cursor" style="margin-bottom:12px">loading the cursor tracker…</div>
@@ -1263,11 +1266,12 @@ live from the checkpoint files, exactly as evolution wrote them</div>
           "on a " + d.frame_px + "px frame, at res " + d.res + ", amid <b>" +
           (m.distractors || 0) + " colored distractor shapes</b> it must ignore (" + d.n_feats +
           " evolved features, ridge regression, no gradients" + (m.test_r2 ? "; static-frame " +
-          "R² <b>" + m.test_r2 + "</b>, " + m.mean_err_px + "px" : "") + "). It isolates the red " +
-          "cursor from clutter of other colors, shapes and sizes — <b>color-based figure-ground</b>, " +
-          "the selective attention the clutter wall lacked. The model has a reliable <b>\"where\"</b> " +
-          "signal, the seed of attention. Next: hand it the cursor and train it to <b>move</b> " +
-          "(Model 2, control). Reproduce: <b>dot_track.py</b> / <b>dot_infer.py</b>.";
+          "R² <b>" + m.test_r2 + "</b>, " + m.mean_err_px + "px" : "") + "). Because the target " +
+          "shape is now a random color like the distractors, the ONLY thing marking it is the red " +
+          "cursor on it — so this genuinely tracks the <b>cursor</b>, not a whiteness shortcut. The " +
+          "model has a reliable <b>\"where\"</b> signal, the seed of attention. Next: hand it the " +
+          "cursor and train it to <b>move</b> (Model 2, control). Reproduce: <b>dot_track.py</b> / " +
+          "<b>dot_infer.py</b>.";
       }).catch(function (e) {
         document.getElementById("an-cursor").textContent = "load failed: " + e;
       });
@@ -1323,12 +1327,13 @@ live from the checkpoint files, exactly as evolution wrote them</div>
           "Riding the tracker's own attention, the model names the shape under the cursor at <b>" +
           (res.test_acc != null ? (res.test_acc * 100).toFixed(1) + "%</b>" : "high accuracy</b>") +
           " across <b>" + (res.n_classes || d.n_classes) + " shapes</b> (chance " +
-          Math.round(100 / (res.n_classes || d.n_classes)) + "%), and <b>99.85%</b> on the " +
-          "circle-vs-square action, both amid " + (res.distractors || 0) + " colored distractors it " +
-          "never looks at. The clutter falls <b>outside the " + d.crop + "px attention window</b>, " +
-          "so it is ignored for free. This is the attention payoff: <b>\"where\" (the frozen " +
-          "tracker) unlocks \"what\"</b> — with a reliable spotlight, shape ID is near-perfect. " +
-          "Reproduce: <b>dot_shape.py</b> (<b>--cs</b> for circle-vs-square).";
+          Math.round(100 / (res.n_classes || d.n_classes)) + "%), and <b>98.25%</b> on the " +
+          "circle-vs-square action — reading shape <b>regardless of color</b>, amid " +
+          (res.distractors || 0) + " random-colored distractors it never looks at. The clutter " +
+          "falls <b>outside the " + d.crop + "px attention window</b>, so it is ignored for free. " +
+          "This is the attention payoff: <b>\"where\" (the frozen tracker) unlocks \"what\"</b> — " +
+          "with a reliable spotlight, shape ID stays near-perfect even when nothing but the cursor " +
+          "picks the target out. Reproduce: <b>dot_shape.py</b> (<b>--cs</b> for circle-vs-square).";
       }).catch(function (e) {
         document.getElementById("an-shape").textContent = "load failed: " + e;
       });
