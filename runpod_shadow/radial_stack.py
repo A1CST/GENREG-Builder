@@ -234,7 +234,111 @@ def _shift2d(torch, v, dy, dx):
     return out
 
 
+
+def _rand_rblock(rng, C, bootstrap=False):
+    """Residual block genes (mirrors resnet_evo): bootstrapped blocks are
+    near-no-op so a fresh block can't disturb a working stack (rule VI)."""
+    if bootstrap:
+        return {"mix": np.eye(C).reshape(-1).tolist(), "prim": 0,
+                "a": 1.0, "b": 0.0, "gain": 0.05}
+    mix = np.eye(C) + rng.normal(0, 0.25, (C, C))
+    return {"mix": [float(x) for x in mix.reshape(-1)],
+            "prim": int(rng.integers(len(_PRIMS))),
+            "a": float(rng.uniform(0.5, 2.0)),
+            "b": float(rng.uniform(-0.5, 0.5)),
+            "gain": float(rng.uniform(0.2, 0.9))}
+
+
+def _new_res_genome(rng, C_prev):
+    """Residual-architecture grid genome: C channels (each with source and
+    SHIFT genes) -> residual block stack (skip is the gene) -> weighted
+    collapse -> gate/window readout."""
+    C = int(rng.integers(2, 5))
+    m = GRID // 2
+    g = {"arch": "res",
+         "chans": [{"c": int(rng.integers(C_prev)),
+                    "src": "raw" if rng.random() < 0.3 else "prev",
+                    "sh": [int(rng.integers(-m, m + 1)), int(rng.integers(-m, m + 1))]}
+                   for _ in range(C)],
+         "blocks": [_rand_rblock(rng, C)
+                    for _ in range(1 if rng.random() < 0.6 else 2)],
+         "wout": [float(rng.normal(0, 1)) for _ in range(C)],
+         "stat": int(rng.integers(3)),
+         "cx": float(rng.uniform(0.1, 0.9)), "cy": float(rng.uniform(0.1, 0.9)),
+         "lsig": float(rng.uniform(np.log(0.15), np.log(1.5))),
+         "gate": None}
+    return g
+
+
+def _mutate_res(rng, g, sc, C_prev):
+    c = json.loads(json.dumps(g))
+    C = len(c["chans"])
+    m = GRID // 2
+    for ch in c["chans"]:
+        if rng.random() < 0.10:
+            ch["c"] = int(rng.integers(C_prev))
+        if rng.random() < 0.08:
+            ch["src"] = "raw" if ch["src"] == "prev" else "prev"
+        if rng.random() < 0.20:
+            ch["sh"] = [int(np.clip(ch["sh"][0] + rng.integers(-1, 2), -m, m)),
+                        int(np.clip(ch["sh"][1] + rng.integers(-1, 2), -m, m))]
+    for blk in c["blocks"]:
+        mix = np.array(blk["mix"], dtype=float).reshape(C, C)
+        mix = mix + rng.normal(0, sc, (C, C)) * (np.abs(mix) + 0.1)
+        blk["mix"] = [float(x) for x in mix.reshape(-1)]
+        if rng.random() < 0.12:
+            blk["prim"] = int(rng.integers(len(_PRIMS)))
+        blk["a"] = float(np.clip(blk["a"] + rng.normal(0, sc), 0.1, 4.0))
+        blk["b"] = float(np.clip(blk["b"] + rng.normal(0, sc), -2.0, 2.0))
+        blk["gain"] = float(np.clip(blk["gain"] + rng.normal(0, sc), 0.0, 2.0))
+    if rng.random() < 0.10:                       # depth is a gene
+        if len(c["blocks"]) < 4:
+            c["blocks"].append(_rand_rblock(rng, C, bootstrap=True))
+        elif len(c["blocks"]) > 1:
+            c["blocks"].pop(int(rng.integers(len(c["blocks"]))))
+    for i in range(C):
+        c["wout"][i] = float(c["wout"][i] + rng.normal(0, sc))
+    if rng.random() < 0.08:
+        c["stat"] = int(rng.integers(3))
+    c["cx"] = float(np.clip(c["cx"] + rng.normal(0, sc * 0.5), 0.0, 1.0))
+    c["cy"] = float(np.clip(c["cy"] + rng.normal(0, sc * 0.5), 0.0, 1.0))
+    c["lsig"] = float(np.clip(c["lsig"] + rng.normal(0, sc * 0.5),
+                              np.log(0.05), np.log(3.0)))
+    return c
+
+
+def _feature_res(torch, tp, gridT, g, want_grid=False, rawT=None):
+    """Residual grid genome -> map/scalar. Channels carry src + shift; blocks
+    keep the identity skip; collapse via wout; gate/window as usual."""
+    C = len(g["chans"])
+    hs = []
+    for ch in g["chans"]:
+        bank = rawT if (ch.get("src") == "raw" and rawT is not None) else gridT
+        v = bank[:, ch["c"] % bank.shape[1]].float()
+        sh = ch.get("sh") or [0, 0]
+        hs.append(_shift2d(torch, v, int(sh[0]), int(sh[1])))
+    h = torch.stack(hs, 1)                        # (N, C, G, G)
+    for blk in g["blocks"]:
+        mix = torch.tensor(blk["mix"], device=h.device, dtype=h.dtype).view(C, C)
+        hm = torch.einsum("ij,njhw->nihw", mix, h)
+        f = tp[_PRIMS[blk["prim"]]](blk["a"] * hm + blk["b"])
+        h = h + blk["gain"] * f                   # the RESIDUAL skip
+    wout = torch.tensor(g["wout"], device=h.device, dtype=h.dtype)
+    z = torch.einsum("c,nchw->nhw", wout, h)
+    gt = g.get("gate")
+    if gt:
+        bank = rawT if (gt.get("src") == "raw" and rawT is not None) else gridT
+        gv = bank[:, gt["c"] % bank.shape[1]].float().mean((1, 2))
+        for prim, a, b in gt["prog"]:
+            gv = tp[_PRIMS[prim]](a * gv + b)
+        gz = (gv - gv.mean()) / (gv.std() + 1e-9)
+        z = z * torch.sigmoid(gt["k"] * gz).view(-1, 1, 1)
+    return z if want_grid else _window_pool(torch, z, g)
+
+
 def new_grid_genome(rng, C_prev):
+    if rng.random() < 0.5:                        # architecture is a gene
+        return _new_res_genome(rng, C_prev)
     """Grammar genome over a previous space's (C_prev, GRID, GRID) maps —
     channels are the previous space's genomes; window/stat read out; optional
     gate routes on a channel's global mean. Each term carries a SHIFT gene
@@ -265,6 +369,8 @@ def new_grid_genome(rng, C_prev):
 
 
 def mutate_grid_g(rng, g, sc, C_prev):
+    if g.get("arch") == "res":
+        return _mutate_res(rng, g, sc, C_prev)
     c = mutate_vec(rng, {k: g[k] for k in ("terms", "op", "gate")}, sc, C_prev)
     out = dict(g)
     out.update(c)
@@ -289,6 +395,8 @@ def mutate_grid_g(rng, g, sc, C_prev):
 
 
 def feature_grid_g(torch, tp, gridT, g, want_grid=False, rawT=None):
+    if g.get("arch") == "res":
+        return _feature_res(torch, tp, gridT, g, want_grid=want_grid, rawT=rawT)
     """Grammar genome over the previous space's (N, C_prev, GRID, GRID) maps —
     stacking REPRESENTATIONS, not scalars. Terms apply their SHIFT gene before
     folding, so products compare relative positions across channels. A term
