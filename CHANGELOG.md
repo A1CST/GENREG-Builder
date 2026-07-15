@@ -10,6 +10,18 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-15] (Claude)** — **Hard-rule synth + hand-off A/B + spatial-grid
+  port.** (1) Accuracy audit of the synth task found the original rule
+  COLLAPSES: (5t+b) mod 10 = 5*(t%2)+b with b<5 — linear over detections;
+  replaced by rule="hard": y=(t+b) mod 5 + 5*[t==b] (cyclic sum + equality,
+  provably not additively separable). (2) Ported the user's resnet hand-off
+  fix: spaces pass (N,C_prev,GRID,GRID) spatial maps, not pooled scalars;
+  deep spaces are spatial grammar genomes over prev maps. (3) A/B on the hard
+  task (identical cached R0, 545 genomes): scalar hand-off TEST 0.9997 (289s)
+  vs grid hand-off 0.9957 (26s, R0 cache). VERDICT: this task is identity-
+  pairing only — scalars suffice and even edge grids; the grid fix needs a
+  POSITIONAL task (relative-position rule, where scalars provably fail) or
+  CIFAR to show its value. R0 cache worked perfectly across arms.
 - **[2026-07-15] (Claude)** — **Synth end-to-end stack test: TRAINED TO
   COMPLETION — test 0.9943 in 165 s.** Spaces self-sized [354, 76, 78];
   space 0 (motif detectors) val 0.9892, deep spaces added +0.9 pts with
