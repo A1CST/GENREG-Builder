@@ -6,6 +6,23 @@ Seeded 2026-07-05 from the main changelog (keyword split, best effort).
 
 ---
 
+- **[2026-07-15] (Claude)** — **GRAMMAR CONTRACT FIX (user's call: fix the
+  environment, don't strap on monitors).** The generation bug's true root:
+  feature_vec's GATE normalized its stream with RUNTIME BATCH statistics -
+  gated genomes were functions of (row, current batch), violating
+  "features are the environment" (and silently making test features depend
+  on test-batch stats). The reference-batch inference workaround is
+  REJECTED. Fix: gate normalization constants are now ENVIRONMENT-PROVIDED
+  - `bake_gate_stats()` freezes each gated genome's gate-stream mean/sd
+  over the training environment into its genes at freeze time
+  (gt["stats"]); feature_vec uses baked stats when present (evolution-time
+  fallback: population batch stats, which is legitimately the population's
+  environment during selection). Genomes are pure per-row functions after
+  freezing; batch == single-row by construction. TO APPLY: replay
+  pipelines must call bake_gate_stats(genomes, train_bank) per space
+  before computing features; existing checkpoints get baked on next
+  replay. Generation/parity remain PARKED until then per user.
+
 - **[2026-07-15] (Claude)** — **GENERATION SALAD ROOT-CAUSED: the model is
   fine; the single-row step pipeline is buggy.** Parity check (30 held-out
   windows, step argmax vs verified batch preds): 15/30 MISMATCH, and every
