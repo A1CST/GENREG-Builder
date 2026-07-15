@@ -36,10 +36,16 @@ V = 500                                  # prediction vocabulary (top-V)
 D = 128                                  # embedding dims
 
 
+EMBED_NPZ = FEATS                        # swap point: set to an RS table
+                                         # (radial_data/embed_rs.npz) to run
+                                         # the evolved embedding space A/B
+
+
 def _load_embed():
-    z = np.load(FEATS, allow_pickle=True)
+    z = np.load(EMBED_NPZ, allow_pickle=True)
     vocab = [str(w) for w in z["vocab"]]
-    return vocab, z["feat"].astype(np.float32), z["freq"]
+    freq = z["freq"] if "freq" in z.files else None
+    return vocab, z["feat"].astype(np.float32), freq
 
 
 def _tokens(text):

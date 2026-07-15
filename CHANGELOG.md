@@ -10,6 +10,24 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-15] (Claude)** — **RS EMBEDDING SWAP A/B: evolved embeddings are
+  MORE COMPOSABLE than SVD.** Stage 2 of the user's embedding gamble: the
+  evolved 128-d RS table (radial_embed.py, 120MB pure-wiki, spearman 0.3544
+  vs SVD 0.1196 on held-out profiles; neighbors king->frederick/emperor/
+  prince, said->told/stated/explained) swapped in place of wiki-SVD in the
+  word model, same windows re-encoded. FAT path (flat head): RS loses -8.4
+  top-1 (0.2433 vs 0.3276) — partly a COVERAGE confound (RS vocab 5k vs
+  SVD 30k; even the n-gram baselines dropped on re-encoded data). LEAN
+  path (genomes carry the model): the gap nearly closes — top-5 ties
+  (0.4400 vs 0.4464), top-1 within 2.7 (0.2403 vs 0.2677), and lean-RS
+  recovers **98.8% of its own fat ceiling vs 82% for SVD**, going DEEPER
+  (8 spaces vs 5). Verdict: evolution composes better over structure
+  evolution built — the user's "genomes might compensate for the harder
+  ones" hypothesis confirmed in the ratio. Fix en route: IndexError on
+  swap (ctx encoded against the 30k vocab) -> windows re-encoded under
+  the RS vocab, SVD data preserved (lm_word_svd.npz). NEXT PROBE
+  (launching): RS embeddings at 30k vocab to remove the coverage confound
+  and isolate semantics.
 - **[2026-07-15] (Claude)** — **Docs: TEMPORAL_RADIAL_STACK_GUIDE (.md +
   .pdf)** — domain-agnostic setup guide for the temporal radial stack:
   gradient-free by construction (evolution = structure, closed-form ridge =
