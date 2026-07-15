@@ -136,6 +136,14 @@
    "export": "kid_stageA.json",
    "title": "17 · THE CURRICULUM begins - Stage A: letters. TEST 0.9960 in 7 seconds",
    "desc": "The user's design: build models that learn English like a kid - letters, then words (fill-in-the-blank), then cloze phrases, then autoregression; each stage its own model or continue-trained on the previous. Stage A: identify single rendered letters (26 classes, sizes 14-26px, jitter, noise). 515 perception genomes, self-stopped at 2 spaces, TEST 0.9960 - gate PASSED. This is also the diagnosis of the sentence-strip failure: perception earns instantly on single glyphs; the vision line needed a childhood. Stage A's frozen genomes become Stage B's eye."
+  },
+  {
+   "id": "kid-stage-b",
+   "date": "2026-07-15",
+   "kind": "run",
+   "export": "kid_stageB.json",
+   "title": "18 · Curriculum Stage B: words - the model learns to SPELL. 0.7066 top-1 / 0.9358 top-5",
+   "desc": "A word is a strip of 8 letter tiles; identify which of 500 words (from pixels only). Stage A's 515 letter genomes frozen as the eye. The measured story: the orderless letter-bag baseline (eye only, no order) scores 0.1910; the first composition space adds +45 points by putting letters IN ORDER - that gap is spelling. 297 new genomes, 30 seconds. Next gate: Stage C, cloze."
   }
  ]
 }

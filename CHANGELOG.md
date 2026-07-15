@@ -10,6 +10,15 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-15] (Claude)** — **CURRICULUM Stage B: WORDS - the model learns
+  to SPELL. TEST 0.7066 top-1 / 0.9358 top-5 (V=500, pixels only, 30s).**
+  Words as 8-letter tile strips; Stage A's 515 letter genomes frozen as
+  the eye. THE MEASURED STORY: orderless letter-bag baseline (eye only)
+  0.1910 -> first composition space +45 points by ordering letters ->
+  0.7066. The (letter-genome x slot) hand-off carried spelling exactly as
+  it carried motion and word order before. 297 new genomes on the frozen
+  eye; kid_modelB.json is Stage C's base. Module 18 on /lm. Stage C
+  (cloze: name the blank in a short phrase) is next.
 - **[2026-07-15] (Claude)** — **THE ENGLISH CURRICULUM (user's design) begins:
   Stage A - LETTERS - gate PASSED at TEST 0.9960 in 7 seconds.** The plan:
   learn language like a kid - A: identify letters; B: identify words

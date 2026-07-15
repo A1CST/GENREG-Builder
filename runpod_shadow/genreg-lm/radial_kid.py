@@ -213,9 +213,205 @@ def stage_a(pop_size=64, gens=12, max_rounds=200, seed=5, max_spaces=6,
     return out
 
 
+
+
+# -- Stage B: words - a word is a strip of letter tiles -----------------
+L_MAX = 8                                # letters per word (padded)
+V_B = 500                                # word vocabulary
+
+
+def make_words_b(n_train=25000, n_test=5000, seed=0, noise=0.05,
+                 path=os.path.join(RD, "kid_words.npz")):
+    from radial_lm import _clean
+    with open(os.path.join(_HERE, "corpora", "combined",
+                           "combined_corpus.txt"), "r",
+              encoding="utf-8", errors="ignore") as f:
+        f.seek(10_000_000)
+        toks = _clean(f.read(4_000_000)).split()
+    cnt = {}
+    for w in toks:
+        if 1 <= len(w) <= L_MAX:
+            cnt[w] = cnt.get(w, 0) + 1
+    vocab = sorted(cnt, key=cnt.get, reverse=True)[:V_B]
+    rng = np.random.default_rng(seed)
+    n = n_train + n_test
+    y = rng.integers(0, V_B, n)
+    X = np.zeros((n, L_MAX, 32, 32), np.float32)
+    for i in range(n):
+        for s, ch in enumerate(vocab[y[i]]):
+            X[i, s] = render_letter(ch, rng)
+    X = X * rng.uniform(0.7, 1.0, (n, 1, 1, 1)).astype(np.float32)
+    X = np.clip(X + rng.normal(0, noise, X.shape).astype(np.float32), 0, 1)
+    X8 = (np.repeat(X[..., None], 3, axis=4) * 255).astype(np.uint8)
+    np.savez(path, Xtr=X8[:n_train], ytr=y[:n_train].astype(np.int64),
+             Xte=X8[n_train:], yte=y[n_train:].astype(np.int64),
+             vocab=np.array(vocab))
+    print(f"kid_words: {n_train}/{n_test} words as {L_MAX}-letter strips "
+          f"(V={V_B}) -> {path}", flush=True)
+    return path
+
+
+def stage_b(pop_size=64, gens=12, max_rounds=300, seed=7, max_spaces=8,
+            grid_size=8, verbose=True):
+    """Stage A frozen as the eye; new spaces compose letters -> word."""
+    import torch
+    torch.backends.cuda.matmul.allow_tf32 = False
+    rk.GRID = int(grid_size)
+    rng = np.random.default_rng(seed)
+    dev = "cuda" if torch.cuda.is_available() else "cpu"
+    tp = _tprims(torch)
+    t0 = time.time()
+    if os.path.exists(_STOP):
+        os.remove(_STOP)
+
+    with open(os.path.join(RD, "kid_modelA.json")) as f:
+        A = json.load(f)["spaces"][0]            # the eye: R0 letter genomes
+    z = np.load(os.path.join(RD, "kid_words.npz"), allow_pickle=True)
+    Xtr = z["Xtr"].astype(np.float32) / 255.0
+    Xte = z["Xte"].astype(np.float32) / 255.0
+    ytr, yte = z["ytr"], z["yte"]
+    Ntr, Nte = len(ytr), len(yte)
+    env = Env(torch, dev, Xtr.reshape(Ntr * L_MAX, 32, 32, 3),
+              Xte.reshape(Nte * L_MAX, 32, 32, 3), max_cached=6)
+
+    n_fit = int(Ntr * 0.8)
+    yv = torch.tensor(ytr[n_fit:], device=dev)
+    yte_t = torch.tensor(yte, device=dev)
+    Yf = -torch.ones((n_fit, V_B), device=dev)
+    Yf[torch.arange(n_fit), torch.tensor(ytr[:n_fit], device=dev)] = 1.0
+    Yfull = -torch.ones((Ntr, V_B), device=dev)
+    Yfull[torch.arange(Ntr), torch.tensor(ytr, device=dev)] = 1.0
+
+    log_lines = []
+
+    def log(m, v=True):
+        log_lines.append(m)
+        if v:
+            print(m, flush=True)
+
+    G = rk.GRID
+    log(f"[B] replaying the Stage-A eye: {len(A)} frozen letter genomes")
+    a_tr = [rk.feature_r0(torch, tp, env, g).view(Ntr, L_MAX).mean(1)
+            for g in A]
+    a_te = [rk.feature_r0(torch, tp, env, g, test=True).view(Nte, L_MAX)
+            .mean(1) for g in A]
+    prev_tr = torch.cat([rk.feature_r0(torch, tp, env, g, want_grid=True)
+                         .view(Ntr, L_MAX, G, G) for g in A], 1).half()
+    prev_te = torch.cat([rk.feature_r0(torch, tp, env, g, test=True,
+                         want_grid=True).view(Nte, L_MAX, G, G)
+                         for g in A], 1).half()
+    log(f"[B] eye bank: {prev_tr.shape[1]} channels "
+        f"({len(A)} letter genomes x {L_MAX} slots)")
+
+    all_tr, all_te = list(a_tr), list(a_te)
+    spaces, space_genomes = [], []
+    base_all = torch.stack(all_tr, 1)
+    _, val_prev = _ridge_soft(torch, base_all[:n_fit], base_all[n_fit:],
+                              Yf, yv)
+    log(f"[B] orderless letter-bag baseline (eye only): val {val_prev:.4f}")
+
+    for si in range(max_spaces):
+        C = prev_tr.shape[1]
+        new_fn = lambda r: rk.new_grid_genome(r, C)
+        mut_fn = lambda r, g, sc: rk.mutate_grid_g(r, g, sc, C)
+        feat_tr = lambda g: rk.feature_grid_g(torch, tp, prev_tr, g)
+        feat_te = lambda g: rk.feature_grid_g(torch, tp, prev_te, g)
+        g_tr = lambda g: rk.feature_grid_g(torch, tp, prev_tr, g,
+                                           want_grid=True)
+        g_te = lambda g: rk.feature_grid_g(torch, tp, prev_te, g,
+                                           want_grid=True)
+        base_prev = torch.stack(all_tr, 1)
+        log(f"  [B space {si}] opening - bank {C} channels")
+        frozen, fcols = rk._evolve_space(torch, rng, pop_size, gens,
+                                         max_rounds, n_fit, Yf, yv, base_prev,
+                                         new_fn, mut_fn, feat_tr, log, verbose)
+        if not frozen:
+            log(f"  [B space {si}] produced nothing - stop")
+            break
+        space_genomes.append(frozen)
+        all_tr.extend(fcols)
+        all_te.extend(feat_te(g) for g in frozen)
+        base_all = torch.stack(all_tr, 1)
+        _, val_now = _ridge_soft(torch, base_all[:n_fit], base_all[n_fit:],
+                                 Yf, yv)
+        gain = val_now - val_prev
+        spaces.append({"space": si, "n_frozen": len(frozen),
+                       "val_after": round(float(val_now), 4),
+                       "val_gain": round(float(gain), 4)})
+        log(f"  [B space {si}] FULL: {len(frozen)} genomes, val "
+            f"{val_now:.4f} (+{gain:.4f}) ({round(time.time()-t0)}s)")
+        prev_tr = torch.stack([g_tr(g) for g in frozen], 1).half()
+        prev_te = torch.stack([g_te(g) for g in frozen], 1).half()
+        val_prev = val_now
+        if si > 0 and gain < rk.MIN_SPACE_GAIN:
+            break
+        if os.path.exists(_STOP):
+            break
+
+    Ftr = torch.stack(all_tr, 1)
+    Fte = torch.stack(all_te, 1)
+    best1 = best5 = 0.0
+    for lam in (1.0, 3.0, 10.0):
+        mu, sd = Ftr.mean(0), Ftr.std(0) + 1e-6
+        Am = torch.hstack([(Ftr - mu) / sd, torch.ones(Ntr, 1, device=dev)])
+        Gm = (Am.T @ Am).double() + lam * torch.eye(
+            Ftr.shape[1] + 1, device=dev, dtype=torch.float64)
+        Wm = torch.linalg.solve(Gm, (Am.T @ Yfull).double()).float()
+        sc = torch.hstack([(Fte - mu) / sd,
+                           torch.ones(Nte, 1, device=dev)]) @ Wm
+        a1 = float((sc.argmax(1) == yte_t).float().mean())
+        a5 = float((sc.topk(5, 1).indices == yte_t.view(-1, 1))
+                   .any(1).float().mean())
+        if a1 > best1:
+            best1, best5 = a1, a5
+
+    from anim_infer import count_params
+    gp = (sum(count_params(g) for g in A)
+          + sum(count_params(g) for sp in space_genomes for g in sp))
+    n_genomes = len(A) + sum(len(sp) for sp in space_genomes)
+    out = {"phase": "curriculum stage B: words from letter strips",
+           "n_classes": V_B, "chance": round(1 / V_B, 4),
+           "n_train": Ntr, "n_test": Nte,
+           "test_acc": round(best1, 4), "test_top5": round(best5, 4),
+           "val_final": spaces[-1]["val_after"] if spaces else None,
+           "n_spaces": 1 + len(spaces),
+           "space_caps": [len(A)] + [s["n_frozen"] for s in spaces],
+           "spaces": spaces, "n_genomes": n_genomes, "genome_params": gp,
+           "head_params": (len(all_tr) + 1) * V_B,
+           "total_params": gp + (len(all_tr) + 1) * V_B,
+           "task": ("identify the word (V=%d) from its strip of rendered "
+                    "letter tiles. Stage A's letter genomes are FROZEN as "
+                    "the eye; new spaces compose letters into words via "
+                    "the (letter-genome x slot) hand-off.") % V_B,
+           "seconds": round(time.time() - t0)}
+    with open(os.path.join(RD, "kid_stageB.json"), "w") as f:
+        json.dump(out, f, indent=1)
+    with open(os.path.join(RD, "kid_modelB.json"), "w") as f:
+        json.dump({"grid": G, "eye": A, "spaces": space_genomes,
+                   "label": "word", "stage": "B"}, f)
+    rk._record_run(
+        {"env": "kid-stageB", "n_classes": V_B, "n_train": Ntr,
+         "pop_size": pop_size, "gens": gens, "seed": seed},
+        [{"round": s["space"], "added": s["n_frozen"],
+          "val_acc": s["val_after"], "n": s["n_frozen"]} for s in spaces],
+        {"test_acc": round(best1, 4), "test_top5": round(best5, 4),
+         "n_frozen_total": n_genomes, "total_params": out["total_params"]},
+        log_lines, ["lm", "kid", "curriculum", "radial"])
+    print("[kid B] DONE: eye %d + %d new genomes, TEST top1 %.4f top5 %.4f"
+          " (%ds)" % (len(A), sum(len(s) for s in space_genomes), best1,
+                      best5, round(time.time() - t0)), flush=True)
+    return out
+
+
 if __name__ == "__main__":
     import sys
-    if not os.path.exists(os.path.join(RD, "kid_letters.npz")) \
-            or "--regen" in sys.argv:
-        make_letters()
-    stage_a()
+    if "B" in sys.argv:
+        if not os.path.exists(os.path.join(RD, "kid_words.npz")) \
+                or "--regen" in sys.argv:
+            make_words_b()
+        stage_b()
+    else:
+        if not os.path.exists(os.path.join(RD, "kid_letters.npz")) \
+                or "--regen" in sys.argv:
+            make_letters()
+        stage_a()
