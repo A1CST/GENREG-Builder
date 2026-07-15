@@ -10,6 +10,15 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-15] (Claude)** — AGENTS.md expanded: HOW TO BUILD A PAGE (the
+  shared skeleton - topbar/_nav.html include, dock script order, dark-card
+  styling conventions, no emojis, data-from-endpoints rule), the APPEND-ONLY
+  ITERATION PAGE pattern (registry json + /modules + /export endpoints,
+  every module shows output and params, adding an iteration = one registry
+  entry, no template edits), the AUTO-SCROLL-TO-NEWEST snippet (required on
+  iteration pages, floating "newest" button), and HOW TO ADD A PROJECT end
+  to end (route, template, navbar, endpoints, runs folder, changelogs,
+  notices, restart note).
 - **[2026-07-15] (Claude)** — **AGENTS.md created (repo root): standing
   instructions for every AI agent.** Per user: (1) every change logged in
   the MAIN changelog AND the project changelog; (2) new-project checklist -
