@@ -6,6 +6,17 @@ Seeded 2026-07-05 from the main changelog (keyword split, best effort).
 
 ---
 
+- **[2026-07-15] (Claude)** — **MODULE 16 - third crank: TEST 0.5663 top-1 /
+  0.7280 top-5 - the top-5 usefulness bar (60-70%) is CROSSED.** True
+  4-gram table (last three words - never tabulated before) + far skips
+  (w-6,w-1)/(w-5,w-2); headroom 84.5% of remaining errors answerable (quad
+  alone 68%). Continue-train on the frozen Module-15 base: +80 genomes,
+  32s. Blind class 0.2051 -> 0.2938 top-1 / 0.4832 top-5; has-target
+  0.736. Cumulative crank 0.2974 -> 0.3992 -> 0.4832 -> 0.5663 at ~1.2M
+  params, gradient-free. OOM fix: chained environments must FREE
+  intermediate banks (bank3 contains bank2 contains the lean bank - 89GB
+  resident before the fix). Module 16 on /lm.
+
 - **[2026-07-15] (Claude)** — **MODULE 15 - second crank: far skip-grams
   (w-4,w-1)/(w-5,w-1) take the lean model to TEST 0.4832 top-1 / 0.6643
   top-5 - the user's "simple neural LM territory" band, gradient-free at
