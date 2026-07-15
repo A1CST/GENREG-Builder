@@ -10,7 +10,40 @@ log below; don't rewrite existing entries.
 
 ---
 
-- **[2026-07-15] (Claude)** — **Measurement round: beta A/B + the fat-R0 law.**
+- **[2026-07-15] (Claude)** — **ANIMATION TAB REWIRED: the temporal radial
+  stack — and the strongest depth result of the campaign.** New
+  `radial_anim.py`: 6-frame animations (shape grows at one of 4 rates,
+  drifts or holds; start size/position/shape random) — 8 classes whose value
+  exists only BETWEEN frames. Wiring: every frame is an env row; R0 evolves
+  per-frame perception (fitness = sequence-mean scalar, rate-blind by
+  design); the hand-off lays each R0 genome's grid map out PER FRAME
+  (genome x frame channels), so the universal grammar's folds/shifts/moment
+  stats compose across TIME with zero new machinery. RESULT: R0 alone 0.606
+  -> R1 +18.8 pts (the largest deep-space gain ever measured here) -> six
+  spaces [359,276,217,112,50,36] -> val 0.916, **TEST 0.8768** vs chance
+  0.125. Deep spaces contributed 31 points — the first task where the stack
+  does the majority of the work beyond perception. `/animation` page fully
+  rewritten (pipeline explainer, looping dataset animation drawn from the
+  generator rules, live results via new GET `/api/animation/radial`); the
+  old shape-recognition rig is superseded (its APIs remain). **Flask restart
+  needed** for the endpoint. Export anim_radial.json (mirrored + local).
+- **[2026-07-15] (Claude)** — **New PIA page: local Ollama RAG over the project
+  docs.** Added /pia (personal AI): a retrieval-augmented local Ollama assistant
+  grounded on documentation/, CHANGELOG.md, README.md, RESUME.md and the
+  per-page changelogs (113 text docs; .md/.txt/.json/.log/.csv, no PDF/DOCX).
+  New pia_service.py owns the RAG loop (chunk -> nomic-embed-text -> cosine
+  vector index) and Ollama process control; chat runs on llama3.1:8b. New
+  routes: /pia + /api/pia/{status,start,stop,pull,reindex,chat}. All Ollama
+  models + the vector index live on F:\Ollama (OLLAMA_MODELS persisted via
+  setx), never C:. The server is NEVER auto-started — start/stop is manual from
+  the PIA page (stop also kills the desktop tray app so it can't respawn a
+  C:-path server). A floating PIA chat dock (static/piachat.js) is added to
+  every page that carries the Agent panel; nav gains a PIA entry. The full page
+  and the floating dock share ONE persisted conversation (localStorage
+  genreg_pia_history), so the chat carries across every page and both views
+  (cross-tab storage-sync too). Installed Ollama v0.31.2 via winget. NOTE:
+  app.py gained routes/imports -> Flask needs a restart to serve /pia (running
+  process is debug=False, no reloader).
   (1) Multi-seed beta A/B (3 seeds x 2 tasks): sharpened moments are
   statistically NEUTRAL (rel +0.4, rel_sep +0.2, both inside cross-seed sd of
   up to +-1.4 pts) — v4's single-seed swings were noise; gene stays (harmless).

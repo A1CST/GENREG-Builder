@@ -3,130 +3,202 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>GENREG — Animation</title>
+  <title>GENREG — Animation · Temporal Radial</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='vendor/xterm.css') }}" />
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+  <style>
+    .an-main { flex:1 1 auto; overflow-y:auto; background:#0b0d10; padding:16px 20px 30px; }
+    .an-wrap { max-width:1060px; margin:0 auto; }
+    .an-h1 { font-size:17px; color:#e6ebf1; margin:6px 0 4px; }
+    .an-lede { font-size:12px; color:#8b95a1; line-height:1.6; margin:0 0 16px; }
+    .an-lede b { color:#c7d0da; }
+    .an-sec { font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:#7f8b98; margin:22px 0 10px; border-bottom:1px solid #161b22; padding-bottom:6px; }
+    .an-pipe { display:flex; flex-wrap:wrap; }
+    .an-stage { flex:1 1 200px; min-width:200px; border:1px solid #1c232c; border-radius:8px; background:#0d1117; padding:11px 13px; margin:0 12px 12px 0; position:relative; }
+    .an-stage:after { content:"→"; position:absolute; right:-13px; top:45%; color:#3a4552; font-size:15px; }
+    .an-stage:last-child:after { content:""; }
+    .an-stage h3 { font-size:12.5px; color:#dbe2ea; margin:0 0 6px; }
+    .an-stage p { font-size:11px; color:#8b95a1; line-height:1.55; margin:0; }
+    .an-stage p b { color:#b6c1cd; }
+    .an-stage .tag { display:inline-block; font-size:9.5px; padding:1px 7px; border-radius:8px; margin-bottom:7px; text-transform:uppercase; letter-spacing:.05em; }
+    .tag.t0 { background:#12263a; color:#6fb3e0; } .tag.t1 { background:#12301f; color:#5fd39a; }
+    .tag.t2 { background:#332611; color:#e0b46f; } .tag.t3 { background:#2e1a2e; color:#d08ad0; }
+    .an-cols { display:flex; gap:14px; flex-wrap:wrap; }
+    .an-col { flex:1 1 460px; min-width:400px; }
+    .an-anim { width:100%; height:240px; display:block; border:1px solid #171d24; border-radius:8px; background:#0b0e12; }
+    .an-cl { font-size:10.5px; color:#6c7885; margin-top:5px; line-height:1.5; }
+    .an-bar { display:flex; align-items:center; gap:8px; margin-bottom:6px; font-size:11px; }
+    .an-bar .lb { flex:0 0 150px; color:#8b95a1; text-align:right; }
+    .an-bar .tr { flex:1; height:13px; background:#10151c; border-radius:3px; overflow:hidden; }
+    .an-bar .fl { height:100%; border-radius:3px; background:#2e7d5b; }
+    .an-bar.dim .fl { background:#2f4152; }
+    .an-bar .vl { flex:0 0 52px; color:#dbe2ea; font-family:ui-monospace,monospace; font-variant-numeric:tabular-nums; }
+    table.an-tbl { width:100%; border-collapse:collapse; font-size:11.5px; }
+    table.an-tbl th { text-align:right; color:#7f8b98; font-weight:400; padding:4px 6px; border-bottom:1px solid #232a33; }
+    table.an-tbl th:first-child, table.an-tbl td:first-child { text-align:left; }
+    table.an-tbl td { text-align:right; padding:5px 6px; border-bottom:1px solid #141a21; color:#c7d0da; font-variant-numeric:tabular-nums; font-family:ui-monospace,monospace; }
+    .an-note { font-size:11px; color:#6c7885; line-height:1.6; margin-top:14px; border-top:1px solid #161b22; padding-top:10px; }
+    .an-note b { color:#9aa5b1; }
+    .an-genome { border:1px solid #1c232c; border-radius:8px; background:#0d1117; padding:13px 15px; font-family:ui-monospace,monospace; font-size:12px; color:#c7d0da; line-height:1.9; overflow-x:auto; }
+    .an-genome .g1 { color:#5fd39a; } .an-genome .g2 { color:#6fb3e0; } .an-genome .cm { color:#5a6672; }
+  </style>
 </head>
 <body class="tlm-body">
   <header class="topbar">
-    <div class="brand">GENREG<span class="brand-sub">animation · evolved shape recognition</span></div>
-    <div class="status">
-      <span class="dot" id="av-dot"></span>
-      <span id="av-conn">connecting…</span>
-      {% set nav_active = 'animation' %}{% include '_nav.html' %}
-    </div>
+    <div class="brand">GENREG<span class="brand-sub">animation · temporal radial — value carried between frames</span></div>
+    <div class="status">{% set nav_active = 'animation' %}{% include '_nav.html' %}</div>
   </header>
 
-  <div class="tlm-layout">
-    <!-- ── config sidebar ─────────────────────────────── -->
-    <aside class="sidebar left tlm-side">
-      <div class="side-head">Configuration</div>
-      <div class="side-body control-panel">
-        <div class="field">
-          <span class="field-hint">A VERY simple evolutionary model — <b>mutation only, no crossover</b>. Each genome is frame(4096) → tanh(encoder) → tanh(hidden) → shape logits. <b>One clip per generation</b>: the population sees a single clip's 24 frames (in temporal order), clip order shuffled each epoch — never all 240 at once. Fitness = accuracy on just that clip. Deliberately basic; a plateau is an expected, honest result.</span>
-        </div>
-        <div class="field">
-          <label for="av-enc">Encoder dims</label>
-          <input type="number" id="av-enc" value="12" min="2" max="64" />
-          <span class="field-hint">bottleneck the 64×64 frame is squeezed through</span>
-        </div>
-        <div class="field">
-          <label for="av-hidden">Hidden units</label>
-          <input type="number" id="av-hidden" value="24" min="2" max="128" />
-        </div>
-        <div class="field">
-          <label for="av-pop">Population</label>
-          <input type="number" id="av-pop" value="48" min="4" max="400" />
-        </div>
-        <div class="field">
-          <label for="av-elite">Elite fraction</label>
-          <input type="number" id="av-elite" value="0.25" min="0.05" max="0.9" step="0.05" />
-          <span class="field-hint">kept unchanged; children = mutated copies of single elite parents</span>
-        </div>
-        <div class="field">
-          <label for="av-mut">Mutation step</label>
-          <input type="number" id="av-mut" value="0.05" min="0.0001" max="1" step="0.01" />
-          <span class="field-hint">fixed Gaussian step applied to every weight of every child</span>
-        </div>
-        <div class="field">
-          <label for="av-maxgens">Max generations</label>
-          <input type="number" id="av-maxgens" value="500" min="5" max="5000" />
-        </div>
-        <div class="field">
-          <label for="av-patience">Plateau patience</label>
-          <input type="number" id="av-patience" value="100" min="5" max="2000" />
-          <span class="field-hint">stop when best accuracy hasn't improved for this many generations</span>
-        </div>
-        <div class="field">
-          <label for="av-seed">Seed</label>
-          <input type="number" id="av-seed" value="1234" min="0" max="2147483647" />
-        </div>
-        <div class="tlm-actions">
-          <button id="av-start" class="runs-btn tlm-primary">Start Training</button>
-          <button id="av-stop" class="runs-btn" disabled>Stop</button>
-        </div>
-        <div class="tlm-status" id="av-status">idle</div>
+  <main class="an-main"><div class="an-wrap">
+    <h1 class="an-h1">The temporal radial stack — growth as a class</h1>
+    <p class="an-lede">Six-frame animations of a shape that <b>grows</b> at one of four
+      rates and either drifts or holds still. Start size, position, and shape are all
+      random, so <b>no single frame can answer</b> — the label (rate × motion, 8
+      classes) exists only in what changes <b>between frames</b>. The current best
+      radial setup (universal grammar, emergent-cap stacked spaces, no gradients)
+      is wired to it below; results update live from the run export.</p>
+
+    <div class="an-sec">The wiring</div>
+    <div class="an-pipe">
+      <div class="an-stage"><span class="tag t0">frames</span>
+        <h3>Every frame is a row</h3>
+        <p>The environment holds all 6 frames of every sequence as ordinary
+        images (patch-PCA maps, label-free). Nothing temporal is designed in —
+        the frames are just <b>more data</b> at this stage.</p></div>
+      <div class="an-stage"><span class="tag t1">R0</span>
+        <h3>Per-frame perception</h3>
+        <p>Grammar-v2 spatial genomes evolve as usual; a genome's fitness column
+        is its per-frame scalar <b>averaged over the sequence</b>. R0 becomes
+        size / shape / position detectors — it cannot see rate.</p></div>
+      <div class="an-stage"><span class="tag t2">hand-off</span>
+        <h3>Time becomes channels</h3>
+        <p>Each frozen R0 genome emits its spatial grid map for <b>every frame</b>;
+        the R1 bank is laid out (genome × frame). The universal grammar's folds,
+        shifts and moment stats now compose <b>across time</b> for free:
+        com(g@f5) − com(g@f0) <b>is</b> growth.</p></div>
+      <div class="an-stage"><span class="tag t3">R1+</span>
+        <h3>Temporal composition</h3>
+        <p>Standard emergent-cap stacked spaces over the temporal bank — depth,
+        size and primitive usage decided by the energy economy, not by hand.
+        Closed-form head; test touched once.</p></div>
+    </div>
+
+    <div class="an-sec">What a temporal genome can say</div>
+    <div class="an-genome">
+      <span class="cm"># expressible in the universal grammar over the (genome × frame) bank:</span><br>
+      growth&nbsp;&nbsp;= <span class="g1">|comx-pool( blob-detector @ frame5 ) − comx-pool( blob-detector @ frame0 )|</span><br>
+      drift&nbsp;&nbsp;&nbsp;= <span class="g2">|com( detector @ f4 ) − com( shift(detector @ f1, dy,dx) )|</span>
+      <span class="cm"># same primitives that composed space, composing time</span>
+    </div>
+
+    <div class="an-sec">The task, live</div>
+    <div class="an-cols">
+      <div class="an-col">
+        <canvas id="an-cv" class="an-anim"></canvas>
+        <div class="an-cl">Four sample sequences looping (drawn from the same generator
+          rules as the dataset): ring/blob, random start size and position, one of four
+          growth rates, drifting or static. The label under each is what the model must
+          recover from the frames alone.</div>
       </div>
-    </aside>
-
-    <!-- ── visualizations ─────────────────────────────── -->
-    <main class="tlm-main">
-      <div class="tlm-tiles">
-        <div class="tlm-tile"><div class="tlm-tile-label">Generation</div><div class="tlm-tile-value" id="st-gen">—</div></div>
-        <div class="tlm-tile"><div class="tlm-tile-label">This clip</div><div class="tlm-tile-value" id="st-clip">—</div></div>
-        <div class="tlm-tile"><div class="tlm-tile-label">Rolling acc (epoch)</div><div class="tlm-tile-value" id="st-roll">—</div></div>
-        <div class="tlm-tile"><div class="tlm-tile-label">Pop mean · clip</div><div class="tlm-tile-value" id="st-mean">—</div></div>
-        <div class="tlm-tile"><div class="tlm-tile-label">Params / genome</div><div class="tlm-tile-value" id="st-params">—</div></div>
-        <div class="tlm-tile"><div class="tlm-tile-label">Champion · all clips</div><div class="tlm-tile-value" id="st-result">—</div></div>
+      <div class="an-col">
+        <div id="an-results">loading run results…</div>
+        <table class="an-tbl" id="an-spaces" style="margin-top:10px"></table>
+        <div class="an-note" id="an-task"></div>
       </div>
+    </div>
 
-      <!-- fitness -->
-      <section class="tlm-card">
-        <div class="tlm-card-head">
-          <h2>Evolution <span class="tlm-card-sub">one clip presented per generation (shuffled order); fitness is accuracy on that clip's 24 frames</span></h2>
-          <div class="tlm-legend">
-            <span class="tlm-chip"><i style="background:var(--tlm-s1)"></i>rolling epoch avg</span>
-            <span class="tlm-chip"><i style="background:var(--tlm-s2)"></i>this-clip fitness</span>
-          </div>
-        </div>
-        <div class="tlm-chart-wrap"><svg id="av-fitness" role="img" aria-label="Best and mean classification accuracy per generation"></svg></div>
-      </section>
+    <div class="an-note">The previous evolved-shape-recognition rig is superseded by this
+      page (its APIs remain available). Run: <b>radial_anim.py</b> · export:
+      <b>radial_data/anim_radial.json</b> · no gradients anywhere.</div>
+  </div></main>
 
-      <!-- dataset + live champion predictions -->
-      <section class="tlm-card">
-        <div class="tlm-card-head">
-          <h2>Dataset · live predictions <span class="tlm-card-sub">10 clips · 24 frames · 64×64 — the highlighted tile is the clip being presented this generation; each label is the champion's call on the frame shown</span></h2>
-        </div>
-        <div class="anim-grid" id="anim-grid"></div>
-      </section>
+  <script>
+  (function () {
+    "use strict";
+    /* ---- live results ---- */
+    fetch("/api/animation/radial").then(function (r) { return r.json(); }).then(function (d) {
+      var box = document.getElementById("an-results");
+      if (d.error) { box.textContent = d.error; return; }
+      if (d.pending) { box.textContent = "run in progress — no export yet"; return; }
+      var rows = [["chance (8 classes)", d.chance, "dim"],
+                  ["R0 only (per-frame)", d.spaces && d.spaces.length ? d.spaces[0].val_after : null, "dim"],
+                  ["full temporal stack (val)", d.val_final, ""],
+                  ["full temporal stack (TEST)", d.test_acc, ""]];
+      var max = 1.0;
+      box.innerHTML = rows.filter(function (r2) { return r2[1] != null; }).map(function (r2) {
+        return '<div class="an-bar ' + r2[2] + '"><div class="lb">' + r2[0] +
+          '</div><div class="tr"><div class="fl" style="width:' +
+          (100 * r2[1] / max).toFixed(1) + '%"></div></div><div class="vl">' +
+          r2[1].toFixed(4) + "</div></div>";
+      }).join("");
+      var t = document.getElementById("an-spaces");
+      t.innerHTML = "<tr><th>space</th><th>genomes</th><th>val after</th><th>gain</th></tr>";
+      (d.spaces || []).forEach(function (s) {
+        var tr = document.createElement("tr");
+        tr.innerHTML = "<td>R" + s.space + "</td><td>" + s.n_frozen + "</td><td>" +
+          s.val_after.toFixed(4) + "</td><td>+" + s.val_gain.toFixed(4) + "</td>";
+        t.appendChild(tr);
+      });
+      document.getElementById("an-task").innerHTML =
+        "<b>" + d.n_train + "</b> train / <b>" + d.n_test + "</b> test sequences · " +
+        d.frames + " frames · grid " + d.grid + " · " + d.seconds + "s · " + d.task;
+    }).catch(function (e) {
+      document.getElementById("an-results").textContent = "load failed: " + e;
+    });
 
-      <!-- final champion report -->
-      <section class="tlm-card" id="av-report" hidden>
-        <div class="tlm-card-head">
-          <h2>Champion report <span class="tlm-card-sub" id="av-report-sub"></span></h2>
-        </div>
-        <div class="av-report-grid">
-          <div>
-            <div class="dv-strip-label">confusion — true shape (row) vs predicted (column)</div>
-            <table class="doc-table" id="av-confusion"></table>
-          </div>
-          <div>
-            <div class="dv-strip-label">encoder space — 12-dim activations, PCA to 2D, colour = true shape</div>
-            <canvas id="av-pca" width="260" height="200"></canvas>
-            <div class="tlm-legend" id="av-pca-legend"></div>
-          </div>
-          <div>
-            <div class="dv-strip-label">accuracy per clip</div>
-            <table class="doc-table" id="av-perclip"></table>
-          </div>
-        </div>
-      </section>
-    </main>
-  </div>
-
-  <script src="{{ url_for('static', filename='animation.js') }}"></script>
-  <script src="{{ url_for('static', filename='cfgpersist.js') }}"></script>
-  <!-- shared daemon-backed terminal dock (same terminals as the build page) -->
+    /* ---- looping dataset illustration (same generator rules, drawn in JS) ---- */
+    var cv = document.getElementById("an-cv"), ctx = cv.getContext("2d");
+    var RATES = [0.35, 0.85, 1.35, 1.85];
+    var seqs = [];
+    function reseed() {
+      seqs = [];
+      for (var i = 0; i < 4; i++) {
+        seqs.push({ ring: Math.random() < 0.5, r: 3 + Math.random() * 3,
+                    rate: Math.floor(Math.random() * 4),
+                    moving: Math.random() < 0.5,
+                    ang: Math.random() * 6.283,
+                    cy: 10 + Math.random() * 12, cx: 10 + Math.random() * 12 });
+      }
+    }
+    reseed();
+    var frame = 0, tick = 0;
+    function draw() {
+      var W = cv.width = cv.clientWidth * 2, H = cv.height = cv.clientHeight * 2;
+      ctx.clearRect(0, 0, W, H);
+      var cell = Math.min(W / 4 - 20, H - 60), s = cell / 32;
+      ctx.font = "18px ui-monospace,monospace";
+      for (var i = 0; i < 4; i++) {
+        var q = seqs[i];
+        var ox = i * (W / 4) + (W / 4 - cell) / 2, oy = 14;
+        ctx.strokeStyle = "#1a212b";
+        ctx.strokeRect(ox, oy, cell, cell);
+        var rad = q.r + RATES[q.rate] * frame;
+        var cy = q.cy + (q.moving ? 2 * Math.sin(q.ang) * frame : 0);
+        var cx = q.cx + (q.moving ? 2 * Math.cos(q.ang) * frame : 0);
+        cy = Math.max(6, Math.min(26, cy)); cx = Math.max(6, Math.min(26, cx));
+        ctx.strokeStyle = "#9fd0b0"; ctx.fillStyle = "#9fd0b0";
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(ox + cx * s, oy + cy * s, Math.max(1, rad * s), 0, 6.283);
+        if (q.ring) { ctx.stroke(); } else { ctx.fill(); }
+        ctx.lineWidth = 1;
+        ctx.fillStyle = "#7f8b98";
+        ctx.fillText("rate " + q.rate + (q.moving ? " · drift" : " · static") +
+                     "  → class " + (q.rate * 2 + (q.moving ? 1 : 0)),
+                     ox, oy + cell + 24);
+        ctx.fillStyle = "#5a6672";
+        ctx.fillText("f" + frame, ox + cell - 30, oy + 22);
+      }
+    }
+    setInterval(function () {
+      tick++;
+      frame = tick % 8;
+      if (frame > 5) { if (frame === 7) reseed(); draw(); return; }
+      draw();
+    }, 420);
+    draw();
+  })();
+  </script>
   <script src="{{ url_for('static', filename='vendor/xterm.js') }}"></script>
   <script src="{{ url_for('static', filename='vendor/addon-fit.js') }}"></script>
   <script src="{{ url_for('static', filename='termdock.js') }}"></script>
