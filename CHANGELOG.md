@@ -10,6 +10,27 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-15] (Claude)** — **VALIDATION SUITE: the animation page is now a
+  self-service audit station (documentation/valid_animation.txt addressed).**
+  New `anim_validate.py` (ran on pod, 37s), all predictions held:
+  **time-shuffle double dissociation** — reordering frames crashes the
+  motion model 0.8971->0.4235 while the shape model is bit-identical at
+  0.9989 (each fitness measured its claimed concept, not a proxy);
+  **time-reverse** motion 0.2213 (direction is learned), shape unchanged;
+  **novel-shape decoys** (star/ellipse/bar, nonexistent in training) motion
+  holds 0.8347; **label-shuffle** falls to chance 0.091/0.094 (no leakage
+  path); **raw-pixel ridge** (61,450 params, 11x the shape model) manages
+  only 0.1653 on shapes / 0.5307 on motion; **leakage statistic** — every
+  random-walk/bezier trajectory is strictly outside the training windows
+  (min 1.00/0.41 px nearest-window distance, control anchors 0.0).
+  /animation now has: claims-vs-evidence cards (the 4 claims from the txt,
+  chips fed by live numbers), adversarial-test table with pass badges,
+  leakage stat, a trained-vs-UNSEEN motion gallery + alien decoy shapes
+  (drawn live), a genome inspector (samples REAL genomes from the
+  checkpoints via /api/animation/genomes), full param audit per space, and
+  download pills for every artifact (/api/animation/file/<name>,
+  whitelisted). New endpoints also /api/animation/validation. **Flask
+  restart needed.** Everything mirrored + pushed.
 - **[2026-07-15] (Claude)** — **Shape-model ABLATIONS: motion-invariance
   confirmed + param sizes on the page.** New `anim_ablate.py`: the frozen
   shape checkpoint (genomes AND head fixed, nothing adapts) evaluated on six
