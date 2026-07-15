@@ -115,9 +115,36 @@
       </div>
     </div>
 
+    <div class="lm-sec">Generated text — sampling the stack, character by character</div>
+    <div id="lm-samples"><span class="lm-cl">no samples in the export yet</span></div>
+    <div class="lm-cl">Temperature sampling from the 27-way head, one character at a
+      time, the window sliding as it writes. At char-level top-1 ~0.4 the output is
+      word-shaped English fragments — the honest state of the model, shown rather than
+      described.</div>
+
+    <div class="lm-sec" style="margin-top:34px">WORD LEVEL — the pivot: composing meaning, not spelling</div>
+    <p class="lm-lede">Character prediction fights n-gram tables at their own game.
+      Word level moves the fight to <b>composition over meaning</b>: the six context
+      words enter as their <b>128-d corpus-SVD embeddings</b> (the semantic space is
+      pre-built from corpus statistics — features are the environment), and the model
+      predicts the next word over the top-500 vocabulary. The anchor is again the
+      no-genome ridge — linear-from-embeddings — and genomes only earn for what they
+      compose beyond it. Word n-gram ceilings fit on the full train region.</p>
+
+    <div class="lm-cols">
+      <div class="lm-col">
+        <div id="lmw-results">loading word-model results…</div>
+        <div class="lm-note" id="lmw-task"></div>
+      </div>
+      <div class="lm-col">
+        <table class="lm-tbl" id="lmw-spaces"></table>
+        <div id="lmw-samples" style="margin-top:12px"></div>
+      </div>
+    </div>
+
     <div class="lm-note">The previous intent-genome rebuild is superseded on this page
-      (its pipeline and APIs remain in genreg_train/). Run: <b>radial_lm.py</b> · export:
-      <b>radial_data/lm_radial.json</b> · checkpoint: <b>radial_data/lm_model.json</b> ·
+      (its pipeline and APIs remain in genreg_train/). Char run: <b>radial_lm.py</b> ·
+      word run: <b>radial_lm_word.py</b> · exports: <b>radial_data/lm_radial*.json</b> ·
       no gradients anywhere.</div>
   </div></main>
 
@@ -156,9 +183,65 @@
       });
       document.getElementById("lm-task").innerHTML =
         "<b>" + d.n_train + "</b> train / <b>" + d.n_test + "</b> test windows · " +
-        d.frames + "-char context · grid " + d.grid + " · " + d.seconds + "s · " + d.task;
+        d.frames + "-char context · " + d.seconds + "s · " + d.task;
+      if (d.samples && d.samples.length) {
+        document.getElementById("lm-samples").innerHTML = d.samples.map(function (s) {
+          var pr = s.prompt, rest = s.text.slice(pr.length);
+          return '<div class="lm-genome" style="margin-bottom:8px">' +
+            '<span class="g2">' + pr + '</span>' + rest +
+            ' <span class="cm"># temp ' + s.temp + '</span></div>';
+        }).join("");
+      }
     }).catch(function (e) {
       document.getElementById("lm-results").textContent = "load failed: " + e;
+    });
+
+    /* ---- word-level panel ---- */
+    fetch("/api/lm/radial/word").then(function (r) { return r.json(); }).then(function (d) {
+      var box = document.getElementById("lmw-results");
+      if (d.error) { box.textContent = d.error; return; }
+      if (d.pending) { box.textContent = "word run in progress — no export yet"; return; }
+      var b = d.baselines || {};
+      var rows = [["chance (top-" + d.vocab + ")", d.chance, "dim"],
+                  ["word unigram ceiling", b.unigram, "ceil"],
+                  ["word bigram ceiling", b.bigram, "ceil"],
+                  ["word trigram ceiling", b.trigram, "ceil"],
+                  ["anchor (NO genomes)", d.embed_ridge_test, "dim"],
+                  ["genome stack (TEST top-1)", d.test_acc, ""],
+                  ["trigram top-5 ceiling", d.trigram_top5, "ceil"],
+                  ["anchor top-5", d.anchor_top5, "dim"],
+                  ["genome stack (TEST top-5)", d.test_top5, ""]];
+      var max = Math.max.apply(0, rows.map(function (r2) { return r2[1] || 0; })) * 1.15;
+      box.innerHTML = rows.filter(function (r2) { return r2[1] != null; }).map(function (r2) {
+        return '<div class="lm-bar ' + r2[2] + '"><div class="lb">' + r2[0] +
+          '</div><div class="tr"><div class="fl" style="width:' +
+          (100 * r2[1] / max).toFixed(1) + '%"></div></div><div class="vl">' +
+          r2[1].toFixed(4) + "</div></div>";
+      }).join("");
+      var t = document.getElementById("lmw-spaces");
+      t.innerHTML = "<tr><th>space</th><th>genomes</th><th>val after</th><th>gain</th></tr>";
+      (d.spaces || []).forEach(function (s) {
+        var tr = document.createElement("tr");
+        tr.innerHTML = "<td>R" + s.space + "</td><td>" + s.n_frozen + "</td><td>" +
+          s.val_after.toFixed(4) + "</td><td>+" + s.val_gain.toFixed(4) + "</td>";
+        t.appendChild(tr);
+      });
+      document.getElementById("lmw-task").innerHTML =
+        "<b>" + d.n_train + "</b> train / <b>" + d.n_test + "</b> test windows · " +
+        d.context_words + "-word context · top-" + d.vocab + " vocab covers " +
+        (100 * d.coverage).toFixed(0) + "% of tokens · " + d.seconds + "s · " + d.task;
+      if (d.samples && d.samples.length) {
+        document.getElementById("lmw-samples").innerHTML =
+          '<div class="lm-sec" style="margin-top:0">Generated word samples</div>' +
+          d.samples.map(function (s) {
+            var parts = s.text.split(" | ");
+            return '<div class="lm-genome" style="margin-bottom:8px">' +
+              '<span class="g2">' + parts[0] + '</span> | ' + (parts[1] || "") +
+              ' <span class="cm"># temp ' + s.temp + '</span></div>';
+          }).join("");
+      }
+    }).catch(function (e) {
+      document.getElementById("lmw-results").textContent = "load failed: " + e;
     });
 
     /* ---- example windows, drawn like the training frames ---- */

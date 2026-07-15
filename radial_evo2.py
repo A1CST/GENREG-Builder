@@ -241,13 +241,17 @@ def make_scorer(torch, base, n_fit, Yf, yv, lam=3.0):
         Bfz = torch.ones(n_fit, 1, device=dev)
         Bvz = torch.ones(nv, 1, device=dev)
     F1 = Bfz.shape[1]
-    # gram + factor + solve in fp64: fp32 matmul runs in TF32 on Ampere+
-    # (~1e-3 relative), whose error scales with n and swamps lam once
-    # near-duplicate columns appear (seen at n_fit 80k). fp64 matmul
-    # bypasses TF32. Bulk candidate matmuls stay fp32.
-    A = Bfz.double().T @ Bfz.double() + lam * torch.eye(F1, device=dev,
-                                                        dtype=torch.float64)
-    L = torch.linalg.cholesky(A)
+    # gram in TRUE fp32 (callers disable TF32 — TF32's ~1e-3 error was
+    # the original poison), factor + solve in fp64. A pure-fp64 gram is
+    # 60x slower on consumer GPUs and chokes at 2000+ base columns; if
+    # the fp32 gram is still too rough, retry once in fp64.
+    eye64 = lam * torch.eye(F1, device=dev, dtype=torch.float64)
+    A = (Bfz.T @ Bfz).double() + eye64
+    try:
+        L = torch.linalg.cholesky(A)
+    except Exception:
+        A = Bfz.double().T @ Bfz.double() + eye64
+        L = torch.linalg.cholesky(A)
     W0 = torch.cholesky_solve((Bfz.T @ Yf).double(), L).float()  # (F1, 10)
     S0 = Bvz @ W0                                      # (nv, 10)
     b_soft = float(torch.log_softmax(S0, 1)[torch.arange(nv), yv].mean())

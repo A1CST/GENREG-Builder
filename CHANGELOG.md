@@ -10,6 +10,31 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-15] (Claude)** — **WORD-LEVEL LM: 0.3684 top-1 / 0.6268 top-5 on
+  500-vocab next-word — and it GENERATES ENGLISH.** The pivot from chars
+  (user's call: composition over meaning, not spelling). `radial_lm_word.py`:
+  context words enter as 128-d wiki-SVD embeddings + last-2-word identity
+  one-hots + CONTINUATION channels (expected-next embedding AND the exact
+  probability vector over the V targets, from tables fit on an INDEPENDENT
+  16MB slice — fitting them on the train region leaked into val and misled
+  evolution: run 4 val +1.5pt genome gain, test +0.2). Anchor design: the
+  no-genome ridge CONTAINS everything tabulatable; genome fitness = residual
+  beyond it. Ladder (8k held-out, disjoint region): unigram 0.0549 / bigram
+  0.1766 / trigram 0.1995 / **stack 0.3684 top-1** (1.85x trigram), top-5
+  0.6268 vs trigram-top5 0.6451. FINDING (5 configs): genomes stay flat on
+  language — statistical composition is table-work and the environment does
+  it better; the un-tabulatable rerank space (far-context x candidate) is
+  too sparse for uniform conjunction sampling. Next-session primitive:
+  content-based channel addressing. GENERATION: calibrated decode (one
+  scale fit on val NLL, x12), top-5 sampling, repetition penalty — output
+  is grammatical English fragments, samples embedded in the export and
+  shown on /lm. Infra: word runs now record to the RUNS PAGE (tags
+  lm/word/radial); n-gram tables cached (lm_cont_tables.pkl, -3min/run);
+  fp32-gram + fp64-solve everywhere (pure-fp64 grams were 60x slow on the
+  4080 — one run stalled 16min); single-row bugs fixed (per-batch stats
+  NaN, float index tensors). /lm page: word panel below the char content
+  (per user: page otherwise EXACTLY the same). Flask restart needed for
+  /api/lm/radial/word.
 - **[2026-07-15] (Claude)** — **LM "how far can we go" campaign: bigram broken
   decisively; trigram is the contested line; context-dilution law measured;
   three scale bugs fixed for good.** Best hardened result: seed 101, 6 spaces,

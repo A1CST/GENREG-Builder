@@ -99,11 +99,23 @@ def new_vec_genome(rng, F_prev):
     return g
 
 
+def _drift_c(rng, c, F_prev):
+    """Channel mutation with locality: mostly small drifts (structured
+    banks put related channels near each other — slots, genome groups),
+    sometimes a uniform jump. Generic operator, no bank layout knowledge:
+    the drift scale is a fraction of the bank width. Wide banks starve
+    uniform-only search — measured on the LM line (context-dilution)."""
+    if rng.random() < 0.7:
+        step = max(1, F_prev // 8)
+        return int((c + int(rng.integers(-step, step + 1))) % F_prev)
+    return int(rng.integers(F_prev))
+
+
 def mutate_vec(rng, g, sc, F_prev):
     c = json.loads(json.dumps(g))
     for t in c["terms"]:
         if rng.random() < 0.10:
-            t["c"] = int(rng.integers(F_prev))
+            t["c"] = _drift_c(rng, t["c"], F_prev)
         prog = [list(st) for st in t["prog"]]
         for st in prog:
             if rng.random() < 0.10:
@@ -119,7 +131,10 @@ def mutate_vec(rng, g, sc, F_prev):
         t["prog"] = [tuple(st) for st in prog]
     if rng.random() < 0.08:
         if len(c["terms"]) == 2:
-            c["terms"].append({"c": int(rng.integers(F_prev)),
+            # new term starts NEAR an existing term's channel: compose
+            # around what already works instead of sampling blind
+            anchor = c["terms"][int(rng.integers(len(c["terms"])))]["c"]
+            c["terms"].append({"c": _drift_c(rng, anchor, F_prev),
                                "prog": [(int(rng.integers(len(_PRIMS))),
                                          float(rng.uniform(0.5, 2.5)),
                                          float(rng.uniform(-1, 1)))]})
@@ -136,7 +151,7 @@ def mutate_vec(rng, g, sc, F_prev):
     gt = c.get("gate")
     if gt:
         if rng.random() < 0.10:
-            gt["c"] = int(rng.integers(F_prev))
+            gt["c"] = _drift_c(rng, gt["c"], F_prev)
         p0 = list(gt["prog"][0])
         if rng.random() < 0.10:
             p0[0] = int(rng.integers(len(_PRIMS)))
