@@ -525,10 +525,11 @@ def _record_run(cfg, hist, stats, log_lines, tags):
 
 def _evolve_space(torch, rng, pop_size, gens, max_rounds, n_fit, Yf, yv,
                   base_prev, new_fn, mut_fn, feat_tr, log, verbose,
-                  cap_override=None):
+                  cap_override=None, patience=1):
     dev = Yf.device
     frozen, fcols = [], []
     vals = []
+    below = 0                      # consecutive sub-cap rounds (dips forgiven)
     for rnd in range(max_rounds):
         cols_here = torch.stack(fcols, 1) if fcols else \
             torch.zeros((base_prev.shape[0], 0), device=dev)
@@ -612,10 +613,15 @@ def _evolve_space(torch, rng, pop_size, gens, max_rounds, n_fit, Yf, yv,
             + (f"  d-val +{wgain:.4f} (cap {thresh:.4f})" if wgain is not None else ""),
             verbose)
         if wgain is not None and wgain < thresh:
-            log(f"    space FULL at {len(frozen)} genomes — first round below cap "
-                f"(+{wgain:.4f} < {thresh:.4f}); easy gains over, stacking next",
-                verbose)
-            break
+            below += 1
+            if below >= patience:
+                log(f"    space FULL at {len(frozen)} genomes — {below} consecutive "
+                    f"rounds below cap (last +{wgain:.4f} < {thresh:.4f}); "
+                    f"stacking next", verbose)
+                break
+            log(f"    dip forgiven ({below}/{patience})", verbose)
+        else:
+            below = 0
         if os.path.exists(_STOP):
             break
     return frozen, fcols
@@ -626,7 +632,7 @@ def _evolve_space(torch, rng, pop_size, gens, max_rounds, n_fit, Yf, yv,
 # ---------------------------------------------------------------------------
 
 def _r0_cache_path(seed, pop_size, gens, max_rounds, n_train, n_test, smoke,
-                   data_npz=None, r0_cap=None):
+                   data_npz=None, r0_cap=None, r0_patience=1):
     """Space 0 is deterministic given its config, so it is trained once and
     cached. The key covers everything that shapes its evolution EXCEPT the
     live cap threshold — reusing an R0 across cap settings is exactly the
@@ -634,7 +640,7 @@ def _r0_cache_path(seed, pop_size, gens, max_rounds, n_train, n_test, smoke,
     key = hashlib.sha1(json.dumps(
         [int(seed), int(pop_size), int(gens), int(max_rounds),
          n_train, n_test, bool(smoke), data_npz or "cifar",
-         r0_cap]).encode()).hexdigest()[:10]
+         r0_cap, r0_patience]).encode()).hexdigest()[:10]
     return os.path.join(OUT_DIR, f"radial_stack_r0_{key}.json")
 
 
@@ -642,7 +648,7 @@ def run_stacked(pop_size=64, gens=12, max_rounds=200, seed=5, smoke=False,
                 n_train=None, n_test=None, out_path=None, record=True, verbose=True,
                 rot_deg=1.0, r0_cache=True, data_npz=None,
                 handoff="grid", grid_size=None, max_spaces=None,
-                r0_cap=0.0002):
+                r0_cap=0.0002, r0_patience=3):
     """r0_cap: space 0's own (lower) saturation threshold — R0 keeps gathering
     genomes while rounds still earn this much (user: big R0s do amazing;
     breathing room without grinding to +0.0001). Deep spaces use cap.txt."""
@@ -750,7 +756,8 @@ def run_stacked(pop_size=64, gens=12, max_rounds=200, seed=5, smoke=False,
         log(f"  [space {si}] opening — reads {src}", verbose)
         frozen = None
         r0_path = _r0_cache_path(seed, pop_size, gens, max_rounds,
-                                 n_train, n_test, smoke, data_npz, r0_cap)
+                                 n_train, n_test, smoke, data_npz, r0_cap,
+                                 r0_patience)
         if si == 0 and r0_cache and os.path.exists(r0_path):
             with open(r0_path) as f:
                 frozen = json.load(f)["genomes"]
@@ -764,7 +771,8 @@ def run_stacked(pop_size=64, gens=12, max_rounds=200, seed=5, smoke=False,
             frozen, fcols = _evolve_space(torch, rng, pop_size, gens, max_rounds,
                                           n_fit, Yf, yv, base_prev, new_fn, mut_fn,
                                           feat_tr, log, verbose,
-                                          cap_override=(r0_cap if si == 0 else None))
+                                          cap_override=(r0_cap if si == 0 else None),
+                                          patience=(r0_patience if si == 0 else 1))
             if si == 0 and r0_cache and frozen:
                 tmp = r0_path + ".tmp"
                 with open(tmp, "w") as f:

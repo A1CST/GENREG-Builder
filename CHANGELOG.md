@@ -10,6 +10,22 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-15] (Claude)** — **Measurement round: beta A/B + the fat-R0 law.**
+  (1) Multi-seed beta A/B (3 seeds x 2 tasks): sharpened moments are
+  statistically NEUTRAL (rel +0.4, rel_sep +0.2, both inside cross-seed sd of
+  up to +-1.4 pts) — v4's single-seed swings were noise; gene stays (harmless).
+  Calibration: sub-1.5-pt single-seed ladder rungs now read as soft evidence.
+  (2) User's R0 breathing-room directive, two mechanisms tested: lowering the
+  cap alone changed NOTHING in 4/6 arms (bit-identical replays — R0's gain
+  decays off a CLIFF, both thresholds trip the same round); adding PATIENCE
+  (3 consecutive sub-cap rounds, dips forgiven) produced the true explosion
+  (R0 570-712 genomes vs 300-400) but **hurt the composition-bound task**
+  (rel mean 0.9077 -> 0.8936; worst arm [679, 57] — the fat R0 crowds out
+  deep-space work) and was neutral on rel_sep (+0.15). THE LAW: R0 breathing
+  room pays on perception-bound tasks (cf. pop-128's fat R0 = best CIFAR
+  substrate) and taxes composition-bound ones. r0_cap/r0_patience stay as
+  config dials — right for CIFAR later, wrong for the relational rig.
+  Exports beta_ab.json, fatr0.json, fatr0v2.json (mirrored).
 - **[2026-07-15] (Claude)** — **Suite v3 (centroid moments): +1.5 on clean
   relations — best rel_sep yet (0.9480).** Completing the moment family
   (comx/comy joining mean/max/std) let genomes read LOCATION as a statistic;
