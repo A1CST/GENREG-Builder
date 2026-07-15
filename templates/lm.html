@@ -3,141 +3,198 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>GENREG — LM</title>
+  <title>GENREG — LM · Temporal Radial</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='vendor/xterm.css') }}" />
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+  <style>
+    .lm-main { flex:1 1 auto; overflow-y:auto; background:#0b0d10; padding:16px 20px 30px; }
+    .lm-wrap { max-width:1060px; margin:0 auto; }
+    .lm-h1 { font-size:17px; color:#e6ebf1; margin:6px 0 4px; }
+    .lm-lede { font-size:12px; color:#8b95a1; line-height:1.6; margin:0 0 16px; }
+    .lm-lede b { color:#c7d0da; }
+    .lm-sec { font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:#7f8b98; margin:22px 0 10px; border-bottom:1px solid #161b22; padding-bottom:6px; }
+    .lm-pipe { display:flex; flex-wrap:wrap; }
+    .lm-stage { flex:1 1 200px; min-width:200px; border:1px solid #1c232c; border-radius:8px; background:#0d1117; padding:11px 13px; margin:0 12px 12px 0; position:relative; }
+    .lm-stage:after { content:"→"; position:absolute; right:-13px; top:45%; color:#3a4552; font-size:15px; }
+    .lm-stage:last-child:after { content:""; }
+    .lm-stage h3 { font-size:12.5px; color:#dbe2ea; margin:0 0 6px; }
+    .lm-stage p { font-size:11px; color:#8b95a1; line-height:1.55; margin:0; }
+    .lm-stage p b { color:#b6c1cd; }
+    .lm-stage .tag { display:inline-block; font-size:9.5px; padding:1px 7px; border-radius:8px; margin-bottom:7px; text-transform:uppercase; letter-spacing:.05em; }
+    .tag.t0 { background:#12263a; color:#6fb3e0; } .tag.t1 { background:#12301f; color:#5fd39a; }
+    .tag.t2 { background:#332611; color:#e0b46f; } .tag.t3 { background:#2e1a2e; color:#d08ad0; }
+    .lm-cols { display:flex; gap:14px; flex-wrap:wrap; }
+    .lm-col { flex:1 1 460px; min-width:400px; }
+    .lm-cl { font-size:10.5px; color:#6c7885; margin-top:5px; line-height:1.5; }
+    .lm-bar { display:flex; align-items:center; gap:8px; margin-bottom:6px; font-size:11px; }
+    .lm-bar .lb { flex:0 0 190px; color:#8b95a1; text-align:right; }
+    .lm-bar .tr { flex:1; height:13px; background:#10151c; border-radius:3px; overflow:hidden; }
+    .lm-bar .fl { height:100%; border-radius:3px; background:#2e7d5b; }
+    .lm-bar.dim .fl { background:#2f4152; }
+    .lm-bar.ceil .fl { background:#7a5a2e; }
+    .lm-bar .vl { flex:0 0 52px; color:#dbe2ea; font-family:ui-monospace,monospace; font-variant-numeric:tabular-nums; }
+    table.lm-tbl { width:100%; border-collapse:collapse; font-size:11.5px; }
+    table.lm-tbl th { text-align:right; color:#7f8b98; font-weight:400; padding:4px 6px; border-bottom:1px solid #232a33; }
+    table.lm-tbl th:first-child, table.lm-tbl td:first-child { text-align:left; }
+    table.lm-tbl td { text-align:right; padding:5px 6px; border-bottom:1px solid #141a21; color:#c7d0da; font-variant-numeric:tabular-nums; font-family:ui-monospace,monospace; }
+    .lm-note { font-size:11px; color:#6c7885; line-height:1.6; margin-top:14px; border-top:1px solid #161b22; padding-top:10px; }
+    .lm-note b { color:#9aa5b1; }
+    .lm-win { display:flex; align-items:center; gap:4px; margin-bottom:8px; font-family:ui-monospace,monospace; }
+    .lm-win canvas { width:44px; height:44px; image-rendering:pixelated; border:1px solid #171d24; border-radius:4px; background:#000; }
+    .lm-win .arr { color:#3a4552; margin:0 4px; }
+    .lm-win .nx { font-size:16px; color:#5fd39a; border:1px dashed #2e7d5b; border-radius:4px; padding:8px 12px; }
+    .lm-genome { border:1px solid #1c232c; border-radius:8px; background:#0d1117; padding:13px 15px; font-family:ui-monospace,monospace; font-size:12px; color:#c7d0da; line-height:1.9; overflow-x:auto; }
+    .lm-genome .g1 { color:#5fd39a; } .lm-genome .g2 { color:#6fb3e0; } .lm-genome .cm { color:#5a6672; }
+  </style>
 </head>
 <body class="tlm-body">
   <header class="topbar">
-    <div class="brand">GENREG<span class="brand-sub">lm · rebuilt from scratch, one genome at a time</span></div>
-    <div class="status">
-      <span class="dot" id="lm-dot"></span>
-      <span id="lm-conn">loading…</span>
-      {% set nav_active = 'lm' %}{% include '_nav.html' %}
-    </div>
+    <div class="brand">GENREG<span class="brand-sub">lm · the temporal radial stack, pointed at language</span></div>
+    <div class="status">{% set nav_active = 'lm' %}{% include '_nav.html' %}</div>
   </header>
 
-  <div class="tlm-layout">
-    <aside class="sidebar left tlm-side">
-      <div class="side-head">Genome stack</div>
-      <div class="side-body control-panel">
-        <p class="field-hint" style="margin:0 0 12px">
-          The previous /evolang pipeline is archived (see
-          <a href="/docs">docs</a> &rarr; WORDPIPE_FIELD_NOTES). This is the
-          rebuild, starting over with nothing carried forward except the
-          datasets. Two groups so far, both recognition only &mdash; no
-          generation, no grammar, no word selection:
-        </p>
-        <p class="field-hint" style="margin:0 0 6px"><b>punctuation</b> &mdash;
-          5 binary genomes reading the words BEFORE a mark to recognize its
-          intent. A single 6-way genome collapsed to guessing mostly two
-          classes; splitting into specialists with one clean survival
-          condition each fixed that.</p>
-        <p class="field-hint" style="margin:0 0 6px"><b>opener</b> &mdash;
-          the mirror image: 2 binary genomes reading ONLY a sentence's FIRST
-          word ("who/what/where/how/can/don't...") to confirm what intent
-          the sentence is headed for.</p>
-        <p class="field-hint" style="margin:0 0 6px"><b>length</b> &mdash;
-          given a partial sentence, is it already complete or does it need
-          to keep growing? No fixed target length &mdash; this decision
-          IS the length.</p>
-        <p class="field-hint" style="margin:0 0 6px"><b>fill</b> &mdash;
-          given the words AROUND a blank (left + right), does a candidate
-          word fit? Bidirectional, contrastive. Trained and shown for
-          comparison, but superseded for actual generation by <b>next</b>.</p>
-        <p class="field-hint" style="margin:0 0 12px"><b>next</b> &mdash;
-          the intent-conditioned successor to fill: given ONLY the words
-          BEFORE this one plus the sentence's target end-mark, does a
-          candidate word fit? Properly autoregressive (matches how
-          generation actually runs) and intent-aware (a signal fill never
-          had). <b>length</b> + <b>next</b> compose into generation below
-          &mdash; hangman-style: grow/stop is confidence-driven, word
-          choice is confidence-scored, nothing is fixed upfront except the
-          intent.</p>
-        <div id="lm-genomes"></div>
-        <div class="tlm-status" id="lm-status">loading pipeline…</div>
+  <main class="lm-main"><div class="lm-wrap">
+    <h1 class="lm-h1">The radial stack on language — sequential composition, isolated</h1>
+    <p class="lm-lede">One variable at a time. The model gets character <b>identity for
+      free</b> — a 6-char context enters as (position × char) one-hot channels — and must
+      predict the <b>next character</b> (27 classes). The anchor is a closed-form ridge
+      on those raw channels with <b>no genomes at all</b>: that additive model literally
+      contains the bigram table but <b>cannot represent interactions</b> ("t then h").
+      Genome spaces only earn fitness for what they add <b>beyond</b> it — conjunctions
+      composed across positions. If the stack climbs past the one-hot ridge and the
+      bigram ceiling toward the trigram mark, sequential composition was learned, not
+      assumed. (Stage 2 — glyph frames, vision + language at once — already ran:
+      0.2950 vs bigram 0.2894; preserved in lm_radial_glyph.json.)</p>
+
+    <div class="lm-sec">The wiring</div>
+    <div class="lm-pipe">
+      <div class="lm-stage"><span class="tag t0">input</span>
+        <h3>Character IDs, one-hot</h3>
+        <p>A window is (position × char) = <b>162 binary channels</b>. No pixels, no
+        perception problem — identity is given so only <b>composition</b> is under
+        test. Test windows come from a <b>disjoint corpus region</b>.</p></div>
+      <div class="lm-stage"><span class="tag t1">anchor</span>
+        <h3>The no-genome ridge</h3>
+        <p>A closed-form head on the raw channels. Additive by construction: it holds
+        the full bigram table plus per-slot unigram tilts, but <b>no interactions</b>.
+        Every genome's fitness is measured as residual gain <b>over this anchor</b>.</p></div>
+      <div class="lm-stage"><span class="tag t2">genomes</span>
+        <h3>Conjunctions across positions</h3>
+        <p>Vec-grammar genomes fold channels with ×, min, |−| and gates:
+        <b>min(t@5, h@6)</b> is a trigram detector. Every space also keeps the raw
+        one-hot skip bank, so identity stays reachable at any depth.</p></div>
+      <div class="lm-stage"><span class="tag t3">stack</span>
+        <h3>Emergent-cap spaces</h3>
+        <p>Frozen conjunctions become channels for the next space — compositions of
+        compositions. Depth decided by the cap pressure, not by hand. Closed-form
+        27-way head; test touched once.</p></div>
+    </div>
+
+    <div class="lm-sec">What a compositional genome can say</div>
+    <div class="lm-genome">
+      <span class="cm"># expressible in the vec grammar over [raw one-hots | prior spaces]:</span><br>
+      trigram&nbsp;&nbsp;&nbsp;= <span class="g1">min( t@slot5 , h@slot6 )</span> <span class="cm"># "..th" → e</span><br>
+      4-gram&nbsp;&nbsp;&nbsp;&nbsp;= <span class="g2">min( genome_trigram(x) , space@slot4 )</span> <span class="cm"># " th" — a composition OF a composition</span><br>
+      <span class="cm"># the additive anchor cannot write either of these; the genomes can</span>
+    </div>
+
+    <div class="lm-sec">The task — real windows from the corpus</div>
+    <div id="lm-wins"><span class="lm-cl">loading examples…</span></div>
+    <div class="lm-cl">Live test windows: six context characters (␣ = space), and the
+      dashed box is the next character the model must predict. Data:
+      combined_corpus.txt, train and test from disjoint regions.</div>
+
+    <div class="lm-sec">Results, live — the stack vs the n-gram ceilings</div>
+    <div class="lm-cols">
+      <div class="lm-col">
+        <div id="lm-results">loading run results…</div>
+        <div class="lm-note" id="lm-task"></div>
       </div>
-    </aside>
-
-    <main class="tlm-main">
-      <div class="tlm-tiles">
-        <div class="tlm-tile"><div class="tlm-tile-label">Genomes trained</div><div class="tlm-tile-value" id="st-count">—</div></div>
-        <div class="tlm-tile"><div class="tlm-tile-label">Mean balanced acc.</div><div class="tlm-tile-value" id="st-acc">—</div></div>
-        <div class="tlm-tile"><div class="tlm-tile-label">Chance (binary)</div><div class="tlm-tile-value" id="st-chance">—</div></div>
-        <div class="tlm-tile"><div class="tlm-tile-label">Vocab size</div><div class="tlm-tile-value" id="st-vocab">—</div></div>
+      <div class="lm-col">
+        <table class="lm-tbl" id="lm-spaces"></table>
       </div>
+    </div>
 
-      <section class="tlm-card">
-        <div class="tlm-card-head">
-          <h2>Recognize (punctuation) <span class="tlm-card-sub">type a word run with no trailing punctuation — the 5 genomes compose into a ranked guess</span></h2>
-        </div>
-        <div class="tlm-actions" style="margin-bottom:10px">
-          <input id="lm-input" type="text" placeholder="e.g. i cannot believe you actually did that"
-                 style="flex:1;min-width:280px;background:var(--panel-2,#111);color:inherit;border:1px solid var(--border,#333);border-radius:6px;padding:8px 10px;font:inherit" />
-          <button id="lm-run" class="runs-btn tlm-primary">Recognize</button>
-        </div>
-        <div id="lm-result" class="field-hint">—</div>
-      </section>
+    <div class="lm-note">The previous intent-genome rebuild is superseded on this page
+      (its pipeline and APIs remain in genreg_train/). Run: <b>radial_lm.py</b> · export:
+      <b>radial_data/lm_radial.json</b> · checkpoint: <b>radial_data/lm_model.json</b> ·
+      no gradients anywhere.</div>
+  </div></main>
 
-      <section class="tlm-card">
-        <div class="tlm-card-head">
-          <h2>Confirm (opener) <span class="tlm-card-sub">type ONE opening word — the 2 genomes guess how the sentence will end</span></h2>
-        </div>
-        <div class="tlm-actions" style="margin-bottom:10px">
-          <input id="lm-opener-input" type="text" placeholder="e.g. who"
-                 style="flex:1;min-width:280px;background:var(--panel-2,#111);color:inherit;border:1px solid var(--border,#333);border-radius:6px;padding:8px 10px;font:inherit" />
-          <button id="lm-opener-run" class="runs-btn tlm-primary">Confirm</button>
-        </div>
-        <div id="lm-opener-result" class="field-hint">—</div>
-      </section>
+  <script>
+  (function () {
+    "use strict";
+    /* ---- results vs n-gram ceilings ---- */
+    fetch("/api/lm/radial").then(function (r) { return r.json(); }).then(function (d) {
+      var box = document.getElementById("lm-results");
+      if (d.error) { box.textContent = d.error; return; }
+      if (d.pending) { box.textContent = "run in progress — no export yet"; return; }
+      var b = d.baselines || {};
+      var rows = [["chance (27 classes)", d.chance, "dim"],
+                  ["unigram ceiling", b.unigram, "ceil"],
+                  ["bigram ceiling", b.bigram, "ceil"],
+                  ["one-hot ridge (NO genomes)", d.onehot_ridge_test, "dim"],
+                  ["trigram ceiling", b.trigram, "ceil"],
+                  ["4-gram ceiling", b["4-gram"], "ceil"],
+                  ["genome stack (val)", d.val_final, ""],
+                  ["genome stack (TEST)", d.test_acc, ""]];
+      var max = Math.max.apply(0, rows.map(function (r2) { return r2[1] || 0; })) * 1.15;
+      box.innerHTML = rows.filter(function (r2) { return r2[1] != null; }).map(function (r2) {
+        return '<div class="lm-bar ' + r2[2] + '"><div class="lb">' + r2[0] +
+          '</div><div class="tr"><div class="fl" style="width:' +
+          (100 * r2[1] / max).toFixed(1) + '%"></div></div><div class="vl">' +
+          r2[1].toFixed(4) + "</div></div>";
+      }).join("");
+      var t = document.getElementById("lm-spaces");
+      t.innerHTML = "<tr><th>space</th><th>genomes</th><th>val after</th><th>gain</th></tr>";
+      (d.spaces || []).forEach(function (s) {
+        var tr = document.createElement("tr");
+        tr.innerHTML = "<td>R" + s.space + "</td><td>" + s.n_frozen + "</td><td>" +
+          s.val_after.toFixed(4) + "</td><td>+" + s.val_gain.toFixed(4) + "</td>";
+        t.appendChild(tr);
+      });
+      document.getElementById("lm-task").innerHTML =
+        "<b>" + d.n_train + "</b> train / <b>" + d.n_test + "</b> test windows · " +
+        d.frames + "-char context · grid " + d.grid + " · " + d.seconds + "s · " + d.task;
+    }).catch(function (e) {
+      document.getElementById("lm-results").textContent = "load failed: " + e;
+    });
 
-      <section class="tlm-card">
-        <div class="tlm-card-head">
-          <h2>Generate <span class="tlm-card-sub">type ONE seed word — watch the sentence materialize, pass by pass (diffusion-style, not left-to-right autoregression forced by a fixed length)</span></h2>
-        </div>
-        <div class="tlm-actions" style="margin-bottom:10px">
-          <input id="lm-gen-input" type="text" placeholder="e.g. what"
-                 style="flex:1;min-width:200px;background:var(--panel-2,#111);color:inherit;border:1px solid var(--border,#333);border-radius:6px;padding:8px 10px;font:inherit" />
-          <input id="lm-gen-temp" type="number" min="0.1" max="2" step="0.1" value="0.7" title="temperature"
-                 style="width:70px;background:var(--panel-2,#111);color:inherit;border:1px solid var(--border,#333);border-radius:6px;padding:8px 10px;font:inherit" />
-          <button id="lm-gen-run" class="runs-btn tlm-primary">Generate</button>
-        </div>
-        <div id="lm-gen-text" class="tlm-tile-value" style="margin-bottom:10px">—</div>
-        <div id="lm-gen-trace" class="field-hint">—</div>
-      </section>
-
-      <section class="tlm-card">
-        <div class="tlm-card-head">
-          <h2>Punctuation genomes <span class="tlm-card-sub">each row is one binary specialist — balanced accuracy vs 50% chance, plus per-class recall</span></h2>
-        </div>
-        <div id="lm-splits-punctuation">—</div>
-      </section>
-
-      <section class="tlm-card">
-        <div class="tlm-card-head">
-          <h2>Opener genomes <span class="tlm-card-sub">same recipe, fed only the sentence's first word</span></h2>
-        </div>
-        <div id="lm-splits-opener">—</div>
-      </section>
-
-      <section class="tlm-card">
-        <div class="tlm-card-head">
-          <h2>Length + next genomes <span class="tlm-card-sub">the two genomes that actually drive generation</span></h2>
-        </div>
-        <div id="lm-splits-length">—</div>
-        <div id="lm-splits-next">—</div>
-      </section>
-
-      <section class="tlm-card">
-        <div class="tlm-card-head">
-          <h2>Fill genome <span class="tlm-card-sub">bidirectional, kept trained for comparison — not used in generation</span></h2>
-        </div>
-        <div id="lm-splits-fill">—</div>
-      </section>
-    </main>
-  </div>
-
-  <script src="{{ url_for('static', filename='lm.js') }}"></script>
+    /* ---- example windows, drawn like the training frames ---- */
+    fetch("/api/lm/radial/examples?n=3").then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (d.error || d.pending) { return; }
+        var box = document.getElementById("lm-wins");
+        box.innerHTML = "";
+        d.examples.forEach(function (ex) {
+          var row = document.createElement("div");
+          row.className = "lm-win";
+          ex.context.split("").forEach(function (ch, f) {
+            var cell = document.createElement("span");
+            cell.className = "nx";
+            cell.style.borderStyle = "solid";
+            cell.style.borderColor = "#2f4152";
+            cell.style.color = "#c7d0da";
+            cell.textContent = ch === " " ? "␣" : ch;
+            row.appendChild(cell);
+            if (f < ex.context.length - 1) {
+              var a = document.createElement("span");
+              a.className = "arr"; a.textContent = "·";
+              row.appendChild(a);
+            }
+          });
+          var arr = document.createElement("span");
+          arr.className = "arr"; arr.textContent = "→";
+          row.appendChild(arr);
+          var nx = document.createElement("span");
+          nx.className = "nx";
+          nx.textContent = ex.next === " " ? "␣" : ex.next;
+          row.appendChild(nx);
+          box.appendChild(row);
+        });
+      }).catch(function () {});
+  })();
+  </script>
   <script src="{{ url_for('static', filename='vendor/xterm.js') }}"></script>
   <script src="{{ url_for('static', filename='vendor/addon-fit.js') }}"></script>
   <script src="{{ url_for('static', filename='termdock.js') }}"></script>

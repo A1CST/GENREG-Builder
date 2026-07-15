@@ -10,6 +10,25 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-15] (Claude)** — **LM PAGE REWIRED: the radial stack BREAKS THE
+  BIGRAM CEILING — and the trigram ceiling — on isolated sequential
+  composition.** Per user direction, one variable at a time: `radial_lm.py`
+  feeds character IDs directly (6-char window as position x char one-hot
+  channels, 27-way next-char head; train/test from DISJOINT corpus regions;
+  n-gram ceilings fit on the full 2MB train region). The no-genome anchor —
+  a ridge on the raw one-hots, which CONTAINS the bigram table but cannot
+  represent interactions — scores 0.3484 test. The border ridge starts FROM
+  those 162 columns, so genomes can only earn by composing interactions.
+  RESULT (local 4080, 30s): 8 spaces [63,174,81,62,56,35,20,4], 495 genomes,
+  **stack TEST 0.4172** vs unigram 0.2144 / bigram 0.2894 / TRIGRAM 0.4150 /
+  4-gram 0.5074 — +6.9 pts over the additive anchor, past the trigram line.
+  Sequential composition learned, not assumed (min(t@5,h@6) IS a trigram
+  detector; deep spaces = compositions of compositions). Stage-2 note: the
+  earlier glyph-frame variant (vision+language at once) also broke bigram
+  (0.2950 vs 0.2894) — preserved as lm_radial_glyph.json. /lm page fully
+  rewritten (anchor-vs-ceiling ladder, wiring cards, live corpus windows,
+  vec-grammar explainer); endpoints /api/lm/radial + /api/lm/radial/examples.
+  **Flask restart needed.**
 - **[2026-07-15] (Claude)** — **VALIDATION SUITE: the animation page is now a
   self-service audit station (documentation/valid_animation.txt addressed).**
   New `anim_validate.py` (ran on pod, 37s), all predictions held:
