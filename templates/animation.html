@@ -128,6 +128,16 @@
       </div>
     </div>
 
+    <div class="an-sec">Ablations — the shape model under motions it never saw</div>
+    <div class="an-cols">
+      <div class="an-col">
+        <div id="an-ablate">loading ablation results…</div>
+      </div>
+      <div class="an-col">
+        <div class="an-note" style="margin-top:0;border-top:none;padding-top:0" id="an-ablate-note"></div>
+      </div>
+    </div>
+
     <div class="an-sec">Run the checkpoints</div>
     <p class="an-lede">Watch the trained models work: each tile is a real held-out test
       sequence (exactly what the model sees — 32×32, noisy) with the checkpoint's call
@@ -230,6 +240,42 @@
     loadResults("path");
     loadResults("shape");
 
+    /* ---- shape-model ablations: unseen motion regimes ---- */
+    fetch("/api/animation/ablation").then(function (r) { return r.json(); })
+      .then(function (d) {
+        var box = document.getElementById("an-ablate");
+        if (d.error) { box.textContent = d.error; return; }
+        if (d.pending) { box.textContent = "no ablation export yet"; return; }
+        box.innerHTML = d.results.map(function (r2) {
+          var worst = null;
+          Object.keys(r2.per_class || {}).forEach(function (k) {
+            if (worst === null || r2.per_class[k] < r2.per_class[worst]) { worst = k; }
+          });
+          return '<div class="an-bar' + (r2.kind === "control" ? " dim" : "") +
+            '"><div class="lb" title="' + r2.desc + '">' + r2.kind +
+            '</div><div class="tr"><div class="fl" style="width:' +
+            (100 * r2.acc).toFixed(1) + '%"></div></div><div class="vl">' +
+            r2.acc.toFixed(4) + "</div></div>" +
+            '<div class="an-cl" style="margin:-2px 0 8px 178px">' + r2.desc +
+            (worst && r2.per_class[worst] < 0.999
+              ? " · worst class: " + worst + " " + r2.per_class[worst].toFixed(3) : "") +
+            "</div>";
+        }).join("");
+        document.getElementById("an-ablate-note").innerHTML =
+          "<b>Genomes and head are frozen</b> — nothing adapts to the new motions; " +
+          "each set is " + d.n_per_set + " fresh sequences, chance " + d.chance +
+          ".<br><br><b>Model size: " + d.total_params.toLocaleString() +
+          " parameters</b> (" + d.genome_params.toLocaleString() + " evolved across " +
+          d.n_genomes + " genomes + " + d.head_params.toLocaleString() +
+          " closed-form head) ≈ " + (d.total_params * 4 / 1024).toFixed(0) +
+          " KB fp32. Perfect scores on random-walk, bezier and double-speed motion " +
+          "mean the shape genomes are genuinely <b>motion-invariant</b>, not " +
+          "path-memorizers; the only dips are static clips (noise never averages " +
+          "out over positions) and shapes pushed half off the border.";
+      }).catch(function (e) {
+        document.getElementById("an-ablate").textContent = "load failed: " + e;
+      });
+
     /* ---- run a checkpoint on held-out sequences (one runner per model) ---- */
     function makeRunner(task) {
       var btn = document.getElementById("an-run-" + task),
@@ -267,7 +313,7 @@
         var right = d.items.filter(function (i) { return i.correct; }).length;
         st.textContent = right + "/" + d.items.length + " correct here · local test acc " +
           d.test_acc.toFixed(4) + " over all " + d.n_test + " held-out · " +
-          d.n_genomes + " genomes";
+          d.n_genomes + " genomes · " + d.total_params.toLocaleString() + " params";
         if (timer) { clearInterval(timer); }
         var f = 0;
         timer = setInterval(function () {

@@ -10,6 +10,19 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-15] (Claude)** — **Shape-model ABLATIONS: motion-invariance
+  confirmed + param sizes on the page.** New `anim_ablate.py`: the frozen
+  shape checkpoint (genomes AND head fixed, nothing adapts) evaluated on six
+  motion regimes, four of them never seen in training. Results (1500 fresh
+  seqs each, chance 0.10): control 1.0000, **random-walk 1.0000, bezier
+  curves 1.0000, double-speed 1.0000**, wide-offset 0.9967, static 0.9853
+  (worst class circle 0.896 — with no motion the noise never averages out
+  over positions). The shape genomes are genuinely motion-invariant, not
+  path-memorizers. PARAM SIZES now computed (count of numeric genes +
+  head): shape model **5,344 params (~21 KB)**, motion model **40,817
+  (~160 KB)** — shown in the run-panel status lines and the new Ablations
+  section on /animation (GET /api/animation/ablation; Flask restart to pick
+  up the endpoint). Export radial_data/anim_ablation.json, mirrored.
 - **[2026-07-14] (Claude)** — **Animation tab SCALED: twin checkpoints — and
   the cleanest architecture-sizes-itself result yet.** Same sequences, labels
   flipped: Model A names the MOTION (shape = decoy), new Model B names the
