@@ -144,6 +144,14 @@
    "export": "kid_stageB.json",
    "title": "18 · Curriculum Stage B: words - the model learns to SPELL. 0.7066 top-1 / 0.9358 top-5",
    "desc": "A word is a strip of 8 letter tiles; identify which of 500 words (from pixels only). Stage A's 515 letter genomes frozen as the eye. The measured story: the orderless letter-bag baseline (eye only, no order) scores 0.1910; the first composition space adds +45 points by putting letters IN ORDER - that gap is spelling. 297 new genomes, 30 seconds. Next gate: Stage C, cloze."
+  },
+  {
+   "id": "kid-stage-c",
+   "date": "2026-07-15",
+   "kind": "run",
+   "export": "kid_stageC.json",
+   "title": "19 · Curriculum Stage C: cloze - GATE FAILED, and the failure is the lesson",
+   "desc": "Name the blanked word in a 4-word phrase (V=500, pixels only, A->B chain frozen as the per-slot word eye). Word-bag baseline 0.0608; evolution earned NOTHING on top (first space produced zero genomes); final 0.0668 top-1 / 0.2150 top-5 - 33x chance but no composition. The lesson: perception stages (letters, spelling) pass in seconds because their answers are deterministic in the pixels; the SEMANTIC stage has no answer in 20k phrases of pixels alone. A kid at this stage has years of heard language - distributional experience. The curriculum's next design decision: give Stage C 'listening experience' (corpus co-occurrence statistics as environment), scale the data by orders of magnitude, or both."
   }
  ]
 }

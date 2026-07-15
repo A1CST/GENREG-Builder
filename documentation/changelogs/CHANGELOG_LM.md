@@ -6,6 +6,21 @@ Seeded 2026-07-05 from the main changelog (keyword split, best effort).
 
 ---
 
+- **[2026-07-15] (Claude)** — **CURRICULUM Stage C: CLOZE - GATE FAILED
+  honestly, and the failure is the curriculum's most important lesson.**
+  Word-bag baseline 0.0608; evolution earned NOTHING (first space zero
+  genomes); final 0.0668 / 0.2150 top-5 (33x chance, no composition).
+  Contrast: A (letters) passed in 7s, B (spelling) in 30s - deterministic
+  answers in pixels. C is SEMANTIC: 20k phrases of pixels contain no
+  answer to "which of 500 words fills this blank" - a kid at this stage
+  has YEARS of heard language. Design decision recorded for the user:
+  (a) give Stage C listening experience - corpus co-occurrence statistics
+  as environment channels (the earlier line's tables, now justified as
+  curriculum experience), (b) scale data by orders of magnitude, or both.
+  OOM fix en route: 640k-row envs need max_cached=1 + scale-sorted eye
+  sweep. Module 19 on /lm. Stage D blocked on the C gate per the
+  curriculum's own rule.
+
 - **[2026-07-15] (Claude)** — **CURRICULUM Stage B: WORDS - the model learns
   to SPELL. TEST 0.7066 top-1 / 0.9358 top-5 (V=500, pixels only, 30s).**
   Words as 8-letter tile strips; Stage A's 515 letter genomes frozen as

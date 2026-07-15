@@ -10,6 +10,20 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-15] (Claude)** — **CURRICULUM Stage C: CLOZE - GATE FAILED
+  honestly, and the failure is the curriculum's most important lesson.**
+  Word-bag baseline 0.0608; evolution earned NOTHING (first space zero
+  genomes); final 0.0668 / 0.2150 top-5 (33x chance, no composition).
+  Contrast: A (letters) passed in 7s, B (spelling) in 30s - deterministic
+  answers in pixels. C is SEMANTIC: 20k phrases of pixels contain no
+  answer to "which of 500 words fills this blank" - a kid at this stage
+  has YEARS of heard language. Design decision recorded for the user:
+  (a) give Stage C listening experience - corpus co-occurrence statistics
+  as environment channels (the earlier line's tables, now justified as
+  curriculum experience), (b) scale data by orders of magnitude, or both.
+  OOM fix en route: 640k-row envs need max_cached=1 + scale-sorted eye
+  sweep. Module 19 on /lm. Stage D blocked on the C gate per the
+  curriculum's own rule.
 - **[2026-07-15] (Claude)** — **Animation page: model-footprint panel (params +
   on-disk size + CPU).** Added a top-of-page panel surfacing the three headline
   facts for every model: evolved-parameter count, on-disk checkpoint size, and
