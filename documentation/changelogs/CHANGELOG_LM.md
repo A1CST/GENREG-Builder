@@ -6,6 +6,28 @@ Seeded 2026-07-05 from the main changelog (keyword split, best effort).
 
 ---
 
+- **[2026-07-15] (Claude)** — **LM modules 12+13: PROBE + CONTINUE-TRAIN (the
+  animation Module-3 method ported to language).** PROBE (read-only on the
+  RS-30k lean checkpoint): the model NEVER overrides its tables - when the
+  continuation table's top-5 contains the target (62% of test) top-1 is
+  0.4801; when it doesn't (38%) top-1 is 0.0040, chance. Worst-missed words
+  are the commonest (i/you/the/it) - wider-context cases. CONTINUE-TRAIN
+  (lm_continue.py): frozen 285-genome warm base, new spaces on a 3x
+  table-miss-weighted mix, head refit on the true distribution. THE METHOD
+  WORKS (no forgetting, overall 0.2974->0.2993) BUT THE REPAIR DOESN'T:
+  miss-class 0.0040->0.0056, evolution dry after 10 genomes. FINDING:
+  continue-training cannot conjure signal the environment doesn't carry -
+  the miss class needs NEW environment statistics (skip-gram continuation
+  tables, syntax-position profiles), not more search. Both modules on /lm
+  (renderer now shows breakdown tables + example predictions); registry
+  encoding mojibake fixed; two OOM fixes (mix subsampling - the attend
+  substrate is ~10GB and cannot be duplicated full-size even on 96GB).
+
+- **[2026-07-15] (Claude)** — NOTE: the full radial-LM arc of 2026-07-15
+  (char isolation, word pivot, lean/hybrid shapes, RS embeddings, vocab
+  scaling, /lm iteration-log rebuild) is in the MAIN CHANGELOG; this
+  project file resumes per-project logging with this entry per AGENTS.md.
+
 - **[2026-07-12] (Claude)** — Round 3: sem_next + grammar_real in a corpus-built
   PPMI/eig feature space; no lookup tables in the model (full-vocab genome scoring
   replaces follower pools at inference). Full details in main CHANGELOG.md same

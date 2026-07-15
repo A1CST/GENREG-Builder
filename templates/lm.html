@@ -147,17 +147,50 @@
             ' <span class="cm"># output, temp ' + s.temp + "</span></div>";
         }).join("") + "</div>";
       }
+      if (d.breakdown) {
+        html += '<table class="lm-tbl" style="margin-top:10px"><tr>' +
+          "<th>slice</th><th>n</th><th>top-1</th><th>top-5</th></tr>" +
+          Object.keys(d.breakdown).map(function (k) {
+            var b2 = d.breakdown[k];
+            return "<tr><td>" + k + "</td><td>" + b2.n + "</td><td>" +
+              (b2.top1 != null ? b2.top1.toFixed(4) : "-") + "</td><td>" +
+              (b2.top5 != null ? b2.top5.toFixed(4) : "-") + "</td></tr>";
+          }).join("") + "</table>";
+      }
+      if (d.worst_targets) {
+        html += '<div class="lm-nn" style="margin-top:8px">' +
+          d.worst_targets.slice(0, 10).map(function (w) {
+            return "misses <b>" + w.target + "</b> x" + w.misses +
+              " (says '" + w.usually_predicted + "')";
+          }).join("<br>") + "</div>";
+      }
+      if (d.examples) {
+        html += '<div style="margin-top:10px">' +
+          d.examples.slice(0, 8).map(function (e2) {
+            return '<div class="lm-genome"><span class="g2"></span> → ' +
+              '<span class="tx"></span> <span class="cm"></span></div>';
+          }).join("") + "</div>";
+      }
       return html;
     }
 
     function fillSamples(el, d) {
-      if (!d.samples) { return; }
       var gs = el.querySelectorAll(".lm-genome");
-      d.samples.forEach(function (s, i) {
-        if (!gs[i]) { return; }
+      var gi = 0;
+      (d.samples || []).forEach(function (s) {
+        if (!gs[gi]) { return; }
         var parts = s.text.split(" | ");
-        gs[i].querySelector(".g2").textContent = parts[0];
-        gs[i].querySelector(".tx").textContent = parts[1] || "";
+        gs[gi].querySelector(".g2").textContent = parts[0];
+        gs[gi].querySelector(".tx").textContent = parts[1] || "";
+        gi++;
+      });
+      (d.examples || []).slice(0, 8).forEach(function (e2) {
+        if (!gs[gi]) { return; }
+        gs[gi].querySelector(".g2").textContent = e2.context;
+        gs[gi].querySelector(".tx").textContent = e2.pred;
+        gs[gi].querySelector(".cm").textContent =
+          e2.correct ? "# correct" : "# true: " + e2.true;
+        gi++;
       });
     }
 

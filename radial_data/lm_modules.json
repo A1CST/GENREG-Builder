@@ -1,49 +1,109 @@
 {
  "note": "APPEND-ONLY. Each entry is one iteration of the LM line and renders as one module on /lm, newest at the bottom. Never edit or remove old entries; add new ones at the end.",
  "modules": [
-  {"id": "char-isolated", "date": "2026-07-15", "kind": "run",
+  {
+   "id": "char-isolated",
+   "date": "2026-07-15",
+   "kind": "run",
    "export": "lm_radial.json",
-   "title": "1 · Character level, composition isolated",
-   "desc": "Char IDs in (one-hot), no vision confound. The genome stack composes cross-position conjunctions beyond the additive anchor. Best seed shown; multi-seed spread 0.386-0.406. Broke the bigram ceiling by +11 points on every seed."},
-  {"id": "char-glyph", "date": "2026-07-15", "kind": "run",
+   "title": "1 Â· Character level, composition isolated",
+   "desc": "Char IDs in (one-hot), no vision confound. The genome stack composes cross-position conjunctions beyond the additive anchor. Best seed shown; multi-seed spread 0.386-0.406. Broke the bigram ceiling by +11 points on every seed."
+  },
+  {
+   "id": "char-glyph",
+   "date": "2026-07-15",
+   "kind": "run",
    "export": "lm_radial_glyph.json",
-   "title": "2 · Glyph frames: vision + language at once",
-   "desc": "Stage-2 of the char line: every character rendered as a noisy 32x32 glyph frame; the temporal radial stack does perception AND sequence prediction simultaneously. Also broke the bigram ceiling."},
-  {"id": "word-fat-svd", "date": "2026-07-15", "kind": "run",
+   "title": "2 Â· Glyph frames: vision + language at once",
+   "desc": "Stage-2 of the char line: every character rendered as a noisy 32x32 glyph frame; the temporal radial stack does perception AND sequence prediction simultaneously. Also broke the bigram ceiling."
+  },
+  {
+   "id": "word-fat-svd",
+   "date": "2026-07-15",
+   "kind": "run",
    "export": "lm_radial_word.json",
-   "title": "3 · Word level, V=2000, SVD embeddings (fat head)",
-   "desc": "The pivot to words: SVD embeddings + identity one-hots + continuation tables, everything into a flat head. Strong numbers, wrong shape: 4.8M+ params, almost all head, 66 evolved. Samples: locally grammatical, falls into conversational-filler attractors."},
-  {"id": "word-lean", "date": "2026-07-15", "kind": "run",
+   "title": "3 Â· Word level, V=2000, SVD embeddings (fat head)",
+   "desc": "The pivot to words: SVD embeddings + identity one-hots + continuation tables, everything into a flat head. Strong numbers, wrong shape: 4.8M+ params, almost all head, 66 evolved. Samples: locally grammatical, falls into conversational-filler attractors."
+  },
+  {
+   "id": "word-lean",
+   "date": "2026-07-15",
+   "kind": "run",
    "export": "lm_radial_word_lean.json",
-   "title": "4 · LEAN: genomes carry the model",
-   "desc": "Anchor removed from head and fitness base per the shape diagnosis. Genomes finally earn on language (334 frozen, 37 attend/content-addressing). 14x fewer params at 67% of fat accuracy."},
-  {"id": "word-hybrid", "date": "2026-07-15", "kind": "run",
+   "title": "4 Â· LEAN: genomes carry the model",
+   "desc": "Anchor removed from head and fitness base per the shape diagnosis. Genomes finally earn on language (334 frozen, 37 attend/content-addressing). 14x fewer params at 67% of fat accuracy."
+  },
+  {
+   "id": "word-hybrid",
+   "date": "2026-07-15",
+   "kind": "run",
    "export": "lm_radial_word_hybrid.json",
-   "title": "5 · HYBRID: genomes + 256 semantic channels",
-   "desc": "Lean head plus only the continuation-embedding block (never the raw identity/probability channels). Recovers half the fat gap at 1.2M params."},
-  {"id": "embed-rs-5k", "date": "2026-07-15", "kind": "embed",
+   "title": "5 Â· HYBRID: genomes + 256 semantic channels",
+   "desc": "Lean head plus only the continuation-embedding block (never the raw identity/probability channels). Recovers half the fat gap at 1.2M params."
+  },
+  {
+   "id": "embed-rs-5k",
+   "date": "2026-07-15",
+   "kind": "embed",
    "export": "embed_report_wiki120.json",
-   "title": "6 · RS embedding space (5k words, 120MB wiki)",
-   "desc": "Evolution separates words instead of predicting: each frozen genome is one embedding dimension, fitness is separation quality on held-out profile halves. Beat the SVD gate 3x on this corpus; neighbors king->frederick/emperor/prince, said->told/stated/explained."},
-  {"id": "word-rsembed-fat", "date": "2026-07-15", "kind": "run",
+   "title": "6 Â· RS embedding space (5k words, 120MB wiki)",
+   "desc": "Evolution separates words instead of predicting: each frozen genome is one embedding dimension, fitness is separation quality on held-out profile halves. Beat the SVD gate 3x on this corpus; neighbors king->frederick/emperor/prince, said->told/stated/explained."
+  },
+  {
+   "id": "word-rsembed-fat",
+   "date": "2026-07-15",
+   "kind": "run",
    "export": "lm_radial_word_rsembed.json",
-   "title": "7 · Swap A/B: RS-5k embeddings, fat head",
-   "desc": "The evolved table replaces SVD. Fat head loses 8.4 top-1 - later shown to be almost entirely the 5k-vs-30k coverage confound, not semantics."},
-  {"id": "word-rsembed-lean", "date": "2026-07-15", "kind": "run",
+   "title": "7 Â· Swap A/B: RS-5k embeddings, fat head",
+   "desc": "The evolved table replaces SVD. Fat head loses 8.4 top-1 - later shown to be almost entirely the 5k-vs-30k coverage confound, not semantics."
+  },
+  {
+   "id": "word-rsembed-lean",
+   "date": "2026-07-15",
+   "kind": "run",
    "export": "lm_radial_word_rsembed_lean.json",
-   "title": "8 · Swap A/B: RS-5k embeddings, lean",
-   "desc": "Through composition the gap nearly closes: top-5 ties SVD-lean, and lean-RS recovers 98.8% of its own fat ceiling vs 82% for SVD. Evolved embeddings are more composable."},
-  {"id": "embed-rs-30k", "date": "2026-07-15", "kind": "embed",
+   "title": "8 Â· Swap A/B: RS-5k embeddings, lean",
+   "desc": "Through composition the gap nearly closes: top-5 ties SVD-lean, and lean-RS recovers 98.8% of its own fat ceiling vs 82% for SVD. Evolved embeddings are more composable."
+  },
+  {
+   "id": "embed-rs-30k",
+   "date": "2026-07-15",
+   "kind": "embed",
    "export": "embed_report_wiki120_30k.json",
-   "title": "9 · RS embedding space rebuilt at 30k words",
-   "desc": "Coverage-confound probe: same corpus, same fitness, 30k vocabulary. The intrinsic spearman gate flipped against RS - and predicted nothing about task value. The task A/B is the real gate."},
-  {"id": "word-rs30k-fat", "date": "2026-07-15", "kind": "run",
+   "title": "9 Â· RS embedding space rebuilt at 30k words",
+   "desc": "Coverage-confound probe: same corpus, same fitness, 30k vocabulary. The intrinsic spearman gate flipped against RS - and predicted nothing about task value. The task A/B is the real gate."
+  },
+  {
+   "id": "word-rs30k-fat",
+   "date": "2026-07-15",
+   "kind": "run",
    "export": "lm_radial_word_rs30k.json",
-   "title": "10 · RS-30k fat: evolved embeddings TIE SVD",
-   "desc": "With coverage matched, the evolved table ties SVD through the flat head (0.3296 vs 0.3276). The entire earlier gap was coverage. Evolution's embeddings equal SVD for linear use, from 120MB vs SVD's full corpus."},
-  {"id": "word-rs30k-lean", "date": "2026-07-15", "kind": "run",
+   "title": "10 Â· RS-30k fat: evolved embeddings TIE SVD",
+   "desc": "With coverage matched, the evolved table ties SVD through the flat head (0.3296 vs 0.3276). The entire earlier gap was coverage. Evolution's embeddings equal SVD for linear use, from 120MB vs SVD's full corpus."
+  },
+  {
+   "id": "word-rs30k-lean",
+   "date": "2026-07-15",
+   "kind": "run",
    "export": "lm_radial_word_rs30k_lean.json",
-   "title": "11 · RS-30k lean: BEST lean model - evolved embeddings beat SVD through composition",
-   "desc": "0.2973 top-1 / 0.5009 top-5 at 1.09M params - beats SVD-lean by +3.0/+5.5 and reaches 90% of its fat ceiling in 3 spaces. Genomes compose better over structure evolution built."}
+   "title": "11 Â· RS-30k lean: BEST lean model - evolved embeddings beat SVD through composition",
+   "desc": "0.2973 top-1 / 0.5009 top-5 at 1.09M params - beats SVD-lean by +3.0/+5.5 and reaches 90% of its fat ceiling in 3 spaces. Genomes compose better over structure evolution built."
+  },
+  {
+   "id": "probe-lean",
+   "date": "2026-07-15",
+   "kind": "run",
+   "export": "lm_probe_lean.json",
+   "title": "12 · PROBE: where the lean model is blind",
+   "desc": "Read-only breakdown of the RS-30k lean checkpoint. The reveal: when the continuation table's own top-5 contains the target (62% of test) the model scores 0.4801; when it does not (38%) it scores 0.0040 - chance. The model never overrides its tables, and the words it misses most are the commonest ones (i, you, the, it), which wider context determines."
+  },
+  {
+   "id": "continue-tablemiss",
+   "date": "2026-07-15",
+   "kind": "run",
+   "export": "lm_radial_word_cont.json",
+   "title": "13 · CONTINUE-TRAIN on the blind spot - method works, repair does not",
+   "desc": "The animation Module-3 warm start ported to language: frozen 285-genome base, new spaces on a 3x table-miss-weighted mix, head refit on the true distribution. No forgetting (has-target class held), overall +0.2, but the miss class barely moved (0.0040 to 0.0056) and evolution went dry after 10 genomes. Finding: continue-training cannot conjure signal the environment does not carry - the miss class needs NEW environment statistics (skip-gram tables, syntax-position profiles), not more search over the same channels."
+  }
  ]
 }
