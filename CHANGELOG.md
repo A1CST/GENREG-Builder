@@ -10,6 +10,15 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-15] (Claude)** — **Rotation ablation: NEUTRAL at this scale.**
+  No-rotation arm (rot_deg=0, same seed/cap): spaces [424, 31], val 0.6538,
+  test 0.6378 vs the rotation arm's [424, 22, 6] / 0.6532 / 0.6390 — the
+  +0.0012 delta is far inside test noise (~±0.0096). Both arms' space 0
+  self-sized at exactly 424 (deterministic R0 confirmed in the wild). Honest
+  reading: deep spaces are too small (22-31 genomes) against a strong R0 for
+  the frame rotation to matter — the binding constraint is that deeper
+  spaces can't earn, rotated or not. Export radial_stack_norot.json
+  (mirrored).
 - **[2026-07-15] (Claude)** — radial_stack: **R0 (space 0) is now cached and
   reused** (user directive — it's deterministic, so train it once). Cache key
   = (seed, pop, gens, max_rounds, n_train, n_test, smoke); the live cap is
