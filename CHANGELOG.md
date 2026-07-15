@@ -10,6 +10,21 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-15] (Claude)** — **Attention line: OOD stress-test module on
+  /animation.** New `dot_ood.py` pushes the frozen tracker + 10-class classifier
+  out of their single training regime along 10 axes and measures degradation
+  (cached-basis inference, gradient-free). Findings: the TRACKER degrades
+  GRACEFULLY with clutter (3→6→10 distractors: 3.36→3.77→4.29px mean error) and
+  is robust to shape scale (small shapes 2.93px, big shapes 3.39px), but it leans
+  on "RED IS UNIQUE" — solid-color background 7.32px, noise background 9.78px,
+  near-red decoys 6.46px, tiny cursor 8.21px are its wall. The CLASSIFIER follows
+  CROP QUALITY: it holds at ~0.64 under 6 distractors but collapses when the crop
+  is corrupted (noise bg 0.13, big cursor occluding the center 0.40, shape too
+  big 0.41 / too small 0.24 for the window, heavy noise 0.17). Honest,
+  interpretable failure — each model learned exactly its regime. New
+  /api/animation/ood route + module (per-condition tracker-error + shape-accuracy
+  bars with a chance marker, and sample frames of the telling failures with the
+  predicted crosshair). **Flask restart needed.** Reproduce: dot_ood.py.
 - **[2026-07-15] (Claude)** — **Interactive Model-1b reworked (was "really
   bad") — mouse-driven, now actually works.** User reported the interactive
   cursor was offset up-left of the mouse and reads were near-random. Root causes

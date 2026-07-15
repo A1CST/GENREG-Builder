@@ -1313,6 +1313,23 @@ def animation_shape():
         return jsonify({"error": f"animation shape failed: {exc}"}), 500
 
 
+@app.route("/api/animation/ood")
+def animation_ood():
+    """Attention thread — out-of-distribution stress tests for the tracker +
+    shape classifier (dot_ood.py export)."""
+    try:
+        import json as _json
+        base = os.path.dirname(os.path.abspath(__file__))
+        for rel in ("radial_data/dot_ood.json", "runpod_shadow/radial_data/dot_ood.json"):
+            p = os.path.join(base, rel)
+            if os.path.exists(p):
+                with open(p) as f:
+                    return jsonify(_json.load(f))
+        return jsonify({"pending": True})
+    except Exception as exc:
+        return jsonify({"error": f"animation ood failed: {exc}"}), 500
+
+
 @app.route("/api/animation/cursor_field")
 def animation_cursor_field():
     """Interactive Model-1b — a random scene + a precomputed grid of the model's

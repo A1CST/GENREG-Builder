@@ -6,6 +6,19 @@ Seeded 2026-07-05 from the main changelog (keyword split, best effort).
 
 ---
 
+## 2026-07-15 (Claude) — OOD stress-test module (tracker + classifier)
+
+`dot_ood.py` pushes the frozen tracker + 10-class classifier out of their single
+training regime along 10 axes (cached-basis inference, gradient-free). The
+TRACKER degrades gracefully with clutter (3→6→10 distractors: 3.36→3.77→4.29px)
+and is robust to shape scale, but leans on "red is unique": solid-color bg
+7.32px, noise bg 9.78px, near-red decoys 6.46px, tiny cursor 8.21px. The
+CLASSIFIER follows crop quality — holds ~0.64 under 6 distractors but collapses
+when the crop is corrupted (noise bg 0.13, big cursor occluding center 0.40,
+shape too big 0.41 / too small 0.24, heavy noise 0.17). New /api/animation/ood
+route + module (per-condition error/accuracy bars + sample failure frames with
+the predicted crosshair). Flask restart needed.
+
 ## 2026-07-15 (Claude) — Interactive Model-1b reworked (was broken)
 
 User: the interactive was "really bad" — cursor offset up-left of the mouse,

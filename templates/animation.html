@@ -439,6 +439,16 @@ live from the checkpoint files, exactly as evolution wrote them</div>
       </div>
     </div>
     <div class="an-note" style="margin-top:0;border-top:none;padding-top:0" id="an-live-note"></div>
+
+    <div class="an-cl" style="margin:18px 0 8px"><b style="color:#dbe2ea;font-size:12.5px">Model 1 &amp;
+      1b · Out-of-distribution</b> — both models were trained in ONE narrow regime (red cursor on a
+      random-color shape over a <b>black</b> background, 3 distractors). Here every axis is pushed
+      out of it. Left bar: the tracker's mean pixel error localizing the cursor (shorter is better).
+      Right bar: the classifier's shape accuracy (chance 10%). The in-distribution row is the
+      reference.</div>
+    <div id="an-ood" style="margin-bottom:10px">loading OOD tests…</div>
+    <div class="an-note" style="margin-top:0;border-top:none;padding-top:0" id="an-ood-note"></div>
+    <div id="an-ood-samples" style="display:flex;flex-wrap:wrap;gap:14px;margin-top:10px"></div>
   </div></main>
 
   <script>
@@ -1481,6 +1491,108 @@ live from the checkpoint files, exactly as evolution wrote them</div>
       });
       load();
     })();
+
+    /* ---- Model 1 & 1b: out-of-distribution stress tests ---- */
+    fetch("/api/animation/ood").then(function (r) { return r.json(); })
+      .then(function (d) {
+        var box = document.getElementById("an-ood");
+        if (d.error) { box.textContent = d.error; return; }
+        if (d.pending || !d.results) { box.textContent = "no OOD run yet — run dot_ood.py"; return; }
+        var maxErr = Math.max.apply(null, d.results.map(function (r) { return r.track_err_px; }));
+        box.innerHTML = "";
+        d.results.forEach(function (r) {
+          var ref = (r.key === "indist");
+          var row = document.createElement("div");
+          row.style.cssText = "display:grid;grid-template-columns:150px 1fr 1fr;gap:10px;" +
+            "align-items:center;padding:3px 6px;border-radius:5px;font-size:11.5px;" +
+            (ref ? "background:#141c24;" : "");
+          var name = document.createElement("div");
+          name.innerHTML = (ref ? "<b style='color:#dbe2ea'>" + r.label + "</b>" : r.label);
+          name.style.color = "#8b95a1";
+          // tracker error bar (shorter = better)
+          var e = document.createElement("div"); e.style.cssText = "display:flex;align-items:center;gap:6px";
+          var eb = document.createElement("div");
+          eb.style.cssText = "height:9px;border-radius:3px;background:#c77a5a;width:" +
+            (r.track_err_px / maxErr * 100).toFixed(0) + "%";
+          var ev = document.createElement("span");
+          ev.style.cssText = "font-family:ui-monospace,monospace;color:#c7d0da;min-width:52px";
+          ev.textContent = r.track_err_px.toFixed(1) + "px";
+          e.appendChild(eb); e.appendChild(ev);
+          // classifier accuracy bar (longer = better), with chance marker
+          var a = document.createElement("div"); a.style.cssText = "display:flex;align-items:center;gap:6px";
+          var awrap = document.createElement("div");
+          awrap.style.cssText = "position:relative;flex:1;height:9px;background:#1c232c;border-radius:3px";
+          var ab = document.createElement("div");
+          ab.style.cssText = "position:absolute;left:0;top:0;height:9px;border-radius:3px;background:#5fd39a;" +
+            "width:" + (r.shape_acc * 100).toFixed(0) + "%";
+          var ch = document.createElement("div");
+          ch.style.cssText = "position:absolute;top:-2px;height:13px;width:1px;background:#647082;left:" +
+            (d.chance * 100).toFixed(0) + "%";
+          awrap.appendChild(ab); awrap.appendChild(ch);
+          var av = document.createElement("span");
+          av.style.cssText = "font-family:ui-monospace,monospace;color:#c7d0da;min-width:36px";
+          av.textContent = (r.shape_acc * 100).toFixed(0) + "%";
+          a.appendChild(awrap); a.appendChild(av);
+          row.appendChild(name); row.appendChild(e); row.appendChild(a);
+          box.appendChild(row);
+        });
+        var hdr = document.createElement("div");
+        hdr.style.cssText = "display:grid;grid-template-columns:150px 1fr 1fr;gap:10px;font-size:10px;" +
+          "color:#647082;padding:0 6px 4px;text-transform:uppercase;letter-spacing:.5px";
+        hdr.innerHTML = "<div></div><div>tracker error (cursor)</div><div>shape accuracy (chance " +
+          Math.round(d.chance * 100) + "%)</div>";
+        box.insertBefore(hdr, box.firstChild);
+        document.getElementById("an-ood-note").innerHTML =
+          "The tracker degrades <b>gracefully with clutter</b> (3 &rarr; 10 distractors costs ~1px) " +
+          "and is robust to shape scale, but it leans on <b>\"red is unique\"</b> — a colored or noisy " +
+          "background and near-red decoys are its wall. The classifier follows <b>crop quality</b>: a " +
+          "big cursor occluding the center, a shape too big or small for the window, or a corrupted " +
+          "background all hurt it. Honest, interpretable failure — the models learned exactly their " +
+          "training regime. Reproduce: <b>dot_ood.py</b>.";
+        // sample frames for a few telling conditions
+        var sbox = document.getElementById("an-ood-samples");
+        var show = ["bgnoise", "nearred", "tinycur", "bigshape"];
+        show.forEach(function (key) {
+          var r = d.results.filter(function (x) { return x.key === key; })[0];
+          var sm = (d.samples || {})[key]; if (!sm || !r) { return; }
+          var card = document.createElement("div");
+          card.style.cssText = "border:1px solid #1c232c;border-radius:8px;padding:8px;background:#0d1117";
+          var cap = document.createElement("div");
+          cap.style.cssText = "font-size:11px;color:#c7d0da;margin-bottom:6px";
+          cap.innerHTML = "<b>" + r.label + "</b> · " + r.track_err_px.toFixed(1) + "px · shape " +
+            Math.round(r.shape_acc * 100) + "%";
+          card.appendChild(cap);
+          var rowc = document.createElement("div"); rowc.style.cssText = "display:flex;gap:6px";
+          sm.slice(0, 2).forEach(function (s) {
+            var S = d.res, wrap = document.createElement("div"); wrap.style.textAlign = "center";
+            var cv = document.createElement("canvas"); cv.width = S; cv.height = S;
+            cv.style.cssText = "width:" + (S * 2) + "px;height:" + (S * 2) +
+              "px;image-rendering:pixelated;border-radius:4px";
+            var g = cv.getContext("2d"), raw = atob(s.frame), img = g.createImageData(S, S);
+            for (var p = 0; p < S * S; p++) {
+              var o = p * 3;
+              img.data[4 * p] = raw.charCodeAt(o); img.data[4 * p + 1] = raw.charCodeAt(o + 1);
+              img.data[4 * p + 2] = raw.charCodeAt(o + 2); img.data[4 * p + 3] = 255;
+            }
+            g.putImageData(img, 0, 0);
+            // true (white ring) and predicted (green crosshair) cursor
+            g.strokeStyle = "rgba(255,255,255,.8)"; g.lineWidth = 0.6;
+            g.beginPath(); g.arc(s.true[0], s.true[1], 3, 0, 6.2832); g.stroke();
+            g.strokeStyle = "#5fd39a"; g.lineWidth = 0.7;
+            g.beginPath();
+            g.moveTo(s.pred[0] - 3, s.pred[1]); g.lineTo(s.pred[0] + 3, s.pred[1]);
+            g.moveTo(s.pred[0], s.pred[1] - 3); g.lineTo(s.pred[0], s.pred[1] + 3); g.stroke();
+            var lab = document.createElement("div");
+            lab.style.cssText = "font-size:9.5px;font-family:ui-monospace,monospace;margin-top:2px;color:" +
+              (s.pred_shape === s.true_shape ? "#5fd39a" : "#e07a6a");
+            lab.textContent = s.pred_shape;
+            wrap.appendChild(cv); wrap.appendChild(lab); rowc.appendChild(wrap);
+          });
+          card.appendChild(rowc); sbox.appendChild(card);
+        });
+      }).catch(function (e) {
+        document.getElementById("an-ood").textContent = "load failed: " + e;
+      });
   })();
   </script>
   <script src="{{ url_for('static', filename='vendor/xterm.js') }}"></script>
