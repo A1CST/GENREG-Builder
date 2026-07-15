@@ -458,7 +458,8 @@ def _r0_cache_path(seed, pop_size, gens, max_rounds, n_train, n_test, smoke,
 
 def run_stacked(pop_size=64, gens=12, max_rounds=200, seed=5, smoke=False,
                 n_train=None, n_test=None, out_path=None, record=True, verbose=True,
-                rot_deg=1.0, r0_cache=True, data_npz=None):
+                rot_deg=1.0, r0_cache=True, data_npz=None,
+                handoff="grid"):
     """Emergent-cap stacked CIFAR grammar evolution. Space 0 = spatial
     grammar-v2 genomes over the patch-PCA environment; deeper spaces = vector
     grammar genomes (terms + gates) over the previous space's outputs. Depth
@@ -500,6 +501,7 @@ def run_stacked(pop_size=64, gens=12, max_rounds=200, seed=5, smoke=False,
     spaces = []
     all_tr, all_te = [], []
     prev_grid_tr = prev_grid_te = None      # (N, C_prev, GRID, GRID) hand-off
+    prev_scal_tr = prev_scal_te = None      # scalar-ablation hand-off
     val_prev = 0.0
 
     for si in range(max_spaces):
@@ -514,7 +516,7 @@ def run_stacked(pop_size=64, gens=12, max_rounds=200, seed=5, smoke=False,
             grid_te_of = lambda g: feature_r0(torch, tp, env, g, test=True,
                                               want_grid=True)
             src = "patch-PCA maps (grammar v2)"
-        else:
+        elif handoff == "grid":
             C_prev = prev_grid_tr.shape[1]
             new_fn = lambda r: new_grid_genome(r, C_prev)
             mut_fn = lambda r, g, sc: mutate_grid_g(r, g, sc, C_prev)
@@ -526,6 +528,17 @@ def run_stacked(pop_size=64, gens=12, max_rounds=200, seed=5, smoke=False,
                                                   want_grid=True)
             src = (f"space {si-1} maps ({C_prev} ch x {GRID}x{GRID} — "
                    f"spatial grammar + gates)")
+        else:                                   # scalar hand-off ablation arm
+            mu = prev_scal_tr.mean(0); sd = prev_scal_tr.std(0) + 1e-6
+            prevF_tr = (prev_scal_tr - mu) / sd
+            prevF_te = (prev_scal_te - mu) / sd
+            F_prev = prevF_tr.shape[1]
+            new_fn = lambda r: new_vec_genome(r, F_prev)
+            mut_fn = lambda r, g, sc: mutate_vec(r, g, sc, F_prev)
+            feat_tr = lambda g: feature_vec(torch, tp, prevF_tr, g)
+            feat_te = lambda g: feature_vec(torch, tp, prevF_te, g)
+            grid_tr_of = grid_te_of = None
+            src = f"space {si-1} outputs ({F_prev} scalars — SCALAR hand-off)"
 
         log(f"  [space {si}] opening — reads {src}", verbose)
         frozen = None
@@ -574,9 +587,14 @@ def run_stacked(pop_size=64, gens=12, max_rounds=200, seed=5, smoke=False,
         with open(tmp, "w") as f:
             json.dump({"spaces": spaces, "seconds": round(time.time() - t0)}, f)
         os.replace(tmp, os.path.join(OUT_DIR, "radial_stack_ckpt.json"))
-        # spatial hand-off: maps, not scalars — "where" survives to the next space
-        prev_grid_tr = torch.stack([grid_tr_of(g) for g in frozen], 1).half()
-        prev_grid_te = torch.stack([grid_te_of(g) for g in frozen], 1).half()
+        # hand-off to the next space
+        if handoff == "grid":
+            # spatial maps, not scalars — "where" survives to the next space
+            prev_grid_tr = torch.stack([grid_tr_of(g) for g in frozen], 1).half()
+            prev_grid_te = torch.stack([grid_te_of(g) for g in frozen], 1).half()
+        else:
+            prev_scal_tr = torch.stack(fcols, 1)
+            prev_scal_te = torch.stack(fte, 1)
         val_prev = val_now
         if si > 0 and gain < MIN_SPACE_GAIN:
             log(f"  [space {si}] gain {gain:.4f} < {MIN_SPACE_GAIN} — the stack "
@@ -599,7 +617,9 @@ def run_stacked(pop_size=64, gens=12, max_rounds=200, seed=5, smoke=False,
            "test_acc": round(best, 4),
            "val_final": spaces[-1]["val_after"] if spaces else 0.0,
            "space_caps": [s["n_frozen"] for s in spaces],
-           "grid": GRID, "handoff": "spatial-grid (representations, not scalars)",
+           "grid": GRID,
+           "handoff": ("spatial-grid (representations, not scalars)"
+                       if handoff == "grid" else "scalar (ablation)"),
            "spaces": spaces,
            "references": {"grammar_v2_record": 0.7035,
                           "v3_freshval_tower": 0.7144,

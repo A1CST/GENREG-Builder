@@ -10,6 +10,19 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-15] (Claude)** — **THE HAND-OFF FIX IS VALIDATED (realigned
+  positional test).** New rule="rel" synth task: ring anchor + satellite
+  motif anywhere (global translation, identity distractors, 1.5x noise);
+  label = OCTANT of satellite relative to ring — pure relative position, no
+  absolute-position feature answers it. A/B with bit-identical cached R0
+  (both space-0 val 0.8462): **scalar hand-off test 0.8503, stack died at 3
+  spaces ([400,159,35], space-2 gain +0.0017); spatial-grid hand-off test
+  0.8700 (+2.0 pts), stack stayed productive through FIVE spaces
+  ([400,148,66,33,20], deep gains +0.0075/+0.0096/+0.0013).** Scalars
+  strangle depth exactly as the user diagnosed; passing (N,C,4,4)
+  representation maps lets deep spaces compare WHERE detections fired.
+  handoff="scalar" kept as the ablation arm. Exports rel_scalar.json /
+  rel_grid.json (mirrored). CIFAR and resnet untouched per directive.
 - **[2026-07-15] (Claude)** — **Hard-rule synth + hand-off A/B + spatial-grid
   port.** (1) Accuracy audit of the synth task found the original rule
   COLLAPSES: (5t+b) mod 10 = 5*(t%2)+b with b<5 — linear over detections;

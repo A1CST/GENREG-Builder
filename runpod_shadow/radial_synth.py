@@ -50,6 +50,8 @@ def make_data(n_train=12000, n_test=3000, seed=0, noise=0.08, rule="hard",
     n = n_train + n_test
     top = rng.integers(0, 5, n)
     bot = rng.integers(0, 5, n)
+    if rule == "rel":
+        return _make_rel(rng, M, n, n_train, n_test, noise, path)
     if rule == "hard":
         y = (top + bot) % 5 + 5 * (top == bot).astype(np.int64)
     else:
@@ -74,3 +76,36 @@ def make_data(n_train=12000, n_test=3000, seed=0, noise=0.08, rule="hard",
 
 if __name__ == "__main__":
     make_data()
+
+
+def _make_rel(rng, M, n, n_train, n_test, noise, path):
+    """rule="rel": a RING anchor + one satellite motif (identity irrelevant),
+    both placed anywhere (global translation). Label = OCTANT of the satellite
+    relative to the ring (8 classes). No absolute-position feature answers it;
+    the class is a translation-invariant RELATIVE relation — conjunctions over
+    two locations are mandatory, which is exactly what a scalar hand-off
+    strips out. Harder perception: noise 1.5x, brightness 0.6-1.0."""
+    y = np.zeros(n, np.int64)
+    X = np.zeros((n, 32, 32), np.float32)
+    sats = np.array([0, 2, 3, 4])
+    for i in range(n):
+        while True:
+            ry, rx = rng.integers(0, 21), rng.integers(0, 21)
+            sy, sx = rng.integers(0, 21), rng.integers(0, 21)
+            dy, dx = sy - ry, sx - rx
+            if dy * dy + dx * dx >= 64:            # min separation 8 px
+                break
+        X[i, ry:ry + 12, rx:rx + 12] += M[1]        # ring anchor
+        X[i, sy:sy + 12, sx:sx + 12] += M[int(rng.choice(sats))]
+        ang = np.arctan2(dy, dx)                    # image coords
+        y[i] = int(((ang + np.pi) // (np.pi / 4))) % 8
+    X = X * rng.uniform(0.6, 1.0, (n, 1, 1)).astype(np.float32)
+    X = X + rng.normal(0, noise * 1.5, X.shape).astype(np.float32)
+    X = np.clip(X, 0, 1)
+    X3 = (np.repeat(X[..., None], 3, axis=3) * 255).astype(np.uint8)
+    np.savez(path,
+             Xtr=X3[:n_train], ytr=y[:n_train],
+             Xte=X3[n_train:], yte=y[n_train:])
+    print(f"synth_rel: {n_train}/{n_test} -> {path} "
+          f"(octant balance {np.bincount(y, minlength=8).tolist()})", flush=True)
+    return path
