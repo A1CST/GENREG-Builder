@@ -64,6 +64,7 @@ MAX_SPACES = 6
 FREEZE_THRESH = 0.0005
 
 CAP_FILE = os.path.join(OUT_DIR, "cap.txt")
+BETA_ON = True     # sharpened-moment gene; False = v3 behavior (plain centroid)
 
 
 def _cap_thresh():
@@ -191,7 +192,15 @@ def _window_pool(torch, z, g):
         wn = wgt / (wgt.max() + 1e-9)
         return (z * wn + (wn - 1.0) * 30.0).amax((1, 2))
     if stat in ("comx", "comy"):
-        w = wgt * torch.abs(z)
+        # sharpened first moment: beta=0 -> plain centroid of |z|; beta high ->
+        # argmax location (the DOMINANT bump only — role separation when a
+        # channel responds to both objects at different strengths)
+        beta = float(g.get("beta", 0.0))
+        zz = torch.abs(z)
+        if beta > 0:
+            zn = (z - z.mean((1, 2), keepdim=True)) / (z.std((1, 2), keepdim=True) + 1e-6)
+            zz = zz * torch.exp(torch.clamp(beta * zn, max=25.0))
+        w = wgt * zz
         wsum = w.sum((1, 2)) + 1e-9
         ax = xs.expand(H, W) if stat == "comx" else ys.expand(H, W)
         return (w * ax).sum((1, 2)) / wsum
@@ -273,6 +282,7 @@ def _new_res_genome(rng, C_prev):
                     for _ in range(1 if rng.random() < 0.6 else 2)],
          "wout": [float(rng.normal(0, 1)) for _ in range(C)],
          "stat": int(rng.integers(5)),
+         "beta": float(rng.uniform(0.0, 6.0)) if BETA_ON else 0.0,
          "cx": float(rng.uniform(0.1, 0.9)), "cy": float(rng.uniform(0.1, 0.9)),
          "lsig": float(rng.uniform(np.log(0.15), np.log(1.5))),
          "gate": None}
@@ -309,6 +319,8 @@ def _mutate_res(rng, g, sc, C_prev):
         c["wout"][i] = float(c["wout"][i] + rng.normal(0, sc))
     if rng.random() < 0.08:
         c["stat"] = int(rng.integers(5))
+    if BETA_ON:
+        c["beta"] = float(np.clip(c.get("beta", 0.0) + rng.normal(0, sc * 4), 0.0, 25.0))
     c["cx"] = float(np.clip(c["cx"] + rng.normal(0, sc * 0.5), 0.0, 1.0))
     c["cy"] = float(np.clip(c["cy"] + rng.normal(0, sc * 0.5), 0.0, 1.0))
     c["lsig"] = float(np.clip(c["lsig"] + rng.normal(0, sc * 0.5),
@@ -364,6 +376,7 @@ def new_grid_genome(rng, C_prev):
                    for _ in range(order)],
          "op": int(rng.integers(len(_OPS))),
          "stat": int(rng.integers(5)),
+         "beta": float(rng.uniform(0.0, 6.0)) if BETA_ON else 0.0,
          "cx": float(rng.uniform(0.1, 0.9)), "cy": float(rng.uniform(0.1, 0.9)),
          "lsig": float(rng.uniform(np.log(0.15), np.log(1.5)))}
     if rng.random() < 0.3:
@@ -396,6 +409,8 @@ def mutate_grid_g(rng, g, sc, C_prev):
                        int(np.clip(t["sh"][1] + rng.integers(-1, 2), -m, m))]
     if rng.random() < 0.08:
         out["stat"] = int(rng.integers(5))
+    if BETA_ON:
+        out["beta"] = float(np.clip(out.get("beta", 0.0) + rng.normal(0, sc * 4), 0.0, 25.0))
     out["cx"] = float(np.clip(g["cx"] + rng.normal(0, sc * 0.5), 0.0, 1.0))
     out["cy"] = float(np.clip(g["cy"] + rng.normal(0, sc * 0.5), 0.0, 1.0))
     out["lsig"] = float(np.clip(g["lsig"] + rng.normal(0, sc * 0.5),
@@ -509,7 +524,8 @@ def _record_run(cfg, hist, stats, log_lines, tags):
 # ---------------------------------------------------------------------------
 
 def _evolve_space(torch, rng, pop_size, gens, max_rounds, n_fit, Yf, yv,
-                  base_prev, new_fn, mut_fn, feat_tr, log, verbose):
+                  base_prev, new_fn, mut_fn, feat_tr, log, verbose,
+                  cap_override=None):
     dev = Yf.device
     frozen, fcols = [], []
     vals = []
@@ -590,7 +606,7 @@ def _evolve_space(torch, rng, pop_size, gens, max_rounds, n_fit, Yf, yv,
         vals.append(float(a1))
         spg = round(starved_total / max(gens, 1), 1)
         wgain = (vals[-1] - vals[-2]) if len(vals) >= 2 else None
-        thresh = _cap_thresh()
+        thresh = cap_override if cap_override is not None else _cap_thresh()
         log(f"    round {rnd:3d}  +{added} (space {len(frozen)})  val {a1:.4f}  "
             f"starved/gen {spg}"
             + (f"  d-val +{wgain:.4f} (cap {thresh:.4f})" if wgain is not None else ""),
@@ -610,21 +626,26 @@ def _evolve_space(torch, rng, pop_size, gens, max_rounds, n_fit, Yf, yv,
 # ---------------------------------------------------------------------------
 
 def _r0_cache_path(seed, pop_size, gens, max_rounds, n_train, n_test, smoke,
-                   data_npz=None):
+                   data_npz=None, r0_cap=None):
     """Space 0 is deterministic given its config, so it is trained once and
     cached. The key covers everything that shapes its evolution EXCEPT the
     live cap threshold — reusing an R0 across cap settings is exactly the
     point (identical substrate for A/B arms)."""
     key = hashlib.sha1(json.dumps(
         [int(seed), int(pop_size), int(gens), int(max_rounds),
-         n_train, n_test, bool(smoke), data_npz or "cifar"]).encode()).hexdigest()[:10]
+         n_train, n_test, bool(smoke), data_npz or "cifar",
+         r0_cap]).encode()).hexdigest()[:10]
     return os.path.join(OUT_DIR, f"radial_stack_r0_{key}.json")
 
 
 def run_stacked(pop_size=64, gens=12, max_rounds=200, seed=5, smoke=False,
                 n_train=None, n_test=None, out_path=None, record=True, verbose=True,
                 rot_deg=1.0, r0_cache=True, data_npz=None,
-                handoff="grid", grid_size=None, max_spaces=None):
+                handoff="grid", grid_size=None, max_spaces=None,
+                r0_cap=0.0002):
+    """r0_cap: space 0's own (lower) saturation threshold — R0 keeps gathering
+    genomes while rounds still earn this much (user: big R0s do amazing;
+    breathing room without grinding to +0.0001). Deep spaces use cap.txt."""
     """Emergent-cap stacked CIFAR grammar evolution. Space 0 = spatial
     grammar-v2 genomes over the patch-PCA environment; deeper spaces = vector
     grammar genomes (terms + gates) over the previous space's outputs. Depth
@@ -729,7 +750,7 @@ def run_stacked(pop_size=64, gens=12, max_rounds=200, seed=5, smoke=False,
         log(f"  [space {si}] opening — reads {src}", verbose)
         frozen = None
         r0_path = _r0_cache_path(seed, pop_size, gens, max_rounds,
-                                 n_train, n_test, smoke, data_npz)
+                                 n_train, n_test, smoke, data_npz, r0_cap)
         if si == 0 and r0_cache and os.path.exists(r0_path):
             with open(r0_path) as f:
                 frozen = json.load(f)["genomes"]
@@ -742,7 +763,8 @@ def run_stacked(pop_size=64, gens=12, max_rounds=200, seed=5, smoke=False,
         if frozen is None:
             frozen, fcols = _evolve_space(torch, rng, pop_size, gens, max_rounds,
                                           n_fit, Yf, yv, base_prev, new_fn, mut_fn,
-                                          feat_tr, log, verbose)
+                                          feat_tr, log, verbose,
+                                          cap_override=(r0_cap if si == 0 else None))
             if si == 0 and r0_cache and frozen:
                 tmp = r0_path + ".tmp"
                 with open(tmp, "w") as f:
