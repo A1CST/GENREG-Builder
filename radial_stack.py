@@ -163,6 +163,118 @@ def _rotate_features(torch, X, deg):
     return X @ R
 
 
+GRID = 4    # coarse spatial resolution passed BETWEEN stacked spaces (per the
+            # resnet hand-off fix): a space emits a (n_genomes, GRID, GRID) map
+            # per image instead of a scalar, so "where" survives into the next
+            # space — scalars were destroying the spatial data between spaces.
+
+
+def _to_grid(torch, z):
+    import torch.nn.functional as Fn
+    return Fn.adaptive_avg_pool2d(z.unsqueeze(1), (GRID, GRID)).squeeze(1)
+
+
+def _window_pool(torch, z, g):
+    """Evolved soft spatial window -> one scalar per image."""
+    H, W = z.shape[1], z.shape[2]
+    ys = torch.linspace(0, 1, H, device=z.device).view(H, 1)
+    xs = torch.linspace(0, 1, W, device=z.device).view(1, W)
+    sig = float(np.exp(g["lsig"]))
+    wgt = torch.exp(-(((xs - g["cx"]) ** 2) + ((ys - g["cy"]) ** 2)) / (2 * sig * sig))
+    stat = ["mean", "max", "std"][g["stat"]]
+    if stat == "max":
+        wn = wgt / (wgt.max() + 1e-9)
+        return (z * wn + (wn - 1.0) * 30.0).amax((1, 2))
+    wsum = wgt.sum() + 1e-9
+    m = (z * wgt).sum((1, 2)) / wsum
+    if stat == "mean":
+        return m
+    var = ((z - m.view(-1, 1, 1)) ** 2 * wgt).sum((1, 2)) / wsum
+    return torch.sqrt(var + 1e-9)
+
+
+def _terms_fold(torch, tp, maps_of, g):
+    """Fold a grammar genome's terms (each a prog over one channel map) into a
+    combined map z. maps_of(c) -> (N, H, W)."""
+    z = None
+    for t in g["terms"]:
+        v = maps_of(t["c"])
+        for prim, a, b in t["prog"]:
+            v = tp[_PRIMS[prim]](a * v + b)
+        if z is None:
+            z = v
+        else:
+            op = _OPS[g["op"]]
+            z = z * v if op == "mult" else (torch.minimum(z, v) if op == "min"
+                                            else torch.abs(z - v))
+    return z
+
+
+def feature_r0(torch, tp, env, g, test=False, want_grid=False):
+    """Grammar-v2 spatial genome over patch-PCA maps, split into combine +
+    readout so the pre-pool map can be handed to the next space spatially."""
+    Mtr, Mte, H, W = env.maps(g["ps"])
+    M = Mte if test else Mtr
+    z = _terms_fold(torch, tp,
+                    lambda c: M[:, c % M.shape[1], :].float().view(len(M), H, W), g)
+    return _to_grid(torch, z) if want_grid else _window_pool(torch, z, g)
+
+
+def new_grid_genome(rng, C_prev):
+    """Grammar genome over a previous space's (C_prev, GRID, GRID) maps —
+    channels are the previous space's genomes; window/stat read out; optional
+    gate routes on a channel's global mean."""
+    order = 2 if rng.random() < 0.7 else 3
+    g = {"terms": [{"c": int(rng.integers(C_prev)),
+                    "prog": [(int(rng.integers(len(_PRIMS))),
+                              float(rng.uniform(0.5, 2.5)),
+                              float(rng.uniform(-1, 1)))
+                             for _ in range(1 if rng.random() < 0.7 else 2)]}
+                   for _ in range(order)],
+         "op": int(rng.integers(len(_OPS))),
+         "stat": int(rng.integers(3)),
+         "cx": float(rng.uniform(0.1, 0.9)), "cy": float(rng.uniform(0.1, 0.9)),
+         "lsig": float(rng.uniform(np.log(0.15), np.log(1.5)))}
+    if rng.random() < 0.3:
+        g["gate"] = {"c": int(rng.integers(C_prev)),
+                     "prog": [(int(rng.integers(len(_PRIMS))),
+                               float(rng.uniform(0.5, 2.5)),
+                               float(rng.uniform(-1, 1)))],
+                     "k": float(rng.uniform(0.5, 3.0))}
+    else:
+        g["gate"] = None
+    return g
+
+
+def mutate_grid_g(rng, g, sc, C_prev):
+    c = mutate_vec(rng, {k: g[k] for k in ("terms", "op", "gate")}, sc, C_prev)
+    out = dict(g)
+    out.update(c)
+    if rng.random() < 0.08:
+        out["stat"] = int(rng.integers(3))
+    out["cx"] = float(np.clip(g["cx"] + rng.normal(0, sc * 0.5), 0.0, 1.0))
+    out["cy"] = float(np.clip(g["cy"] + rng.normal(0, sc * 0.5), 0.0, 1.0))
+    out["lsig"] = float(np.clip(g["lsig"] + rng.normal(0, sc * 0.5),
+                                np.log(0.05), np.log(3.0)))
+    return out
+
+
+def feature_grid_g(torch, tp, gridT, g, want_grid=False):
+    """Grammar genome over the previous space's (N, C_prev, GRID, GRID) maps —
+    stacking REPRESENTATIONS, not scalars."""
+    z = _terms_fold(torch, tp,
+                    lambda c: gridT[:, c % gridT.shape[1]].float(), g)
+    gt = g.get("gate")
+    if gt:
+        gv = gridT[:, gt["c"] % gridT.shape[1]].float().mean((1, 2))
+        for prim, a, b in gt["prog"]:
+            gv = tp[_PRIMS[prim]](a * gv + b)
+        gz = (gv - gv.mean()) / (gv.std() + 1e-9)
+        gate = torch.sigmoid(gt["k"] * gz)
+        z = z * gate.view(-1, 1, 1)
+    return z if want_grid else _window_pool(torch, z, g)
+
+
 def feature_vec(torch, tp, prevF, g):
     """Vector grammar genome over prevF (N, F_prev) z-scored -> (N,)."""
     z = None
@@ -387,7 +499,7 @@ def run_stacked(pop_size=64, gens=12, max_rounds=200, seed=5, smoke=False,
 
     spaces = []
     all_tr, all_te = [], []
-    prev_tr = prev_te = None
+    prev_grid_tr = prev_grid_te = None      # (N, C_prev, GRID, GRID) hand-off
     val_prev = 0.0
 
     for si in range(max_spaces):
@@ -396,25 +508,24 @@ def run_stacked(pop_size=64, gens=12, max_rounds=200, seed=5, smoke=False,
         if si == 0:
             new_fn = new_genome
             mut_fn = lambda r, g, sc: mutate(r, g, sc)
-            feat_tr = lambda g: feature(torch, tp, env, g)
-            feat_te = lambda g: feature(torch, tp, env, g, test=True)
+            feat_tr = lambda g: feature_r0(torch, tp, env, g)
+            feat_te = lambda g: feature_r0(torch, tp, env, g, test=True)
+            grid_tr_of = lambda g: feature_r0(torch, tp, env, g, want_grid=True)
+            grid_te_of = lambda g: feature_r0(torch, tp, env, g, test=True,
+                                              want_grid=True)
             src = "patch-PCA maps (grammar v2)"
         else:
-            mu = prev_tr.mean(0); sd = prev_tr.std(0) + 1e-6
-            prevF_tr = (prev_tr - mu) / sd
-            prevF_te = (prev_te - mu) / sd
-            rot = si * rot_deg          # R_k rotated by k degrees (R0=0, R1=1, ...)
-            rot_note = ""
-            if rot:
-                prevF_tr = _rotate_features(torch, prevF_tr, rot)
-                prevF_te = _rotate_features(torch, prevF_te, rot)
-                rot_note = f", rotated {rot}°"
-            F_prev = prevF_tr.shape[1]
-            new_fn = lambda r: new_vec_genome(r, F_prev)
-            mut_fn = lambda r, g, sc: mutate_vec(r, g, sc, F_prev)
-            feat_tr = lambda g: feature_vec(torch, tp, prevF_tr, g)
-            feat_te = lambda g: feature_vec(torch, tp, prevF_te, g)
-            src = f"space {si-1} outputs ({F_prev} feats{rot_note}, vector grammar + gates)"
+            C_prev = prev_grid_tr.shape[1]
+            new_fn = lambda r: new_grid_genome(r, C_prev)
+            mut_fn = lambda r, g, sc: mutate_grid_g(r, g, sc, C_prev)
+            feat_tr = lambda g: feature_grid_g(torch, tp, prev_grid_tr, g)
+            feat_te = lambda g: feature_grid_g(torch, tp, prev_grid_te, g)
+            grid_tr_of = lambda g: feature_grid_g(torch, tp, prev_grid_tr, g,
+                                                  want_grid=True)
+            grid_te_of = lambda g: feature_grid_g(torch, tp, prev_grid_te, g,
+                                                  want_grid=True)
+            src = (f"space {si-1} maps ({C_prev} ch x {GRID}x{GRID} — "
+                   f"spatial grammar + gates)")
 
         log(f"  [space {si}] opening — reads {src}", verbose)
         frozen = None
@@ -463,8 +574,9 @@ def run_stacked(pop_size=64, gens=12, max_rounds=200, seed=5, smoke=False,
         with open(tmp, "w") as f:
             json.dump({"spaces": spaces, "seconds": round(time.time() - t0)}, f)
         os.replace(tmp, os.path.join(OUT_DIR, "radial_stack_ckpt.json"))
-        prev_tr = torch.stack(fcols, 1)
-        prev_te = torch.stack(fte, 1)
+        # spatial hand-off: maps, not scalars — "where" survives to the next space
+        prev_grid_tr = torch.stack([grid_tr_of(g) for g in frozen], 1).half()
+        prev_grid_te = torch.stack([grid_te_of(g) for g in frozen], 1).half()
         val_prev = val_now
         if si > 0 and gain < MIN_SPACE_GAIN:
             log(f"  [space {si}] gain {gain:.4f} < {MIN_SPACE_GAIN} — the stack "
@@ -487,7 +599,7 @@ def run_stacked(pop_size=64, gens=12, max_rounds=200, seed=5, smoke=False,
            "test_acc": round(best, 4),
            "val_final": spaces[-1]["val_after"] if spaces else 0.0,
            "space_caps": [s["n_frozen"] for s in spaces],
-           "rot_deg_per_space": rot_deg,
+           "grid": GRID, "handoff": "spatial-grid (representations, not scalars)",
            "spaces": spaces,
            "references": {"grammar_v2_record": 0.7035,
                           "v3_freshval_tower": 0.7144,

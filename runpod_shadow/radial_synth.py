@@ -39,14 +39,21 @@ def _motifs():
     return m
 
 
-def make_data(n_train=12000, n_test=3000, seed=0, noise=0.08,
+def make_data(n_train=12000, n_test=3000, seed=0, noise=0.08, rule="hard",
               path=os.path.join(_HERE, "radial_data", "synth_hier.npz")):
+    """rule="easy": y = (5t+b) mod 10 — COLLAPSES to 5*(t mod 2)+b, linear over
+    detectors (kept for harness smoke tests). rule="hard": y = (t+b) mod 5 +
+    5*[t==b] — cyclic addition + equality, provably NOT additively separable
+    over one-hot detections: composition is mandatory."""
     rng = np.random.default_rng(seed)
     M = _motifs()
     n = n_train + n_test
     top = rng.integers(0, 5, n)
     bot = rng.integers(0, 5, n)
-    y = (5 * top + bot) % 10
+    if rule == "hard":
+        y = (top + bot) % 5 + 5 * (top == bot).astype(np.int64)
+    else:
+        y = (5 * top + bot) % 10
     X = np.zeros((n, 32, 32), np.float32)
     for i in range(n):
         oy, ox = rng.integers(0, 5), rng.integers(0, 21)   # top-half placement
