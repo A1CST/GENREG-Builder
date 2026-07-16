@@ -6,6 +6,13 @@ Seeded 2026-07-05 from the main changelog (keyword split, best effort).
 
 ---
 
+- **[2026-07-16] (Claude)** — **C5: cloze data scaling works - 0.1516 top-1 /
+  0.3273 top-5 at 50k phrases (61%/69% of the table ceiling, up from
+  57%/62%).** The bag baseline rose most (linear ear content feeds on
+  data); composition thin (5 genomes). Infra: word_feats slot banks now
+  park in system RAM (4x26GB on-GPU OOMed at 50k). Module 23 on /lm.
+  C6 at 100k phrases launching - the last per-slot-GPU-bank scale step.
+
 - **[2026-07-16] (Claude)** — **C4: ear-capacity NULL + the cloze ceiling.**
   128-dim directional ears: 0.1384/0.2850, slightly below 64-dim
   (0.1418/0.2952) - capacity ruled out as the bottleneck. Then the missing

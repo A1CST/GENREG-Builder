@@ -176,6 +176,14 @@
    "export": "kid_stageC4.json",
    "title": "22 · C4: ear capacity ruled out + the ceiling that reframes the gate",
    "desc": "Directional ears scaled 64->128 dims: 0.1384/0.2850 - slightly BELOW the 64-dim run. Capacity is not the bottleneck. Then the reference we never had: perfect symbolic tables (tri/bi/uni, vocab-restricted) score 0.2494 top-1 / 0.4728 top-5 on this exact cloze set. The evolution-made kid (0.1418/0.2952) runs at 57-62% of the table ceiling - from raw pixels and evolution-bred experience only. The gate question is now calibrated: is 60%-of-ceiling a pass, or do we close the gap (the kid also sees RIGHT context, which the tables cannot - headroom above the ceiling exists in principle)."
+  },
+  {
+   "id": "kid-stage-c5",
+   "date": "2026-07-16",
+   "kind": "run",
+   "export": "kid_stageC5.json",
+   "title": "23 · C5: data scaling works - 0.1516 / 0.3273, 61% / 69% of the ceiling",
+   "desc": "2.5x the cloze experience (50k phrases): +1.0 top-1 / +3.2 top-5 over C3. The bag baseline rose most (0.1190 -> 0.1421 val) - the ears' linear content feeds on data. Gap to the table ceiling now 61% top-1 / 69% top-5. C6 at 100k phrases launching (the last scale step before per-slot GPU banks need chunking). Infra: slot banks now park in the pod's 1.5TB system RAM (4 x 26GB on-GPU OOMed at 50k)."
   }
  ]
 }

@@ -527,13 +527,15 @@ def stage_c(pop_size=64, gens=12, max_rounds=400, seed=9, max_spaces=8,
             g8 = rk.feature_r0(torch, tp, env, A[k], test=test,
                                want_grid=True).view(N, P_C, L_MAX, G, G)
             for s in range(P_C):
+                # park on CPU (pods carry 1.5TB RAM); 4 slot banks on GPU
+                # simultaneously OOMs at 50k phrases (4 x 26GB)
                 slot_parts[s][k] = g8[:, s].reshape(
-                    N, L_MAX, G, G).half().clone()
+                    N, L_MAX, G, G).half().cpu()
             del g8
         torch.cuda.empty_cache()
         out_slots = []
         for s in range(P_C):
-            a_bank = torch.cat(slot_parts[s], 1)
+            a_bank = torch.cat(slot_parts[s], 1).to(dev)
             slot_parts[s] = None
             cols, bank = [], a_bank
             for sp in B:
