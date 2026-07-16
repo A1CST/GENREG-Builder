@@ -10,6 +10,22 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-16] (Claude)** — **MULTIMODAL HARD TEST: modality separation
+  survives look-alikes + heavy degradation.** Re-tested the fused shape+letter
+  model under real difficulty (small 4.5-7.5px shapes / 10-18px letters, noise
+  0.12, +-20 deg rotation, brightness 0.4-1.0) + an OOD arm (UPPERCASE letters,
+  trained lowercase). mm_hard.py. Now nothing is at ceiling: FUSED hard-test
+  0.7056 (shapes 0.852, letters 0.649) vs shape-only 0.524, letter-only 0.672 -
+  **fusion still wins**. The headline: **modality accuracy 0.998** and only
+  **0.75% of errors cross the shape/letter boundary** even under this
+  degradation. Cross-modal look-alike probe (circle/ring/hexagon vs 'o',
+  crescent vs 'c', xcross vs 'x'): every look-alike shape is called a letter
+  **0.000** of the time - when it misses a small rotated circle (0.560) it
+  confuses it with OTHER ROUND SHAPES (ring/hexagon), never the letter 'o'. So
+  the fused features separate the modalities crisply even where humans would
+  hesitate; within-modality fine detail is where it honestly degrades. OOD
+  uppercase 0.449 (letters genuinely different glyphs; shapes carry it). ->
+  multimodal/mm_hard_result.json.
 - **[2026-07-15] (Claude)** — **MULTIMODAL MERGE works: one head reads both
   SHAPES and LETTERS at 99.5%.** Fused two frozen, gradient-free radial banks -
   the shape recognizer (dot_shape_model.json, 634 genomes, 20px crops) and the

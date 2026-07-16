@@ -1,0 +1,106 @@
+{
+ "experiment": "multimodal HARD test (small/noisy/rotated + OOD uppercase)",
+ "n_classes": 36,
+ "chance": 0.0278,
+ "n_train": 5400,
+ "n_test": 1800,
+ "banks": {
+  "shape-only": {
+   "hard_test": {
+    "set": "hard-test",
+    "overall": 0.5244,
+    "shapes": 0.798,
+    "letters": 0.4192,
+    "modality_acc": 0.9972,
+    "cross_modal_of_errors": 0.0058
+   },
+   "ood_upper": {
+    "set": "OOD-uppercase",
+    "overall": 0.39,
+    "shapes": 0.81,
+    "letters": 0.2285,
+    "modality_acc": 0.9839,
+    "cross_modal_of_errors": 0.0264
+   }
+  },
+  "letter-only": {
+   "hard_test": {
+    "set": "hard-test",
+    "overall": 0.6717,
+    "shapes": 0.83,
+    "letters": 0.6108,
+    "modality_acc": 0.9956,
+    "cross_modal_of_errors": 0.0135
+   },
+   "ood_upper": {
+    "set": "OOD-uppercase",
+    "overall": 0.4339,
+    "shapes": 0.846,
+    "letters": 0.2754,
+    "modality_acc": 0.9789,
+    "cross_modal_of_errors": 0.0373
+   }
+  },
+  "FUSED": {
+   "hard_test": {
+    "set": "hard-test",
+    "overall": 0.7056,
+    "shapes": 0.852,
+    "letters": 0.6492,
+    "modality_acc": 0.9978,
+    "cross_modal_of_errors": 0.0075
+   },
+   "ood_upper": {
+    "set": "OOD-uppercase",
+    "overall": 0.4494,
+    "shapes": 0.846,
+    "letters": 0.2969,
+    "modality_acc": 0.9972,
+    "cross_modal_of_errors": 0.005
+   }
+  }
+ },
+ "lookalikes": [
+  {
+   "shape": "circle",
+   "vs_letter": "o",
+   "n": 50,
+   "correct": 0.56,
+   "called_that_letter": 0.0,
+   "called_any_letter": 0.0
+  },
+  {
+   "shape": "ring",
+   "vs_letter": "o",
+   "n": 50,
+   "correct": 0.94,
+   "called_that_letter": 0.0,
+   "called_any_letter": 0.0
+  },
+  {
+   "shape": "hexagon",
+   "vs_letter": "o",
+   "n": 50,
+   "correct": 0.62,
+   "called_that_letter": 0.0,
+   "called_any_letter": 0.0
+  },
+  {
+   "shape": "crescent",
+   "vs_letter": "c",
+   "n": 50,
+   "correct": 0.98,
+   "called_that_letter": 0.0,
+   "called_any_letter": 0.0
+  },
+  {
+   "shape": "xcross",
+   "vs_letter": "x",
+   "n": 50,
+   "correct": 1.0,
+   "called_that_letter": 0.0,
+   "called_any_letter": 0.0
+  }
+ ],
+ "seconds": 15
+}
