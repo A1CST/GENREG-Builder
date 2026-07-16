@@ -10,6 +10,24 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-15] (Claude)** — **MULTIMODAL MERGE works: one head reads both
+  SHAPES and LETTERS at 99.5%.** Fused two frozen, gradient-free radial banks -
+  the shape recognizer (dot_shape_model.json, 634 genomes, 20px crops) and the
+  kid-curriculum LETTER recognizer (kid_modelA.json, 597 genomes, 32px tiles,
+  0.996 solo) - into ONE 36-class classifier (10 shapes + 26 letters). They
+  can't share a patch-PCA basis, so LATE FUSION: run each model in its OWN
+  Env/basis at its native scale (cached-basis projector), concatenate the two
+  feature banks per image, fit ONE closed-form ridge head. No genome retrained.
+  Result (n=140/class, held-out test): shape-bank-only 0.944 (shapes 1.0,
+  letters 0.923), letter-bank-only 0.980, **FUSED 0.9946 (shapes 1.000, letters
+  0.9925)** - fusion beats either bank, the two evolved perceptions are
+  complementary. Notable cross-modal finding: each bank alone already carries the
+  OTHER modality well (shape genomes classify letters ~0.92; letter genomes
+  classify shapes 1.0) - generic evolved radial features transfer across
+  modalities. New mm_merge.py; merged model saved as multimodal/mm_model.json
+  (loadable 36-class head). All models backed up first
+  (backups/models_20260715-195530/). Answers the user's question: yes, a
+  multimodal model is buildable here by fusing frozen banks.
 - **[2026-07-15] (Claude)** — **Stage C2: EARS attached (the RS-evolved
   semantic layer as listening experience) - cloze DOUBLES to 0.1212 top-1
   / 0.2684 top-5 (baseline 0.0608 -> 0.1085) but the gate still fails and

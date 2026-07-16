@@ -40,3 +40,10 @@ radial_data/
 
 # Terminal transcripts (Ghostwriter)
 terminal_logs/
+
+# multimodal merge: keep code+result, model artifacts regenerable
+multimodal/dot_shape_model.json
+multimodal/kid_modelA.json
+multimodal/kid_modelB.json
+multimodal/mm_model.json
+backups/

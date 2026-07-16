@@ -6,6 +6,14 @@ Seeded 2026-07-05 from the main changelog (keyword split, best effort).
 
 ---
 
+- **[2026-07-15] (Claude)** — **Multimodal merge: the kid LETTER recognizer
+  (kid_modelA.json, Stage A, 0.996 solo) fused with the vision SHAPE recognizer
+  into ONE 36-class classifier.** Late fusion (each frozen bank in its own basis
+  at its native scale, concat, one closed-form head): FUSED test 0.9946 (shapes
+  1.000, letters 0.9925); fusion beats either bank alone. Cross-modal: the shape
+  bank alone reads letters ~0.92 and the letter bank reads shapes 1.0 - evolved
+  radial features transfer across modalities. mm_merge.py; merged model at
+  multimodal/mm_model.json. No genome retrained; all models backed up first.
 - **[2026-07-15] (Claude)** — **Stage C2: EARS attached (the RS-evolved
   semantic layer as listening experience) - cloze DOUBLES to 0.1212 top-1
   / 0.2684 top-5 (baseline 0.0608 -> 0.1085) but the gate still fails and
