@@ -6,6 +6,17 @@ Seeded 2026-07-05 from the main changelog (keyword split, best effort).
 
 ---
 
+- **[2026-07-16] (Claude)** — **C4: ear-capacity NULL + the cloze ceiling.**
+  128-dim directional ears: 0.1384/0.2850, slightly below 64-dim
+  (0.1418/0.2952) - capacity ruled out as the bottleneck. Then the missing
+  reference: symbolic tables (tri/bi/uni, vocab-restricted, left context)
+  score **0.2494 top-1 / 0.4728 top-5** on the same cloze set. REFRAME:
+  the fully evolution-made kid runs at 57-62% of the table ceiling from
+  pixels + bred experience alone; the absolute gate bar never existed.
+  Note: the kid sees RIGHT context too (tables cannot), so ceiling-plus is
+  possible in principle. Module 22 on /lm. Decision for the user: call
+  60%-of-ceiling a C-gate pass and open Stage D, or close the gap first.
+
 - **[2026-07-16] (Claude)** — **Stage C3: SEQUENCE EARS - evolution earns on
   the semantic stage for the first time. Cloze 0.1418 top-1 / 0.2952 top-5.**
   Built two directional RS layers on pod #3 (pod #2 died overnight;

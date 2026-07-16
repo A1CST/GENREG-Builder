@@ -168,6 +168,14 @@
    "export": "kid_stageC3.json",
    "title": "21 · Stage C3: sequence ears - evolution EARNS on semantics for the first time. 0.1418 / 0.2952",
    "desc": "Two new evolution-bred ears join: embed_rs_next (genomes separating words by what FOLLOWS them - numbers cluster perfectly, speech verbs together) and embed_rs_prev (by what PRECEDES - openly grammatical: past-tense verbs cluster, the-determiner nouns cluster). The ear ladder on cloze: deaf 0.0668 -> similarity 0.1212 -> +sequence 0.1418 top-1 / 0.2952 top-5 (71x chance) - and for the first time on the semantic stage, composition genomes froze (10). The gate is still shy of decisive; the named next lever: scale the directional ears (64 -> 128+ dims) or evolve pair-context continuation ears."
+  },
+  {
+   "id": "kid-stage-c4",
+   "date": "2026-07-16",
+   "kind": "run",
+   "export": "kid_stageC4.json",
+   "title": "22 · C4: ear capacity ruled out + the ceiling that reframes the gate",
+   "desc": "Directional ears scaled 64->128 dims: 0.1384/0.2850 - slightly BELOW the 64-dim run. Capacity is not the bottleneck. Then the reference we never had: perfect symbolic tables (tri/bi/uni, vocab-restricted) score 0.2494 top-1 / 0.4728 top-5 on this exact cloze set. The evolution-made kid (0.1418/0.2952) runs at 57-62% of the table ceiling - from raw pixels and evolution-bred experience only. The gate question is now calibrated: is 60%-of-ceiling a pass, or do we close the gap (the kid also sees RIGHT context, which the tables cannot - headroom above the ceiling exists in principle)."
   }
  ]
 }
