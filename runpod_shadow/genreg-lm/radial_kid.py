@@ -560,17 +560,49 @@ def stage_c(pop_size=64, gens=12, max_rounds=400, seed=9, max_spaces=8,
 
     ears_tag = ""
     if ears:
-        ze = np.load(os.path.join(RD, "embed_rs.npz"), allow_pickle=True)
-        E = torch.tensor(ze["feat"].astype(np.float32), device=dev)
-        zc = np.load(os.path.join(RD, "kid_cloze.npz"))
+        # three evolved ears: similarity (what words mean like), and the
+        # DIRECTIONAL pair - next (what follows a word) and prev (what
+        # precedes it) - sequence experience, all evolution-made. Vocab
+        # can differ per table; look up by word string.
+        tables = []
+        names = [("embed_rs.npz", "sim"), ("embed_rs_next.npz", "next"),
+                 ("embed_rs_prev.npz", "prev")]
+        for fn, nm in names:
+            fp = os.path.join(RD, fn)
+            if os.path.exists(fp):
+                ze = np.load(fp, allow_pickle=True)
+                v2 = {str(w): i for i, w in enumerate(ze["vocab"])}
+                tables.append((nm, v2,
+                               torch.tensor(ze["feat"].astype(np.float32),
+                                            device=dev)))
+        zc = np.load(os.path.join(RD, "kid_cloze.npz"), allow_pickle=True)
+        # RS-vocab id -> word string (ctx ids index the SIM table's vocab)
+        ze0 = np.load(os.path.join(RD, "embed_rs.npz"), allow_pickle=True)
+        rs_words = [str(w) for w in ze0["vocab"]]
 
         def ear_bank(ctx):
-            idx = torch.tensor(np.maximum(ctx.astype(np.int64), 0),
-                               device=dev)
-            msk = torch.tensor((ctx >= 0).astype(np.float32), device=dev)
-            cols = [E[idx[:, s]] * msk[:, s:s + 1] for s in range(P_C)]
-            eb = torch.cat(cols, 1)
-            return eb
+            N = len(ctx)
+            parts = []
+            for nm, v2, E in tables:
+                D_ = E.shape[1]
+                block = torch.zeros((N, P_C * D_), device=dev)
+                for s in range(P_C):
+                    ids = ctx[:, s]
+                    rows, feats = [], []
+                    for i in range(N):
+                        if ids[i] >= 0:
+                            j = v2.get(rs_words[ids[i]])
+                            if j is not None:
+                                rows.append(i)
+                                feats.append(j)
+                    if rows:
+                        block[torch.tensor(rows, device=dev,
+                                           dtype=torch.long),
+                              s * D_:(s + 1) * D_] = E[
+                            torch.tensor(feats, device=dev,
+                                         dtype=torch.long)]
+                parts.append(block)
+            return torch.cat(parts, 1)
 
         eb_tr = ear_bank(zc["ctr"])
         emu, esd = eb_tr.mean(0), eb_tr.std(0) + 1e-6
@@ -578,9 +610,9 @@ def stage_c(pop_size=64, gens=12, max_rounds=400, seed=9, max_spaces=8,
         eb_te = ((ear_bank(zc["cte"]) - emu) / esd).clamp(-8, 8)
         bank_tr = torch.cat([bank_tr, eb_tr], 1)
         bank_te = torch.cat([bank_te, eb_te], 1)
-        ears_tag = "2"
-        log(f"[C2] ears attached: +{eb_tr.shape[1]} RS semantic channels "
-            f"(observed words only; the blank stays unknown)")
+        ears_tag = "3" if len(tables) == 3 else "2"
+        log(f"[C{ears_tag}] ears attached: +{eb_tr.shape[1]} channels from "
+            f"{[t[0] for t in tables]} (observed words only)")
 
     # warm base: orderless bag of word features (mean over slots)
     bag_tr = torch.stack(wf_tr, 2).mean(2)
@@ -703,7 +735,12 @@ def stage_c(pop_size=64, gens=12, max_rounds=400, seed=9, max_spaces=8,
 
 if __name__ == "__main__":
     import sys
-    if "C2" in sys.argv:
+    if "C3" in sys.argv:
+        if not os.path.exists(os.path.join(RD, "kid_words.npz")):
+            make_words_b()
+        make_cloze_c()
+        stage_c(ears=True)
+    elif "C2" in sys.argv:
         make_cloze_c()                        # regen: ctx ids now stored
         stage_c(ears=True)
     elif "C" in sys.argv:

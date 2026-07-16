@@ -43,8 +43,12 @@ N_PAIRS = 20000                   # sampled pairs for fitness/eval
 
 
 def build_profiles(seed=0, corpus=CORPUS, offset=30_000_000,
-                   span_mb=16.0):
-    """Word x context PPMI profiles from a corpus slice."""
+                   span_mb=16.0, mode="window"):
+    """Word x context PPMI profiles from a corpus slice.
+    mode="window": symmetric +-WIN co-occurrence (semantic similarity).
+    mode="next":   the word AFTER only - separates words by what FOLLOWS
+                   them (sequence experience, the continuation ear).
+    mode="prev":   the word BEFORE only."""
     with open(corpus, "r", encoding="utf-8", errors="ignore") as f:
         f.seek(offset)
         text = _clean(f.read(int(span_mb * 1_000_000)))
@@ -57,11 +61,18 @@ def build_profiles(seed=0, corpus=CORPUS, offset=30_000_000,
     w2i = {w: i for i, w in enumerate(vocab)}
     c2i = {w: i for i, w in enumerate(ctx_words)}
     M = np.zeros((N_WORDS, K_CTX), np.float32)
+    if mode == "window":
+        rng_js = lambda i: range(max(0, i - WIN),
+                                 min(len(toks), i + WIN + 1))
+    elif mode == "next":
+        rng_js = lambda i: range(i + 1, min(len(toks), i + 2))
+    else:
+        rng_js = lambda i: range(max(0, i - 1), i)
     for i, w in enumerate(toks):
         wi = w2i.get(w)
         if wi is None:
             continue
-        for j in range(max(0, i - WIN), min(len(toks), i + WIN + 1)):
+        for j in rng_js(i):
             if j == i:
                 continue
             cj = c2i.get(toks[j])
@@ -76,7 +87,8 @@ def build_profiles(seed=0, corpus=CORPUS, offset=30_000_000,
 
 
 def run(pop_size=96, gens=10, seed=5, out_path=None, verbose=True,
-        corpus=CORPUS, offset=30_000_000, span_mb=16.0):
+        corpus=CORPUS, offset=30_000_000, span_mb=16.0, mode="window",
+        n_dims=None, npz_name="embed_rs.npz"):
     import torch
     torch.backends.cuda.matmul.allow_tf32 = False
     dev = "cuda" if torch.cuda.is_available() else "cpu"
@@ -89,7 +101,11 @@ def run(pop_size=96, gens=10, seed=5, out_path=None, verbose=True,
         log_lines.append(m)
         print(m, flush=True)
 
-    vocab, P = build_profiles(corpus=corpus, offset=offset, span_mb=span_mb)
+    global N_DIMS
+    if n_dims:
+        N_DIMS = int(n_dims)
+    vocab, P = build_profiles(corpus=corpus, offset=offset,
+                              span_mb=span_mb, mode=mode)
     N = len(vocab)
     # split channels: genomes see A; evaluation similarity comes from B
     perm = rng.permutation(K_CTX)
@@ -230,7 +246,7 @@ def run(pop_size=96, gens=10, seed=5, out_path=None, verbose=True,
     op = out_path or os.path.join(_HERE, "radial_data", "embed_report.json")
     with open(op, "w") as f:
         json.dump(out, f, indent=1)
-    np.savez(os.path.join(_HERE, "radial_data", "embed_rs.npz"),
+    np.savez(os.path.join(_HERE, "radial_data", npz_name),
              vocab=np.array(vocab),
              feat=Ez.cpu().numpy().astype(np.float32))
     with open(os.path.join(_HERE, "radial_data", "embed_rs_model.json"),

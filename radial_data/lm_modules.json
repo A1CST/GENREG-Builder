@@ -160,6 +160,14 @@
    "export": "kid_stageC2.json",
    "title": "20 · Stage C2: the kid gets EARS - cloze doubles (0.1212) but the gate holds",
    "desc": "The RS-evolved semantic space (evolution's own 30k-word layer) attached as 512 ear channels on the observed context words; the blank stays unknown. Cloze 0.0668 -> 0.1212 top-1 / 0.2684 top-5 (61x chance) - real signal, still no pass, and evolution again earned zero composition. The sharpened diagnosis: the ears carry SIMILARITY (what words mean like) but cloze needs SEQUENCE experience (what follows what). A kid's listening includes heard word-order. Next design question: an evolved continuation layer (RS-style, but separating contexts by what follows them) as the second ear."
+  },
+  {
+   "id": "kid-stage-c3",
+   "date": "2026-07-16",
+   "kind": "run",
+   "export": "kid_stageC3.json",
+   "title": "21 · Stage C3: sequence ears - evolution EARNS on semantics for the first time. 0.1418 / 0.2952",
+   "desc": "Two new evolution-bred ears join: embed_rs_next (genomes separating words by what FOLLOWS them - numbers cluster perfectly, speech verbs together) and embed_rs_prev (by what PRECEDES - openly grammatical: past-tense verbs cluster, the-determiner nouns cluster). The ear ladder on cloze: deaf 0.0668 -> similarity 0.1212 -> +sequence 0.1418 top-1 / 0.2952 top-5 (71x chance) - and for the first time on the semantic stage, composition genomes froze (10). The gate is still shy of decisive; the named next lever: scale the directional ears (64 -> 128+ dims) or evolve pair-context continuation ears."
   }
  ]
 }

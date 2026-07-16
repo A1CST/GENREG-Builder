@@ -10,6 +10,17 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-16] (Claude)** — **Stage C3: SEQUENCE EARS - evolution earns on
+  the semantic stage for the first time. Cloze 0.1418 top-1 / 0.2952 top-5.**
+  Built two directional RS layers on pod #3 (pod #2 died overnight;
+  everything restored from shadows, zero loss, new pod staged in 4 min):
+  embed_rs_next (words separated by what FOLLOWS: three->five two seven
+  six eight four) and embed_rs_prev (by what PRECEDES - grammatical:
+  said->killed found separated caught kept). Ear ladder: deaf 0.0668 ->
+  sim 0.1212 -> +seq 0.1418; composition genomes froze (10) after three
+  zero-earn attempts. Intrinsic gates below SVD but the 30k lesson holds
+  (task A/B is the gate). Module 21 on /lm. Next lever: scale directional
+  ears (64->128+ dims) or pair-context continuation ears.
 - **[2026-07-16] (Claude)** — **MULTIMODAL HARD TEST: modality separation
   survives look-alikes + heavy degradation.** Re-tested the fused shape+letter
   model under real difficulty (small 4.5-7.5px shapes / 10-18px letters, noise
