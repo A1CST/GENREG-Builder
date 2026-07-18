@@ -125,6 +125,13 @@
         chip("head", d.head_params != null ? d.head_params.toLocaleString() : null) +
         chip("vocab", d.vocab) + chip("context", d.context_words || d.frames) +
         chip("train s", d.seconds) + "</div>";
+      if (d.inference) {
+        html += '<div class="lm-chips">' +
+          chip("load", d.inference.load_s != null ? d.inference.load_s + "s" : null) +
+          chip("plain tok/s", d.inference.plain_tok_s) +
+          chip("polish tok/s", d.inference.polish_tok_s) +
+          chip("inference hw", d.inference.hardware) + "</div>";
+      }
       html += '<div class="lm-cols"><div class="lm-col">' + bars([
         ["chance", d.chance, "dim"],
         ["unigram ceiling", b.unigram, "ceil"],

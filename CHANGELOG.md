@@ -10,6 +10,90 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-18] (Claude)** — **PRODUCTION DECODE (user's call: "a
+  production number, not research"): 13.7 -> 47.5 tok/s plain, 1.84 ->
+  10.0 tok/s polished - 3.5x/5.4x, all EXACT and gate-verified.** The
+  full optimization ledger across both passes: (1) sparse linear-head
+  decode (logits = precomputed zero-row constant + nonzero-column
+  updates, per-column clamps composed); (2) numpy mirrors of both genome
+  evaluators (vec + temporal; verified vs torch to 1e-7; the grammar
+  vote was 138 GPU kernel launches per word = 43.8ms -> 4.3ms); (3)
+  table-entry cache (each unique n-gram entry's vector/prob-columns
+  computed once per process); (4) LOCKSTEP polish (all 8 candidate
+  sequences advance together, ONE batched grammar pass per step,
+  trajectories identical to sequential - same per-seed rngs, byte-same
+  outputs); (5) GPU-resident head (Kw 554MB on the 4080) with the
+  delta-row batch step: one (n x 27.7k)@(27.7k x 5k) matmul per step for
+  all sequences; the build-time exactness gate covers single AND batch
+  paths (max diff 1.2e-4 fp32, hard-fails to the slow path above 1e-2).
+  Steered polish 3.1-3.4s, unsteered 0.7-0.9s per 24 words. Module-40
+  export perf + polished samples refreshed. The remaining known ~2x
+  (assembly in C / pinned-memory transfers) is not worth the risk before
+  a demo.
+
+- **[2026-07-18] (Claude)** — **/vision_demo: animated inference panels + downloadable
+  checkpoints & inference script.** (1) `mm/vision_samples.py` renders fresh samples,
+  runs each frozen checkpoint, and exports predictions as PNG data-URIs
+  (`radial_data/vision_demo_samples.json`): shape 1.0, letter 0.917, union 1.0,
+  continued 0.981. The page now shows **four animated panels** (shape→shapes,
+  letter→letters, union→both, continued→both) that cycle through live samples,
+  revealing each model's guess with ✓/✗. (2) **Download & try it yourself** card: a
+  new inference CLI `mm/vision_infer.py` (`--model shape|letter|union|continued`,
+  renders random samples, prints predictions + accuracy, `--save` writes PNGs) plus
+  download routes `/api/vision_demo/download/<shape|letter|union|continued|infer|bundle>`
+  (bundle = a zip of all four checkpoints + the script + README, built in-memory).
+  New endpoints `/api/vision_demo/samples` + the downloads; `vision_samples` wired
+  into the `mm/vision_demo.py` orchestrator. Shape panel refits its 10-class head on
+  the centered-crop basis (the saved head was tied to the tracker-attended training
+  basis) — the genomes are the model, the ridge head is a closed-form readout.
+  **Flask restart required** for the new routes.
+
+- **[2026-07-18] (Claude)** — **Inference 3x faster, exactly ("13.7 tps!?"
+  - the user was right): 13.7 -> 39.7 tok/s plain, 1.84 -> 5.38 tok/s
+  polished.** Profiling showed the cost was never the head matmul
+  (~0.3ms): the GRAMMAR VOTE was 43.8ms/step (138 temporal genomes = 138
+  separate GPU kernel launches on a (5,10,128) tensor) and the step's own
+  genome eval added a GPU round-trip. Fixes, all EXACT and gated: (1) the
+  sparse fast-decode - the head is linear, so logits = a precomputed
+  all-zeros-row constant + updates for only the nonzero columns (2
+  one-hots + ~60 table-probability entries + small dense blocks), with
+  per-column clamps composed correctly; build-time gate compares fast vs
+  slow on random windows (max diff 1.2e-4, fp32 noise) and falls back if
+  it ever exceeds 1e-2. (2) Numpy mirrors of the genome evaluators - vec
+  genomes (prim chains + baked gates) for the step, temporal genomes for
+  the grammar vote (verified vs torch to 1e-7; 43.8 -> 4.3ms). Per-word
+  cost now ~15ms on the 4080. Module-40 export perf updated. The honest
+  frame: this is an interpretive research decoder made adequately fast;
+  a production path (batched polish seeds, fused tables) has another
+  ~3-5x on the table if wanted.
+
+- **[2026-07-18] (Claude)** — **/lm page: inference-perf chip row added to
+  the generic module renderer.** Module 40's export carried the bench
+  numbers (load 35.4s, 13.7/1.84 tok/s) in an `inference` field but the
+  renderer had no display for it - the user rightly saw nothing. Any
+  module with an `inference` field now shows a second chip row (load,
+  plain tok/s, polish tok/s, hardware). Template-only: live on page
+  refresh, no restart. Inline JS node --check'ed.
+
+- **[2026-07-18] (Claude)** — **NEW project: /vision_demo — union + continued
+  training, gradient-free.** A showcase page for two staples on vision-grounded
+  models. (1) **UNION** (`mm/mm_merge.py`): fuse the frozen SHAPE bank (634 genomes,
+  10 classes) + frozen LETTER bank (597, 26) into one 36-class head — shape-bank
+  0.9444 / letter-bank 0.9795 / **FUSED 0.9946**. (2) **CONTINUED TRAINING** (new
+  `mm/vision_continue.py`, the `anim/dot_shape.py` evolve loop warm-started with the
+  634 shape genomes as the frozen residual base): evolve NEW genomes on the 36-class
+  task until the shapes model reads letters too, **no separate letter model** —
+  **letters 0.9231 → 0.9816 (+5.85%), overall 0.9444 → 0.9867**, 400 new genomes,
+  one ridge head (37,260 params), 85s on the 4080. Orchestrator `mm/vision_demo.py`
+  runs both, writes `radial_data/vision_demo.json`, records the run to
+  `runs/vision_demo/` (five-file set) + alert. New route `/vision_demo` +
+  `/api/vision_demo/data` (no-store), `templates/vision_demo.html`,
+  `static/vision_demo.js` (hand-rolled inline SVG: union bars, before→after bars,
+  the climb curve, union-vs-continued explainer), Vision-group nav entry,
+  changelog-modal mapping, `CHANGELOG_VISION_DEMO.md`. Honest nuance shown: shape
+  features already transfer to letters (~0.92), so continued training closes the
+  last gap, not from chance. **Flask restart required** for the new routes.
+
 - **[2026-07-18] (Claude)** — **Wiki model LIVE locally: pack built on the
   32GB box (val 0.2685 = the pod's number to 4dp), benched, demo trace
   generated - /lm_demo is ready.** The single-space handoff unpack bug in
