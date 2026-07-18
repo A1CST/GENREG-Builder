@@ -10,6 +10,17 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-18] (Claude)** — **README restructured (user's call): the
+  gradient-free concept, radial spaces, and genomes are front and center;
+  CIFAR demoted to a Results subsection.** The intro now leads with the
+  environment/genome thesis (dataset-agnostic), the parameter ledger
+  (~12k evolved params steering a 138M closed-form readout over 34M table
+  keys), and composition-over-monoliths (the specialist union); the
+  CIFAR progression chart moved into Results; a Language results
+  subsection added (modules 32-40 summary); the repo-layout table updated
+  to the new package structure (radial/, lm/, anim/, mm/, resnet/,
+  services/, cli/). Merged to main.
+
 - **[2026-07-18] (Claude)** — **NEW PAGE /lm_demo (user's call: a LEGIT
   animation, not bar graphs): the model's computation, traced live and
   animated. FLASK RESTART NEEDED for the route.** Sequence-tab entry "LM
