@@ -25,6 +25,7 @@ import time
 
 import numpy as np
 
+import genreg_paths                               # noqa: F401
 from radial_anim import T, PATHS, SHAPES, SHAPE_NAMES
 from radial_evo import _tprims
 from radial_evo2 import Env

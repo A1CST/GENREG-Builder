@@ -27,6 +27,9 @@ spaces evolve VECTOR grammar genomes over the previous space's outputs —
 terms bend and fold other genomes' outputs (the meta-genome) with an optional
 sigmoid gate (conditional routing), per radial_push80. No gradients anywhere.
 """
+import os as _os, sys as _sys                     # repo-root shim
+_sys.path.insert(0, _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))
+import genreg_paths                               # noqa: F401
 import datetime
 import hashlib
 import json
@@ -39,7 +42,7 @@ from radial_evo import _tprims, _ridge_soft, _STOP
 from radial_evo2 import (Env, make_scorer, new_genome, mutate, feature,
                          _PRIMS, _OPS)
 
-_HERE = os.path.dirname(os.path.abspath(__file__))
+_HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # Artifacts live off the C: drive by default (mirrors resnet_evo). On
 # non-Windows hosts (the pod) "F:\..." would silently create a junk-named

@@ -22,6 +22,7 @@ for _p in (_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))),
            _os.path.dirname(_os.path.abspath(__file__))):
     if _p not in _sys.path:
         _sys.path.insert(0, _p)
+import genreg_paths                               # noqa: F401
 import json
 import os
 import sys

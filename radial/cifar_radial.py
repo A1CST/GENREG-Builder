@@ -16,6 +16,9 @@ CIFAR is natively 32x32x3, so no deskew and no grayscale->3 tiling.
 Frontier to beat (radial classifier line, gradient-free, test touched once):
 best single substrate 0.7074, 7-substrate union 0.7702 (radial_data exports).
 """
+import os as _os, sys as _sys                     # repo-root shim
+_sys.path.insert(0, _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))
+import genreg_paths                               # noqa: F401
 import argparse
 import os
 
@@ -23,7 +26,7 @@ import numpy as np
 
 import mnist_radial as mr
 
-_HERE = os.path.dirname(os.path.abspath(__file__))
+_HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CIFAR_NPZ = os.path.join(_HERE, "radial_data", "cifar_full.npz")
 
 

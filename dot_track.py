@@ -17,6 +17,7 @@ import time
 
 import numpy as np
 
+import genreg_paths                               # noqa: F401
 from radial_evo import _tprims, _STOP
 from radial_evo2 import Env, new_genome, mutate, feature
 import radial_anim as ra

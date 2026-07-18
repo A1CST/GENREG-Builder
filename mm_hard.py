@@ -18,6 +18,7 @@ import time
 import numpy as np
 from PIL import Image
 
+import genreg_paths                               # noqa: F401
 import radial_anim as ra
 from radial_evo import _tprims
 from dot_track import _rand_color

@@ -15,11 +15,14 @@ Rules are deterministic, so ~100% is reachable: it can be trained to
 completion. Same npz layout as cifar_full (Xtr/ytr/Xte/yte uint8) so the
 whole radial_stack pipeline runs unmodified via its data_npz parameter.
 """
+import os as _os, sys as _sys                     # repo-root shim
+_sys.path.insert(0, _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))
+import genreg_paths                               # noqa: F401
 import os
 
 import numpy as np
 
-_HERE = os.path.dirname(os.path.abspath(__file__))
+_HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 def _motifs():

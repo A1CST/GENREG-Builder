@@ -26,6 +26,7 @@ from flask import (Flask, render_template, jsonify, request, send_file,
 from flask_sock import Sock
 sys.path.insert(0, os.path.join(os.path.dirname(
     os.path.abspath(__file__)), "lm"))   # lm-package path
+import genreg_paths                               # noqa: F401
 
 app = Flask(__name__)
 app.config["SOCK_SERVER_OPTIONS"] = {"ping_interval": 25}

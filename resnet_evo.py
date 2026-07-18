@@ -45,6 +45,7 @@ import time
 
 import numpy as np
 
+import genreg_paths                               # noqa: F401
 from radial_evo import _tprims, _ridge_soft, _STOP
 from radial_evo2 import Env, make_scorer, C_PER_SCALE, SCALES
 

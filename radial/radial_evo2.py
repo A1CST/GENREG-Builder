@@ -26,6 +26,9 @@ touched exactly ONCE. Comma GA (first space — the energy economy applies to
 downstream spaces per the house rule). Checkpoint per round
 (radial_data/evo2_ckpt.json), STOP lever (radial_data/STOP_EVO), resumable.
 """
+import os as _os, sys as _sys                     # repo-root shim
+_sys.path.insert(0, _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))
+import genreg_paths                               # noqa: F401
 import json
 import os
 import time
@@ -34,7 +37,7 @@ import numpy as np
 
 from radial_evo import _tprims, _ridge_soft, _STOP
 
-_HERE = os.path.dirname(os.path.abspath(__file__))
+_HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _CKPT = os.path.join(_HERE, "radial_data", "evo2_ckpt.json")
 
 SCALES = [4, 6, 8, 10, 12, 14]
