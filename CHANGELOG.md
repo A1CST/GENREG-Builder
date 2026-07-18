@@ -10,6 +10,33 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-18] (Claude)** — **/lm page: inference-perf chip row added to
+  the generic module renderer.** Module 40's export carried the bench
+  numbers (load 35.4s, 13.7/1.84 tok/s) in an `inference` field but the
+  renderer had no display for it - the user rightly saw nothing. Any
+  module with an `inference` field now shows a second chip row (load,
+  plain tok/s, polish tok/s, hardware). Template-only: live on page
+  refresh, no restart. Inline JS node --check'ed.
+
+- **[2026-07-18] (Claude)** — **NEW project: /vision_demo — union + continued
+  training, gradient-free.** A showcase page for two staples on vision-grounded
+  models. (1) **UNION** (`mm/mm_merge.py`): fuse the frozen SHAPE bank (634 genomes,
+  10 classes) + frozen LETTER bank (597, 26) into one 36-class head — shape-bank
+  0.9444 / letter-bank 0.9795 / **FUSED 0.9946**. (2) **CONTINUED TRAINING** (new
+  `mm/vision_continue.py`, the `anim/dot_shape.py` evolve loop warm-started with the
+  634 shape genomes as the frozen residual base): evolve NEW genomes on the 36-class
+  task until the shapes model reads letters too, **no separate letter model** —
+  **letters 0.9231 → 0.9816 (+5.85%), overall 0.9444 → 0.9867**, 400 new genomes,
+  one ridge head (37,260 params), 85s on the 4080. Orchestrator `mm/vision_demo.py`
+  runs both, writes `radial_data/vision_demo.json`, records the run to
+  `runs/vision_demo/` (five-file set) + alert. New route `/vision_demo` +
+  `/api/vision_demo/data` (no-store), `templates/vision_demo.html`,
+  `static/vision_demo.js` (hand-rolled inline SVG: union bars, before→after bars,
+  the climb curve, union-vs-continued explainer), Vision-group nav entry,
+  changelog-modal mapping, `CHANGELOG_VISION_DEMO.md`. Honest nuance shown: shape
+  features already transfer to letters (~0.92), so continued training closes the
+  last gap, not from chance. **Flask restart required** for the new routes.
+
 - **[2026-07-18] (Claude)** — **Wiki model LIVE locally: pack built on the
   32GB box (val 0.2685 = the pod's number to 4dp), benched, demo trace
   generated - /lm_demo is ready.** The single-space handoff unpack bug in
