@@ -10,6 +10,25 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-18] (Claude)** — **lm/ package round 2: radial_lm.py,
+  radial_kid.py, radial_embed.py move in too (user's call - they ARE the
+  LM line: corpus regions, the kid curriculum, the embed_rs ears).**
+  app.py's existing lm-package path line already resolves `import
+  radial_lm`; the multimodal consumers (mm_merge.py, mm_hard.py) each get
+  the same lm-path line placed BEFORE their radial_kid import (first
+  placement landed after it and failed - caught by the import check).
+  Verified: lm_word_infer chain + pack build, `import mm_merge`, `import
+  mm_hard` all OK. Pod mirrored. Merged to main.
+
+- **[2026-07-18] (Claude)** — **LM work MERGED TO MAIN (user's call):
+  e6f9acb.** radial-cifar-nogradient (the lm/ reorg + modules 32-37) merged
+  with origin/main's /progress dashboard commit in an ISOLATED worktree -
+  the shared working tree (~200 uncommitted files from other sessions) was
+  never switched or touched. One conflict (CHANGELOG, both sides
+  prepending) union-resolved keeping both; merged app.py verified to carry
+  both the lm-package path shim and the progress routes. Pushed to
+  origin/main. GitHub's default view now shows the lm/ package.
+
 - **[2026-07-18] (Claude)** — **REPO CLEANUP (user's call): the LM line's
   21 scripts move from the repo root into the `lm/` package** (following
   the genreg_train/ precedent). Every moved script carries a repo-root

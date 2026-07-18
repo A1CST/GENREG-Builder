@@ -21,6 +21,9 @@ from PIL import Image
 import radial_anim as ra
 from radial_evo import _tprims
 from dot_track import _rand_color
+import sys
+sys.path.insert(0, os.path.join(os.path.dirname(
+    os.path.abspath(__file__)), "lm"))   # lm-package path
 from radial_kid import render_letter, LETTERS
 import mm_merge as mm
 
