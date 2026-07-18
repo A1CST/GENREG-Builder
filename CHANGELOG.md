@@ -10,6 +10,30 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-18] (Claude)** — **Local low-RAM pack builder + inference
+  benchmark (module 40 follow-up; power-flicker checkpoint entry).**
+  `lm/build_pack_local.py`: builds the inference pack on the 32GB
+  workstation - ONE bank tensor filled in place (16.6GB, no duplicate
+  copy; the standard build needs ~34GB), continuation stats accumulated
+  streaming on the same pass, gram/solve GPU-chunked (20k rows; G and R
+  are lam-independent so the lam sweep + decode calibration reuse them);
+  single-space checkpoints only; saves lm_word_infer's exact pack format
+  + signature. `lm/bench_infer.py`: measures load time, plain and
+  polished tokens/s, and collects verbatim polished samples from the
+  full three-specialist decode - the wiki model's polished output +
+  perf numbers get appended to module 40's export (kid_wiki.json, new
+  fields only - nothing existing rewritten) when the chain finishes.
+  **IN-FLIGHT STATE at this entry (storm/power risk):** the local pack
+  build is running (~8 min expected; log %TEMP%/pack_local.log) with the
+  benchmark chained behind it. Both are RERUNNABLE from scratch:
+  `python lm/build_pack_local.py` then `python lm/bench_infer.py` -
+  every input they need (wiki checkpoint, lm_word.npz, both wiki table
+  pkls, specialists, embeds) is committed-or-local and shadowed. If
+  power cuts mid-build the only loss is the partial pack file - delete
+  radial_data/lm_infer_pack.pt if present-but-unloadable and rerun.
+  Module 40 itself (checkpoint, tables, data, run record, changelogs)
+  was fully committed and pushed to main (8b05f61) BEFORE this work.
+
 - **[2026-07-18] (Claude)** — **THE PROSE FOUNDATION (/lm module 40,
   user's call): corpus massively increased and switched to wiki prose -
   the first prose-shaped output in the line's history.** "The composition
