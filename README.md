@@ -8,12 +8,26 @@ no pretrained weights*. The guiding thesis:
 > solution; design conditions where the only stable attractor **is** the
 > solution.
 
-The centerpiece is the **radial space**: a way of treating a dataset as an
-environment that evolved *feature programs* (genomes) navigate. On CIFAR-10, a
-population of tiny gradient-free genomes **passes hand-crafted features and keeps
-climbing**, all without a single gradient step.
+The centerpiece is the **radial space**: treat a dataset as an *environment*
+that evolved **feature programs — genomes — navigate**. The environment carries
+the statistics (patch-PCA maps, corpus count tables, embedding spaces built
+from the data itself); evolution never re-learns what can be counted or
+projected. It searches only for the **tiny relationships the environment
+cannot express on its own** — and a closed-form ridge reads the result out.
+No gradients, no backprop, anywhere, ever.
 
-![CIFAR-10 accuracy, gradient-free](docs/images/cifar_progression.png)
+The same machinery runs vision (CIFAR/MNIST), language (a word-level LM with
+topic and grammar specialists), animation, and streams — because nothing in it
+is task-specific: genomes are programs over whatever environment they are
+dropped into. The parameter ledger makes the thesis concrete: in the current
+language system, **~12,000 evolved parameters steer a 138M-parameter
+closed-form readout over 34M count-table keys** — evolution is 0.008% of the
+mass and it is the part that decides.
+
+**Composition over monoliths.** Capabilities are separate specialists, each
+bred on one answerable question (continuation, topic, grammar), unioned at
+decode time. A specialist that knows *only* whether word order is proper can
+lift a generator it never trained with — measured, not hoped.
 
 ---
 
@@ -27,7 +41,7 @@ features are the environment"*) and learns **one tiny relationship inside it**.
 
 ```mermaid
 flowchart LR
-  IMG["CIFAR image"] --> ENV["patch-PCA maps<br/>(the environment)"]
+  IMG["input: image / word window / stream"] --> ENV["environment<br/>(patch-PCA maps, count tables,<br/>corpus-built embeddings)"]
   ENV --> G["genome<br/>evolved lens program"]
   G --> F["one scalar / 4×4 grid<br/>per image"]
   F --> FR{"decorrelated<br/>& contributing?"}
@@ -79,8 +93,12 @@ near-no-ops and only "turn on" when the correction helps).
 
 ## Results
 
-CIFAR-10, full 50k train, **test touched exactly once**, gradient-free
-throughout. Non-evolved references in gray.
+### CIFAR-10
+
+Full 50k train, **test touched exactly once**, gradient-free throughout.
+Non-evolved references in gray.
+
+![CIFAR-10 accuracy, gradient-free](docs/images/cifar_progression.png)
 
 | Method | Test acc | Notes |
 |--------|:--------:|-------|
@@ -102,6 +120,16 @@ A recent thread (`documentation/changelogs/CHANGELOG_RESNET.md`) built evolved
 space (0.6638 vs 0.6593) once each space passes **spatial grids** (not scalars)
 to the next and the base space is allowed to **mature**: the emergent-cap
 stacking idea in `documentation/stacking.txt`, realized.
+
+### Language (the /lm line)
+
+A word-level LM built the same way: evolution composes on an environment of
+n-gram continuation tables and corpus-built embeddings; a persistence-based
+**topic specialist** (16/16 topic-hold) and a temporal **grammar specialist**
+(pure word-order signal, anchor below chance) vote per decode step. The
+specialist union **moved the fluency/topic frontier** (+1.4 nats at equal
+hold) where single-model decode tuning could only trade along it. Full story:
+`documentation/changelogs/CHANGELOG_LM.md`, modules 32-40 on the `/lm` page.
 
 ---
 
@@ -205,8 +233,10 @@ otherwise. Binds to `127.0.0.1` only.
 
 | Path | What it is |
 |------|-----------|
-| `radial_evo2.py`, `resnet_evo.py` | the gradient-free CIFAR engines (genomes, stacking) |
-| `radial_map.py`, `radial_baseline.py` | the radial-space map + baselines CLI |
+| `radial/` | the gradient-free core: evo engines, radial stack, seed-stack (CIFAR/MNIST) |
+| `lm/` | the language line: word LM, cranks, topic + grammar specialists, live inference |
+| `anim/`, `mm/`, `resnet/` | animation/attention, multimodal fusion, residual stacking lines |
+| `services/`, `cli/` | Flask page services; standalone tools (job runner, daemons) |
 | `genreg_train/` | training services (`evolang.py`, `diffuse_service.py`, `runstore.py`) |
 | `documentation/` | rules, findings, per-project changelogs |
 | `app.py`, `templates/`, `static/` | the Flask app + browser GUI |

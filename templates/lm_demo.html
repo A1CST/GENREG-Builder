@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>GENREG — LM Demo</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='vendor/xterm.css') }}" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+  <style>
+    .lmd-main { flex:1 1 auto; overflow-y:auto; background:#0b0d10; padding:14px 18px 30px; }
+    .lmd-wrap { max-width:1240px; margin:0 auto; }
+    .lmd-h1 { font-size:16px; color:#e6ebf1; margin:4px 0 4px; }
+    .lmd-lede { font-size:11.5px; color:#8b95a1; line-height:1.55; margin:0 0 10px; }
+    .lmd-lede b { color:#c7d0da; }
+    .lmd-panel { border:1px solid #1c232c; border-radius:10px; background:#0d1117; padding:10px; }
+    #lmd-canvas { width:100%; display:block; border-radius:6px; background:#0a0c10; }
+    .lmd-ctl { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:8px; }
+    .lmd-btn { font-size:11.5px; padding:6px 13px; border-radius:6px; border:1px solid #2f4152;
+               background:#1c2733; color:#dbe2ea; cursor:pointer; }
+    .lmd-btn.on { border-color:#2e7d5b; color:#7ee787; }
+    .lmd-sel { font-size:11.5px; padding:5px 8px; background:#0b0e12; color:#dbe2ea;
+               border:1px solid #2f4152; border-radius:6px; }
+    #lmd-inspect { font-family:ui-monospace,monospace; font-size:11px; color:#c7d0da;
+                   line-height:1.7; min-height:120px; white-space:pre; overflow-x:auto; }
+    .lmd-cols { display:flex; gap:12px; align-items:flex-start; margin-top:12px; }
+    .lmd-cols .a { flex:1 1 auto; }
+    .lmd-cols .b { flex:0 0 380px; }
+    .lmd-cap { font-size:10px; color:#5a6672; font-family:ui-monospace,monospace; margin-top:6px; }
+  </style>
+</head>
+<body class="tlm-body">
+  <header class="topbar">
+    <div class="brand">GENREG<span class="brand-sub">lm demo · the machine, traced live — every number is real</span></div>
+    <div class="status">{% set nav_active = 'lm_demo' %}{% include '_nav.html' %}</div>
+  </header>
+
+  <main class="lmd-main"><div class="lmd-wrap">
+    <h1 class="lmd-h1">How one word gets chosen</h1>
+    <p class="lmd-lede">This is a <b>recorded trace of the real model</b> (module-40 wiki
+      foundation), not an illustration: the bank assembles from the context, the head
+      computes <b>logit(w) = &Sigma;<sub>blocks</sub> A&middot;W</b> — shown decomposed,
+      block by block, with the exact contributions — the <b>evolved genomes</b> (the
+      122 searched parameters) add their columns, then the <b>topic specialist</b> steers,
+      the <b>grammar specialist</b> vets each candidate, and one word is sampled. Hover
+      anything for exact values.</p>
+
+    <div class="lmd-panel">
+      <canvas id="lmd-canvas" width="1200" height="770"></canvas>
+      <div class="lmd-ctl">
+        <button class="lmd-btn" id="b-play">pause</button>
+        <button class="lmd-btn" id="b-prev">&#9664; step</button>
+        <button class="lmd-btn" id="b-next">step &#9654;</button>
+        <button class="lmd-btn" id="b-speed">speed 1x</button>
+        <select class="lmd-sel" id="sel-trace"></select>
+        <span class="lmd-cap" id="lmd-status">loading trace…</span>
+      </div>
+    </div>
+
+    <div class="lmd-cols">
+      <div class="lmd-panel a">
+        <div class="lmd-cap">INSPECTOR — hover a candidate row, bank strip, or genome</div>
+        <div id="lmd-inspect">…</div>
+      </div>
+      <div class="lmd-panel b">
+        <div class="lmd-cap">LEGEND</div>
+        <div id="lmd-legend" style="font-size:11px;color:#8b95a1;line-height:1.8"></div>
+      </div>
+    </div>
+  </div></main>
+
+  <script>
+  (function () {
+    "use strict";
+    var cv = document.getElementById("lmd-canvas");
+    var cx = cv.getContext("2d");
+    var insp = document.getElementById("lmd-inspect");
+    var stat = document.getElementById("lmd-status");
+
+    var FAM = {embed:"#4ea1ff", id_prev:"#6e7681", id_last:"#8b95a1",
+               tbl_vec:"#e3b341", tbl_prob:"#d29922", quad_vec:"#ff7b72",
+               quad_prob:"#f85149", skipA_vec:"#f778ba", skipA_prob:"#db61a2",
+               skipB_vec:"#d2a8ff", genomes:"#56d364", bias:"#39c5cf"};
+    var LBL = {embed:"context embeddings (16×128)", id_prev:"identity w-2 (one-hot 5000)",
+               id_last:"identity w-1 (one-hot 5000)", tbl_vec:"tri/bi table vectors (256)",
+               tbl_prob:"tri/bi next-word distribution (5000)", quad_vec:"4-gram vector (128)",
+               quad_prob:"4-gram distribution (5000)", skipA_vec:"skip(w-3,w-1) vector",
+               skipA_prob:"skip(w-3,w-1) distribution", skipB_vec:"skip(w-3,w-2) vector",
+               genomes:"evolved genome outputs (9)", bias:"head bias"};
+    document.getElementById("lmd-legend").innerHTML =
+      Object.keys(FAM).map(function (k) {
+        return '<span style="color:' + FAM[k] + '">&#9632;</span> ' + LBL[k];
+      }).join("<br>");
+
+    var doc = null, trace = null, stepI = 0, phase = 0, t0 = 0;
+    var playing = true, speed = 1, hover = null;
+    var PH = [0.8, 1.5, 2.4, 1.6, 1.2, 1.4];      // phase durations (s)
+
+    function ease(x) { return x < 0 ? 0 : x > 1 ? 1 : x * x * (3 - 2 * x); }
+
+    function cellColor(v, s) {
+      var a = Math.min(1, Math.abs(v) / 3);
+      if (s !== undefined) { a = Math.min(1, Math.abs(v) / s); }
+      return v >= 0 ? "rgba(86,211,100," + (0.15 + 0.85 * a) + ")"
+                    : "rgba(88,166,255," + (0.15 + 0.85 * a) + ")";
+    }
+
+    /* ---------- geometry ---------- */
+    var BX = 262, BW = 350, BY = 92, BH = 18, BGAP = 8;
+    var CX = 650, CW = 540, CY = 96, CH = 58;
+    var GX = 14, GY = 420, GW = 230;
+    var blockRects = [], candRects = [], genomeRects = [];
+
+    function stepData() { return trace.steps[stepI]; }
+
+    function draw(now) {
+      var st = stepData();
+      var dt = (now - t0) / 1000 * speed;
+      var acc = 0, ph = 0, pt = 0;
+      for (var i = 0; i < PH.length; i++) {
+        if (dt < acc + PH[i]) { ph = i; pt = (dt - acc) / PH[i]; break; }
+        acc += PH[i];
+        if (i === PH.length - 1) { ph = i; pt = 1; }
+      }
+      phase = ph;
+      cx.clearRect(0, 0, cv.width, cv.height);
+      cx.font = "11px ui-monospace,monospace";
+
+      /* header: prompt + generated so far */
+      cx.fillStyle = "#5a6672";
+      cx.fillText("PROMPT", 14, 20);
+      cx.fillStyle = "#6fb3e0";
+      cx.fillText(trace.prompt, 70, 20);
+      if (trace.topic) {
+        cx.fillStyle = "#7ee787";
+        cx.fillText("topic: " + trace.topic, 70 + cx.measureText(trace.prompt).width + 18, 20);
+      }
+      cx.fillStyle = "#5a6672";
+      cx.fillText("OUTPUT", 14, 40);
+      var ox = 70;
+      for (var w = 0; w < stepI; w++) {
+        var word = trace.steps[w].pick;
+        cx.fillStyle = "#dbe2ea";
+        cx.fillText(word, ox, 40);
+        ox += cx.measureText(word).width + 8;
+      }
+      if (ph === 5 && st.pick) {                 /* the word flying in */
+        cx.fillStyle = "rgba(126,231,135," + ease(pt) + ")";
+        cx.fillText(st.pick, ox + (1 - ease(pt)) * 300, 40 - (1 - ease(pt)) * -8);
+      }
+
+      /* context tiles (phase 0 slides them) */
+      cx.fillStyle = "#5a6672";
+      cx.fillText("CONTEXT (last words → the 16-slot window)", 14, 74);
+      var ctx8 = st.ctx;
+      var tx = 14;
+      for (var c = 0; c < ctx8.length; c++) {
+        var slide = (ph === 0) ? (1 - ease(pt)) * 18 : 0;
+        cx.fillStyle = "#11151b";
+        var wd2 = ctx8[c] || "·";
+        var tw = cx.measureText(wd2).width + 12;
+        cx.fillRect(tx, 82 - slide, tw, 20);
+        cx.strokeStyle = c >= ctx8.length - 3 ? "#2e7d5b" : "#232a33";
+        cx.strokeRect(tx, 82 - slide, tw, 20);
+        cx.fillStyle = c >= ctx8.length - 3 ? "#7ee787" : "#aeb8c2";
+        cx.fillText(wd2, tx + 6, 96 - slide);
+        tx += tw + 5;
+      }
+      cx.fillStyle = "#5a6672";
+      cx.fillText("(last 3 key the tables)", tx + 8, 96);
+
+      /* bank strips (phase 1 paints them) */
+      blockRects = [];
+      cx.fillStyle = "#5a6672";
+      cx.fillText("THE BANK — 27,697 columns, drawn as blocks", BX, 84);
+      var names = Object.keys(st.blocks);
+      var by = BY + 30;
+      var paint = ph > 1 ? 1 : (ph === 1 ? ease(pt) : 0);
+      for (var b = 0; b < names.length; b++) {
+        var nm = names[b];
+        var cells = st.blocks[nm];
+        var cw = BW / cells.length;
+        var lim = Math.ceil(cells.length * paint);
+        for (var k = 0; k < lim; k++) {
+          cx.fillStyle = cellColor(cells[k]);
+          cx.fillRect(BX + k * cw, by, cw - 1, BH);
+        }
+        cx.strokeStyle = FAM[nm] || "#444";
+        cx.strokeRect(BX - 2, by - 1, BW + 4, BH + 2);
+        cx.fillStyle = FAM[nm] || "#8b95a1";
+        cx.fillText(nm, BX + BW + 8, by + 13);
+        blockRects.push({x: BX, y: by, w: BW + 90, h: BH, name: nm});
+        by += BH + BGAP;
+      }
+
+      /* genome panel (phase 3 pulses) */
+      genomeRects = [];
+      cx.fillStyle = "#5a6672";
+      cx.fillText("EVOLVED GENOMES — the 122 searched params", GX, GY - 8);
+      var gv = st.genome_vals;
+      for (var g = 0; g < doc.genomes.length; g++) {
+        var gy = GY + g * 34;
+        var gd = doc.genomes[g];
+        var pulse = (ph === 3) ? (0.4 + 0.6 * Math.abs(Math.sin((pt * 3 + g / 3) * Math.PI))) : 0.5;
+        var lbl = gd.terms.map(function (t) {
+          return "ch" + t.c + "→" + t.prog.map(function (p) { return p[0]; }).join("→");
+        }).join(" " + (["mult", "min", "absdiff"][gd.op] || "⊕") + " ");
+        cx.fillStyle = "#11151b";
+        cx.fillRect(GX, gy, GW, 26);
+        cx.strokeStyle = "rgba(86,211,100," + pulse + ")";
+        cx.strokeRect(GX, gy, GW, 26);
+        cx.fillStyle = "#8b95a1";
+        cx.font = "9px ui-monospace,monospace";
+        cx.fillText(lbl.slice(0, 40), GX + 5, gy + 11);
+        cx.font = "11px ui-monospace,monospace";
+        cx.fillStyle = cellColor(gv[g], 2).replace(/rgba\(([^)]*),[^,]*\)$/, "rgb($1)");
+        cx.fillStyle = gv[g] >= 0 ? "#7ee787" : "#79c0ff";
+        cx.fillText((gv[g] >= 0 ? "+" : "") + gv[g].toFixed(2), GX + 5, gy + 23);
+        if (gd.gate) { cx.fillStyle = "#e3b341"; cx.fillText("gated", GX + GW - 38, gy + 23); }
+        genomeRects.push({x: GX, y: gy, w: GW, h: 26, i: g});
+      }
+
+      /* candidates: MAC decomposition (phase 2), union (phase 4), softmax+pick (phase 5) */
+      candRects = [];
+      cx.fillStyle = "#5a6672";
+      cx.fillText("CANDIDATES — logit(w) = Σ block contributions, then the specialists vote", CX, 84);
+      var pool = st.pool;
+      var maxAbs = 1e-6;
+      pool.forEach(function (p) {
+        var parts = st.contribs[p.w] || {};
+        Object.keys(parts).forEach(function (k) {
+          maxAbs = Math.max(maxAbs, Math.abs(parts[k]));
+        });
+      });
+      var fly = ph === 2 ? ease(pt) : (ph > 2 ? 1 : 0);
+      for (var q = 0; q < pool.length; q++) {
+        var cand = pool[q];
+        var ry = CY + q * (CH + 10);
+        cx.fillStyle = "#0f141a";
+        cx.fillRect(CX, ry, CW, CH);
+        cx.strokeStyle = cand.w === st.pick && ph >= 5 ? "#2e7d5b" : "#1c232c";
+        cx.strokeRect(CX, ry, CW, CH);
+        cx.fillStyle = cand.w === st.pick && ph >= 5 ? "#7ee787" : "#dbe2ea";
+        cx.fillText(cand.w, CX + 8, ry + 16);
+        if (cand.admitted) {
+          cx.fillStyle = "#7ee787";
+          cx.font = "9px ui-monospace,monospace";
+          cx.fillText("topic-admitted", CX + 8, ry + 27);
+          cx.font = "11px ui-monospace,monospace";
+        }
+        /* stacked contribution segments */
+        var parts2 = st.contribs[cand.w] || {};
+        var px2 = CX + 120;
+        var segw, keys = Object.keys(parts2);
+        var totalW = 260;
+        var sumAbs = keys.reduce(function (s, k) { return s + Math.abs(parts2[k]); }, 0) || 1;
+        var shown = Math.ceil(keys.length * fly);
+        for (var s2 = 0; s2 < shown; s2++) {
+          var key = keys[s2];
+          segw = Math.max(1.5, Math.abs(parts2[key]) / sumAbs * totalW);
+          cx.fillStyle = FAM[key] || "#8b95a1";
+          cx.globalAlpha = parts2[key] >= 0 ? 0.95 : 0.4;
+          cx.fillRect(px2, ry + 8, segw - 1, 12);
+          cx.globalAlpha = 1;
+          if (parts2[key] < 0) {
+            cx.strokeStyle = "#79c0ff";
+            cx.strokeRect(px2, ry + 8, segw - 1, 12);
+          }
+          px2 += segw;
+        }
+        cx.fillStyle = "#c7d0da";
+        cx.fillText("logit " + cand.logit.toFixed(2), CX + 120 + totalW + 12, ry + 18);
+        /* phase 4: specialists */
+        if (ph >= 4) {
+          var a4 = ph === 4 ? ease(pt) : 1;
+          cx.globalAlpha = a4;
+          if (cand.steer) {
+            cx.fillStyle = "#7ee787";
+            cx.fillText("steer " + (cand.steer >= 0 ? "+" : "") + cand.steer.toFixed(2),
+                        CX + 120, ry + 40);
+          }
+          if (st.grammar) {
+            var gi2 = -1;
+            for (var g3 = 0; g3 < pool.length; g3++) {
+              if (pool[g3].w === cand.w) { gi2 = g3; }
+            }
+            if (gi2 >= 0 && st.grammar[gi2] !== undefined) {
+              var gm2 = st.grammar[gi2];
+              cx.fillStyle = gm2 >= 0 ? "#ffa657" : "#f85149";
+              cx.fillText("grammar " + (gm2 >= 0 ? "✓ " : "✗ ") + gm2.toFixed(2),
+                          CX + 230, ry + 40);
+            }
+          }
+          cx.globalAlpha = 1;
+        }
+        /* phase 5: probability meter + pick */
+        if (ph >= 5) {
+          var fin = null;
+          st.final.forEach(function (f2) { if (f2.w === cand.w) { fin = f2; } });
+          if (fin) {
+            var mw = 100 * fin.p * ease(ph === 5 ? pt : 1);
+            cx.fillStyle = "#1c2733";
+            cx.fillRect(CX + 380, ry + 32, 100, 10);
+            cx.fillStyle = cand.w === st.pick ? "#2e7d5b" : "#2f4152";
+            cx.fillRect(CX + 380, ry + 32, mw, 10);
+            cx.fillStyle = "#8b95a1";
+            cx.fillText("p=" + fin.p.toFixed(2), CX + 486, ry + 41);
+          }
+        }
+        candRects.push({x: CX, y: ry, w: CW, h: CH, w2: cand.w});
+      }
+      if (st.rep_penalized.length && ph >= 4) {
+        cx.fillStyle = "#f85149";
+        cx.fillText("repetition-penalized: " + st.rep_penalized.slice(0, 6).join(" "),
+                    CX, CY + pool.length * (CH + 10) + 14);
+      }
+
+      /* phase caption */
+      var caps = ["1/6 context window slides", "2/6 the bank assembles (real activations)",
+                  "3/6 the head: block-by-block dot products accumulate each logit",
+                  "4/6 the evolved genomes fire (their columns are in the sum)",
+                  "5/6 the specialists vote: topic steers, grammar vets",
+                  "6/6 softmax → sample → the word joins the output"];
+      cx.fillStyle = "#e6ebf1";
+      cx.font = "12px ui-monospace,monospace";
+      cx.fillText("STEP " + (stepI + 1) + "/" + trace.steps.length + "  —  " + caps[ph],
+                  14, cv.height - 14);
+      cx.font = "11px ui-monospace,monospace";
+
+      if (dt > PH.reduce(function (a2, b2) { return a2 + b2; }, 0) + 0.4) {
+        if (playing) {
+          stepI = (stepI + 1) % trace.steps.length;
+          t0 = now;
+        }
+      }
+      requestAnimationFrame(draw);
+    }
+
+    /* ---------- interactions ---------- */
+    cv.addEventListener("mousemove", function (e) {
+      var r = cv.getBoundingClientRect();
+      var x = (e.clientX - r.left) * (cv.width / r.width);
+      var y = (e.clientY - r.top) * (cv.height / r.height);
+      var st = stepData();
+      if (!st) { return; }
+      for (var i = 0; i < candRects.length; i++) {
+        var c = candRects[i];
+        if (x >= c.x && x <= c.x + c.w && y >= c.y && y <= c.y + c.h) {
+          var parts = st.contribs[c.w2] || {};
+          insp.textContent = "candidate '" + c.w2 + "' — exact head decomposition " +
+            "(scaled logits)\n" + Object.keys(parts).map(function (k) {
+              return "  " + k.padEnd(11) + (parts[k] >= 0 ? "+" : "") + parts[k].toFixed(3);
+            }).join("\n") + "\n  TOTAL      " +
+            Object.values(parts).reduce(function (a, b) { return a + b; }, 0).toFixed(3);
+          return;
+        }
+      }
+      for (var j = 0; j < blockRects.length; j++) {
+        var b = blockRects[j];
+        if (x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h) {
+          var cells = st.blocks[b.name];
+          insp.textContent = LBL[b.name] + "\n  strip (24-cell mean-pool of the real " +
+            "activations):\n  [" + cells.map(function (v) { return v.toFixed(2); }).join(", ") + "]";
+          return;
+        }
+      }
+      for (var g = 0; g < genomeRects.length; g++) {
+        var gr = genomeRects[g];
+        if (x >= gr.x && x <= gr.x + gr.w && y >= gr.y && y <= gr.y + gr.h) {
+          var gd = doc.genomes[gr.i];
+          insp.textContent = "genome " + gr.i + " — evolved structure (verbatim)\n" +
+            JSON.stringify(gd, null, 1) + "\ncurrent output: " + st.genome_vals[gr.i];
+          return;
+        }
+      }
+    });
+
+    /* ---------- controls ---------- */
+    document.getElementById("b-play").addEventListener("click", function () {
+      playing = !playing;
+      this.textContent = playing ? "pause" : "play";
+    });
+    document.getElementById("b-next").addEventListener("click", function () {
+      stepI = (stepI + 1) % trace.steps.length; t0 = performance.now();
+    });
+    document.getElementById("b-prev").addEventListener("click", function () {
+      stepI = (stepI - 1 + trace.steps.length) % trace.steps.length; t0 = performance.now();
+    });
+    document.getElementById("b-speed").addEventListener("click", function () {
+      speed = speed === 1 ? 2 : speed === 2 ? 0.5 : 1;
+      this.textContent = "speed " + speed + "x";
+    });
+    document.getElementById("sel-trace").addEventListener("change", function () {
+      trace = doc.traces[this.value]; stepI = 0; t0 = performance.now();
+    });
+
+    fetch("/api/lm/demo_trace").then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (d.error) { stat.textContent = d.error; return; }
+        doc = d;
+        var sel = document.getElementById("sel-trace");
+        d.traces.forEach(function (tr, i) {
+          var o = document.createElement("option");
+          o.value = i; o.textContent = tr.prompt;
+          sel.appendChild(o);
+        });
+        trace = d.traces[0];
+        stat.textContent = d.model + " · s_cal " + d.s_cal + " · lam " + d.lam;
+        t0 = performance.now();
+        requestAnimationFrame(draw);
+      }).catch(function (e) { stat.textContent = "trace failed: " + e; });
+  })();
+  </script>
+  <script src="{{ url_for('static', filename='vendor/xterm.js') }}"></script>
+  <script src="{{ url_for('static', filename='vendor/addon-fit.js') }}"></script>
+  <script src="{{ url_for('static', filename='termdock.js') }}"></script>
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
+  <script src="{{ url_for('static', filename='agentpanel.js') }}"></script>
+  <script src="{{ url_for('static', filename='configpanel.js') }}"></script>
+</body>
+</html>

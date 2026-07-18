@@ -56,6 +56,7 @@ PROJECT_GROUPS = [
     ]),
     ("Sequence", [
         ("lm",        "LM",        "/lm",           "#56d364"),
+        ("lm_demo",   "LM Demo",   "/lm_demo",      "#3fdba0"),
         ("tsdb",      "TSDB",      "/tsdb",         "#39c5cf"),
     ]),
     ("Evolve", [
@@ -1724,6 +1725,30 @@ def history_export(name):
             return jsonify(_json.load(f))
     except Exception as exc:
         return jsonify({"error": f"history export failed: {exc}"}), 500
+
+
+@app.route("/lm_demo")
+def lm_demo_page():
+    """LM Demo — the model's computation, traced live and animated."""
+    resp = app.make_response(render_template("lm_demo.html"))
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
+
+
+@app.route("/api/lm/demo_trace")
+def lm_demo_trace():
+    """The recorded real-generation trace that drives /lm_demo."""
+    try:
+        import json as _json
+        base = os.path.dirname(os.path.abspath(__file__))
+        path = os.path.join(base, "radial_data", "lm_demo_trace.json")
+        if os.path.exists(path):
+            with open(path, "r", encoding="utf-8") as f:
+                return jsonify(_json.load(f))
+        return jsonify({"error": "trace not generated yet - run "
+                                 "python lm/lm_demo_trace.py"})
+    except Exception as exc:
+        return jsonify({"error": f"demo trace failed: {exc}"}), 500
 
 
 @app.route("/api/lm/modules")
