@@ -1,0 +1,50 @@
+[
+  {
+    "key": "mnist",
+    "label": "MNIST",
+    "color": "#e3b341",
+    "metric": "gradient-free test accuracy",
+    "current": 0.9909,
+    "target": 0.99,
+    "unit": "acc",
+    "fmt": "pct",
+    "status": "complete",
+    "note": "Seed-axis genomes hit 0.9909, past the 99% bar. Task is tabulatable so evolution earns ~0 residual here — considered done."
+  },
+  {
+    "key": "cifar",
+    "label": "CIFAR",
+    "color": "#ff7b72",
+    "metric": "full-CIFAR test acc (gradient-free, single substrate)",
+    "current": 0.7111,
+    "target": 0.75,
+    "unit": "acc",
+    "fmt": "pct",
+    "status": "active",
+    "note": "0.7111 single-substrate best (grammar-v2 radial). Target 0.75 near-term; classical supervised ceiling ~0.93."
+  },
+  {
+    "key": "resnet",
+    "label": "ResNet / stacked-residual",
+    "color": "#d29922",
+    "metric": "stacked-residual test acc",
+    "current": 0.948,
+    "target": 0.95,
+    "unit": "acc",
+    "fmt": "pct",
+    "status": "active",
+    "note": "Plateau at 0.948; fat-R0 law characterised. 0.95 is the next wall to break."
+  },
+  {
+    "key": "lm",
+    "label": "LM (cloze)",
+    "color": "#56d364",
+    "metric": "cloze top-5, share of classical ceiling",
+    "current": 0.69,
+    "target": 1.0,
+    "unit": "of ceiling",
+    "fmt": "pct",
+    "status": "active",
+    "note": "0.3273 top-5 = 69% of the 0.4728 classical ceiling. Goal is to close the remaining 31% to the table ceiling."
+  }
+]

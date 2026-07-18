@@ -491,6 +491,7 @@ document.getElementById("btn-stop").addEventListener("click", () => activeId != 
                    ["/xray", "XRAY"], ["/i2", "I2"], ["/tree", "TREE"],
                    ["/evolang", "EVOLANG"], ["/images", "IMAGES"],
                    ["/video", "VIDEO"], ["/humanoid", "HUMANOID"],
+                   ["/progress", "PROGRESS"],
                    ["/history", "HISTORY"]];
     for (const [pre, proj] of rules)
       if (p === pre || p.startsWith(pre + "/")) return proj;

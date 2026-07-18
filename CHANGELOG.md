@@ -10,6 +10,19 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-18] (Claude)** — **NEW: /progress dashboard + README avenues.** Added a
+  dashboard over the master `CHANGELOG.md`: measurable **goal cards** per project
+  (from editable `progress_data/goals.json`), a **multi-line chart** of entries per
+  project per day, and an **impact-weighted timeline** (Discovery / Refutation /
+  Validation / Architecture / Engineering / Documentation / Maintenance) answering
+  "activity ≠ progress" — chart dots hover to preview and click to open the full
+  changelog entry. Backend `progress_service.py` (parser + taxonomy), routes
+  `/progress` + `/api/progress/data` (no-store so a visit always re-parses),
+  `templates/progress.html`, `static/progress.js` (hand-rolled inline SVG, no libs),
+  nav + changelog-modal mapping. Also expanded `README.md` with an **Avenues**
+  section listing and explaining every project line. **Flask restart required** to
+  serve the new routes.
+
 - **[2026-07-18] (Claude)** — **/cifar + /mnist pages rebuilt to the radial
   seed-stack (NEEDS FLASK RESTART).** Both pages now headline the radial seed-stack
   (tiles + a ladder card fed by new `/api/cifar/radial` and `/api/mnist/radial`

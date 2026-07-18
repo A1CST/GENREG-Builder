@@ -72,6 +72,7 @@ PROJECT_GROUPS = [
         ("plan",      "Plan",      "/plan",         "#8ab4f8"),
         ("history",   "History",   "/history",      "#c8a2ff"),
         ("runs",      "Runs",      "/runs",         "#58a6ff"),
+        ("progress",  "Progress",  "/progress",     "#7ee787"),
         ("docs",      "Docs",      "/docs",         "#8b95a1"),
     ]),
 ]
@@ -1875,6 +1876,28 @@ def resnet_page():
     resp = app.make_response(render_template("resnet.html"))
     resp.headers["Cache-Control"] = "no-store"
     return resp
+
+
+@app.route("/progress")
+def progress_page():
+    """PROGRESS — a dashboard over the master CHANGELOG.md: per-project activity
+    over time, measurable completion toward each project's goal, and an
+    impact-weighted timeline that separates scientific advancement from raw
+    velocity (activity != progress)."""
+    resp = app.make_response(render_template("progress.html"))
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
+
+
+@app.route("/api/progress/data")
+def api_progress_data():
+    try:
+        import progress_service
+        resp = jsonify(progress_service.parse())
+        resp.headers["Cache-Control"] = "no-store"   # always re-parse on visit
+        return resp
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
 
 
 def _resnet_out_dir():

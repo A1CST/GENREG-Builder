@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>GENREG — Progress</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='vendor/xterm.css') }}" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+  <style>
+    /* main is the flex:1 scroll region so the injected terminal dock stays
+       docked at the bottom and only this area scrolls (matches .tlm-main). */
+    .pg-main { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 20px 26px 48px; }
+    .pg-statrow, .pg-card { max-width: 1180px; margin-left: auto; margin-right: auto; }
+    .pg-card {
+      background: #0d1117; border: 1px solid #1c232c; border-radius: 10px;
+      padding: 18px 20px; margin-bottom: 22px;
+    }
+    .pg-card h2 { margin: 0 0 4px; color: #dbe2ea; font-size: 16px; }
+    .pg-card .pg-sub { color: #8b95a1; font-size: 12px; margin-bottom: 14px; line-height: 1.5; }
+    .pg-statrow { display: flex; flex-wrap: wrap; gap: 14px; margin-bottom: 22px; }
+    .pg-stat {
+      flex: 1; min-width: 150px; background: #0d1117; border: 1px solid #1c232c;
+      border-radius: 10px; padding: 14px 16px;
+    }
+    .pg-stat .n {
+      font-size: 26px; color: #dbe2ea; font-family: ui-monospace, monospace;
+      font-variant-numeric: tabular-nums;
+    }
+    .pg-stat .l { font-size: 11px; color: #8b95a1; text-transform: uppercase; letter-spacing: .04em; margin-top: 4px; }
+    /* goal cards */
+    .pg-goals { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 14px; }
+    .pg-goal { background: #10141c; border: 1px solid #1c232c; border-radius: 8px; padding: 14px; }
+    .pg-goal .gh { display: flex; justify-content: space-between; align-items: baseline; }
+    .pg-goal .gname { font-weight: 600; color: #c7d0da; font-size: 13px; }
+    .pg-goal .gpct { font-family: ui-monospace, monospace; font-size: 18px; font-variant-numeric: tabular-nums; }
+    .pg-goal .gmetric { font-size: 11px; color: #8b95a1; margin: 6px 0 10px; }
+    .pg-bar { height: 9px; background: #1c232c; border-radius: 5px; overflow: hidden; }
+    .pg-bar > div { height: 100%; border-radius: 5px; transition: width .4s ease; }
+    .pg-goal .gvals { display: flex; justify-content: space-between; font-size: 11px; color: #8b95a1; margin-top: 6px; font-family: ui-monospace, monospace; }
+    .pg-goal .gnote { font-size: 11px; color: #6e7681; margin-top: 8px; line-height: 1.5; }
+    .pg-badge { font-size: 10px; padding: 1px 7px; border-radius: 10px; text-transform: uppercase; letter-spacing: .05em; }
+    .pg-badge.done { background: #12261a; color: #3fb950; border: 1px solid #1f4429; }
+    .pg-badge.active { background: #1b2436; color: #58a6ff; border: 1px solid #23324d; }
+    /* charts */
+    .pg-chart-wrap { width: 100%; overflow-x: auto; }
+    svg.pg-chart { display: block; width: 100%; height: auto; min-width: 640px; }
+    .pg-legend { display: flex; flex-wrap: wrap; gap: 10px 16px; margin-top: 12px; }
+    .pg-leg {
+      display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: #c7d0da;
+      cursor: pointer; user-select: none;
+    }
+    .pg-leg .sw { width: 11px; height: 11px; border-radius: 3px; display: inline-block; }
+    .pg-leg.off { opacity: .35; }
+    .pg-leg .cnt { color: #6e7681; font-variant-numeric: tabular-nums; }
+    /* impact table */
+    table.pg-tax { width: 100%; border-collapse: collapse; font-size: 12px; }
+    table.pg-tax th, table.pg-tax td { text-align: left; padding: 7px 10px; border-bottom: 1px solid #1c232c; }
+    table.pg-tax th { color: #8b95a1; font-weight: 500; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
+    table.pg-tax td.num { text-align: right; font-family: ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+    .pg-dot { width: 10px; height: 10px; border-radius: 3px; display: inline-block; margin-right: 7px; vertical-align: middle; }
+    /* per-project impact composition bars */
+    .pg-comp-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+    .pg-comp-row .lab { width: 120px; font-size: 12px; color: #c7d0da; text-align: right; }
+    .pg-comp-bar { flex: 1; height: 16px; display: flex; border-radius: 4px; overflow: hidden; background: #10141c; }
+    .pg-comp-bar > span { height: 100%; }
+    .pg-comp-row .wsc { width: 96px; font-size: 11px; color: #8b95a1; font-family: ui-monospace, monospace; text-align: left; }
+    .pg-prose { font-size: 13px; color: #a9b2bd; line-height: 1.65; }
+    .pg-prose b { color: #dbe2ea; }
+    .pg-tip { position: fixed; z-index: 9999; pointer-events: none; background: #0d1117;
+      border: 1px solid #2e7d5b; border-radius: 7px; padding: 8px 11px; font-size: 12px;
+      color: #dbe2ea; display: none; box-shadow: 0 8px 22px rgba(0,0,0,.7); max-width: 380px; }
+    .pg-tip .th { font-weight: 600; color: #dbe2ea; margin-bottom: 5px; }
+    .pg-tip .ti { color: #a9b2bd; line-height: 1.5; display: flex; gap: 6px; align-items: baseline; }
+    .pg-tip .ti .d { flex: 0 0 auto; width: 8px; height: 8px; border-radius: 2px; margin-top: 3px; }
+    .pg-tip .more { color: #6e7681; margin-top: 4px; }
+    .pg-tip .hint { color: #2e7d5b; margin-top: 6px; font-size: 11px; }
+    svg.pg-chart circle[data-kind] { cursor: pointer; }
+    /* entry modal */
+    .pg-modal-overlay { position: fixed; inset: 0; z-index: 10000; background: rgba(3,5,8,.72);
+      display: flex; align-items: center; justify-content: center; padding: 40px 20px; }
+    .pg-modal-overlay[hidden] { display: none; }
+    .pg-modal { background: #0d1117; border: 1px solid #23324d; border-radius: 12px;
+      width: min(760px, 100%); max-height: 82vh; display: flex; flex-direction: column;
+      box-shadow: 0 24px 60px rgba(0,0,0,.7); }
+    .pg-modal-head { display: flex; justify-content: space-between; align-items: center;
+      padding: 14px 18px; border-bottom: 1px solid #1c232c; }
+    .pg-modal-head #pg-modal-title { color: #dbe2ea; font-size: 14px; font-weight: 600; }
+    .pg-modal-head button { background: none; border: none; color: #8b95a1; font-size: 22px;
+      line-height: 1; cursor: pointer; padding: 0 4px; }
+    .pg-modal-head button:hover { color: #dbe2ea; }
+    .pg-modal-body { overflow-y: auto; padding: 6px 18px 18px; }
+    .pg-entry { border-bottom: 1px solid #161c25; padding: 14px 0; }
+    .pg-entry:last-child { border-bottom: none; }
+    .pg-entry .meta { display: flex; gap: 8px; align-items: center; font-size: 11px; color: #8b95a1;
+      margin-bottom: 6px; font-family: ui-monospace, monospace; }
+    .pg-entry .ilab { padding: 1px 7px; border-radius: 10px; font-size: 10px; text-transform: uppercase; letter-spacing: .04em; }
+    .pg-entry .etitle { color: #dbe2ea; font-weight: 600; font-size: 13px; margin-bottom: 5px; }
+    .pg-entry .ebody { color: #a9b2bd; font-size: 12.5px; line-height: 1.6; }
+  </style>
+</head>
+<body class="tlm-body">
+  <header class="topbar">
+    <div class="brand">GENREG<span class="brand-sub">progress · activity, goals & impact-weighted timeline</span></div>
+    <div class="status">{% set nav_active = 'progress' %}{% include '_nav.html' %}</div>
+  </header>
+
+  <main class="pg-main" id="page-main">
+    <div class="pg-statrow" id="pg-stats"></div>
+
+    <section class="pg-card">
+      <h2>Completion toward each goal</h2>
+      <div class="pg-sub">Measurable target per project (read from <code>progress_data/goals.json</code> — edit that file to update numbers).</div>
+      <div class="pg-goals" id="pg-goals"></div>
+    </section>
+
+    <section class="pg-card">
+      <h2>Activity per project, per day</h2>
+      <div class="pg-sub">One line per project — how many changelog entries touched it that day. Click a legend chip to toggle a line.</div>
+      <div class="pg-chart-wrap"><svg class="pg-chart" id="pg-line" viewBox="0 0 960 380" preserveAspectRatio="xMidYMid meet"></svg></div>
+      <div class="pg-legend" id="pg-line-legend"></div>
+    </section>
+
+    <section class="pg-card">
+      <h2>Activity &ne; progress: impact-weighted timeline</h2>
+      <div class="pg-sub">
+        A changelog measures <b style="color:#c7d0da">velocity</b>, not scientific advancement — twenty typo fixes and one new
+        computational primitive should not count equally. Each entry is auto-classified into an impact level and weighted.
+        The bars below show each day's <b style="color:#c7d0da">composition</b> (segment = impact level); the gold line is the
+        day's <b style="color:#c7d0da">weighted score</b>. Where a tall bar carries a low line, that day was busy but low-impact.
+      </div>
+      <div class="pg-chart-wrap"><svg class="pg-chart" id="pg-impact" viewBox="0 0 960 380" preserveAspectRatio="xMidYMid meet"></svg></div>
+      <div class="pg-legend" id="pg-impact-legend"></div>
+    </section>
+
+    <section class="pg-card">
+      <h2>Where the weight actually landed (per project)</h2>
+      <div class="pg-sub">Each project's entries split by impact level, and its total weighted score. This is the honest answer to
+        "144 entries — but how many were discoveries vs. cleanup?"</div>
+      <div id="pg-composition"></div>
+    </section>
+
+    <section class="pg-card">
+      <h2>Impact taxonomy</h2>
+      <div class="pg-sub">Automated keyword heuristic over each entry's text — directional, not authoritative. Weights are editable in <code>progress_service.py</code>.</div>
+      <table class="pg-tax" id="pg-tax">
+        <thead><tr><th>Level</th><th>Meaning</th><th style="text-align:right">Weight</th><th style="text-align:right">Entries</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </section>
+
+    <section class="pg-card">
+      <h2>Read-out</h2>
+      <div class="pg-prose" id="pg-readout"></div>
+    </section>
+  </main>
+
+  <div class="pg-tip" id="pg-tip"></div>
+  <div class="pg-modal-overlay" id="pg-modal" hidden>
+    <div class="pg-modal" role="dialog" aria-modal="true" aria-labelledby="pg-modal-title">
+      <div class="pg-modal-head">
+        <span id="pg-modal-title">Changelog</span>
+        <button id="pg-modal-close" title="Close">×</button>
+      </div>
+      <div class="pg-modal-body" id="pg-modal-body"></div>
+    </div>
+  </div>
+
+  <script src="{{ url_for('static', filename='vendor/xterm.js') }}"></script>
+  <script src="{{ url_for('static', filename='vendor/addon-fit.js') }}"></script>
+  <script src="{{ url_for('static', filename='termdock.js') }}"></script>
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
+  <script src="{{ url_for('static', filename='agentpanel.js') }}"></script>
+  <script src="{{ url_for('static', filename='configpanel.js') }}"></script>
+  <script src="{{ url_for('static', filename='progress.js') }}"></script>
+</body>
+</html>
