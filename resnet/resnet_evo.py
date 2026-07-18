@@ -49,7 +49,7 @@ import genreg_paths                               # noqa: F401
 from radial_evo import _tprims, _ridge_soft, _STOP
 from radial_evo2 import Env, make_scorer, C_PER_SCALE, SCALES
 
-_HERE = os.path.dirname(os.path.abspath(__file__))
+_HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # Artifacts live off the C: drive by default (user directive: F:\Resnet).
 OUT_DIR = os.environ.get("GENREG_RESNET_DIR", r"F:\Resnet")

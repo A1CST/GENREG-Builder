@@ -197,7 +197,8 @@ except Exception as _e:                        # pragma: no cover
 
 DAEMON_HOST = "127.0.0.1"
 DAEMON_PORT = 5001
-DAEMON_SCRIPT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "terminal_daemon.py")
+DAEMON_SCRIPT = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                             "cli", "terminal_daemon.py")
 
 
 # --------------------------------------------------------------------------

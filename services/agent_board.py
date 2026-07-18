@@ -12,12 +12,15 @@ Ways to post:
 Training jobs (engine /train, Tree LM, encoder, sweeps, DiffEvo) post
 automatically when they finish.
 """
+import os as _os, sys as _sys                     # repo-root shim
+_sys.path.insert(0, _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))
+import genreg_paths                               # noqa: F401
 import datetime
 import json
 import os
 import threading
 
-_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "agent_store")
+_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "agent_store")
 PATH = os.path.join(_DIR, "notices.jsonl")
 
 KINDS = ("info", "test", "run", "alert")

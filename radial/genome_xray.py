@@ -15,11 +15,14 @@ Feature build is ~11s; it is cached after the first call. All the compared
 genomes share the same v2 features, so the STARTING tangle is identical and any
 difference you see at the end is the genome, not the data.
 """
+import os as _os, sys as _sys                     # repo-root shim
+_sys.path.insert(0, _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))
+import genreg_paths                               # noqa: F401
 import os
 import pickle
 import numpy as np
 
-_HERE = os.path.dirname(os.path.abspath(__file__))
+_HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # feat_v2 genomes: all have the 10 detectors + mixer + pairs over the same
 # features, so they are directly comparable on one shared starting cloud.

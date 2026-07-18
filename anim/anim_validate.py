@@ -43,7 +43,7 @@ from radial_evo import _tprims
 from radial_evo2 import Env
 import radial_stack as rk
 
-_HERE = os.path.dirname(os.path.abspath(__file__))
+_HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 F = 24
 N_AB = 1500
 

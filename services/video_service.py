@@ -10,6 +10,9 @@ ffmpeg/ffprobe resolution order:
   2. anything on PATH
   3. imageio-ffmpeg's bundled binary (ffmpeg only, no ffprobe)
 """
+import os as _os, sys as _sys                     # repo-root shim
+_sys.path.insert(0, _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))
+import genreg_paths                               # noqa: F401
 
 import glob
 import json
@@ -21,7 +24,7 @@ import threading
 import time
 import uuid
 
-BASE = os.path.dirname(os.path.abspath(__file__))
+BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 LIB_DIR = os.path.join(BASE, "runs", "video", "library")
 THUMB_DIR = os.path.join(BASE, "runs", "video", "thumbs")
 os.makedirs(LIB_DIR, exist_ok=True)

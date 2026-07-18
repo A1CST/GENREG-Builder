@@ -2,12 +2,15 @@
 model behind the animation page, so the page can show how TINY these
 gradient-free, CPU-inference models are. Writes radial_data/anim_footprint.json.
 """
+import os as _os, sys as _sys                     # repo-root shim
+_sys.path.insert(0, _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))
+import genreg_paths                               # noqa: F401
 import json
 import os
 
 from anim_infer import count_params
 
-_HERE = os.path.dirname(os.path.abspath(__file__))
+_HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _RD = os.path.join(_HERE, "radial_data")
 
 # (key, display name, role, checkpoint file)

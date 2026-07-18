@@ -36,7 +36,7 @@ try:
 except ImportError:
     import animation_data as ad
 
-_HERE = os.path.dirname(os.path.abspath(__file__))
+_HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 RD = os.path.join(_HERE, "radial_data")
 SHAPE_RES, LETTER_RES = 20, 32
 N_SHAPES, N_LETTERS = 10, 26

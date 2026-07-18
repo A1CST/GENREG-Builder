@@ -35,7 +35,7 @@ try:
 except ImportError:
     import animation_data as ad
 
-_HERE = os.path.dirname(os.path.abspath(__file__))
+_HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # each condition: (key, label, kwargs for gen_scene) — the FIRST is the in-dist ref
 CONDITIONS = [

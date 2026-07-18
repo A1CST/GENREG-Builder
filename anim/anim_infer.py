@@ -15,6 +15,9 @@ page's number is honest for this machine.
 Build is one-time per process per task (background thread, ~20 s on the
 4080); after that a classify call is a table lookup. No gradients anywhere.
 """
+import os as _os, sys as _sys                     # repo-root shim
+_sys.path.insert(0, _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))
+import genreg_paths                               # noqa: F401
 import base64
 import json
 import os
@@ -22,7 +25,7 @@ import threading
 
 import numpy as np
 
-_HERE = os.path.dirname(os.path.abspath(__file__))
+_HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _LOCK = threading.Lock()
 TASKS = ("path", "shape")
 _STATE = {t: {"status": "idle", "error": None} for t in TASKS}
