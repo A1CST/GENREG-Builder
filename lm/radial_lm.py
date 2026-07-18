@@ -25,6 +25,11 @@ DISJOINT corpus region. No gradients anywhere.
 
 Exports radial_data/lm_radial.json (+ lm_model.json) for the LM page.
 """
+import os as _os, sys as _sys                     # repo-root shim
+for _p in (_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))),
+           _os.path.dirname(_os.path.abspath(__file__))):
+    if _p not in _sys.path:
+        _sys.path.insert(0, _p)
 import json
 import os
 import time
@@ -34,7 +39,7 @@ import numpy as np
 from radial_evo import _tprims, _ridge_soft, _STOP
 import radial_stack as rk
 
-_HERE = os.path.dirname(os.path.abspath(__file__))
+_HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CORPUS = os.path.join(_HERE, "corpora", "combined", "combined_corpus.txt")
 T = 6                                    # context characters per window
 CHARS = "abcdefghijklmnopqrstuvwxyz "
