@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>GENREG — Vision Demo</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='vendor/xterm.css') }}" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+  <style>
+    .vd2-main { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 20px 26px 48px; }
+    .vd2-card, .vd2-hero {
+      max-width: 1080px; margin: 0 auto 22px;
+      background: #0d1117; border: 1px solid #1c232c; border-radius: 10px; padding: 20px 22px;
+    }
+    .vd2-hero { background: linear-gradient(180deg,#0e141c,#0d1117); }
+    .vd2-hero h1 { margin: 0 0 8px; font-size: 20px; color: #dbe2ea; }
+    .vd2-hero p { margin: 0; color: #a9b2bd; font-size: 13px; line-height: 1.6; }
+    .vd2-card h2 { margin: 0 0 4px; font-size: 16px; color: #dbe2ea; }
+    .vd2-card .sub { color: #8b95a1; font-size: 12.5px; line-height: 1.6; margin-bottom: 16px; }
+    .vd2-tag { display: inline-block; font-size: 10px; letter-spacing: .06em; text-transform: uppercase;
+      padding: 2px 9px; border-radius: 10px; margin-bottom: 10px; font-weight: 600; }
+    .vd2-tag.union { background: #17263a; color: #79c0ff; border: 1px solid #23324d; }
+    .vd2-tag.grow { background: #12261a; color: #56d364; border: 1px solid #1f4429; }
+    .vd2-chart-wrap { width: 100%; overflow-x: auto; }
+    svg.vd2-svg { display: block; width: 100%; height: auto; min-width: 560px; }
+    .vd2-legend { display: flex; flex-wrap: wrap; gap: 8px 18px; margin-top: 10px; font-size: 12px; color: #c7d0da; }
+    .vd2-legend span.k { display: inline-flex; align-items: center; gap: 6px; }
+    .vd2-legend .sw { width: 11px; height: 11px; border-radius: 3px; }
+    .vd2-headline { font-size: 13px; color: #dbe2ea; margin-top: 14px; line-height: 1.6; }
+    .vd2-headline b { color: #7ee787; }
+    .vd2-delta { display: inline-flex; align-items: baseline; gap: 8px; margin: 6px 0 2px;
+      font-family: ui-monospace, monospace; }
+    .vd2-delta .from { color: #8b95a1; } .vd2-delta .arrow { color: #6e7681; }
+    .vd2-delta .to { color: #7ee787; font-size: 18px; } .vd2-delta .plus { color: #56d364; font-size: 12px; }
+    .vd2-tiles { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 14px; }
+    .vd2-tile { flex: 1; min-width: 130px; background: #10141c; border: 1px solid #1c232c;
+      border-radius: 8px; padding: 12px 14px; }
+    .vd2-tile .n { font-family: ui-monospace, monospace; font-size: 20px; color: #dbe2ea;
+      font-variant-numeric: tabular-nums; }
+    .vd2-tile .l { font-size: 11px; color: #8b95a1; margin-top: 3px; }
+    .vd2-two { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    @media (max-width: 720px) { .vd2-two { grid-template-columns: 1fr; } }
+    .vd2-contrast { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    @media (max-width: 720px) { .vd2-contrast { grid-template-columns: 1fr; } }
+    .vd2-col { background: #10141c; border: 1px solid #1c232c; border-radius: 8px; padding: 14px 16px; }
+    .vd2-col h3 { margin: 0 0 6px; font-size: 13px; color: #c7d0da; }
+    .vd2-col p { margin: 0; font-size: 12px; color: #8b95a1; line-height: 1.6; }
+    .vd2-note { font-size: 12px; color: #8b95a1; line-height: 1.6; margin-top: 12px;
+      border-left: 2px solid #23324d; padding-left: 12px; }
+    .vd2-err { color: #ff7b72; font-size: 13px; }
+    code { color: #c7d0da; }
+    /* animated inference panels */
+    .vd2-panels { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-top: 8px; }
+    @media (max-width: 860px) { .vd2-panels { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 460px) { .vd2-panels { grid-template-columns: 1fr; } }
+    .vd2-panel { background: #10141c; border: 1px solid #1c232c; border-radius: 8px;
+      padding: 12px; text-align: center; }
+    .vd2-panel .pt { font-size: 12px; color: #c7d0da; font-weight: 600; margin-bottom: 8px; }
+    .vd2-panel .stage { width: 132px; height: 132px; margin: 0 auto; border-radius: 6px;
+      background: #05070a; border: 1px solid #1c232c; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+    .vd2-panel .stage img { width: 116px; height: 116px; image-rendering: pixelated;
+      transition: opacity .28s ease; }
+    .vd2-panel .sees { font-size: 10.5px; color: #6e7681; margin-top: 8px; height: 13px; }
+    .vd2-panel .pred { font-size: 14px; margin-top: 3px; height: 20px; font-family: ui-monospace, monospace;
+      transition: opacity .2s ease; }
+    .vd2-panel .pred b { color: #dbe2ea; }
+    .vd2-panel .pred .ok { color: #56d364; } .vd2-panel .pred .no { color: #ff7b72; }
+    .vd2-panel .acc { font-size: 10px; color: #8b95a1; margin-top: 8px; }
+    .vd2-panel .acc b { color: #7ee787; font-family: ui-monospace, monospace; }
+    .vd2-panel .modtag { font-size: 9px; text-transform: uppercase; letter-spacing: .05em;
+      padding: 1px 6px; border-radius: 8px; margin-left: 6px; }
+    .vd2-panel .modtag.shape { background: #17263a; color: #79c0ff; }
+    .vd2-panel .modtag.letter { background: #2a2410; color: #e3b341; }
+    /* downloads */
+    .vd2-dl { display: flex; flex-wrap: wrap; gap: 10px; margin: 6px 0 14px; }
+    .vd2-dl a { display: inline-flex; align-items: center; gap: 7px; text-decoration: none;
+      font-size: 12.5px; padding: 8px 13px; border-radius: 7px; border: 1px solid #23324d;
+      background: #10141c; color: #c7d0da; }
+    .vd2-dl a:hover { border-color: #2e7d5b; color: #dbe2ea; }
+    .vd2-dl a.primary { background: #12261a; border-color: #1f4429; color: #7ee787; font-weight: 600; }
+    .vd2-dl a .sz { color: #6e7681; font-size: 10px; }
+    .vd2-code { background: #05070a; border: 1px solid #1c232c; border-radius: 8px; padding: 12px 14px;
+      font-size: 12px; color: #a9b2bd; overflow-x: auto; line-height: 1.7; }
+    .vd2-code .fl { color: #7ee787; }
+    /* cross-modal callout — foreground the surprising observation */
+    .vd2-callout { margin-top: 14px; background: #10141c; border: 1px solid #23324d;
+      border-left: 3px solid #79c0ff; border-radius: 8px; padding: 13px 16px;
+      font-size: 13px; color: #c7d0da; line-height: 1.65; }
+    .vd2-callout b { color: #79c0ff; font-family: ui-monospace, monospace; }
+    .vd2-callout .q { color: #8b95a1; font-style: italic; margin-top: 6px; display: block; }
+    .vd2-prose { font-size: 13px; color: #a9b2bd; line-height: 1.7; }
+    .vd2-prose b { color: #dbe2ea; }
+    /* efficiency table */
+    table.vd2-eff { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 6px; }
+    table.vd2-eff th, table.vd2-eff td { padding: 9px 12px; border-bottom: 1px solid #1c232c; text-align: left; }
+    table.vd2-eff th { color: #8b95a1; font-weight: 500; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
+    table.vd2-eff td.num { text-align: right; font-family: ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+    table.vd2-eff tr.grow td { color: #dbe2ea; }
+    table.vd2-eff tr.grow td.hi { color: #7ee787; font-weight: 600; }
+    table.vd2-eff .dot { width: 9px; height: 9px; border-radius: 2px; display: inline-block; margin-right: 8px; }
+    .vd2-eff-note { font-size: 12px; color: #8b95a1; line-height: 1.6; margin-top: 10px; }
+    .vd2-eff-note b { color: #7ee787; }
+  </style>
+</head>
+<body class="tlm-body">
+  <header class="topbar">
+    <div class="brand">GENREG<span class="brand-sub">vision demo · union &amp; continued training, gradient-free</span></div>
+    <div class="status">{% set nav_active = 'vision_demo' %}{% include '_nav.html' %}</div>
+  </header>
+
+  <main class="vd2-main" id="page-main">
+    <div class="vd2-hero">
+      <h1>Two ways to build larger gradient-free vision systems</h1>
+      <p>Both models below are bred by selection — <b style="color:#c7d0da">no gradients, no backprop</b> — and
+      grounded in pixels. One knows <b style="color:#c7d0da">shapes</b> (10 classes), one knows
+      <b style="color:#c7d0da">letters</b> (26). Two composition strategies turn them into one model that knows
+      both: <b style="color:#79c0ff">MERGE</b> two independently trained models (union), or
+      <b style="color:#56d364">GROW</b> one model into the new task (continued training). They answer different
+      questions — <em>can trained models be merged without retraining?</em> and <em>can a trained model expand
+      into a new task without starting over?</em> Every number is test-touched-once over 36 classes (chance
+      <span id="vd2-chance"></span>).</p>
+    </div>
+
+    <section class="vd2-card">
+      <h2>See the checkpoints in action</h2>
+      <div class="sub">Each frozen model runs inference on freshly rendered images. The picture is what the
+      model <b>sees</b>; the label is what it <b>predicts</b> (<span style="color:#56d364">✓</span> correct,
+      <span style="color:#ff7b72">✗</span> miss). Left two: each model on its own modality. Right two: one
+      model reading <b>both</b> shapes and letters.</div>
+      <div class="vd2-panels" id="vd2-panels"></div>
+    </section>
+
+    <section class="vd2-card">
+      <span class="vd2-tag union">Strategy 1 · Merge</span>
+      <h2>Merge a shapes model + a letters model</h2>
+      <div class="sub">Run each frozen bank in its own basis at its native scale, concatenate the two feature
+      vectors, and fit <b>one</b> closed-form ridge classifier over 36 classes. Each bank stays frozen — the only
+      learned component is that linear readout over the concatenated activations — so there is no interference to
+      manage and no genome is retrained.</div>
+      <div class="vd2-chart-wrap"><svg class="vd2-svg" id="vd2-union" viewBox="0 0 720 300" preserveAspectRatio="xMidYMid meet"></svg></div>
+      <div class="vd2-legend" id="vd2-union-legend"></div>
+      <div class="vd2-headline" id="vd2-union-headline"></div>
+      <div class="vd2-callout" id="vd2-crossmodal"></div>
+    </section>
+
+    <section class="vd2-card">
+      <span class="vd2-tag grow">Strategy 2 · Grow</span>
+      <h2>Grow the shapes model until it reads letters</h2>
+      <div class="sub">Start from the frozen shape genomes, then keep evolving <b>new</b> genomes on the 36-class
+      task. The previously evolved genomes stay frozen; each new genome is scored only for the improvement it
+      adds beyond the frozen base — so prior capabilities are preserved while the feature bank extends (no
+      catastrophic forgetting to guard against). One model grows: <b>no separate letter model is ever trained</b>.
+      Because the shape features already transfer to letters, training starts well above chance and climbs.</div>
+      <div class="vd2-two">
+        <div>
+          <div class="sub" style="margin-bottom:8px">Before &rarr; after (test accuracy)</div>
+          <div class="vd2-chart-wrap"><svg class="vd2-svg" id="vd2-ba" viewBox="0 0 340 300" preserveAspectRatio="xMidYMid meet"></svg></div>
+        </div>
+        <div>
+          <div class="sub" style="margin-bottom:8px">The climb — accuracy vs. new genomes evolved</div>
+          <div class="vd2-chart-wrap"><svg class="vd2-svg" id="vd2-curve" viewBox="0 0 340 300" preserveAspectRatio="xMidYMid meet"></svg></div>
+        </div>
+      </div>
+      <div class="vd2-legend" id="vd2-cont-legend"></div>
+      <div class="vd2-tiles" id="vd2-cont-tiles"></div>
+      <div class="vd2-headline" id="vd2-cont-headline"></div>
+    </section>
+
+    <section class="vd2-card">
+      <h2>Transfer efficiency — growing vs. starting over</h2>
+      <div class="sub">The control: evolve genomes for the same 36-class task from an <b>empty</b> base — no shape
+      model reused — and ask how much evolution the reused shape features actually save. Both are measured to the
+      same accuracy; the difference is how many genomes each had to evolve to get there.</div>
+      <div id="vd2-eff"></div>
+      <div class="vd2-chart-wrap" style="margin-top:12px"><svg class="vd2-svg" id="vd2-eff-curve" viewBox="0 0 720 300" preserveAspectRatio="xMidYMid meet"></svg></div>
+      <div class="vd2-legend" id="vd2-eff-legend"></div>
+    </section>
+
+    <section class="vd2-card">
+      <h2>When to use which</h2>
+      <div class="vd2-contrast" style="margin-top:12px">
+        <div class="vd2-col">
+          <h3 style="color:#79c0ff">Merge — fuse two models</h3>
+          <p>Needs a shapes model <em>and</em> a letters model, each already trained. Fusion is instant (one head
+          solve) and the two perceptions are complementary, so fused beats either bank. Best when you already own
+          both experts and want them under one readout.</p>
+        </div>
+        <div class="vd2-col">
+          <h3 style="color:#56d364">Grow — extend one model</h3>
+          <p>Needs only the shapes model. It keeps evolving new genomes for the new classes, so it can learn letters
+          <em>without</em> anyone ever training a letter model. Best when the second expert doesn't exist yet — the
+          model extends itself.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="vd2-card">
+      <h2>What this suggests</h2>
+      <div class="vd2-prose">
+        <p>Taken together, the observations point at a property of the representation itself, not of shapes and
+        letters specifically: independently evolved feature banks can be <b>merged</b> under one readout; a frozen
+        bank can be <b>extended</b> without disturbing what it already computes; the evolved features remain
+        <b>useful on a related domain</b> they were never trained on; and adding capacity does not require relearning
+        the old representation.</p>
+        <p>That is a composability / modularity property — closure under composition — which gradient-trained feature
+        extractors often lack. Whether it holds on harder datasets than shapes and letters is the open question;
+        here it is a clean, measurable existence proof rather than a claim.</p>
+      </div>
+    </section>
+
+    <section class="vd2-card">
+      <h2>Download &amp; try it yourself</h2>
+      <div class="sub">Grab the checkpoints and the inference script, then classify your own random samples.
+      Everything is gradient-free — no training, just a closed-form readout.</div>
+      <div class="vd2-dl">
+        <a class="primary" href="/api/vision_demo/download/bundle" download>▽ Full bundle <span class="sz">(all 4 models + script + README, .zip)</span></a>
+        <a href="/api/vision_demo/download/infer" download>vision_infer.py <span class="sz">script</span></a>
+        <a href="/api/vision_demo/download/shape" download>shape model</a>
+        <a href="/api/vision_demo/download/letter" download>letter model</a>
+        <a href="/api/vision_demo/download/union" download>union model</a>
+        <a href="/api/vision_demo/download/continued" download>continued model</a>
+      </div>
+      <pre class="vd2-code"><span class="fl">python</span> vision_infer.py --model continued        <span style="color:#4a525e"># 8 mixed shapes+letters</span>
+<span class="fl">python</span> vision_infer.py --model shape --n 12 --save out/   <span style="color:#4a525e"># write the PNGs too</span></pre>
+      <div class="vd2-note">Run from inside the GENREG repo (numpy / torch / pillow). The script reuses the repo's
+      radial grammar, so its predictions are byte-identical to what you see above.</div>
+    </section>
+
+    <div class="vd2-card" id="vd2-meta" style="color:#6e7681;font-size:12px"></div>
+  </main>
+
+  <script src="{{ url_for('static', filename='vendor/xterm.js') }}"></script>
+  <script src="{{ url_for('static', filename='vendor/addon-fit.js') }}"></script>
+  <script src="{{ url_for('static', filename='termdock.js') }}"></script>
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
+  <script src="{{ url_for('static', filename='agentpanel.js') }}"></script>
+  <script src="{{ url_for('static', filename='configpanel.js') }}"></script>
+  <script src="{{ url_for('static', filename='vision_demo.js') }}"></script>
+</body>
+</html>
