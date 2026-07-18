@@ -1,0 +1,8 @@
+[steer] evidence floor: 2860/5000 targets keep steering (>= 3 occurrences in train articles)
+[coh3] generated 8x16 candidates (49s)
+[coh3] w=0.0: judge -6.8824 d2 0.9918 hold 0.4375
+[coh3] w=1.0: judge -7.4339 d2 0.9973 hold 0.4375
+[coh3] w=2.0: judge -8.2716 d2 0.9973 hold 0.5
+[coh3] w=4.0: judge -8.4565 d2 0.9973 hold 0.5
+COH3 RESULT: [{"w": 0.0, "judge_logprob": -6.8824, "distinct2": 0.9918, "hold": 0.4375}, {"w": 1.0, "judge_logprob": -7.4339, "distinct2": 0.9973, "hold": 0.4375}, {"w": 2.0, "judge_logprob": -8.2716, "distinct2": 0.9973, "hold": 0.5}, {"w": 4.0, "judge_logprob": -8.4565, "distinct2": 0.9973, "hold": 0.5}]
+COH3 DONE

@@ -1,0 +1,13 @@
+[coh2] loading generator (inference pack)...
+[steer] evidence floor: 2860/5000 targets keep steering (>= 3 occurrences in train articles)
+[coh2] ready in 6s; s_cal 20.0
+[coh2] t0.9 top5 (deployed r1): judge -9.5512 d2 1.0 hold 0.8125
+[coh2] t0.5 top3: judge -8.6042 d2 1.0 hold 0.375
+[coh2] t0.3 top2: judge -7.7905 d2 0.9864 hold 0.375
+[coh2] greedy: judge -7.9005 d2 0.9946 hold 0.3125
+[coh2] greedy UNSTEERED: judge -7.1367 d2 0.9891 hold 0.1875
+[coh2] guided t0.7: judge -7.9602 d2 0.9918 hold 0.5625
+[coh2] guided t0.5: judge -7.4723 d2 0.9755 hold 0.1875
+[coh2] guided t0.7 best-of-8: judge -6.8824 d2 0.9918 hold 0.4375
+COH2 RESULT: [{"tag": "t0.9 top5 (deployed r1)", "temp": 0.9, "topk": 5, "guided": 0, "lam": 1.5, "judge_logprob": -9.5512, "distinct2": 1.0, "hold": 0.8125}, {"tag": "t0.5 top3", "temp": 0.5, "topk": 3, "guided": 0, "lam": 1.5, "judge_logprob": -8.6042, "distinct2": 1.0, "hold": 0.375}, {"tag": "t0.3 top2", "temp": 0.3, "topk": 2, "guided": 0, "lam": 1.5, "judge_logprob": -7.7905, "distinct2": 0.9864, "hold": 0.375}, {"tag": "greedy", "temp": 0.3, "topk": 1, "guided": 0, "lam": 1.5, "judge_logprob": -7.9005, "distinct2": 0.9946, "hold": 0.3125}, {"tag": "greedy UNSTEERED", "temp": 0.3, "topk": 1, "guided": 0, "lam": 0.0, "judge_logprob": -7.1367, "distinct2": 0.9891, "hold": 0.1875}, {"tag": "guided t0.7", "temp": 0.7, "topk": 3, "guided": 1, "lam": 1.5, "judge_logprob": -7.9602, "distinct2": 0.9918, "hold": 0.5625}, {"tag": "guided t0.5", "temp": 0.5, "topk": 3, "guided": 1, "lam": 1.5, "judge_logprob": -7.4723, "distinct2": 0.9755, "hold": 0.1875}, {"tag": "guided t0.7 best-of-8", "temp": 0.7, "topk": 3, "guided": 1, "lam": 1.5, "judge_logprob": -6.8824, "distinct2": 0.9918, "hold": 0.4375}]
+COH2 DONE

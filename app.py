@@ -1769,10 +1769,10 @@ def lm_autocomplete():
         import lm_word_infer
         prompt = request.args.get("prompt", "", type=str)
         n = request.args.get("n", 24, type=int)
-        temp = request.args.get("temp", 0.9, type=float)
+        temp = request.args.get("temp", 0.7, type=float)
         steer = request.args.get("steer", "auto", type=str)
         lam = request.args.get("lam", 1.5, type=float)
-        topk = request.args.get("topk", 5, type=int)
+        topk = request.args.get("topk", 3, type=int)
         best = request.args.get("best", 1, type=int)
         return jsonify(lm_word_infer.complete(prompt, n_words=n, temp=temp,
                                               steer=steer, lam=lam,

@@ -10,6 +10,41 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-18] (Claude)** — **THE FLUENCY FRONTIER (/lm module 38): four
+  decode rounds map the fluency/topic-hold trade and the MERIT POOL
+  resolves it - deployed at judge -8.17 (+1.4 nats over the previous live
+  decode) at hold 0.69.** The user's "fluency is still garbage" verdict,
+  taken seriously:
+  ```
+  arm                          judge    hold
+  guided t0.7 best-of-8        -6.88    0.44   max fluency (r2)
+  MERIT t0.5 best-of-8         -7.72    0.56
+  MERIT t0.7 best-of-8         -8.17    0.69   << DEPLOYED (r5)
+  t0.9 top5 (old live decode)  -9.55    0.81
+  privileged pool              -10.40   0.94   max hold (r4)
+  ```
+  What the rounds established: (r2) sharp + table-guided decode buys up
+  to +2.7 nats but hold collapses - sharp logits out-compete the steering
+  bonus, and the table-support pool structurally EXCLUDES topic words
+  after dialogue-register context; (r3) no rerank can recover hold when
+  no candidate contains topic words (hybrid rerank moved hold 0.44->0.50
+  while giving back 1.6 nats); (r4) positionally privileging topic words
+  in the pool overshoots to hold 0.94 at judge -10.4. (r5) THE MERIT
+  POOL: candidates = (model top-10 with continuation-table support) UNION
+  (topic words with S > 2 that the model itself rates top-25), ALL ranked
+  by the steered logits so admission is by merit; polish = best-of-8 with
+  the HYBRID rerank z(cont logprob) + z(topic head logit). DEPLOYED into
+  lm_word_infer.complete (defaults temp 0.7 / top-3 / merit / hybrid
+  polish; table_support + tscore exposed from the build/steer assets);
+  verified locally at 4.7-5.4s per polished completion: "jury law you
+  party appointment with a vienna today don t you think it s a contract
+  out on you". HONEST FRAME: this is the decode-frontier optimum for the
+  0.56 model - the frontier itself is a model property; moving it needs
+  training-side work (register-matched data or the blended-rollout
+  continue-train, the old campaign's validated exposure-gap fix). Module
+  38 (kid_fluency.json), run runs/lm/20260718-040030-lm-fluency-b6da1a,
+  scripts lm/coherence_decode2-5.py, everything shadowed + pod-synced.
+
 - **[2026-07-18] (Claude)** — **ROOT CLEANUP ROUND 4 (user's call): 23
   more files leave the repo root.** New packages: `anim/` (anim_* +
   dot_* - the animation/attention line), `mm/` (multimodal), `resnet/`

@@ -6,6 +6,12 @@ Seeded 2026-07-05 from the main changelog (keyword split, best effort).
 
 ---
 
+- **[2026-07-18] (Claude)** — **Fluency frontier (module 38): merit-pool
+  decode deployed - judge -8.17 (+1.4 nats) at hold 0.69, ~5s polished.
+  Frontier mapped across 4 rounds; moving it further is training-side.
+  Run runs/lm/20260718-040030-lm-fluency-b6da1a. Detail in main
+  CHANGELOG.**
+
 - **[2026-07-18] (Claude)** — **LM scripts -> lm/ package (21 files, repo
   cleanup on the user's call); radial_lm.py stays root (shared). Pod
   mirrored. Commit 23ef447. Detail in main CHANGELOG.**
