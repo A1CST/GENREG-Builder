@@ -10,6 +10,44 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-18] (Claude)** — **PRODUCTION DECODE (user's call: "a
+  production number, not research"): 13.7 -> 47.5 tok/s plain, 1.84 ->
+  10.0 tok/s polished - 3.5x/5.4x, all EXACT and gate-verified.** The
+  full optimization ledger across both passes: (1) sparse linear-head
+  decode (logits = precomputed zero-row constant + nonzero-column
+  updates, per-column clamps composed); (2) numpy mirrors of both genome
+  evaluators (vec + temporal; verified vs torch to 1e-7; the grammar
+  vote was 138 GPU kernel launches per word = 43.8ms -> 4.3ms); (3)
+  table-entry cache (each unique n-gram entry's vector/prob-columns
+  computed once per process); (4) LOCKSTEP polish (all 8 candidate
+  sequences advance together, ONE batched grammar pass per step,
+  trajectories identical to sequential - same per-seed rngs, byte-same
+  outputs); (5) GPU-resident head (Kw 554MB on the 4080) with the
+  delta-row batch step: one (n x 27.7k)@(27.7k x 5k) matmul per step for
+  all sequences; the build-time exactness gate covers single AND batch
+  paths (max diff 1.2e-4 fp32, hard-fails to the slow path above 1e-2).
+  Steered polish 3.1-3.4s, unsteered 0.7-0.9s per 24 words. Module-40
+  export perf + polished samples refreshed. The remaining known ~2x
+  (assembly in C / pinned-memory transfers) is not worth the risk before
+  a demo.
+
+- **[2026-07-18] (Claude)** — **/vision_demo: animated inference panels + downloadable
+  checkpoints & inference script.** (1) `mm/vision_samples.py` renders fresh samples,
+  runs each frozen checkpoint, and exports predictions as PNG data-URIs
+  (`radial_data/vision_demo_samples.json`): shape 1.0, letter 0.917, union 1.0,
+  continued 0.981. The page now shows **four animated panels** (shape→shapes,
+  letter→letters, union→both, continued→both) that cycle through live samples,
+  revealing each model's guess with ✓/✗. (2) **Download & try it yourself** card: a
+  new inference CLI `mm/vision_infer.py` (`--model shape|letter|union|continued`,
+  renders random samples, prints predictions + accuracy, `--save` writes PNGs) plus
+  download routes `/api/vision_demo/download/<shape|letter|union|continued|infer|bundle>`
+  (bundle = a zip of all four checkpoints + the script + README, built in-memory).
+  New endpoints `/api/vision_demo/samples` + the downloads; `vision_samples` wired
+  into the `mm/vision_demo.py` orchestrator. Shape panel refits its 10-class head on
+  the centered-crop basis (the saved head was tied to the tracker-attended training
+  basis) — the genomes are the model, the ridge head is a closed-form readout.
+  **Flask restart required** for the new routes.
+
 - **[2026-07-18] (Claude)** — **Inference 3x faster, exactly ("13.7 tps!?"
   - the user was right): 13.7 -> 39.7 tok/s plain, 1.84 -> 5.38 tok/s
   polished.** Profiling showed the cost was never the head matmul

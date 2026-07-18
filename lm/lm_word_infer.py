@@ -480,18 +480,29 @@ def _build():
     _zmu_n = [a.cpu().numpy() for a, b in space_stats]
     _zsd_n = [b.cpu().numpy() for a, b in space_stats]
 
-    def _cont_cols(dist, base_p):
-        """(cols, vals) for a distribution's nonzero probability entries."""
+    _tbl_cache = {}
+
+    def _tbl_entry(dist):
+        """(vec128, target_cols, probs) for a table entry - computed ONCE
+        per unique entry per process (tables are immutable in RAM)."""
+        e = _tbl_cache.get(id(dist))
+        if e is not None:
+            return e
+        vec = _cont_vec(dist)
         v = 0.0
         pairs = []
         for w_, c_ in dist.items():
             k_ = tgt_i.get(w_)
             if k_ is not None:
                 pairs.append((k_, c_)); v += c_
-        if not pairs or v == 0:
-            return [], []
-        return ([base_p + k_ for k_, c_ in pairs],
-                [c_ / v for k_, c_ in pairs])
+        if pairs and v > 0:
+            cols = np.array([k_ for k_, c_ in pairs])
+            vals = np.array([c_ / v for k_, c_ in pairs], np.float32)
+        else:
+            cols = np.zeros(0, np.int64); vals = np.zeros(0, np.float32)
+        e = (vec, cols, vals)
+        _tbl_cache[id(dist)] = e
+        return e
 
     def _fast_step(win_ids):
         lg = C0.copy()
@@ -523,26 +534,28 @@ def _build():
             d_ = bi_c[w2]
         else:
             d_ = uni_c
-        dense_vecs.append((_coff, _cont_vec(d_)))
-        c_, v_ = _cont_cols(d_, _coff + 2 * D)
-        sp_cols += c_; sp_vals += v_
+        vec, cols_, vals_ = _tbl_entry(d_)
+        dense_vecs.append((_coff, vec))
+        sp_cols += list(_coff + 2 * D + cols_); sp_vals += list(vals_)
         dense_vecs.append((_coff + D,
-                           _cont_vec(bi_c[w2]) if w2 in bi_c else _uni_vec))
+                           _tbl_entry(bi_c[w2])[0] if w2 in bi_c
+                           else _uni_vec))
         if extra:
             base_ = _coff + 2 * D + V
             dq = quad_t.get((w0, w1, w2))
             if dq:
-                dense_vecs.append((base_, _cont_vec(dq)))
-                c_, v_ = _cont_cols(dq, base_ + D)
-                sp_cols += c_; sp_vals += v_
+                vec, cols_, vals_ = _tbl_entry(dq)
+                dense_vecs.append((base_, vec))
+                sp_cols += list(base_ + D + cols_); sp_vals += list(vals_)
             da = skipA_t.get((w0, w2))
             if da:
-                dense_vecs.append((base_ + D + V, _cont_vec(da)))
-                c_, v_ = _cont_cols(da, base_ + 2 * D + V)
-                sp_cols += c_; sp_vals += v_
+                vec, cols_, vals_ = _tbl_entry(da)
+                dense_vecs.append((base_ + D + V, vec))
+                sp_cols += list(base_ + 2 * D + V + cols_)
+                sp_vals += list(vals_)
             db = skipB_t.get((w0, w1))
             if db:
-                dense_vecs.append((base_ + 2 * D + 2 * V, _cont_vec(db)))
+                dense_vecs.append((base_ + 2 * D + 2 * V, _tbl_entry(db)[0]))
         # apply cont-region updates: z = clip((x-cmu)/csd) vs baseline z0
         for off, vec in dense_vecs:
             oc = off - _coff
@@ -578,16 +591,115 @@ def _build():
             lg += dzg @ Kw[gcols0:]
         return lg
 
+    # batched GPU step: logits = C0 + dz @ Kw, all rows in one matmul.
+    # dz is the (row - all-zeros-baseline) delta in bank-z space, assembled
+    # per row on CPU (cheap: ~2.7k dense + ~60 sparse entries), multiplied
+    # on the GPU where Kw (554MB) lives resident.
+    _Kw_t = torch.tensor(Kw, device=dev) if dev == "cuda" else None
+    _C0_t = torch.tensor(C0, device=dev) if dev == "cuda" else None
+
+    def _assemble_dz(win_ids, out):
+        """Write the delta row for one window into out (len dcols)."""
+        out[:] = 0.0
+        for f_ in range(W):
+            j_ = int(win_ids[f_])
+            if j_ >= 0:
+                out[f_ * D:(f_ + 1) * D] = (feat[j_] - _mu_n) / _sd_n
+            else:
+                out[f_ * D:(f_ + 1) * D] = (0 - _mu_n) / _sd_n
+        for si_, slot in enumerate((W - 2, W - 1)):
+            k_ = tv.get(int(win_ids[slot]), -1)
+            if k_ >= 0:
+                out[W * D + si_ * V + k_] = 1.0
+        j0, j1, j2 = (int(win_ids[W - 3]), int(win_ids[W - 2]),
+                      int(win_ids[W - 1]))
+        w0 = vocab[j0] if j0 >= 0 else None
+        w1 = vocab[j1] if j1 >= 0 else None
+        w2 = vocab[j2] if j2 >= 0 else None
+        key = (w1, w2)
+        if key in tri_c:
+            d_ = tri_c[key]
+        elif w2 in bi_c:
+            d_ = bi_c[w2]
+        else:
+            d_ = uni_c
+        def put_vec(off, vec):
+            oc = off - _coff
+            zi = np.clip((vec - _cmu_n[oc:oc + D]) / _csd_n[oc:oc + D],
+                         -8, 8)
+            out[off:off + D] = zi - _z0[off:off + D]
+        def put_prob(base_p, cols_, vals_):
+            if len(cols_):
+                cc = base_p - _coff + cols_
+                zn = np.clip((vals_ - _cmu_n[cc]) / _csd_n[cc], -8, 8)
+                out[base_p + cols_] = zn - _z0[base_p + cols_]
+        vec, cols_, vals_ = _tbl_entry(d_)
+        put_vec(_coff, vec)
+        put_prob(_coff + 2 * D, cols_, vals_)
+        put_vec(_coff + D, _tbl_entry(bi_c[w2])[0] if w2 in bi_c
+                else _uni_vec)
+        if extra:
+            base_ = _coff + 2 * D + V
+            dq = quad_t.get((w0, w1, w2))
+            if dq:
+                vec, cols_, vals_ = _tbl_entry(dq)
+                put_vec(base_, vec)
+                put_prob(base_ + D, cols_, vals_)
+            da = skipA_t.get((w0, w2))
+            if da:
+                vec, cols_, vals_ = _tbl_entry(da)
+                put_vec(base_ + D + V, vec)
+                put_prob(base_ + 2 * D + V, cols_, vals_)
+            db = skipB_t.get((w0, w1))
+            if db:
+                put_vec(base_ + 2 * D + 2 * V, _tbl_entry(db)[0])
+        if ckpt["spaces"]:
+            rowsn = np.empty((W, D), np.float32)
+            for f_ in range(W):
+                j_ = int(win_ids[f_])
+                rowsn[f_] = ((feat[j_] if j_ >= 0 else 0) - _mu_n) / _sd_n
+            from radial_evo2 import _PRIMS as _PR
+            from radial_stack import _OPS as _OP2
+            f0 = np.array([np.nan_to_num(
+                _np_feature_vec(rowsn, g, _PR, _OP2),
+                nan=0.0, posinf=0.0, neginf=0.0).clip(-1e6, 1e6).mean()
+                for g in ckpt["spaces"][0]], np.float32)
+            gz = np.clip((f0 - _zmu_n[0]) / _zsd_n[0], -8, 8)
+            gcols0 = _dcols - len(gz)
+            out[gcols0:] = gz - _z0[gcols0:]
+
+    _dz_buf = {}
+
+    def _fast_step_batch(wins):
+        """[(win_ids), ...] -> (n, V) logits via one GPU matmul."""
+        n = len(wins)
+        buf = _dz_buf.get(n)
+        if buf is None:
+            buf = np.zeros((n, _dcols), np.float32)
+            _dz_buf[n] = buf
+        for i, wv in enumerate(wins):
+            _assemble_dz(wv, buf[i])
+        if _Kw_t is not None:
+            dz = torch.tensor(buf, device=dev)
+            return (dz @ _Kw_t + _C0_t).cpu().numpy()
+        return buf @ Kw + C0
+
     # exactness gate: fast vs slow on random windows before serving
     _fast_ok = False
     try:
         rngv = np.random.default_rng(0)
         merr = 0.0
+        wvs = []
         for _ in range(8):
             wv = [int(rngv.integers(0, len(vocab))) for _ in range(W)]
+            wvs.append(wv)
             slow = _step_logits(wv).detach().cpu().numpy()
             fastv = _fast_step(wv)
             merr = max(merr, float(np.abs(slow - fastv).max()))
+        batchv = _fast_step_batch(wvs)
+        for bi_, wv in enumerate(wvs):
+            slow = _step_logits(wv).detach().cpu().numpy()
+            merr = max(merr, float(np.abs(slow - batchv[bi_]).max()))
         _fast_ok = merr < 1e-2
         print(f"[infer] fast-decode exactness: max|diff| {merr:.2e} "
               f"-> {'ON' if _fast_ok else 'OFF (slow path)'}", flush=True)
@@ -618,6 +730,7 @@ def _build():
     _layout += [("genomes", _cols0, _cols0 + n_gen_)]
     _M.update(step_raw=_step_raw, head=(hm, hs, Wm), layout=_layout,
               step_np=_step_np,
+              step_batch=(_fast_step_batch if _fast_ok else None),
               genome_defs=ckpt["spaces"][0] if ckpt["spaces"] else [])
     _M.update(cont_score=_cont_score, table_support=_table_support)
     _M.update(step=_step_logits, torch=torch, w2i=w2i, targets=targets,
@@ -736,7 +849,40 @@ def _gram_assets():
             sc = A @ gWm_n
             return sc[:, 1] - sc[:, 0]
 
-        _GRAM.update(ready=True, margins=margins, test_acc=gm["test_acc"])
+        def margins_batch(groups):
+            """[(ctx_words, cand_words), ...] -> list of margin arrays,
+            evaluated in ONE numpy pass over all windows."""
+            allX, spans = [], []
+            for ctx_words, cand_words in groups:
+                base = ctx_words[-(T - 1):]
+                if len(base) < T - 1:
+                    base = [None] * (T - 1 - len(base)) + list(base)
+                Xb = np.zeros((len(cand_words), T, gE.shape[1]), np.float32)
+                for t, w in enumerate(base):
+                    i = gvocab.get(w) if w else None
+                    if i is not None:
+                        Xb[:, t] = gE[i]
+                for c, w in enumerate(cand_words):
+                    i = gvocab.get(w)
+                    if i is not None:
+                        Xb[c, T - 1] = gE[i]
+                spans.append((len(allX), len(allX) + len(cand_words)))
+                allX.extend(Xb)
+            if not allX:
+                return [np.zeros(0) for _ in groups]
+            X = np.clip((np.stack(allX) - gcmu) / gcsd, -8, 8)
+            cols = [np.nan_to_num(_np_temporal(X, g), nan=0.0,
+                                  posinf=0.0, neginf=0.0).clip(-1e6, 1e6)
+                    for g in gm["genomes"]]
+            Ft = np.clip((np.stack(cols, 1) - gfmu_n) / gfsd_n, -8, 8)
+            A = np.hstack([(Ft - ghm_n) / ghs_n,
+                           np.ones((len(X), 1), np.float32)])
+            sc = A @ gWm_n
+            m = sc[:, 1] - sc[:, 0]
+            return [m[a:b] for a, b in spans]
+
+        _GRAM.update(ready=True, margins=margins,
+                     margins_batch=margins_batch, test_acc=gm["test_acc"])
     except Exception as exc:            # the vote is optional - never break
         _GRAM.update(failed=True, error=str(exc))
     return _GRAM
@@ -831,7 +977,9 @@ def complete(prompt, n_words=24, temp=0.7, seed=None, steer="auto", lam=1.5,
         ctx_words = list(words)
         out_words = []
         for _ in range(max(1, min(60, int(n_words)))):
-            if _M.get("step_np") is not None:
+            if _M.get("step_batch") is not None:
+                lg = _M["step_batch"]([win])[0].astype(np.float64)
+            elif _M.get("step_np") is not None:
                 lg = _M["step_np"](win).astype(np.float64)
             else:
                 lg = _M["step"](win).detach().cpu().numpy().astype(np.float64)
@@ -881,11 +1029,86 @@ def complete(prompt, n_words=24, temp=0.7, seed=None, steer="auto", lam=1.5,
             win = win[1:] + [_M["w2i"].get(_M["targets"][k], -1)]
         return out_words
 
+    def _gen_lockstep(sds):
+        """All candidate sequences advance together: per step, one
+        grammar pass covers every candidate of every sequence. Identical
+        trajectories to sequential _gen (same per-seed rngs)."""
+        rngs = [np.random.default_rng(sd) for sd in sds]
+        states = [{"win": list(win0), "ctx": list(words), "out": []}
+                  for _ in sds]
+        ga = _gram_assets()
+        for _ in range(max(1, min(60, int(n_words)))):
+            pools, lgs = [], []
+            if _M.get("step_batch") is not None:
+                LG = _M["step_batch"]([st["win"] for st in states])                     .astype(np.float64)
+            else:
+                LG = None
+            for si_, st in enumerate(states):
+                if LG is not None:
+                    lg = LG[si_].copy()
+                elif _M.get("step_np") is not None:
+                    lg = _M["step_np"](st["win"]).astype(np.float64)
+                else:
+                    lg = _M["step"](st["win"]).detach().cpu().numpy()                         .astype(np.float64)
+                lg = lg * _M["s_cal"] / max(float(temp), 1e-3)
+                if t_star is not None:
+                    bonus = lam * _STEER["S"][:, t_star].copy()
+                    for wd in st["out"]:
+                        kr = _M["tgt_i"].get(wd)
+                        if kr is not None:
+                            bonus[kr] = 0.0
+                    lg = lg + bonus
+                rep = 2.0 + (lam if t_star is not None else 0.0)
+                for wd in st["out"][-16:]:
+                    kr = _M["tgt_i"].get(wd)
+                    if kr is not None:
+                        lg[kr] -= rep
+                order = np.argsort(lg)
+                c3 = st["ctx"][-3:] if len(st["ctx"]) >= 3 else                     [None] * (3 - len(st["ctx"])) + st["ctx"]
+                sup = _M["table_support"](c3[0], c3[1], c3[2])
+                pool = [int(k) for k in order[-10:] if k in sup]
+                if t_star is not None:
+                    Scol = _STEER["S"][:, t_star]
+                    pool += [int(k) for k in order[-25:]
+                             if Scol[k] > 2.0 and int(k) not in pool
+                             and _M["targets"][k] not in st["out"]]
+                top = (np.array(sorted(pool, key=lambda k: lg[k])[-5:])
+                       if pool else order[-3:])
+                pools.append(top)
+                lgs.append(lg)
+            if ga.get("ready"):
+                margs = ga["margins_batch"](
+                    [(states[i]["ctx"],
+                      [_M["targets"][k] for k in pools[i]])
+                     for i in range(len(states))])
+            else:
+                margs = [None] * len(states)
+            for i, st in enumerate(states):
+                top, lg = pools[i], lgs[i]
+                lg2 = lg[top].astype(np.float64)
+                if margs[i] is not None and len(top) > 1:
+                    gm_ = margs[i]
+                    lg2 = lg2 + (gm_ - gm_.mean()) / (gm_.std() + 1e-9)
+                sel = np.argsort(lg2)[-topk:]
+                t2, l2 = top[sel], lg2[sel]
+                if len(t2) == 1:
+                    k = int(t2[0])
+                else:
+                    z = l2 - l2.max()
+                    p = np.exp(z)
+                    p /= p.sum()
+                    k = int(rngs[i].choice(t2, p=p))
+                wd = _M["targets"][k]
+                st["out"].append(wd)
+                st["ctx"].append(wd)
+                st["win"] = st["win"][1:] + [_M["w2i"].get(wd, -1)]
+        return [st["out"] for st in states]
+
     if best_of == 1:
         out_words = _gen(seed)
     else:                                     # 'polish': hybrid best-of-k
         seeds = np.random.default_rng(seed).integers(0, 2**31, best_of)
-        cands = [_gen(int(s)) for s in seeds]
+        cands = _gen_lockstep([int(s) for s in seeds])
         cs = np.array([_M["cont_score"](c) for c in cands])
         if t_star is not None and _STEER.get("tscore"):
             ts_ = np.array([_STEER["tscore"](c, t_star) for c in cands])
