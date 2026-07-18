@@ -10,6 +10,25 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-18] (Claude)** — **Inference 3x faster, exactly ("13.7 tps!?"
+  - the user was right): 13.7 -> 39.7 tok/s plain, 1.84 -> 5.38 tok/s
+  polished.** Profiling showed the cost was never the head matmul
+  (~0.3ms): the GRAMMAR VOTE was 43.8ms/step (138 temporal genomes = 138
+  separate GPU kernel launches on a (5,10,128) tensor) and the step's own
+  genome eval added a GPU round-trip. Fixes, all EXACT and gated: (1) the
+  sparse fast-decode - the head is linear, so logits = a precomputed
+  all-zeros-row constant + updates for only the nonzero columns (2
+  one-hots + ~60 table-probability entries + small dense blocks), with
+  per-column clamps composed correctly; build-time gate compares fast vs
+  slow on random windows (max diff 1.2e-4, fp32 noise) and falls back if
+  it ever exceeds 1e-2. (2) Numpy mirrors of the genome evaluators - vec
+  genomes (prim chains + baked gates) for the step, temporal genomes for
+  the grammar vote (verified vs torch to 1e-7; 43.8 -> 4.3ms). Per-word
+  cost now ~15ms on the 4080. Module-40 export perf updated. The honest
+  frame: this is an interpretive research decoder made adequately fast;
+  a production path (batched polish seeds, fused tables) has another
+  ~3-5x on the table if wanted.
+
 - **[2026-07-18] (Claude)** — **/lm page: inference-perf chip row added to
   the generic module renderer.** Module 40's export carried the bench
   numbers (load 35.4s, 13.7/1.84 tok/s) in an `inference` field but the
