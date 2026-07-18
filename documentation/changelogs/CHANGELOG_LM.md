@@ -6,6 +6,11 @@ Seeded 2026-07-05 from the main changelog (keyword split, best effort).
 
 ---
 
+- **[2026-07-18] (Claude)** — **Wiki model live locally: pack val 0.2685
+  (=pod), 13.7/1.84 tok/s plain/polish, demo trace generated, module-40
+  export enriched. One restart delivers everything. Detail in main
+  CHANGELOG.**
+
 - **[2026-07-18] (Claude)** — **/lm_demo page: the real computation,
   animated from a recorded trace (bank -> decomposed head math -> genomes
   -> specialist votes -> sample). Route + nav + modal mapping; trace via
