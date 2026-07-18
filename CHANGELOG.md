@@ -10,6 +10,24 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-18] (Claude)** — **REPO CLEANUP (user's call): the LM line's
+  21 scripts move from the repo root into the `lm/` package** (following
+  the genreg_train/ precedent). Every moved script carries a repo-root
+  path shim, so bare imports of shared core (radial_stack, radial_evo*,
+  radial_lm, zetifile) and all radial_data/-relative paths resolve whether
+  a script is imported from root or run directly as `python lm/<x>.py`;
+  app.py adds lm/ to the module path so `import lm_word_infer` is
+  unchanged (one module instance, no route edits). `radial_lm.py` STAYS in
+  root - radial_kid and radial_embed import it; it is shared corpus
+  infrastructure, not an LM experiment. The pod is mirrored to the same
+  layout (flat copies removed) - future scp targets /workspace/genreg-lm/
+  lm/. Verified end-to-end after the move: Flask-style import + pack build
+  (8s) + steered completion, and `python lm/lm_crank.py probe` reproduces
+  the probe verdict exactly. Committed as 23ef447 on
+  radial-cifar-nogradient (git tracked the moves as renames - history
+  preserved) together with the day's LM work; NOT pushed. The same
+  pending Flask restart covers the app.py path change.
+
 - **[2026-07-18] (Claude)** — **Fluency honesty pass + defaults retuned:
   lam 2.0 -> 1.5, polish (best-of-8) ON by default.** The user called out
   that single-sample fluency did not improve - and the judge agrees:

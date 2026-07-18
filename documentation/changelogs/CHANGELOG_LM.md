@@ -6,6 +6,10 @@ Seeded 2026-07-05 from the main changelog (keyword split, best effort).
 
 ---
 
+- **[2026-07-18] (Claude)** — **LM scripts -> lm/ package (21 files, repo
+  cleanup on the user's call); radial_lm.py stays root (shared). Pod
+  mirrored. Commit 23ef447. Detail in main CHANGELOG.**
+
 - **[2026-07-18] (Claude)** — **Fluency honesty pass: single-sample judge
   flat (-9.43 vs -9.20) - the crank bought accuracy + hold cost + POLISH
   fluency (-8.60), not raw sample fluency. Defaults retuned to the
