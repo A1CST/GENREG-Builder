@@ -6,10 +6,25 @@
   <title>GENREG — MNIST</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='vendor/xterm.css') }}" />
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+  <style>
+    /* radial seed-stack ladder (mn-) */
+    .mn-radial-ladder { display: flex; flex-direction: column; gap: 8px; }
+    .mn-rr { display: grid; grid-template-columns: 120px 1fr 74px; gap: 10px;
+             align-items: center; }
+    .mn-rr-name { color: #dbe2ea; font-size: 13px; }
+    .mn-rr-desc { grid-column: 2 / 4; color: #6b7480; font-size: 11px;
+                  margin-top: -3px; }
+    .mn-rr-bar { background: #0b0d10; border: 1px solid #1c232c; border-radius: 5px;
+                 height: 16px; overflow: hidden; }
+    .mn-rr-bar span { display: block; height: 100%; background: #2b3947; }
+    .mn-rr-val { font-family: ui-monospace, monospace; font-variant-numeric: tabular-nums;
+                 color: #c7d0da; font-size: 13px; text-align: right; }
+    .mn-rr-anchor .mn-rr-name, .mn-rr-anchor .mn-rr-val { color: #8b95a1; }
+  </style>
 </head>
 <body class="tlm-body">
   <header class="topbar">
-    <div class="brand">GENREG<span class="brand-sub">mnist · the specialist-pipeline recipe, proven outside language</span></div>
+    <div class="brand">GENREG<span class="brand-sub">mnist · the radial seed-stack — manufactured rotation for static classification</span></div>
     <div class="status">
       <span class="dot" id="mn-dot"></span>
       <span id="mn-conn">loading…</span>
@@ -20,14 +35,20 @@
   <div class="tlm-layout">
     <!-- ── genome stack ─────────────────────────────── -->
     <aside class="sidebar left tlm-side">
-      <div class="side-head">Genome stack</div>
+      <div class="side-head">Architecture</div>
       <div class="side-body control-panel">
         <p class="field-hint" style="margin:0 0 12px">
-          The EvoLang recipe on images: the representation is <b>built from the
-          data's own statistics</b> (never evolved); evolution learns tiny
-          relationships inside it. Decompose "which digit?" into specialist
-          genomes, each with one clean survival condition. Toggle a layer to
-          watch held-out accuracy move.
+          <b>Current: the radial seed-stack</b> — a label-free patch-PCA
+          environment, evolved perception <b>roles</b>, and a
+          <b>manufactured-rotation seed axis</b> (each seed poses the digit
+          differently) composed by the grammar, closed-form ridge head, test
+          touched once. Results in the cards to the right. <b>Best 0.9909</b>,
+          gradient-free — clears the old record.
+        </p>
+        <p class="field-hint" style="margin:0 0 12px;color:#6b7480">
+          The toggles below drive the <b>legacy WordPipe pipeline</b>
+          (statistics → detectors → mixer → pairwise), retained for its live
+          per-digit prediction viewer and as a comparison baseline.
         </p>
         <div id="mn-layers"></div>
         <div class="tlm-actions">
@@ -40,39 +61,147 @@
 
     <!-- ── output ───────────────────────────────────── -->
     <main class="tlm-main">
+      <!-- ── RADIAL SEED-STACK (headline: the current architecture) ───── -->
       <div class="tlm-tiles">
-        <div class="tlm-tile"><div class="tlm-tile-label">Test accuracy</div><div class="tlm-tile-value" id="st-acc">—</div></div>
-        <div class="tlm-tile"><div class="tlm-tile-label">Centroid floor (no evolution)</div><div class="tlm-tile-value" id="st-centroid">—</div></div>
-        <div class="tlm-tile"><div class="tlm-tile-label">Stats layer dims</div><div class="tlm-tile-value" id="st-nf">—</div></div>
-        <div class="tlm-tile"><div class="tlm-tile-label">Genomes</div><div class="tlm-tile-value" id="st-genomes">—</div></div>
-        <div class="tlm-tile"><div class="tlm-tile-label">Evolved params</div><div class="tlm-tile-value" id="st-params">—</div></div>
-        <div class="tlm-tile"><div class="tlm-tile-label">Test errors</div><div class="tlm-tile-value" id="st-errors">—</div></div>
+        <div class="tlm-tile"><div class="tlm-tile-label">Best test (composed)</div><div class="tlm-tile-value" id="st-r-best">—</div></div>
+        <div class="tlm-tile"><div class="tlm-tile-label">Single seed</div><div class="tlm-tile-value" id="st-r-single">—</div></div>
+        <div class="tlm-tile"><div class="tlm-tile-label">Anchor floor (no evolution)</div><div class="tlm-tile-value" id="st-r-anchor">—</div></div>
+        <div class="tlm-tile"><div class="tlm-tile-label">Roles × seeds</div><div class="tlm-tile-value" id="st-r-arch">—</div></div>
+        <div class="tlm-tile"><div class="tlm-tile-label">Head params (ridge)</div><div class="tlm-tile-value" id="st-r-head">—</div></div>
+        <div class="tlm-tile"><div class="tlm-tile-label">Genome residual</div><div class="tlm-tile-value" id="st-r-residual">—</div></div>
       </div>
 
+      <section class="tlm-card" id="mn-radial-card" style="display:none">
+        <div class="tlm-card-head">
+          <h2>Static classification via manufactured rotation
+            <span class="tlm-card-sub" id="mn-radial-sub">radial seed-stack — gradient-free, test touched once</span></h2>
+        </div>
+        <p class="field-hint" style="margin:0 0 14px">
+          A temporal clip hands the stack a composable axis — the object
+          <b>rotates in time</b>, so the grammar composes across frames (motion).
+          A static digit has none, so we <b>manufacture the rotation</b>: each
+          <b>seed</b> poses the digit differently (a small image rotation, or a
+          re-origining of the patch-PCA frame), and role <i>r</i> under seed
+          <i>s</i> lays out (role × seed) — byte-identical to the temporal
+          (genome × step) hand-off. The ladder isolates one variable:
+          <b>composition</b> across the seed axis.
+        </p>
+        <div id="mn-radial-ladder" class="mn-radial-ladder"></div>
+        <div class="field-hint" id="mn-radial-gen" style="margin-top:10px"></div>
+        <div class="field-hint" id="mn-radial-honest" style="margin-top:8px"></div>
+      </section>
+
+      <!-- ── LEGACY: the original WordPipe specialist pipeline ────────── -->
       <section class="tlm-card">
         <div class="tlm-card-head">
-          <h2>Test digits <span class="tlm-card-sub" id="mn-stack">—</span></h2>
+          <h2>Legacy — the original specialist pipeline
+            <span class="tlm-card-sub">WordPipe recipe: fixed statistics → detectors → mixer → pairwise (retained for comparison; live per-digit predictions)</span></h2>
         </div>
+        <div class="tlm-tiles" style="margin-bottom:14px">
+          <div class="tlm-tile"><div class="tlm-tile-label">Test accuracy</div><div class="tlm-tile-value" id="st-acc">—</div></div>
+          <div class="tlm-tile"><div class="tlm-tile-label">Centroid floor (no evolution)</div><div class="tlm-tile-value" id="st-centroid">—</div></div>
+          <div class="tlm-tile"><div class="tlm-tile-label">Stats layer dims</div><div class="tlm-tile-value" id="st-nf">—</div></div>
+          <div class="tlm-tile"><div class="tlm-tile-label">Genomes</div><div class="tlm-tile-value" id="st-genomes">—</div></div>
+          <div class="tlm-tile"><div class="tlm-tile-label">Evolved params</div><div class="tlm-tile-value" id="st-params">—</div></div>
+          <div class="tlm-tile"><div class="tlm-tile-label">Test errors</div><div class="tlm-tile-value" id="st-errors">—</div></div>
+        </div>
+        <h3 style="margin:0 0 8px;color:#c7d0da;font-size:14px">Test digits <span class="tlm-card-sub" id="mn-stack">—</span></h3>
         <div id="mn-grid" class="mn-grid">—</div>
-        <div class="field-hint" style="margin-top:8px">Green = correct, red = wrong (predicted vs true shown under each digit). "Show mistakes" samples only from the pipeline's remaining test errors. Gradient-free — every decision comes from evolved linear heads over the fixed statistics layer.</div>
+        <div class="field-hint" style="margin-top:8px">Green = correct, red = wrong (predicted vs true under each digit). "Show mistakes" samples only from the legacy pipeline's remaining errors. Gradient-free — evolved linear heads over the fixed statistics layer.</div>
       </section>
 
       <section class="tlm-card">
         <div class="tlm-card-head">
-          <h2>Confusion matrix <span class="tlm-card-sub">held-out test set, current layer stack</span></h2>
+          <h2>Legacy — confusion matrix <span class="tlm-card-sub">held-out test set, current legacy layer stack</span></h2>
         </div>
         <div id="mn-conf" class="mn-conf">—</div>
       </section>
 
       <section class="tlm-card">
         <div class="tlm-card-head">
-          <h2>The pipeline <span class="tlm-card-sub">each specialist is a tiny evolved genome — no gradients, no backprop</span></h2>
+          <h2>Legacy — the pipeline <span class="tlm-card-sub">each specialist is a tiny evolved genome — no gradients, no backprop</span></h2>
         </div>
         <div id="mn-arch" class="ev-arch"></div>
       </section>
     </main>
   </div>
 
+  <script>
+  // ── radial seed-stack ladder (manufactured-rotation static classification) ──
+  (function () {
+    var RUNGS = [
+      ["rung1_single_test", "single seed", "one lens — the roles under seed 0"],
+      ["rung2_union_test", "seed union", "flatten every (role × seed) column, ridge — measured to regress"],
+      ["rung3a_composed_only_test", "composed only", "across-seed grammar + cross-seed stats, no raw union"],
+      ["rung3c_single_composed_test", "single + composed", "clean seed-0 base + composition (production head)"],
+      ["rung3b_union_composed_test", "union + composed", "the stacked head over the full union"]
+    ];
+    function pct(x) { return (x == null) ? "—" : (100 * x).toFixed(2) + "%"; }
+    fetch("/api/mnist/radial").then(function (r) { return r.json(); }).then(function (d) {
+      var s = d && d.stats;
+      if (!s) return;
+      document.getElementById("mn-radial-card").style.display = "";
+      var anchor = s.anchor_test || 0;
+      var shown = RUNGS.filter(function (rg) { return s[rg[0]] != null; });
+      var vals = shown.map(function (rg) { return s[rg[0]]; });
+      var vmax = Math.max.apply(null, vals);
+      var lo = Math.min.apply(null, vals.concat([anchor])) - 0.01;
+      var hi = vmax + 0.005;
+      var span = Math.max(1e-6, hi - lo);
+      var html = "";
+      shown.forEach(function (rg, i) {
+        var v = vals[i];
+        var w = Math.max(2, Math.round(100 * (v - lo) / span));
+        var best = (v === vmax);
+        html += '<div class="mn-rr">'
+          + '<div class="mn-rr-name">' + rg[1] + '</div>'
+          + '<div class="mn-rr-bar"><span style="width:' + w + '%;'
+          + (best ? 'background:#2e7d5b' : '') + '"></span></div>'
+          + '<div class="mn-rr-val">' + pct(v) + '</div>'
+          + '<div class="mn-rr-desc">' + rg[2] + '</div></div>';
+      });
+      html += '<div class="mn-rr mn-rr-anchor"><div class="mn-rr-name">anchor</div>'
+        + '<div class="mn-rr-bar"><span style="width:'
+        + Math.max(2, Math.round(100 * (anchor - lo) / span)) + '%;background:#3a3f47"></span></div>'
+        + '<div class="mn-rr-val">' + pct(anchor) + '</div>'
+        + '<div class="mn-rr-desc">raw patch-PCA ridge — no evolution (the ruler zero)</div></div>';
+      document.getElementById("mn-radial-ladder").innerHTML = html;
+      document.getElementById("mn-radial-sub").textContent =
+        (s.seed_mode ? s.seed_mode + "-pose seeds · " : "")
+        + s.n_roles + " roles × " + s.n_seeds + " seeds, " + s.n_composed
+        + " across-seed genomes, grid " + s.grid
+        + " — gradient-free, test touched once"
+        + (s.best_test != null ? " · best " + pct(s.best_test) : "");
+      document.getElementById("mn-radial-gen").innerHTML =
+        "<b>Composition beats a single seed: " + (s.composition_beats_single ? "yes" : "no")
+        + ".</b> Generalisation probe — corr(cross-seed std, error) = "
+        + (s.uncertainty_corr == null ? "—" : s.uncertainty_corr)
+        + " (does viewpoint disagreement flag hard images?).";
+      // the honest ablation: are the evolved genomes doing work?
+      if (s.genome_residual != null) {
+        var earns = s.genome_residual > 0.0005;
+        document.getElementById("mn-radial-honest").innerHTML =
+          "<b>Ablation — do the evolved genomes earn their keep?</b> "
+          + "The " + s.n_composed + " across-seed genomes add <b>"
+          + (100 * s.genome_residual).toFixed(2) + "%</b> over the deterministic "
+          + "cross-seed stats (mean/std/range). "
+          + (earns ? "" : "≈0 — the gain is the cross-seed statistics + a "
+             + (s.head_params ? Math.round(s.head_params / 1000) + "K-param " : "")
+             + "linear head, not evolved composition. Open problem: force residual "
+             + "(stats in the fitness base) or go lean (head reads genomes only).");
+      }
+      // radial headline tiles
+      function set(id, v) { var e = document.getElementById(id); if (e) e.textContent = v; }
+      set("st-r-best", pct(s.best_test));
+      set("st-r-single", pct(s.rung1_single_test));
+      set("st-r-anchor", pct(s.anchor_test));
+      set("st-r-arch", (s.n_roles || "—") + " × " + (s.n_seeds || "—"));
+      set("st-r-head", s.head_params ? (s.head_params / 1000).toFixed(1) + "K" : "—");
+      set("st-r-residual", s.genome_residual == null ? "—"
+          : (100 * s.genome_residual).toFixed(2) + "%");
+    }).catch(function () {});
+  })();
+  </script>
   <script src="{{ url_for('static', filename='mnist.js') }}"></script>
   <!-- shared daemon-backed terminal dock -->
   <script src="{{ url_for('static', filename='vendor/xterm.js') }}"></script>
@@ -80,6 +209,7 @@
   <script src="{{ url_for('static', filename='termdock.js') }}"></script>
   <script src="{{ url_for('static', filename='app.js') }}"></script>
   <script src="{{ url_for('static', filename='agentpanel.js') }}"></script>
+  <script src="{{ url_for('static', filename='piachat.js') }}"></script>
   <script src="{{ url_for('static', filename='configpanel.js') }}"></script>
 </body>
 </html>

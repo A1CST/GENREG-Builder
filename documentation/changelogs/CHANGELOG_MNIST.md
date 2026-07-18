@@ -9,6 +9,86 @@ Append new entries at the top.
 
 ---
 
+- **[2026-07-17] (Claude)** — **A/B (force-residual vs lean): evolution earns ZERO
+  residual on MNIST — definitive.** `--ab` shares roles+seed tensor, runs two arms:
+  (A) genomes evolve with deterministic stats IN the fitness base; (B) head reads
+  genomes only. Result: stats-only 0.9909 | **force-residual 0.9909 (residual 0.0)**
+  | **lean 0.9777 @ 2,460 params**. Even genomes SELECTED for residual over the
+  stats add nothing to the full head — MNIST's cross-pose signal is fully
+  tabulatable (mean/variance across poses). Lean shows genomes CAN carry a model at
+  67× fewer head params but not past a single-seed linear head. The path to make
+  evolution earn is a NON-tabulatable task (occlusion/clutter/relations), not more
+  MNIST. Export `radial_data/mnist_radial_ab.json`, run `20260717-203038`.
+
+- **[2026-07-17] (Claude)** — **ABLATION: the evolved genomes earn NOTHING; the
+  0.9909 is deterministic cross-seed stats + a linear head.** stats-only (cross-
+  seed mean/std/range, no genomes) = 0.9909 = production; genome residual −0.0001;
+  genomes-only 0.9762 (worse than single seed). The record is multi-pose
+  aggregation (tabulatable) read by a 166,430-param ridge head — not evolved
+  composition. Exact params: head 166,430 | evolved genomes 9,210 (nil
+  contribution) | pca basis 68,628 (data-built). This is the "environment eats
+  what is tabulatable" law: a mean+variance across poses is the entire cross-seed
+  signal, so evolution has no residual to find. Model saved to
+  `demo/mnist_radial_model.pkl`. /mnist page rebuilt — radial headline (with head
+  params + genome-residual tiles and the ablation stated in the card), WordPipe
+  demoted to a Legacy section. NEXT (to make evolution earn): (1) force residual —
+  put stats+single in the composed fitness base so only genuinely non-linear
+  cross-pose conjunctions freeze; (2) lean — head reads genome outputs only.
+  Run `20260717-174648-mnist_radial-3039f2`.
+
+- **[2026-07-17] (Claude)** — **RECORD BEATEN: 0.9909 with image-pose seeds.**
+  New `seed_mode="image"` in `mnist_radial.py`: each seed rotates the actual DIGIT
+  (±15°, seed 0 upright), projected through a fixed canonical patch-PCA basis
+  (`EnvLite`). The data takes a new pose per seed (truest temporal-rotation
+  analog). Ladder (grid4/256 roles/8 seeds): anchor 0.8961 | single 0.9852 |
+  composed-only 0.9906 | **single+composed 0.9909**. Clears the old WordPipe record
+  0.9903, gradient-free, patch-PCA maps only. Image-pose (0.9909) > feature-frame
+  rotation (0.9901). The generalisation probe FLIPPED positive: corr(cross-seed
+  std, error) −0.017 → +0.011 — real pose disagreement weakly flags hard images
+  (feature-rotation gave the wrong sign). Also: EnvLite normalises test with
+  train-sd (guide rail 5), which lifted the anchor 0.8858→0.8961. Run
+  `20260717-170711-mnist_radial-3039f2`. To strengthen the uncertainty signal
+  next: measure cross-seed PREDICTION disagreement (per-seed head vote entropy),
+  not raw feature std; wider angles; recover the duplicated-0° seed.
+
+- **[2026-07-17] (Claude)** — **99% CROSSED on the radial stack (0.9901),
+  gradient-free.** Scaled the composition winner: grid 3→4, roles 128→256, comp
+  rounds 60→80, λ sweep {0.3…300}; dropped the naive-union rungs (regress + OOM).
+  Ladder: anchor 0.8858 | single-seed 0.9845 | composed-only 0.9886 |
+  **single+composed 0.9901** (production head = clean seed-0 columns + cross-seed
+  stats + 270 across-seed genomes). Ties the old WordPipe record 0.9903 with a
+  MUCH leaner substrate — patch-PCA only, no HOG/zone/profile bank, no
+  pairwise/joint — the accuracy is the manufactured-rotation seed axis +
+  composition. Generalisation probe still null (corr −0.017). Run
+  `20260717-162616-mnist_radial-981b16`. Next levers to clearly beat the record:
+  384+ roles, a second composed space (stack depth), or pairwise referees.
+
+- **[2026-07-17] (Claude)** — **MNIST on the radial stack + manufactured-rotation
+  static classification (`mnist_radial.py`).** MNIST moved off the WordPipe recipe
+  onto the radial stack (patch-PCA environment, the radial_evo2 grammar as genes,
+  closed-form ridge head, test-once, no gradients). NEW SCIENCE: static data has
+  no composable axis the way a temporal clip does (where the object rotates in
+  time), so we MANUFACTURE one — each **seed** re-origins the patch-PCA feature
+  frame by a fixed rotation (`radial_stack._rotate_features`); role×seed lays out
+  exactly like the temporal genome×step hand-off. 3-rung ladder over one seed
+  tensor isolates composition as the only variable:
+    - anchor (raw patch-PCA ridge, no evolution): **0.8858**
+    - rung 1 single seed (128 roles): **0.9786**
+    - rung 2 naive union (flatten 8 seeds, 9216 cols): **0.9605**  ← REGRESSES
+    - rung 3a composed-across-seed only (262 genomes + cross-seed stats): **0.9857** ← best
+    - rung 3b union + composed (12934 cols): **0.9849**
+  CONCLUSION: manufactured-rotation seeds are only useful when COMPOSED across the
+  seed axis like time (cross-seed std/range and `|f[r,seedA]−f[r,seedB]|`); the
+  shallow "just union the seeds" move actively HURTS a single linear head. The
+  composed head earns +0.71 over a single seed and +2.5 over the naive union,
+  gradient-free, test touched once. The cross-seed-std generalisation probe (does
+  viewpoint disagreement flag hard images?) was null here (corr −0.018 on deskewed
+  MNIST, 1.53% err — likely too easy / rotation-std dominated by magnitude). Below
+  the old WordPipe record (0.9903): 128 roles / grid 3, capped for the 16GB
+  budget — this run tested the seed axis, not the record. Run
+  `20260717-155805-mnist_radial-7d4015` (on /runs); ladder card on /mnist. Needs a
+  Flask restart for the new route/card.
+
 - **[2026-07-14] (Claude)** — **MNIST metrics wired into the new /tsdb page.**
   The frozen champions (`demo/mnist_genomes.pkl`) now feed a browser port of the
   `TSDB.js` Float64 block store as demo data: the pipeline layer accuracies

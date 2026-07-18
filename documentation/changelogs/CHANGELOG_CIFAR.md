@@ -9,6 +9,31 @@ the top of the log below, and also in the master CHANGELOG.md.
 
 ---
 
+- **[2026-07-18] (Claude)** — **/cifar page rebuilt to the radial seed-stack
+  (needs Flask restart).** Headline is now the seed-stack ladder (single /
+  stats-only / composed) + tiles (best, single, stats-only, genome residual, roles
+  × seeds, head params), fed by a new `/api/cifar/radial` endpoint serving
+  `radial_data/cifar_radial.json`; the card leads with "do the genomes earn here?
+  YES, +1.0%". The old detector-bank pipeline is demoted to a labeled "Legacy"
+  section (IDs preserved, live viewer intact).
+
+- **[2026-07-18] (Claude)** — **Seed-stack on CIFAR: evolved genomes EARN +1.0%
+  residual; new single-substrate best 0.7111.** `cifar_radial.py` applies the
+  manufactured-rotation seed-stack (roles → image-pose seed axis → cross-seed
+  stats + across-seed composed genomes → ridge). Ladder (384 roles / 8 seeds /
+  grid4, gradient-free, test-once): single 0.6939 | stats-only 0.6991 |
+  **composed-only 0.7111** | single+composed 0.7042 | genomes-only 0.6633.
+  **Genome ablation: residual over single+stats = +0.0101** — the genomes compose
+  signal the deterministic cross-pose stats can't hold, UNLIKE MNIST (residual
+  0.0). CIFAR is non-tabulatable, so evolution finally earns. composed-only 0.7111
+  > best prior single substrate 0.7074 > grammar-v2 0.7035. Head 249,750 params /
+  evolved genomes 13,925 / pca basis 68,628. Still below the 7-substrate union
+  0.7702 — next: union several seed-stack substrates, or the force-residual/lean
+  A/B on CIFAR. Ran on RunPod Blackwell 96GB (local OOM-killed at the wide ridge;
+  torch 2.8 needed genome-column sanitization — rails 4+5). Export
+  `radial_data/cifar_radial.json`, model `demo/cifar_radial_model.pkl`, run
+  `20260718-022223-cifar_radial-a8d4c4`, shadow in `runpod_shadow/`.
+
 - **[2026-07-14] (Claude)** — **CIFAR champions wired into the /tsdb page.**
   `/api/tsdb/data?set=cifar` serves the frozen CIFAR champions
   (`demo/cifar_genomes.pkl`, no model load) as Float64 series for the in-browser

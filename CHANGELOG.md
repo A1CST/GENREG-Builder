@@ -10,6 +10,17 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-18] (Claude)** — **/cifar + /mnist pages rebuilt to the radial
+  seed-stack (NEEDS FLASK RESTART).** Both pages now headline the radial seed-stack
+  (tiles + a ladder card fed by new `/api/cifar/radial` and `/api/mnist/radial`
+  endpoints that serve the `radial_data/*_radial.json` exports), with the old
+  WordPipe / detector-bank pipelines demoted to a labeled "Legacy" section (all
+  element IDs preserved so `mnist.js`/`cifar.js` and their live per-image viewers
+  still work). The /cifar card leads with the ablation headline — the evolved
+  genomes EARN +1.0% residual here (page reads `genome_residual` live). Ladder CSS
+  is page-scoped `<style>`; inline JS `node --check`ed. Requires a Flask restart to
+  render the new routes/cards.
+
 - **[2026-07-17] (Claude)** — **/lm page: modules 30-31 added (the temporal
   arc + persistence), export whitelist broadened to `kid_*`. FLASK RESTART
   NEEDED (same restart still pending from the kid_stage fix).** Two consolidated

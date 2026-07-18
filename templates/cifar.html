@@ -6,10 +6,25 @@
   <title>GENREG — CIFAR</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='vendor/xterm.css') }}" />
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+  <style>
+    /* radial seed-stack ladder (mn-) */
+    .mn-radial-ladder { display: flex; flex-direction: column; gap: 8px; }
+    .mn-rr { display: grid; grid-template-columns: 120px 1fr 74px; gap: 10px;
+             align-items: center; }
+    .mn-rr-name { color: #dbe2ea; font-size: 13px; }
+    .mn-rr-desc { grid-column: 2 / 4; color: #6b7480; font-size: 11px;
+                  margin-top: -3px; }
+    .mn-rr-bar { background: #0b0d10; border: 1px solid #1c232c; border-radius: 5px;
+                 height: 16px; overflow: hidden; }
+    .mn-rr-bar span { display: block; height: 100%; background: #2b3947; }
+    .mn-rr-val { font-family: ui-monospace, monospace; font-variant-numeric: tabular-nums;
+                 color: #c7d0da; font-size: 13px; text-align: right; }
+    .mn-rr-anchor .mn-rr-name, .mn-rr-anchor .mn-rr-val { color: #8b95a1; }
+  </style>
 </head>
 <body class="tlm-body">
   <header class="topbar">
-    <div class="brand">GENREG<span class="brand-sub">cifar · the MNIST specialist pipeline, verbatim, on natural images</span></div>
+    <div class="brand">GENREG<span class="brand-sub">cifar · the radial seed-stack — where the evolved genomes finally earn</span></div>
     <div class="status">
       <span class="dot" id="mn-dot"></span>
       <span id="mn-conn">loading…</span>
@@ -19,13 +34,19 @@
 
   <div class="tlm-layout">
     <aside class="sidebar left tlm-side">
-      <div class="side-head">Genome stack</div>
+      <div class="side-head">Architecture</div>
       <div class="side-body control-panel">
         <p class="field-hint" style="margin:0 0 12px">
-          The exact MNIST-Pipe program pointed at CIFAR-10: built statistics +
-          an <b>evolved detector bank</b> (5x5x3 conv genomes, evolved
-          activations, Fisher fitness) form the environment; the classifier is
-          the same joint head + pairwise referees, all gradient-free.
+          <b>Current: the radial seed-stack</b> — the same manufactured-rotation
+          seed axis as /mnist. CIFAR is the harder, <b>non-tabulatable</b> task,
+          so here the evolved across-seed <b>genomes actually earn residual</b>
+          over the deterministic cross-pose stats (on MNIST they earned 0). See
+          the ladder to the right. Gradient-free, test touched once.
+        </p>
+        <p class="field-hint" style="margin:0 0 12px;color:#6b7480">
+          The toggles below drive the <b>legacy detector-bank pipeline</b>
+          (built stats + conv-genome bank → joint head → pairwise), kept for its
+          live per-image prediction viewer.
         </p>
         <div id="mn-layers"></div>
         <div class="tlm-actions">
@@ -37,45 +58,136 @@
     </aside>
 
     <main class="tlm-main">
+      <!-- ── RADIAL SEED-STACK (headline: the current architecture) ───── -->
       <div class="tlm-tiles">
-        <div class="tlm-tile"><div class="tlm-tile-label">Test accuracy</div><div class="tlm-tile-value" id="st-acc">—</div></div>
-        <div class="tlm-tile"><div class="tlm-tile-label">Centroid floor (no evolution)</div><div class="tlm-tile-value" id="st-centroid">—</div></div>
-        <div class="tlm-tile"><div class="tlm-tile-label">Environment dims</div><div class="tlm-tile-value" id="st-nf">—</div></div>
-        <div class="tlm-tile"><div class="tlm-tile-label">Genomes</div><div class="tlm-tile-value" id="st-genomes">—</div></div>
-        <div class="tlm-tile"><div class="tlm-tile-label">Evolved params</div><div class="tlm-tile-value" id="st-params">—</div></div>
-        <div class="tlm-tile"><div class="tlm-tile-label">Test errors</div><div class="tlm-tile-value" id="st-errors">—</div></div>
+        <div class="tlm-tile"><div class="tlm-tile-label">Best test (composed)</div><div class="tlm-tile-value" id="st-r-best">—</div></div>
+        <div class="tlm-tile"><div class="tlm-tile-label">Single seed</div><div class="tlm-tile-value" id="st-r-single">—</div></div>
+        <div class="tlm-tile"><div class="tlm-tile-label">Stats-only</div><div class="tlm-tile-value" id="st-r-stats">—</div></div>
+        <div class="tlm-tile"><div class="tlm-tile-label">Genome residual</div><div class="tlm-tile-value" id="st-r-residual">—</div></div>
+        <div class="tlm-tile"><div class="tlm-tile-label">Roles × seeds</div><div class="tlm-tile-value" id="st-r-arch">—</div></div>
+        <div class="tlm-tile"><div class="tlm-tile-label">Head params</div><div class="tlm-tile-value" id="st-r-head">—</div></div>
       </div>
 
+      <section class="tlm-card" id="mn-radial-card" style="display:none">
+        <div class="tlm-card-head">
+          <h2>Static classification via manufactured rotation
+            <span class="tlm-card-sub" id="mn-radial-sub">radial seed-stack — gradient-free, test touched once</span></h2>
+        </div>
+        <p class="field-hint" style="margin:0 0 14px">
+          The same seed axis as /mnist: each <b>seed</b> poses the image
+          differently (a small rotation), role × seed lays out like the temporal
+          genome × step hand-off, and the grammar composes <i>across</i> the seed
+          axis. The difference here: CIFAR is <b>not tabulatable</b>, so unlike
+          MNIST the evolved across-seed <b>genomes earn residual</b> over the
+          deterministic cross-pose stats — evolution composes what a table can't.
+        </p>
+        <div id="mn-radial-ladder" class="mn-radial-ladder"></div>
+        <div class="field-hint" id="mn-radial-gen" style="margin-top:10px"></div>
+        <div class="field-hint" id="mn-radial-honest" style="margin-top:8px"></div>
+      </section>
+
+      <!-- ── LEGACY: the original detector-bank pipeline ─────────────── -->
       <section class="tlm-card">
         <div class="tlm-card-head">
-          <h2>Test images <span class="tlm-card-sub" id="mn-stack">—</span></h2>
+          <h2>Legacy — the detector-bank pipeline
+            <span class="tlm-card-sub">MNIST-Pipe on CIFAR: built stats + conv-genome bank → joint → pairwise (retained for its live per-image viewer)</span></h2>
         </div>
+        <div class="tlm-tiles" style="margin-bottom:14px">
+          <div class="tlm-tile"><div class="tlm-tile-label">Test accuracy</div><div class="tlm-tile-value" id="st-acc">—</div></div>
+          <div class="tlm-tile"><div class="tlm-tile-label">Centroid floor (no evolution)</div><div class="tlm-tile-value" id="st-centroid">—</div></div>
+          <div class="tlm-tile"><div class="tlm-tile-label">Environment dims</div><div class="tlm-tile-value" id="st-nf">—</div></div>
+          <div class="tlm-tile"><div class="tlm-tile-label">Genomes</div><div class="tlm-tile-value" id="st-genomes">—</div></div>
+          <div class="tlm-tile"><div class="tlm-tile-label">Evolved params</div><div class="tlm-tile-value" id="st-params">—</div></div>
+          <div class="tlm-tile"><div class="tlm-tile-label">Test errors</div><div class="tlm-tile-value" id="st-errors">—</div></div>
+        </div>
+        <h3 style="margin:0 0 8px;color:#c7d0da;font-size:14px">Test images <span class="tlm-card-sub" id="mn-stack">—</span></h3>
         <div id="mn-grid" class="mn-grid">—</div>
-        <div class="field-hint" style="margin-top:8px">Green = correct, red = wrong (predicted vs true class under each image). Staged program — run the battery from a terminal when ready: python -m genreg_train.cifar_pipe --detbank, then --v4.</div>
+        <div class="field-hint" style="margin-top:8px">Green = correct, red = wrong (predicted vs true class under each image). Legacy staged program: python -m genreg_train.cifar_pipe --detbank, then --v4.</div>
       </section>
 
       <section class="tlm-card">
         <div class="tlm-card-head">
-          <h2>Confusion matrix <span class="tlm-card-sub">held-out test set, current layer stack</span></h2>
+          <h2>Legacy — confusion matrix <span class="tlm-card-sub">held-out test set, legacy layer stack</span></h2>
         </div>
         <div id="mn-conf" class="mn-conf">—</div>
       </section>
 
       <section class="tlm-card">
         <div class="tlm-card-head">
-          <h2>The pipeline <span class="tlm-card-sub">identical to /mnist — only the data plumbing changed</span></h2>
+          <h2>Legacy — the pipeline <span class="tlm-card-sub">detector bank + joint head + pairwise referees</span></h2>
         </div>
         <div id="mn-arch" class="ev-arch"></div>
       </section>
     </main>
   </div>
 
+  <script>
+  // ── radial seed-stack ladder (CIFAR: the non-tabulatable task) ──
+  (function () {
+    var RUNGS = [
+      ["rung1_single_test", "single seed", "one pose — the roles under seed 0"],
+      ["stats_only_test", "stats-only", "deterministic cross-pose mean/std/range — no evolved genomes"],
+      ["rung3a_composed_only_test", "composed", "cross-seed stats + evolved across-seed genomes"],
+      ["rung3c_single_composed_test", "single + composed", "clean seed-0 base + composition"]
+    ];
+    function pct(x) { return (x == null) ? "—" : (100 * x).toFixed(2) + "%"; }
+    fetch("/api/cifar/radial").then(function (r) { return r.json(); }).then(function (d) {
+      var s = d && d.stats;
+      if (!s) return;
+      document.getElementById("mn-radial-card").style.display = "";
+      var anchor = s.anchor_test || 0;
+      var shown = RUNGS.filter(function (rg) { return s[rg[0]] != null; });
+      var vals = shown.map(function (rg) { return s[rg[0]]; });
+      var vmax = Math.max.apply(null, vals);
+      var lo = Math.min.apply(null, vals.concat([anchor])) - 0.01;
+      var span = Math.max(1e-6, (vmax + 0.005) - lo);
+      var html = "";
+      shown.forEach(function (rg, i) {
+        var v = vals[i];
+        var w = Math.max(2, Math.round(100 * (v - lo) / span));
+        var best = (v === vmax);
+        html += '<div class="mn-rr"><div class="mn-rr-name">' + rg[1] + '</div>'
+          + '<div class="mn-rr-bar"><span style="width:' + w + '%;'
+          + (best ? 'background:#2e7d5b' : '') + '"></span></div>'
+          + '<div class="mn-rr-val">' + pct(v) + '</div>'
+          + '<div class="mn-rr-desc">' + rg[2] + '</div></div>';
+      });
+      html += '<div class="mn-rr mn-rr-anchor"><div class="mn-rr-name">anchor</div>'
+        + '<div class="mn-rr-bar"><span style="width:'
+        + Math.max(2, Math.round(100 * (anchor - lo) / span)) + '%;background:#3a3f47"></span></div>'
+        + '<div class="mn-rr-val">' + pct(anchor) + '</div>'
+        + '<div class="mn-rr-desc">raw patch-PCA ridge — no evolution (the ruler zero)</div></div>';
+      document.getElementById("mn-radial-ladder").innerHTML = html;
+      document.getElementById("mn-radial-sub").textContent =
+        (s.seed_mode ? s.seed_mode + "-pose seeds · " : "")
+        + s.n_roles + " roles × " + s.n_seeds + " seeds, " + s.n_composed
+        + " across-seed genomes, grid " + s.grid + " — gradient-free, test touched once"
+        + (s.best_test != null ? " · best " + pct(s.best_test) : "");
+      var earns = s.genome_residual != null && s.genome_residual > 0.0005;
+      document.getElementById("mn-radial-gen").innerHTML =
+        "<b>Do the evolved genomes earn here? " + (earns ? "YES." : "no.") + "</b> "
+        + "Genome residual over single+stats = <b>"
+        + (s.genome_residual == null ? "—" : (100 * s.genome_residual).toFixed(2) + "%") + "</b> "
+        + (earns ? "— on the non-tabulatable task, evolution composes signal the deterministic "
+                 + "cross-pose stats cannot hold (on MNIST this was 0)."
+                 : "");
+      function set(id, v) { var e = document.getElementById(id); if (e) e.textContent = v; }
+      set("st-r-best", pct(s.best_test));
+      set("st-r-single", pct(s.rung1_single_test));
+      set("st-r-stats", pct(s.stats_only_test));
+      set("st-r-residual", s.genome_residual == null ? "—" : (100 * s.genome_residual).toFixed(2) + "%");
+      set("st-r-arch", (s.n_roles || "—") + " × " + (s.n_seeds || "—"));
+      set("st-r-head", s.head_params ? (s.head_params / 1000).toFixed(1) + "K" : "—");
+    }).catch(function () {});
+  })();
+  </script>
   <script src="{{ url_for('static', filename='cifar.js') }}"></script>
   <script src="{{ url_for('static', filename='vendor/xterm.js') }}"></script>
   <script src="{{ url_for('static', filename='vendor/addon-fit.js') }}"></script>
   <script src="{{ url_for('static', filename='termdock.js') }}"></script>
   <script src="{{ url_for('static', filename='app.js') }}"></script>
   <script src="{{ url_for('static', filename='agentpanel.js') }}"></script>
+  <script src="{{ url_for('static', filename='piachat.js') }}"></script>
   <script src="{{ url_for('static', filename='configpanel.js') }}"></script>
 </body>
 </html>
