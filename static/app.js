@@ -33,6 +33,141 @@ function setConn(cls, text) {
   if (connText) connText.textContent = text;
 }
 
+// -- project tags ----------------------------------------------------------
+// Terminals are shared across every project page and long-lived, so a tab has
+// no inherent project. The user tags each terminal with the project it is
+// driving; the active terminal then shows a loud, colored banner so a reply
+// never lands in the wrong project's session. Tags are per-terminal-id and
+// global (NOT per-path) because the same terminal appears on every page.
+// The tag-able project list. Driven by window.GENREG_PROJECTS, which _nav.html
+// emits from the ONE registry in app.py (PROJECT_GROUPS) — so a project added
+// to the nav is automatically tag-able here too. The literal below is only a
+// fallback for a page that somehow renders without the nav include.
+const PROJECTS = (Array.isArray(window.GENREG_PROJECTS) && window.GENREG_PROJECTS.length)
+  ? window.GENREG_PROJECTS
+  : [
+  { key: "build",     label: "Build",     color: "#4ea1ff" },
+  { key: "lm",        label: "LM",        color: "#56d364" },
+  { key: "mnist",     label: "MNIST",     color: "#e3b341" },
+  { key: "cifar",     label: "CIFAR",     color: "#ff7b72" },
+  { key: "tsdb",      label: "TSDB",      color: "#39c5cf" },
+  { key: "diff",      label: "DiffEvo",   color: "#d2a8ff" },
+  { key: "animation", label: "Animation", color: "#ff9e64" },
+  { key: "pure",      label: "PURE",      color: "#7ee787" },
+  { key: "xray",      label: "X-Ray",     color: "#79c0ff" },
+  { key: "radial",    label: "Radial",    color: "#f778ba" },
+  { key: "humanoid",  label: "Humanoid",  color: "#ffa657" },
+  { key: "resnet",    label: "ResNet",    color: "#d29922" },
+  { key: "images",    label: "Images",    color: "#a5a5f5" },
+  { key: "video",     label: "Video",     color: "#f0883e" },
+  { key: "i2",        label: "I2",        color: "#2ea043" },
+  { key: "pia",       label: "PIA",       color: "#db61a2" },
+  { key: "history",   label: "History",   color: "#c8a2ff" },
+  { key: "runs",      label: "Runs",      color: "#58a6ff" },
+];
+const PROJ_BY_KEY = new Map(PROJECTS.map((p) => [p.key, p]));
+const TAGS_KEY = "genreg_term_project";
+
+function loadTags() {
+  try { return JSON.parse(localStorage.getItem(TAGS_KEY)) || {}; }
+  catch (_) { return {}; }
+}
+function saveTags(m) {
+  try { localStorage.setItem(TAGS_KEY, JSON.stringify(m)); } catch (_) {}
+}
+function projFor(id) { return PROJ_BY_KEY.get(loadTags()[id]) || null; }
+function setTag(id, key) {
+  const m = loadTags();
+  if (key) m[id] = key; else delete m[id];
+  saveTags(m);
+  const t = terms.get(id);
+  if (t) refreshTab(t);
+  if (id === activeId) renderProjBar();
+}
+
+// The active-terminal banner: a full-width colored strip at the top of the
+// dock naming the project you are about to type into. Created lazily so it
+// works on both the hard-coded docks (build/I2) and the injected one.
+let projBarEl = null;
+function ensureProjBar() {
+  if (projBarEl) return projBarEl;
+  const panel = document.getElementById("terminal-panel");
+  if (!panel) return null;
+  projBarEl = document.createElement("div");
+  projBarEl.className = "term-projbar";
+  projBarEl.addEventListener("click", () => {
+    if (activeId != null) openProjMenu(activeId, projBarEl);
+  });
+  panel.insertBefore(projBarEl, panel.firstChild);
+  return projBarEl;
+}
+function renderProjBar() {
+  const bar = ensureProjBar();
+  const p = activeId != null ? projFor(activeId) : null;
+  // reinforce the cue on the pane itself so it stays visible while reading
+  const at = activeId != null ? terms.get(activeId) : null;
+  if (at) {
+    at.paneEl.style.setProperty("--pc", p ? p.color : "transparent");
+    at.paneEl.classList.toggle("tagged", !!p);
+  }
+  if (!bar) return;
+  if (p) {
+    bar.innerHTML = `<span class="pb-dot"></span><b class="pb-name"></b>` +
+      `<span class="pb-hint">typing here goes to this project · click to change</span>`;
+    bar.querySelector(".pb-dot").style.background = p.color;
+    bar.querySelector(".pb-name").textContent = p.label;
+    bar.style.setProperty("--pc", p.color);
+    bar.classList.add("tagged");
+  } else {
+    bar.innerHTML = `<span class="pb-hint">no project tag · ` +
+      `click here (or right-click a tab) to label this terminal</span>`;
+    bar.style.removeProperty("--pc");
+    bar.classList.remove("tagged");
+  }
+}
+
+// The picker: a small floating menu of projects with color swatches.
+let projMenuEl = null;
+function openProjMenu(id, anchorEl) {
+  closeProjMenu();
+  const cur = loadTags()[id] || "";
+  projMenuEl = document.createElement("div");
+  projMenuEl.className = "term-projmenu";
+  const rows = PROJECTS.map((p) =>
+    `<div class="pm-row${p.key === cur ? " on" : ""}" data-k="${p.key}">` +
+    `<span class="pm-sw" style="background:${p.color}"></span>${p.label}</div>`
+  ).join("");
+  projMenuEl.innerHTML = `<div class="pm-head">Tag terminal ${id}</div>${rows}` +
+    `<div class="pm-row pm-clear" data-k="">✕ Untag</div>`;
+  document.body.appendChild(projMenuEl);
+
+  const r = anchorEl.getBoundingClientRect();
+  const mh = projMenuEl.offsetHeight;
+  // prefer above the anchor (the dock sits at the bottom of the viewport)
+  let top = r.top - mh - 4;
+  if (top < 8) top = Math.min(r.bottom + 4, window.innerHeight - mh - 8);
+  projMenuEl.style.top = Math.max(8, top) + "px";
+  projMenuEl.style.left =
+    Math.min(r.left, window.innerWidth - projMenuEl.offsetWidth - 8) + "px";
+
+  projMenuEl.addEventListener("click", (e) => {
+    const row = e.target.closest(".pm-row");
+    if (!row) return;
+    setTag(id, row.getAttribute("data-k"));
+    closeProjMenu();
+  });
+  setTimeout(() => document.addEventListener("pointerdown", onDocDown, true), 0);
+}
+function onDocDown(e) {
+  if (projMenuEl && !projMenuEl.contains(e.target)) closeProjMenu();
+}
+function closeProjMenu() {
+  if (!projMenuEl) return;
+  document.removeEventListener("pointerdown", onDocDown, true);
+  projMenuEl.remove();
+  projMenuEl = null;
+}
+
 const THEME = {
   background: "#0d1117", foreground: "#d7dde5", cursor: "#4ea1ff",
   selectionBackground: "#264f78",
@@ -83,11 +218,19 @@ function ensureTerm(meta) {
 
   const tabEl = document.createElement("div");
   tabEl.className = "tab";
-  tabEl.innerHTML = `<span class="title"></span><button class="close" title="Close">×</button>`;
+  tabEl.innerHTML = `<span class="pdot" title="Project tag"></span>` +
+    `<span class="title"></span><button class="close" title="Close">×</button>`;
   tabEl.addEventListener("click", (e) => {
     if (e.target.classList.contains("close")) { send({ op: "close", id: meta.id }); e.stopPropagation(); return; }
+    if (e.target.classList.contains("pdot")) { openProjMenu(meta.id, e.target); e.stopPropagation(); return; }
     setActive(meta.id);
   });
+  // right-click anywhere on the tab tags it with a project
+  tabEl.addEventListener("contextmenu", (e) => {
+    e.preventDefault();
+    openProjMenu(meta.id, tabEl);
+  });
+  tabEl.title = "Click to focus · right-click to tag with a project";
   tabsEl.appendChild(tabEl);
 
   const paneEl = document.createElement("div");
@@ -115,8 +258,17 @@ function ensureTerm(meta) {
 }
 
 function refreshTab(t) {
-  t.tabEl.querySelector(".title").textContent = t.title;
+  const p = projFor(t.id);
+  t.tabEl.querySelector(".title").textContent =
+    (p ? p.label + " · " : "") + t.title;
   t.tabEl.classList.toggle("dead", !t.alive);
+  t.tabEl.classList.toggle("tagged", !!p);
+  const dot = t.tabEl.querySelector(".pdot");
+  if (dot) {
+    dot.style.background = p ? p.color : "transparent";
+    dot.style.borderColor = p ? p.color : "var(--border)";
+  }
+  t.tabEl.style.setProperty("--pc", p ? p.color : "var(--accent)");
 }
 
 function setActive(id) {
@@ -127,6 +279,7 @@ function setActive(id) {
     t.tabEl.classList.toggle("active", on);
     t.paneEl.classList.toggle("active", on);
   }
+  renderProjBar();
   const t = terms.get(id);
   if (t) {
     // Defer the fit one frame so the pane has been laid out (a synchronous
@@ -337,7 +490,8 @@ document.getElementById("btn-stop").addEventListener("click", () => activeId != 
                    ["/animation", "ANIMATION"], ["/pure", "PURE"],
                    ["/xray", "XRAY"], ["/i2", "I2"], ["/tree", "TREE"],
                    ["/evolang", "EVOLANG"], ["/images", "IMAGES"],
-                   ["/video", "VIDEO"]];
+                   ["/video", "VIDEO"], ["/humanoid", "HUMANOID"],
+                   ["/history", "HISTORY"]];
     for (const [pre, proj] of rules)
       if (p === pre || p.startsWith(pre + "/")) return proj;
     return null;   // meta pages (plan/runs/docs) keep the main log

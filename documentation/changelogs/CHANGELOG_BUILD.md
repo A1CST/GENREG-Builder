@@ -6,6 +6,24 @@ Seeded 2026-07-05 from the main changelog (keyword split, best effort).
 
 ---
 
+- **[2026-07-17] (Claude)** — **Terminal dock: per-terminal PROJECT TAGS
+  (label + color).** The dock's terminals are shared and long-lived (same tabs
+  on every project page), so a tab had no project identity and replies could
+  land in the wrong shell. Now each terminal can be tagged with a project:
+  right-click a tab, or click its color dot or the banner, to pick from a
+  colored menu (the `_nav` project set). Effects: tab shows a colored dot +
+  "<Project> · Terminal N" in the project accent; the ACTIVE terminal gets a
+  loud full-width colored banner at the top of the dock; the active pane keeps
+  a thin colored frame. Persisted in localStorage keyed by terminal id, GLOBAL
+  not per-path. Files: `static/app.js` (PROJECTS registry, tag load/save,
+  picker menu, banner/pane render, tab dot + contextmenu) and
+  `static/style.css` (`.term-projbar`, `.term-projmenu`, `.tab .pdot`,
+  `.pane.tagged`). No backend change; the daemon and `/ws` protocol are
+  untouched, and tags never leave the browser. **No Flask restart** - static
+  files, served fresh; a browser hard-refresh (Ctrl+F5) picks it up. Verified
+  `node --check` on both JS files and the live server already serving the new
+  static; the interactive UI itself was not driven in a browser here.
+
 - **[2026-07-14] (Claude)** — **Terminals: 5-min reopen grace + Ghostwriter
   logger.** Closing a terminal tab now soft-**detaches** it in the daemon and
   holds the shell + scrollback for 300 s; the tab becomes a dashed "held" tab

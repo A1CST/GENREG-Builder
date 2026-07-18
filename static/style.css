@@ -36,6 +36,27 @@ body { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
 .runs-link:hover { border-color: var(--accent); }
 .runs-link.active { background: var(--accent); color: var(--bg); border-color: var(--accent); cursor: default; font-weight: 600; }
 .runs-link.active:hover { border-color: var(--accent); }
+
+/* grouped project nav — a row of group buttons, each opening a dropdown */
+.navbar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.nav-group { position: relative; }
+.nav-grp-btn { font: inherit; font-size: 12px; line-height: 1; color: var(--accent);
+  background: transparent; border: 1px solid var(--border); border-radius: 6px;
+  padding: 4px 9px; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; }
+.nav-grp-btn:hover { border-color: var(--accent); }
+.nav-caret { font-size: 9px; opacity: .7; }
+.nav-group.has-active .nav-grp-btn { background: var(--accent); color: var(--bg);
+  border-color: var(--accent); font-weight: 600; }
+.nav-group.open .nav-grp-btn { border-color: var(--accent); }
+.nav-grp-menu { display: none; position: absolute; top: calc(100% + 5px); right: 0;
+  z-index: 60; min-width: 156px; background: var(--panel); border: 1px solid var(--border);
+  border-radius: 8px; padding: 5px; box-shadow: 0 10px 28px rgba(0,0,0,.5); }
+.nav-group.open .nav-grp-menu { display: block; }
+.nav-grp-menu .nav-item { display: block; color: var(--muted); text-decoration: none;
+  font-size: 12px; padding: 6px 10px; border-radius: 5px; white-space: nowrap; }
+.nav-grp-menu .nav-item:hover { background: #1c232c; color: var(--accent); }
+.nav-grp-menu .nav-item.active { color: var(--accent); font-weight: 600; }
+.nav-grp-menu .nav-item.active::before { content: "› "; color: var(--accent); }
 .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--amber); }
 .dot.ok { background: var(--green); }
 .dot.bad { background: var(--red); }
@@ -375,6 +396,54 @@ table.cfg td:last-child { color: var(--text); word-break: break-word; }
 .tab.held .title { font-style: italic; }
 .tab.held .held-timer { font-family: var(--mono); font-size: 10px; color: var(--muted);
   background: rgba(255,255,255,.06); border-radius: 4px; padding: 1px 5px; }
+
+/* project tag: colored dot on every tab; a labelled tab is tinted with --pc */
+.tab .pdot {
+  width: 9px; height: 9px; border-radius: 50%; flex: 0 0 auto;
+  border: 1px solid var(--border); background: transparent; cursor: pointer;
+}
+.tab .pdot:hover { transform: scale(1.25); }
+.tab.tagged { border-color: var(--pc); }
+.tab.tagged .title { color: var(--pc); }
+.tab.active.tagged { border-color: var(--pc); box-shadow: inset 0 -2px 0 var(--pc); }
+
+/* active-terminal project banner: the loud "you are typing into X" strip */
+.term-projbar {
+  flex: 0 0 auto; display: flex; align-items: center; gap: 8px;
+  padding: 4px 12px; font-size: 12px; cursor: pointer;
+  background: var(--panel); border-bottom: 1px solid var(--border);
+  color: var(--muted);
+}
+.term-projbar.tagged {
+  background: color-mix(in srgb, var(--pc) 16%, var(--panel));
+  border-bottom: 2px solid var(--pc); color: var(--text);
+}
+.term-projbar .pb-dot { width: 10px; height: 10px; border-radius: 50%; flex: 0 0 auto; }
+.term-projbar .pb-name { letter-spacing: .4px; color: var(--pc); }
+.term-projbar .pb-hint { font-size: 11px; color: var(--muted); }
+.term-projbar.tagged .pb-hint { opacity: .8; }
+
+/* active pane keeps a thin colored frame while its project is tagged */
+.pane.tagged { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--pc) 55%, transparent); }
+
+/* the project picker menu */
+.term-projmenu {
+  position: fixed; z-index: 1000; min-width: 168px; max-height: 60vh; overflow-y: auto;
+  background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+  box-shadow: 0 8px 28px rgba(0,0,0,.5); padding: 4px;
+}
+.term-projmenu .pm-head {
+  font-size: 10px; letter-spacing: .5px; text-transform: uppercase;
+  color: var(--muted); padding: 5px 8px 3px;
+}
+.term-projmenu .pm-row {
+  display: flex; align-items: center; gap: 8px; padding: 6px 8px;
+  border-radius: 6px; cursor: pointer; font-size: 12px; color: var(--text);
+}
+.term-projmenu .pm-row:hover { background: var(--panel-2); }
+.term-projmenu .pm-row.on { background: var(--panel-2); font-weight: 600; }
+.term-projmenu .pm-sw { width: 11px; height: 11px; border-radius: 50%; flex: 0 0 auto; }
+.term-projmenu .pm-clear { color: var(--muted); margin-top: 2px; border-top: 1px solid var(--border); }
 
 .tab-new {
   align-self: center; margin-left: 4px; padding: 5px 10px;

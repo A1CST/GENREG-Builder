@@ -10,6 +10,863 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-17] (Claude)** — **/lm page: modules 30-31 added (the temporal
+  arc + persistence), export whitelist broadened to `kid_*`. FLASK RESTART
+  NEEDED (same restart still pending from the kid_stage fix).** Two consolidated
+  modules append the day's temporal-composition exploration to /lm:
+  30 (lm-temporal-transition) = the TRANSITION operator - next-word dead,
+  order-structure detectable only where the local-shuffle control kills the
+  position shortcut (temporal 0.7365 vs static 0.6909 at 4 swaps, ~14 SE),
+  grammar dissociation (static 0 genomes, temporal the only earner);
+  31 (lm-persistence) = the PERSISTENCE operator, the day's payoff -
+  accumulate a detector's response across corrupted viewpoints, 0.3835 (single)
+  -> 0.93 (feature-space accumulate), with the pixel-mean control (0.5465)
+  proving accumulation must be over responses not pixels. Both render via the
+  generic breakdown-table mechanism (each arm = a row, top-1 = its accuracy);
+  exports `kid_temporal.json` / `kid_persistence.json` in radial_data
+  (gitignored, served from disk). Whitelist regex `kid_stage` -> `kid_` so the
+  new exports serve; this and the earlier kid_stage fix both need one Flask
+  restart to take effect (registry reloads per-request and already lists all
+  31; only the route regex is code). Verified: all 31 module exports pass the
+  whitelist and exist on disk.
+- **[2026-07-18] (Claude)** — **CIFAR seed-stack: the evolved GENOMES EARN
+  (+1.0% residual) — the law confirmed by contrast with MNIST.** Ported the
+  manufactured-rotation seed-stack (`mnist_radial.py`) to CIFAR-10 via
+  `cifar_radial.py` (dataset-agnostic `run(data=…, dataset=…)`; CIFAR is natively
+  32×32×3 so the machinery is reused wholesale). Ladder (384 roles, 8 image-pose
+  seeds, gradient-free, test-once): single 0.6939 | stats-only 0.6991 |
+  **composed-only 0.7111** | genomes-only 0.6633. **Genome ablation: residual over
+  single+stats = +0.0101** — on CIFAR the across-seed genomes compose something the
+  deterministic cross-pose stats miss, where on MNIST they earned 0.0. This is the
+  "environment eats what is tabulatable" law made a controlled experiment:
+  tabulatable task → evolution earns nothing (MNIST), non-tabulatable task →
+  evolution earns residual (CIFAR). Bonus: composed-only **0.7111 is a new
+  single-substrate best** (> prior 0.7074, > grammar-v2 0.7035); the 7-substrate
+  union 0.7702 is still the number to beat (next: union multiple seed-stack
+  substrates). Ran on **RunPod (Blackwell RTX PRO 6000, 96 GB)** — local runs kept
+  getting SIGKILLed at the wide rung-3c ridge (bg memory cap), and torch 2.8's
+  solver raised on unsanitized genome columns that 2.6 tolerated → fixed with guide
+  rails 4+5 (nan_to_num + train-standardize + clamp ±8σ every feature block) and a
+  singular-safe `ridge_eval`. Results shadow-copied to `runpod_shadow/`. Model
+  `demo/cifar_radial_model.pkl`, export `radial_data/cifar_radial.json`, run
+  `20260718-022223-cifar_radial-a8d4c4`. Notice #487.
+
+- **[2026-07-17] (Claude)** — **PERSISTENCE operator VALIDATED - the correct
+  temporal primitive, and the payoff of the whole thread. Accumulating a
+  detector's response across corrupted viewpoints recovers letter identity
+  0.3835 (single view) -> 0.93 (persistence).** The user's definition, finally
+  built right: persistence = a signal that REPEATS over time, ACCUMULATED; the
+  accumulated signal is what the static space consumes. Operator = a per-frame
+  detector applied at every view, its response SUMMED over the stream -
+  recurring (invariant) structure accumulates, independent per-view corruption
+  averages out. ORDER-INVARIANT by design, which is why the prior 3 days of
+  transition/order operators (next-word, grammar, real-vs-shuffled) could not
+  test it - they were orthogonal.
+  Testbed (dog-across-angles analog): same letter rendered K=8 times under
+  heavy independent corruption (noise .45 + 9x9 occlusion + size/jitter), 26
+  classes, same R0 detectors + budget across arms. `persistence_test.py`:
+  | arm | test |
+  | SINGLE (one corrupted view) | 0.3835 |
+  | PIXELMEAN (accumulate in PIXEL space) | 0.5465 |
+  | **ACCUM (accumulate in FEATURE space = persistence)** | **0.93** |
+  **The PIXELMEAN control is the load-bearing result:** averaging the views in
+  pixel space (0.55) blurs because the letter is NOT aligned across views
+  (size/jitter/occlusion differ), whereas the detector fires on the letter
+  regardless of where/how it appears, so accumulating in DETECTOR space (0.93)
+  reinforces the invariant while the viewpoint washes out. That is why
+  persistence must accumulate what keeps RESPONDING, not the raw signal - the
+  dog's pixels never align across angles, but the dog-detector fires every
+  frame. Coherent accumulation.
+  Saved as memory [[temporal-persistence-operator]]. The temporal->static
+  architecture now has its real primitive: temporal space = coherent
+  accumulator of recurring detector responses (persistence/attention), static
+  space = classifier of what survived. Next-word stays dead; the temporal idea
+  is alive as PERSISTENCE, not as transitions. exit=0, 64s. No Flask restart.
+- **[2026-07-17] (Claude)** — **GRAMMAR discriminator (word-level real-vs-
+  shuffled): the CLEANEST dissociation yet - static-position composition
+  detects ZERO word-order structure, temporal is the ONLY earner - but the
+  absolute signal is weak because embed_rs is SEMANTIC, not syntactic.**
+  Built `build_word_stream.py`: 10-word sequences, each word = its evolved
+  embed_rs vector (30k vocab, 128-d), real vs locally-shuffled. Grammar lives
+  in the transitions, which the per-word table cannot encode. There is NO
+  position shortcut here - the linear anchor sits at/below chance (0.44-0.50)
+  in every condition - so it is the purest structural test run. Sweep
+  (chance 0.5, RAW=static-concat, T=temporal):
+  | word swaps | anchor | RAW | TEMPORAL |
+  | 1    | 0.4371 | 0 genomes (0.4965, chance) | 0.5031 |
+  | 2    | 0.4534 | 0 genomes | 0.5250 |
+  | 4    | 0.4691 | 0 genomes | 0.5399 |
+  | full | 0.4959 | 0 genomes | 0.6202 |
+  **RAW static froze ZERO genomes in ALL conditions (verified: stuck at
+  val ~0.4965), while temporal froze 2-154 and earned above chance every
+  time.** So on a task with no position shortcut, absolute-position composition
+  is helpless and only relative-time composition detects order - the strongest
+  qualitative confirmation of the temporal idea in the whole line.
+  **HONEST CAVEAT: the absolute numbers are weak (0.52 local, 0.62 full).**
+  embed_rs encodes distributional SIMILARITY (semantics), not syntax/role, so
+  grammatical transitions are only faintly present in the substrate; temporal
+  detects the faint signal that IS there but cannot exceed what the vectors
+  encode. So: the METHOD is right (temporal >> static, static=nothing), the
+  SUBSTRATE is the limiter.
+  **Next lever (the concrete finding):** to make grammar strongly detectable,
+  the word representation needs SYNTACTIC content - positional/role features,
+  or an EVOLVED word feature rather than the semantic embed_rs table (which is
+  the same "semantic table" this line has repeatedly bumped into). The
+  strongest QUANTITATIVE temporal win remains char-level local-shuffle
+  (+0.045, ~14 SE); word-grammar is the cleanest QUALITATIVE win (static=0).
+  Minor: a benign std()-dof UserWarning fires from _ridge_soft on degenerate
+  columns; results unaffected (exit=0). Runs ~2-3s each on the cache. No Flask
+  restart (research).
+- **[2026-07-17] (Claude)** — **MNIST seed-stack A/B (does evolution earn?):
+  definitive NO on MNIST — force-residual 0.9909 = stats-only 0.9909 (residual
+  0.0), lean carries 0.9777 at 2,460 params.** Added an A/B to `mnist_radial.py`
+  (`--ab`) sharing the roles + seed tensor: ARM A (force-residual) evolves the
+  composed genomes with the deterministic cross-pose stats IN the fitness base
+  (PCA-256 compressed) so only non-linear residual can freeze; ARM B (lean) reads
+  genome outputs ONLY. Result (image-pose, grid4/256 roles/8 seeds): stats-only
+  **0.9909** | force-residual **0.9909 (residual 0.0** — 100 genomes froze over the
+  compressed base but add nothing to the full-stats head) | lean **0.9777 @ 2,460
+  head params** (67× fewer than the 166K fat head, −0.75 vs a single seed). Verdict:
+  MNIST's cross-viewpoint signal is FULLY tabulatable (a mean + a variance across
+  poses), so evolution has no compositional residual to find — confirmed under the
+  fairest selection (genomes chosen FOR residual). Lean proves genomes CAN carry a
+  model cheaply, just not past the linear head on a tabulatable task. To make
+  evolution earn, the seed axis must move to NON-tabulatable structure (occlusion /
+  clutter / relations). AB export `radial_data/mnist_radial_ab.json`, run
+  `20260717-203038-mnist_radial-db69f2`. Notice #482.
+
+- **[2026-07-17] (Claude)** — **Local-shuffle sweep: the temporal idea is REAL
+  and now UNCONFOUNDED. Killing the position shortcut drops everyone from 99%
+  to 47-88%, and relative-time composition then beats static-position by up to
+  +0.045 (~14 SE) where it should.** Fork B's full-scramble win was partly a
+  position artifact (a full time-scramble is detectable from absolute-position
+  channel stats - the linear anchor was 0.9861). LOCAL adjacent-swap shuffles
+  preserve absolute position but break local transitions, so position can't
+  cheat. Sweep on the char stream (chance 0.5):
+  | swaps | anchor | RAW static | TEMPORAL | gap |
+  | 2  | 0.4714 | 0.6032 | 0.5910 | -0.012 (near-chance, noisy) |
+  | 4  | 0.6003 | 0.6909 | **0.7365** | **+0.045 (~14 SE)** |
+  | 8  | 0.7268 | 0.8229 | 0.8212 | -0.002 (tie) |
+  | 16 | 0.8298 | 0.8855 | **0.9020** | **+0.016 (~7 SE)** |
+  The anchor rising 0.47->0.83 with swap count confirms more swaps = more
+  displacement = position recovers; the temporal advantage is largest at 4
+  swaps, exactly where position is most useless (anchor 0.60) yet the task is
+  learnable. CLEAN, UNCONFOUNDED RESULT: when absolute position genuinely
+  cannot substitute, relative-time composition detects local-transition
+  structure static-position cannot - +0.045 at 4 swaps, ~14 SE, repeated at 16.
+  HONEST: not a blowout across all regimes (static ties at 8, edges it at the
+  near-chance 2), so it is a genuine capability, not dominance.
+  **THE TWO-RUN CONCLUSION for the language direction:** temporal composition
+  earns its keep on ORDER/STRUCTURE tasks and NOT on next-word (position/
+  recency/content-dominated, confirmed 3 ways). So a temporal-composition
+  language line should be built on STRUCTURAL objectives (real-vs-shuffled /
+  grammar-as-discriminator - the user's original "not n-grams" instinct),
+  never next-word softmax. Runs ~15s each on the built cache. No Flask restart.
+- **[2026-07-17] (Claude)** — **MNIST seed-stack ABLATION: the evolved genomes
+  earn NOTHING — the 0.9909 is deterministic cross-seed statistics + a linear
+  head. /mnist page rebuilt (NEEDS FLASK RESTART).** Added a genome-contribution
+  ablation + exact param counting + model persistence to `mnist_radial.py`.
+  Full-scale result: stats-only (cross-seed mean/std/range, NO evolved genomes)
+  = **0.9909** = the full production head; genome residual over single+stats =
+  **−0.0001**; genomes-only 0.9762 (WORSE than a single seed 0.9852). So the
+  record-beating number is multi-pose cross-seed AGGREGATION (deterministic,
+  tabulatable) read by a 166K linear head — evolution is not composing anything
+  ("environment eats what is tabulatable": a mean and a variance across poses is
+  the whole cross-seed signal). Exact params: head(ridge) 166,430 | evolved
+  genomes 9,210 (roles 4,655 + composed 4,555, contribute nil) | pca basis 68,628
+  (data-built) → fitted 175,640. Model now saved to `demo/mnist_radial_model.pkl`.
+  **/mnist page rebuilt**: radial seed-stack is the headline (tiles incl. head
+  params + genome residual, ladder card stating the ablation truth), the old
+  WordPipe pipeline demoted to a labeled "Legacy" section (all IDs kept, live
+  digit viewer still works). Open problem for making evolution earn: force
+  residual (stats in the fitness base) or go lean (head reads genomes only). Run
+  `20260717-174648-mnist_radial-3039f2`. Notice #478.
+
+- **[2026-07-17] (Claude)** — **/history: expanded every era. No restart (data
+  regen).** Chart grew 77 → 116 nodes / 87 → 145 edges. Each era now has 6
+  inventions, 6 tools, and more subtools. Added inventions (pottery, irrigation,
+  granary; drainage, marling, enclosure; coal, iron/steel, telegraph;
+  anesthesia, antiseptic, refrigeration; hybrid seed, industrial livestock, GMO),
+  tools (bone awl, loom; winnower, dibber; mine pump, puddling furnace; clinical
+  thermometer, Petri dish; soil-test kit, grain silo), and subtools with deeper
+  predecessor chains — including 2nd-generation links (kiln→copper smelting,
+  spinning mule→self-acting mule, milling machine→CNC, drip→fertigation) and
+  more multi-parent joins (steam locomotive ← steam engine + cheap steel;
+  precision ag ← GPS tractor + yield-mapping combine). Subtool predecessors may
+  now be a tool, invention, OR another subtool. Regenerated
+  radial_data/history_population.json. Verified: 0 dangling/duplicate ids, deep
+  + multi-parent edges present, inline JS `node --check`, /history serves.
+
+- **[2026-07-17] (Claude)** — **Temporal forks A+B: my RECENCY diagnosis was
+  WRONG (fork A null), but fork B is the FIRST task where relative-time
+  composition genuinely and significantly BEATS static-position - real-vs-
+  shuffled.** Both on the built char stream (~10s each).
+  **FORK A (recency-preserving temporal on next-word):** added recency pooling
+  modes (last-step, recency-weighted) to the temporal genome so it could KEEP
+  recency instead of flat position-invariant pooling. Result: TEMPORAL 0.0673
+  vs RAW 0.0719 (anchor 0.0557) - UNCHANGED, still loses. My hypothesis that
+  recency was the killer is FALSIFIED: next-word favors static-position
+  composition regardless of recency. Three ways now (word tie, char loss,
+  recency no-help), next-word is simply the wrong task for temporal
+  composition - it is recency/position/content-dominated and n-gram-shaped.
+  **FORK B (real-vs-shuffled, the structural task):** same rows real vs a
+  time-permuted copy of themselves (content identical, only order differs), so
+  order is the ENTIRE signal; binary, chance 0.5. Result: anchor 0.9861,
+  RAW static 0.9919, TEMPORAL-only 0.9945, TEMPORAL+STATIC **0.996**. VERDICT:
+  TEMPORAL HELPS - both temporal arms beat raw (0.996 & 0.9945 vs 0.9919,
+  ~4-6 SE on 20k, significant AND consistent in direction, unlike the next-word
+  nulls). This is the first repeatable win for the temporal idea: relative-time
+  composition detects sequence structure that absolute-position composition
+  cannot - WHEN structure is the signal.
+  **CAVEAT (don't oversell):** the task is near-saturated - even the LINEAR
+  anchor hits 0.9861, because a full time-scramble is detectable from
+  absolute-position channel statistics (position 0 "looks like a first char").
+  So temporal wins the residual on an easy task. The decisive next test is a
+  HARDER structural task where position stats cannot cheat: LOCAL shuffles
+  (adjacent swaps) that preserve absolute position but break local transitions,
+  forcing a detector to model relative-time order. That isolates temporal's
+  real advantage. DECISION POINT for the user: harden fork B (local-shuffle),
+  or pivot temporal composition to structural/self-supervised objectives
+  generally (away from next-word for good). No Flask restart (research).
+- **[2026-07-17] (Claude)** — **MNIST seed-stack BEATS the old record: 0.9909,
+  gradient-free.** Added a second seed mechanism to `mnist_radial.py` — `seed_mode
+  ="image"`: each seed rotates the actual DIGIT (±15°, seed 0 upright) and projects
+  it through a FIXED canonical patch-PCA basis (new `EnvLite`, which also fixed
+  test-normalisation to train-sd — guide rail 5 — nudging the anchor 0.8858→0.8961).
+  The data itself takes a new pose per seed — the truest analog of the temporal
+  object rotating. Ladder (grid4 / 256 roles / 8 seeds): anchor 0.8961 | single
+  0.9852 | composed-only 0.9906 | **single+composed 0.9909 (production head)** —
+  clears the old WordPipe record 0.9903 by ~6 images, with patch-PCA maps only
+  (no HOG/zone/pairwise/joint). Image-pose > feature-frame rotation (0.9901). AND
+  the generalisation signal FLIPPED positive: corr(cross-seed std, error) −0.017
+  → +0.011 — real pose disagreement weakly tracks which images are hard, where the
+  feature-frame rotation gave the wrong sign. `seed_mode`/`max_deg` are CLI flags;
+  feature mode retained. Run `20260717-170711-mnist_radial-3039f2` (on /runs);
+  /mnist card + memory updated. Notice #473. (Cheap next win: the ±max_deg spread
+  duplicates 0° — recover that seed for an 8th distinct viewpoint.)
+
+- **[2026-07-17] (Claude)** — **TEMPORAL char-level run: a second, CLEANER null
+  - relative-time composition slightly LOSES to static-position, and the
+  diagnosis is RECENCY.** Built `build_char_stream.py`: reads the 32 char tiles
+  already in kid_next through the frozen stage-A letter eye (window-pooled per
+  genome) -> a (N, T=32, C=515) char stream, 8x the word run's time axis.
+  RESULT (50k/10k): concat linear anchor **0.0557**; RAW static genomes 0.0719
+  / top5 0.2324 (40 genomes); TEMPORAL-only 0.0673 / 0.226 (46);
+  TEMPORAL+STATIC 0.0685 / 0.2331 (53). VERDICT: temporal does NOT beat raw
+  (both temporal arms below raw on top-1).
+  **TWO real findings:** (1) at char level, static genomes BEAT the linear
+  anchor (0.0719 vs 0.0557, +0.0162 ~6 SE, significant) - evolution EARNS on
+  char composition, unlike the word run where genomes lost to the 0.0887 concat
+  anchor. Char features are less linearly-readable, so there is nonlinear
+  structure to earn (evolution-suppression-law again). (2) But relative-time
+  composition still does not beat absolute-position composition - twice now
+  (word: tie; char: slight loss).
+  **DIAGNOSIS (mine, and it's a design flaw not a refutation): my temporal
+  genome pools over ALL t (mean/max), which is fully POSITION-INVARIANT and
+  throws away RECENCY. Next-word prediction is recency-dominated - the last
+  word/char is the strongest predictor - so the static-concat genome that
+  keeps absolute position exploits recency and wins.** The temporal inductive
+  bias (relative-time invariance) is mismatched to a recency-dominated,
+  n-gram-shaped task. This does NOT kill the streaming idea; it says either
+  (a) fix the temporal genome to preserve recency/direction (weight recent
+  steps / offsets-from-the-end / last-step interactions) and retest - cheap,
+  the char cache is built and iteration is ~10s - or (b) next-word is the wrong
+  task for temporal composition (recency-dominated), and the temporal idea
+  needs a task where LONG-RANGE recurring structure matters (real-vs-shuffled
+  discrimination, topic/register), which is the structural fitness discussed
+  earlier. Char build ~6min; both nulls logged honestly against the script's
+  naive top-1 auto-verdict. No Flask restart (research).
+- **[2026-07-17] (Claude)** — **TEMPORAL->STATIC freeze-and-stack for language,
+  first cut: a NULL at the 4-word window, and honestly so - the script's
+  auto-verdict "TEMPORAL HELPS" is a top-1 artifact within noise.**
+  New `radial_temporal.py`: space 0 = temporal genomes composing over
+  RELATIVE-TIME offsets (channel a at t x channel b at t-o, pooled over all t -
+  position-invariant), frozen; space 1+ = static genomes reading that frozen
+  output; same next-word fitness, genome-only head throughout. The test =
+  static-on-temporal vs static-on-raw-chunk. Ran on a fresh pod
+  (205.196.144.74; old pod died mid-turn, regenerated kid_words/kid_next +
+  the eye-sweep cache from local corpus+eye models - validated faithful: the
+  eye-only anchor reproduced the prior DNE 0.0614 exactly).
+  RESULT (T=4 words, C=297, 50k/10k): concat linear anchor **0.0887**;
+  RAW genomes 0.0715 / top5 0.2348 (39 genomes); TEMPORAL-only 0.0724 / 0.2281
+  (49); TEMPORAL+STATIC 0.0744 / 0.2308 (53).
+  **HONEST VERDICT = NULL, not a win.** top-1 temporal edge is +0.0029 on 10k
+  (~1.1 SE, not significant) AND top-5 REVERSES (raw 0.2348 > temporal 0.2308)
+  - metrics disagreeing in direction = noise, the same signature I called a
+  null for the DC compose. Also: ALL genome arms LOSE to the concat linear
+  anchor (0.0887). The one flicker within noise: temporal-only (49
+  position-invariant genomes) ties raw static-concat (39) more compactly.
+  **WHY it's under-powered, not refuted (my design limitation):** T=4 is a
+  4-step "stream" - offsets o in {1,2,3}, pooling over <=3 steps - the temporal
+  machinery has almost no time axis to work with, and 4 words in a row carry
+  little recurring temporal structure. Persistence/morphology lives at the CHAR
+  level. The real test is a char stream (the 32 char tiles are ALREADY in
+  kid_next as (N,4,8,32,32)): letters arriving in time, an 8x longer axis where
+  sequential regularity actually exists. Idea neither validated nor killed -
+  it was given too short a stream. Code de-risked first on a synthetic cache;
+  cached features make iteration ~4s. No Flask restart (research run).
+- **[2026-07-17] (Claude)** — **/history: added `subtool` nodes — tools that
+  could only be invented once their predecessor tool(s) existed. No restart
+  (data + template auto-reload).** New node `type: "subtool"` (dashed subroutine
+  box) is wired predecessor→subtool, and a subtool may have MULTIPLE predecessors
+  (an edge from each). Added 21 derived tools, e.g. axe→adze, hoe→ard,
+  quern→rotary quern, scythe→cradle scythe, horse collar→horse hoe, lathe→milling
+  machine & micrometer, power loom→Jacquard loom, jenny→spinning mule,
+  microscope→electron microscope, X-ray→CT scanner, tractor→GPS auto-steer,
+  pump→center-pivot irrigation. Multi-parent example: threshing machine ← flail
+  AND horse collar. Each carries its own period + hover detail. Chart now 77
+  nodes / 87 edges. history.html gained the `subtool` SHAPE/CLASSDEF/TYPE_COLOR;
+  data regenerated; schema doc updated. Verified: subroutine shape + both
+  multi-pred edges emitted, 0 dangling/dup, inline JS `node --check`, /history
+  serves.
+
+- **[2026-07-17] (Claude)** — **MNIST seed-stack CROSSES 99% (0.9901),
+  gradient-free, test touched once.** Scaled the composition winner from the
+  first `mnist_radial.py` run (grid 3→4, roles 128→256, comp rounds 60→80, λ
+  sweep widened to {0.3…300}) and dropped the naive-union rungs (they regress &
+  OOM at scale). Ladder: anchor 0.8858 | single-seed 0.9845 | composed-only
+  0.9886 | **single+composed 0.9901 (production head — 99% crossed)**. The new
+  lean head (rung 3c) = clean seed-0 role columns + cross-seed mean/std/range +
+  the 270 across-seed genomes, skipping the noisy 7 rotated union copies.
+  Composition still earns (+0.56 over a single seed). This TIES the old WordPipe
+  record (0.9903) with a far less hand-crafted substrate — patch-PCA maps only,
+  no HOG/zone/profile bank, no pairwise or joint-refine — the accuracy comes from
+  the manufactured-rotation seed axis + across-seed composition. Cross-seed-std
+  generalisation probe still null (corr −0.017). Run
+  `20260717-162616-mnist_radial-981b16` (on /runs); /mnist card + memory updated.
+  Needs a Flask restart for the /mnist card. Notice #467.
+
+- **[2026-07-17] (Claude)** — **/history: the mermaid map is now full-bleed
+  (spans the whole viewport width, not boxed in the 1080px column). CSS only —
+  no restart.** `.ht-diagram` uses the timeline's full-bleed breakout
+  (width:100vw; left/right:50%; margin -50vw) with `overflow-x:auto`, so the map
+  spans edge-to-edge and scrolls horizontally when it is wider than the screen
+  (mermaid still renders at natural, readable size — `useMaxWidth:false`). No
+  React needed. history.html style block only.
+
+- **[2026-07-17] (Claude)** — **/history: added `tool`-type sub-nodes (era tools
+  — axes, plows, drills…). No restart (data + template auto-reload).** New node
+  `type: "tool"` renders as a hexagon (brown class) and hangs off its era via an
+  ERA→tool edge, with the same hover detail panel as every other node. Added 20
+  tools (4 per era) each with a required period + detail + facts: Neolithic
+  (polished axe, flint sickle, digging stick/hoe, quern), Second Agricultural
+  (scythe, iron/steel plow, horse collar, threshing flail), Industrial (spinning
+  jenny, power loom, screw-cutting lathe, steam hammer), Medical (microscope,
+  hypodermic syringe, autoclave, X-ray), Green Revolution (diesel tractor,
+  combine, chemical sprayer, irrigation pump). Chart is now 56 nodes / 65 edges.
+  Files: history.html (SHAPES/CLASSDEFS/TYPE_COLOR gained `tool`; the `{{`/`}}`
+  hexagon delimiters are built by string-concat so Jinja doesn't parse them as
+  `{{ }}`), radial_data/history_population.json (regenerated), schema doc updated.
+  Verified: builder emits the hexagon + tool class, 0 dangling edges / 0 dup ids,
+  inline JS `node --check`, test-client renders /history.
+
+- **[2026-07-17] (Claude)** — **/history: structured chart template (data-driven
+  nodes) + per-node time periods + hover detail panels. No restart (template
+  auto-reload + browser refresh).** Replaced the hand-written mermaid with a
+  `chart: {direction, init, nodes, edges}` schema in the export json; the page
+  now BUILDS the mermaid from data (`buildMermaid` in history.html). Every node
+  has a required `period` (rendered as a small line under its label) and optional
+  `detail`/`sub` — hovering any node pops a dark detail panel (type badge, title,
+  period, prose, bullet facts) that follows the cursor and clamps to the
+  viewport. Node `type` (start/era/invention/mechanism/impact/transition/
+  endpoint) drives both the mermaid shape and color class. Adding a node is now
+  one object in `nodes` + its `edges` — no mermaid syntax, no template edits.
+  Module 1 converted to 36 structured nodes / 45 edges, each with a period and
+  detail. Legacy raw-`mermaid` modules still render (without hover). Schema
+  documented in `radial_data/history_chart_schema.md`. Files: history.html
+  (SHAPES/CLASSDEFS/buildMermaid, tooltip infra, wireTooltips via mermaid node
+  ids), radial_data/history_population.json (regenerated). Verified: JSON parses,
+  inline JS `node --check`, buildMermaid emits 90 valid lines with 0 dangling
+  edges and 0 nodes missing a period, test-client serves /history with the new
+  code.
+
+- **[2026-07-17] (Claude)** — **MNIST ported to the radial stack + a new
+  "manufactured rotation" static-classification result. NEEDS FLASK RESTART**
+  (new `/api/mnist/radial` route + `/mnist` card). New module `mnist_radial.py`
+  moves MNIST off the old WordPipe recipe (`genreg_train/mnist_pipe.py`) onto
+  the radial stack, reusing `radial_evo2.{Env,new_genome,mutate,feature,
+  make_scorer}` + `radial_evo._ridge_soft` verbatim (no gradients, TF32 off,
+  test touched once). **The idea:** a temporal clip hands the stack a composable
+  axis (the object rotates in time → the grammar composes motion across frames);
+  a static digit has none. So MANUFACTURE the rotation — each **seed** re-origins
+  the patch-PCA frame by a fixed rotation (`radial_stack._rotate_features`), and
+  role×seed is laid out byte-identical to the temporal genome×step hand-off. A
+  3-rung ladder over ONE seed tensor isolates composition. **Result (full
+  60k/10k, deskewed, gradient-free):** anchor (raw patch-PCA ridge) 0.8858 |
+  single-seed 0.9786 | naive union 0.9605 | **composed-across-seed 0.9857 (best)**
+  | union+composed 0.9849. Headline: manufactured-rotation seeds only pay off
+  when COMPOSED across the seed axis like time — the naive union (the shallow
+  seed-union move) actually REGRESSES 0.9786→0.9605, while the grammar reading
+  cross-seed std/range/absdiff earns +0.71 over a single seed. (Caveat: lambda
+  swept only {1,3,10,30}; heavier ridge may recover the union. Cross-seed-std
+  "knows-its-own-uncertainty" probe was null, corr −0.018 on deskewed MNIST.)
+  128 roles × 8 seeds, 262 across-seed genomes, grid 3, capped for the 16GB
+  budget — below the old WordPipe record 0.9903, but this run tested the seed
+  axis, not the record. Recorded to `runs/mnist_radial/` (5-file trio, on
+  /runs); ladder card surfaced on /mnist via `/api/mnist/radial`. Notice #461.
+
+- **[2026-07-17] (Claude)** — **/history module 1: horizontal diagram + a
+  full-bleed timeline strip. No restart (template auto-reload + browser
+  refresh).** Flipped the mermaid from `graph TD` to `graph LR` so the eras read
+  left-to-right. Added a data-driven `timeline` array to
+  `history_population.json` (date / era / impact / population per point) and a
+  `renderTimeline()` in history.html that draws a horizontal spine spanning the
+  full viewport width (100vw full-bleed out of the 1080 column, scrolls
+  internally on narrow screens) with a dot + date + era + population chip per
+  point. Timeline is optional per module (skipped when absent). Verified: JSON
+  parses, inline JS `node --check`, test-client renders /history with the
+  timeline markup.
+
+- **[2026-07-17] (Claude)** — **Grouped nav dropdowns + ONE project registry
+  shared by nav and terminal tags. FLASK RESTART REQUIRED (new context
+  processor + template).**
+  The nav bar was a flat row of ~21 links, and the terminal-tag picker kept its
+  OWN duplicate list in static/app.js — so a new project (e.g. /history) showed
+  in the nav but was NOT tag-able. Fixed by making `PROJECT_GROUPS` in app.py
+  the single source of truth: an `@app.context_processor` injects `nav_groups`
+  (grouped) into every template and emits the flat list as
+  `window.GENREG_PROJECTS`. `_nav.html` now renders one dropdown button per
+  group (Vision / Sequence / Evolve / Media & Net / Workspace); the group
+  holding the current page gets the accent `has-active` state, and clicking a
+  group opens its menu (Esc / outside-click closes). static/app.js's `PROJECTS`
+  now reads `window.GENREG_PROJECTS` (hardcoded list kept only as a no-nav
+  fallback), so history — and any future project — is tag-able automatically.
+  Add a project once in `PROJECT_GROUPS` and it appears in BOTH the nav and the
+  tag picker; no second list to sync. Touches app.py (registry + context
+  processor), templates/_nav.html (grouped markup + inline toggle JS + JS
+  global), static/style.css (.navbar/.nav-group/.nav-grp-menu), static/app.js
+  (registry from global). Verified: app.py imports, app.js `node --check`,
+  Flask test-client renders /, /history, /cifar, /humanoid with the grouped nav
+  and correct active-group highlight.
+
+- **[2026-07-17] (Claude)** — **TEMPORAL_RADIAL_STACK_GUIDE: added §3.8 "The
+  genome grammar: mutation and selection" — how the domain-agnostic genomes must
+  be set up, distilled from the humanoid campaign.** The guide named "tournament
+  selection, mutation" in §1 but never specified either, which is the gap that
+  cost a whole session. New section pins down: (1) **relative mutation** on
+  real-valued genes — `w*(1+N(0,0.3))+N(0,0.05)`, per-dim scaling (the 90.2% vs
+  39.7% law), with a MANDATORY absolute floor because a gene/head-column starting
+  at zero can never be moved by relative mutation alone; applies identically to an
+  evolved CEM head (a flat sigma over a warm head sent candidates 1.84 -> 0.03).
+  (2) **local structural mutation** — ops flip, channel indices DRIFT locally,
+  never re-drawn uniformly (context-dilution law). (3) **selection is NOT
+  highest-fitness-survives** — rank by fitness, ADMIT by orthogonality on a fixed
+  probe (top-N by solo fitness froze 5 identical programs, eff rank 2 of 8); elite
+  is a fraction `pop//4`, not a fixed 4. (4) **secondary objectives enter through
+  admission (Pareto), never as a score penalty** — a tax on effort made stillness
+  optimal (won by travelling 9.8 cm), and a "tolerance" tie-band drawn from
+  cross-seed spread froze a 49-step regression (fixed-seed eval is deterministic —
+  no measurement error exists for a tolerance to absorb). (5) the meta-law:
+  **measure the exact policy you keep** — four measured break modes listed.
+  Fixed the §1 forward-reference; PDF marked stale (the .md is the source).
+
+- **[2026-07-17] (Claude)** — **/history module 1 mermaid parse fix.** Round
+  nodes with nested parens (`(Jethro Tull)`, `(Watt)`, `(Penicillin)`,
+  `(Haber-Bosch process)`, `(Borlaug)`) closed early and broke the parser
+  (~line 16). Quoted all node labels so parens/`&` are text; dropped invalid
+  `rx/ry` from `classDef`. Data-only (`radial_data/history_population.json`) —
+  no restart, just a browser refresh.
+
+- **[2026-07-17] (Claude)** — **New page: /history — an append-only stack of
+  timelines / cause-and-effect maps (mermaid diagrams). FLASK RESTART REQUIRED
+  (new routes + template).**
+  History is a content page, not a model line: each module is one diagram,
+  newest at the bottom, and old modules are never rewritten. Built on the /lm
+  append-only pattern — registry `radial_data/history_modules.json` + per-module
+  export `radial_data/history_<name>.json` (raw mermaid source + optional
+  note/source), rendered generically by `templates/history.html` with the same
+  auto-scroll-to-newest dock. New endpoints `/api/history/modules` and
+  `/api/history/export/<name>` in app.py (whitelisted `history_*.json` only).
+  Nav entry in `_nav.html` (key `history`), changelog-modal mapping
+  `["/history","HISTORY"]` in static/app.js, project changelog
+  `CHANGELOG_HISTORY.md` created. Reuses the already-vendored mermaid.min.js;
+  the page renders each diagram's own baked-in `%%{init}%%` palette (module 1
+  ships a light-themed flow, so it sits on a white stage). Module 1: "How five
+  revolutions raised the human population ceiling" (Neolithic → Second
+  Agricultural → Industrial → Medical/Public-Health → Green revolutions:
+  inventions → mechanism → population impact, each era launching the next).
+  Adding a future module = write one export json + append one registry entry,
+  no template edits. No trainer/runs (static content page). Verified: app.py
+  `python -c import` compiles, both JSON files parse, history.html inline JS
+  passes `node --check`.
+
+- **[2026-07-17] (Claude)** — **Terminal dock: per-terminal PROJECT TAGS
+  (label + color) so a reply never lands in the wrong project's shell. No
+  Flask restart - static-file only (browser hard-refresh).**
+  The shared dock's terminals are global and long-lived (the same tabs show on
+  every project page), so a tab had no project identity and it was easy to type
+  into the wrong session. Now: right-click a tab (or click its dot / the
+  banner) to tag it with a project from a colored picker. The tagged tab shows
+  a colored dot + "<Project> · Terminal N" and takes the project's accent; the
+  ACTIVE terminal gets a loud full-width colored banner at the top of the dock
+  ("<Project> · typing here goes to this project"), and the active pane keeps a
+  thin colored frame. Tags persist in localStorage keyed by terminal id, GLOBAL
+  not per-path (a terminal is the same terminal on every page). Pure frontend:
+  static/app.js (PROJECTS registry mirroring _nav, tag load/save, picker menu,
+  banner + pane render, tab dot + contextmenu) and static/style.css
+  (.term-projbar / .term-projmenu / .pdot / .pane.tagged). Verified: node
+  --check both JS files; the live server already serves the updated static
+  files (8 app.js + 13 css markers) so only a browser refresh is needed; DOM
+  assumptions (#terminal-panel/#tabs/#panes) confirmed on both the injected
+  dock (termdock.js) and the hard-coded docks (index.html, i2.html). Colors
+  degrade gracefully where `color-mix` is unsupported (solid accent border
+  remains). NOT verified in a live browser - I have no browser-driver here;
+  the interactive picker/banner should be eyeballed on a hard-refresh.
+  cp1252 locale codec — every non-ASCII character on EVERY page was mangled.
+  FLASK RESTART NEEDED.** Module titles rendered as `Module 2 â€" ...`. The files
+  on disk are correct UTF-8 (`\xe2\x80\x94`); the endpoints returned `â€...`
+  because `app.py` called `open(path)` with no encoding. JSON is UTF-8 by spec
+  (RFC 8259), so this is unambiguous. Fixed all 22 sites (17 `open(path)` + 5
+  `open(p)`, all JSON reads) to `encoding="utf-8"`. Affects every page, not just
+  /humanoid. **The running server still has the old code — the fix only lands on
+  restart. The user restarts; agents never do.**
+
+- **[2026-07-16] (Claude)** — **HUMANOID: the project's own two laws applied —
+  relative mutation and orthogonal selection. Plus module 3, the architecture
+  diagram.** Read both report PDFs; the trainer was violating two documented
+  findings. **(1) Relative mutation** (Complete_Report p18: per-dim scaling 90.2%
+  vs 39.7% flat): the head CEM kicked all 1105 params with a flat absolute
+  `N(0,0.25)`, DESTROYING the warm start — run 7's R1 candidates sat at dist ~1.2
+  vs an incumbent at ~1.64 even after the calibration fix. Now
+  `sigma = k*(0.35*|W| + 0.12)`; the absolute floor is mandatory since a new
+  column starts at exactly zero and relative mutation can never move a zero (this
+  mirrors the genome's own `mutate()`). The incumbent is now scored directly, and
+  the anchor gets the same optimizer. Verified: a candidate now reproduces the
+  incumbent EXACTLY (`best -1.457 (bar -1.457), dist 1.486`). **(2) Orthogonal
+  selection** ("feature DIVERSITY >> feature QUANTITY"; weak-but-orthogonal drove
+  the +5.51% v21 jump): freezing top-8 by SOLO fitness returns 8 clones of the
+  best — measured on run 6's batch, **5 of 8 were literally the same program**,
+  11 of 28 pairs correlated >0.9, **effective rank 2 of 8**. It bought ~2 features
+  of information for 952 head params, which is why the batch scored below its own
+  members. Now fitness ranks but orthogonality admits, traced on a FIXED probe
+  (the incumbent's trajectory). Verified 8 -> 5 kept, max |corr| 1.00 -> 0.669.
+  **Module 3** renders the stack from the live checkpoint (mermaid vendored
+  locally, no CDN); verified by headless-Chrome screenshot, which also caught a
+  units bug — a priced record was labelled `m` and raced against a distance
+  anchor; now labelled `score` and compared to the same-objective anchor.
+
+- **[2026-07-16] (Claude)** — **/lm page: modules 24-29 added (the whole
+  head-bug arc), + a REAL BUG FIX - the kid curriculum's exports have been
+  404ing since stage A. FLASK RESTART NEEDED.**
+  **The bug:** `/api/lm/export/<name>` whitelists
+  `(lm_radial|lm_probe|embed_report)[A-Za-z0-9_]*\.json`, but every kid
+  module (17-23: stages A, B, C, C2-C5) points at `kid_stage*.json`. Verified
+  against the live server: `kid_stageC5.json -> HTTP 404 {"error":"not an lm
+  export"}`. So the ENTIRE curriculum has been rendering "export not
+  available" on the page - those numbers were never visible. Fix: added
+  `kid_stage` to the whitelist (one regex, still anchored - no traversal).
+  **This is why a restart is required**: the registry is re-read from disk per
+  request (the server already serves all 29 modules), but the route regex is
+  code. Until restart, modules 24-29 will list but their exports will 404 like
+  17-23 do today.
+  **New modules (append-only, no template edits, no old module touched):**
+  24 C6 (100k, flat curve, the "data lever is spent" read that was wrong);
+  25 D1 (0.1678 with ZERO genomes - the head bug, 98% head);
+  26 D2 (genome-only head: 0 -> 153 genomes, and honestly still losing to
+  ridge); 27 C7 (the C line's headlines were the head; honest cloze 0.0889);
+  28 decomposed D (DLEN beats ridge; the COMPOSE is a null);
+  29 ear ablation (ears suppress evolution; eye is real at 37x chance; the
+  dial is TABLE SHARE, not question size; my size law retracted).
+  Each export carries `fat_anchor_test` = the run's linear reference so the
+  existing renderer draws it as the "anchor (no genomes)" bar, and a
+  `breakdown` table for the cross-run comparisons. NOTE the anchor bar is
+  VAL-side while the model bars are TEST - stated in each module's desc.
+  D1's export was reconstructed verbatim from the json read during the run:
+  D2 reused the same `kid_stageD3.json` filename and overwrote it. Worth
+  fixing at the source - stage tags collide whenever two runs share a stage
+  letter and ears setting.
+  freezes" — recalibration was destroying every candidate's warm start. A
+  zero-weight candidate fell 1.8423 -> 0.2271 m. Proven, then fixed.** Run 6's
+  scaled head budget bought the first real freeze (R0 batch of 8: record 1.039 ->
+  **1.842 m, +0.803**) but then stalled — R0's second batch scored -0.254 and R1
+  never neared its bar (0.36 vs 0.957). The tell: an R1 candidate adds one feature
+  whose head column starts at ZERO, so it must reproduce the incumbent exactly.
+  Probed on run 6's checkpoint: incumbent 1.8423; +1 genome keeping the
+  incumbent's stats **1.8423** (identical, as it must be); +1 genome recalibrated
+  **0.2271**. `calibrate_features` recomputed stats for EVERY feature, drifting
+  the 64 shared ones by up to 0.561 in mu and rescaling them 0.248x-1.962x — so
+  the warm-started head, fit against the old scaling, was destroyed, and every
+  candidate had to rebuild 1105 params from rubble on 192 evals. Not the genomes,
+  not the cap, not the grammar. Fixed: existing features keep the stats their head
+  was fit against; only NEW features are calibrated, measured on the incumbent's
+  own trajectory. Verified 1.8423 -> 1.8423. (Also: calibration called
+  `features()` then `act()` per step, advancing the temporal ring twice.)
+  **Fourth measure-vs-keep defect this session** — each measured one policy and
+  kept another. **Flagged, not fixed:** the anchor's 3840-eval budget no longer
+  matches the stack's ~57k, so run 6's `1.842 vs anchor 1.267` is NOT an honest
+  win — run 1's rigged ruler returning via the budget change. Run 7 detached:
+  `radial_data/run_humanoid_7.log`.
+
+- **[2026-07-16] (Claude)** — **EAR ABLATION: the ears were SUPPRESSING
+  evolution, not just inflating the score. Remove them and evolution BEATS
+  ridge by 22% on pixels alone.** Same pixels/split/cached features,
+  genome-only head, only ears on/off:
+  | bank | linear anchor | genomes | winner |
+  | eye + ears | 0.1703 | 0.1514 | ridge by 12% |
+  | **eye only** | **0.0614** | **0.0752** | **EVOLUTION by 22%** |
+  (DNE: TEST 0.0753 / 0.2378, spaces [56, 1], 37x chance.)
+  The ears (embed_rs_next etc.) are dense type-level LOOKUP TABLES: ridge eats
+  them whole and leaves no residual for composition to earn. They carry 0.109
+  of the 0.1703 anchor - most of every language number in this line. So the
+  "evolution earns nothing" collapse had TWO stacked causes, not one: the head
+  reading the raw environment (fixed earlier today) AND the environment
+  containing a ridge-friendly table. My earlier "the next ear is doing the
+  work" note was right about the anchor but missed the active suppression.
+  THE POSITIVE RESULT: the kid's EYE is real - four rendered context words
+  predict the next word at 0.0753 (37x chance) from pixels alone, and
+  COMPOSITION is what extracts it (genomes beat ridge 0.0752 vs 0.0614). This
+  is the first clean case in the line where the evolved model wins BECAUSE the
+  signal is non-linear. It also FALSIFIES my own question-size law: with ears
+  % of anchor falls with class count, without ears it RISES (26 -> 106.4%,
+  500 -> 122.5%). Size was never the driver - **EAR SHARE of the anchor** is,
+  and the grid is now complete, monotone, and confirmed by a prediction made
+  BEFORE the run (DLENNE: length's anchor should barely move without ears
+  because length is not what a continuation table encodes - measured -18%, vs
+  -64% for next word):
+  | question | with-ears anchor | no-ears anchor | ear share | evo % of anchor |
+  | length | 0.3186 | 0.2618 | 17.8% | 100.7% |
+  | first letter | 0.2283 | 0.1586 | 30.5% | 94.6% |
+  | next word | 0.1703 | 0.0614 | 63.9% | 88.9% |
+  Lowest ear share = the only question evolution wins with ears on. Explains
+  DLEN's win without needing 8 classes to be special.
+  Recorded as a cross-project law in memory (evolution-suppression-law):
+  % of the linear anchor is the honest metric; genome_share is confounded by
+  class count; a number from a run that froze ~0 genomes is the HEAD's number.
+  Correction logged in CHANGELOG_LM: my "DFL reuses stage B's spelling, which
+  D throws away" was WRONG - the next word is never rendered, so no spelling
+  applies to it; B's competence is used to read the CONTEXT via the A->B eye,
+  which every D stage already does. The per-letter-spelling probe that claim
+  implied is dead on arrival and must not be run.
+
+- **[2026-07-16] (Claude)** — **DECOMPOSED D: evolution BEATS the ridge head
+  for the first time (on the smallest question), and the % of anchor scales
+  cleanly with question size - but the sub-answers DO NOT compose back up.**
+  Three stages, same kid_next.npz pixels + same split, labels derived from the
+  same next-word answers, head genome-only throughout:
+  | stage | classes | val | anchor | % | test |
+  | DLEN length | 8 | **0.3207** | 0.3186 | **100.7%** | 0.3266 |
+  | DFL first letter | 26 | 0.2159 | 0.2283 | 94.6% | 0.2184 |
+  | DC composed | 500 | 0.1461 | 0.1703 | 85.8% | 0.1464 |
+  | D2 undecomposed | 500 | 0.1514 | 0.1703 | 88.9% | 0.1403 |
+  **DLEN is the first genome-only model in this line to BEAT its linear
+  anchor** (val 0.3207 > 0.3186). ~~The scale law is monotone: 8 -> 101%,
+  26 -> 95%, 500 -> 86% - the gap grows with the size of the question.~~
+  **RETRACTED - see the EAR ABLATION entry above:** the no-ears arm reverses
+  the ordering (26 -> 106%, 500 -> 122%), which a size law cannot do. The
+  driver is EAR SHARE of the anchor, not class count. The numbers are real;
+  only my interpretation was wrong. DFL also stacked
+  real DEPTH (5 spaces: 108/43/12/18/7, val 0.1923 -> 0.2159) where D2 was one
+  wide space + two vestigial.
+  **COMPOSE IS A NULL - do not read DC as a win.** Handing the 500-way question
+  308 pre-solved genomes (188 DFL + 120 DLEN) as environment bought nothing:
+  DC LOST to D2 on val (0.1461 vs 0.1514) and won on test (0.1464 vs 0.1403).
+  The metrics disagree in opposite directions => noise, not signal. DC even
+  earned fewer genomes (147) than D2 (153). Knowing the next word's first
+  letter and length AS FEATURES does not get you to which of 500 words it is.
+  So the decomposition thesis half-confirms: each piece becomes answerable and
+  evolution matches/beats ridge on it, but the REASSEMBLY is where it dies.
+  Infra: the word-feature cache paid off exactly as intended - DLEN and DC
+  skipped the 21-min eye sweep and each ran in **8 seconds**, making
+  question-design iteration essentially free from here.
+  All detached + watchdogged; `exit=0`, no OOM. No Flask restart needed.
+
+- **[2026-07-16] (Claude)** — **C7: the C line's headline numbers were the
+  RIDGE HEAD, not the kid. Genome-only cloze earns 56 genomes (C6 froze 2)
+  but reaches only TEST 0.0889 vs the 0.1538 its head reported.** C7 = stage C
+  re-run with `head_mode="genomes"` on C6's EXACT 100k data; the head rule is
+  the only variable (validated: C7's reference anchor is val 0.1538, C6's word
+  bag baseline to 4dp). Result: spaces [49, 7] = **56 genomes** (C6: 2), val
+  0 -> 0.0924, **TEST 0.0889 / 0.2505**, 47,864 params, genome_share 40%.
+  TWO FINDINGS, one good one bad. (1) The head bug DID mask earning in cloze
+  exactly as in D: 2 -> 56 genomes once the head stopped reading the raw
+  environment. (2) The genome-only model is FAR weaker than the head it
+  replaced - 0.0889 vs 0.1538, only 58% of its own anchor. So **C6's 0.1538,
+  C5's 0.1516 and C3's 0.1418 were ridge-head readouts of the bag+ears, not
+  what the curriculum evolved** - the "61%/73% of the table ceiling" framing
+  measured the head. The honest evolved cloze number is 0.0889.
+  Also re-reads the D comparison: next-word genomes reach 84% of their anchor
+  (0.1403/0.1678) while cloze genomes reach 58% - the "harder" question is
+  where evolution does relatively BETTER, consistent with the `next` ear being
+  aligned to it. Note C6's "data scaling is spent" is NOT yet re-tested: that
+  was measured in the head-fed regime, and no genome-only C exists at 50k to
+  compare, so scaling is an OPEN question in this regime, not a closed one.
+  C6's artifacts preserved (*_c6.json) and remain the canonical stage-C model;
+  C7 archived as *_c7.json. Decomposed D (first letter -> length -> compose)
+  auto-started behind it. No Flask restart needed.
+
+- **[2026-07-16] (Claude)** — **LM STAGE D + THE HEAD BUG: the C/D "evolution
+  earns nothing" collapse was the READOUT, not the question. Genome-only head
+  -> 0 genomes becomes 153.** Stage D (autoregression: 4 context words as
+  tiles, name the word that FOLLOWS, target never rendered) was built by
+  generalizing stage_c with data/stage/warm/head_mode params whose DEFAULTS
+  keep C byte-identical (head_mode="all"); stage_d is a thin wrapper.
+  D1 (legacy head) "scored" TEST 0.1678/0.3563 while freezing **ZERO**
+  genomes - i.e. it was not a model at all, just a ridge head, 98% of its
+  936,481 params. THE BUG (user's catch): the head was fed the RAW
+  environment - `all_tr` = 297 bag cols + **1536 raw ear channels** + warm =
+  1835 columns straight into the readout. A genome could only earn by beating
+  a full linear readout of everything, an unpayable bar. That explains the
+  whole curriculum collapse C3 10 -> C5 5 -> C6 2 -> D 0, and why scaling data
+  made it WORSE (richer linear answer = higher bar). Stage A is the control:
+  it starts from an EMPTY head and earns 515 genomes on the same machinery.
+  FIX: `head_mode="genomes"` (D's default) - the head sees ONLY frozen genome
+  outputs; bag+ears are demoted to ENVIRONMENT that genomes read. D2, same
+  data, only the head rule changed: **153 genomes (140/6/7), val 0.0 ->
+  0.1514, TEST 0.1403/0.3294, params 936,481 -> 97,568, genome_share 2% ->
+  21%.** First real earning on a semantic stage in this curriculum.
+  HONEST: the evolved model LOSES to the linear head it replaced - 0.1403 vs
+  0.1678 test (0.1514 vs the 0.1703 val reference anchor). Evolution now
+  carries the model but is ~2.75 points short of ridge on the same
+  environment. It also self-stopped by rule, not at a ceiling (space 2 gain
+  0.0028 < MIN_SPACE_GAIN 0.003) while still climbing, and the shape is one
+  wide space + two thin ones (depth contributing ~nothing).
+  Also: `warm` now defaults None for D (C's genomes measured NEGATIVE as a
+  warm base, 0.1703 -> 0.1699); every run now records `ref_anchor` and
+  `genome_share` so the evolved-vs-head split is visible without eyeballing;
+  a genome-only head that earns nothing now prints `NO MODEL (0 genomes
+  earned)` instead of reporting a head-only number as a result - exactly the
+  failure that made D1 look like a 0.1678 success. No Flask restart needed.
+
+- **[2026-07-16] (Claude)** — **HUMANOID: the head budget now scales with the
+  head — and the batch FREEZES. Smoke: 1.070 -> 2.278 m (+1.208), the first batch
+  ever to earn its place.** Run 5 showed the batch freeze was starved, not that
+  the genomes were bad: a fixed 192 CEM evals had to fit 56 new zero columns (8 ->
+  64 features, 952 new head params). A warm-started head only fits its NEW
+  columns, so the budget now scales with the GROWTH: 8 evals per new head param
+  (clipped to 20000), population `2*sqrt(new_params)` capped at 96, rest as
+  iterations — 192 -> 7560 evals for that R0 batch, while the solo-candidate
+  ranking (no growth) stays at 192, so cost lands only where the work is. The CEM
+  elite is now a fraction (`pop//4`) not a fixed 4, which in a grown population
+  would estimate the mean from a lucky few. Telling smoke detail: gen 0's best
+  solo candidate scored 1.034, **below** the 1.070 bar, yet the batch hit 2.278
+  once its head had a real budget — the value was there, the starved head hid it.
+  Record fidelity held (rebase reproduced dist 2.278 exactly). Lambda left at 0.25
+  per the user. Run 6 detached: `radial_data/run_humanoid_6.log`.
+
+- **[2026-07-16] (Claude)** — **HUMANOID run 5: the energy constraint runs and
+  FREEZES NOTHING — 0 genomes. The "record 0.792 vs anchor 0.332" is NOT a win,
+  it is a constant-torque faller being cheap.** Both spaces FULL, stack
+  self-stopped; the record is just the opening bar rebased, no structure earned.
+  Proof the policy ignores the humanoid: the replay measured energy/movement
+  **0.82614 identical on all four seeds** — only possible if the action never
+  responds to the observation (0 genomes -> all features zero -> constant
+  `0.4*tanh(b)`; mean 1.0419 m over 90 of 1000 steps, i.e. topple distance).
+
+  **Why nothing froze — measure-vs-keep, again.** `n_features` uses
+  `max(len(r0),1)*T`, so a 1-genome candidate has **8 features, exactly the
+  0-genome incumbent's** — scored where the warm-started head fits perfectly, and
+  genomes DO clear the bar (space 0 hit 1.270 m vs a 1.042 m bar, +0.228 over a
+  0.15 cap). But the top-8 batch jumps to **64 features / 1105 params** with 56
+  new zero columns and only 192 evals to fit them -> scored -0.161, rejected. The
+  run-2 prescription backfires as written: the head budget doesn't scale with the
+  batch. Next: scale head budget with feature count and/or smaller batches. Do NOT
+  raise the cap — it is reporting honestly.
+
+  **Energy price is punitive:** at lambda 0.25 the anchor pays 0.801 m for effort
+  (1.134 m -> 0.332) while the do-nothing faller pays 0.25 — stillness beats
+  trying, so a price on effort is unanswerable until something walks. Lambda is
+  live-tunable. **Record-fidelity fix holds on a real run:** replay reproduced
+  1.0419 m vs 1.042 m recorded, energy exact. Also `--smoke` no longer overwrites
+  the page's checkpoint (two smokes had). /humanoid serves real run-5 data.
+
+- **[2026-07-16] (Claude)** — **LM C6 RESULT: 100k cloze phrases - the
+  data-scaling lever is SPENT. TEST 0.1538 top-1 / 0.3455 top-5 (62%/73% of
+  the table ceiling); evolution earned nothing.** Doubling 50k -> 100k bought
+  +0.0022 top-1 and +0.018 top-5 - the previous doubling gained ~4 points of
+  ceiling-share, this one ~1. The whole gain is the LINEAR bag baseline rising
+  on data (val 0.1538); composition froze 2 genomes at val 0.1529, BELOW its
+  own baseline, then produced nothing. Genomes earned are dying as data grows:
+  C3 10 -> C5 5 -> C6 2 - the richer linear answer keeps raising the bar
+  evolution must clear while the cloze question gets no more findable. The
+  word_feats RAM rewrite worked (completed at ~108GB peak where 211GB was
+  OOM-killed); 2357 of 2360s was the 4x slot-outer eye sweeps, evolution ran
+  in ~3s. Sentinel `exit=0 oom_kill=1 peak_bytes=250999996416` - counter did
+  not increment on the good run. No page module yet - a null needs the user's
+  framing call.
+  CORRECTION (same session): an earlier entry claimed stage_c does not record
+  runs. That was WRONG - stage_c:737 calls `rk._record_run` and C6 recorded
+  fine. The REAL rule-4 gap is narrower: `_record_run` hardcodes
+  `_RUNS = <here>/runs/radial_stack` and IGNORES `cfg["env"]`, so every
+  curriculum run files under runs/radial_stack/ instead of runs/kid-stageC/
+  (C6 = runs/radial_stack/20260716-162608-radial_stack-251ee1) - and it landed
+  on the POD, so the local /runs page cannot see it until it is shadowed back.
+
+- **[2026-07-16] (Claude)** — **HUMANOID: energy constraint on R1+ (R0 stays
+  free), and the record-fidelity bug it exposed — a 1.050 m record replayed at
+  0.034 m.** Per the user's directive: no limit on energy per movement, but for
+  the same distance the cheaper gait wins, and further-and-cheaper always wins.
+  `score = distance - LAMBDA * (energy / energy_ref)` from R1 down; R0 pays
+  nothing. Energy is effort PER MOVEMENT (mean of `sum(torque^2)`), never the
+  episode total — total effort would punish walking, since a humanoid that topples
+  at step ~16 spends almost nothing, so it would select for falling. Effort comes
+  from our own torques, never the env reward. `energy_ref` is measured (the
+  opening bar's own effort), making LAMBDA a price in metres; live-tunable via
+  `humanoid_energy_lambda.txt`. Entering R1 rebases the bar onto the new objective
+  and re-evolves the anchor under it — a bar or an anchor measured under a
+  different fitness is unreachable/understated by construction.
+
+  **The bug (pre-existing, the important part):** the freeze scored trials with no
+  feature standardization, then attached `calibrate_features(...)` to the spec it
+  kept — so the record was set by a policy that no longer existed. The saved
+  checkpoint measured 0.2918 m while reporting 1.041 m. Runs 1-2 hid it by
+  freezing almost nothing. Fixed: calibrate before scoring, keep the stats scored
+  with. Verified the rebase now reproduces its own distance exactly. Also
+  `_notify_crash` alarms on any exit path (rule 3). Run 5 detached:
+  `radial_data/run_humanoid_5.log`.
+
+- **[2026-07-16] (Claude)** — **C6 relaunched: stage-C word_feats rewritten
+  SLOT-OUTER + row-chunked; peak RAM 211GB -> 53GB.** C6 (100k phrases) died
+  at 10:18 EDT during the A->B eye replay. `word_feats` parked every slot
+  bank in system RAM at once (P_C(4) x 515 genomes x N x 8 x 8 x 8 fp16 =
+  211GB at 100k); the pod container is capped at **251GB**, not the 1.5TB the
+  code's comment assumed - C5's "park it in RAM" fix bought exactly one
+  doubling. Now: one slot bank parked at a time (52.7GB) and the B chain run
+  in ROW_CH=10000 phrase chunks (5.3GB GPU). Values are unchanged -
+  feature_r0 is per-row with baked gate stats, so reordering cannot move a
+  number; a per-chunk Env was REJECTED because Env derives its PCA basis from
+  Xtr[:2000] and would have given each chunk its own basis (the
+  features-are-the-environment law). Cost: P_C eye sweeps instead of one.
+  Honest note on the diagnosis: the cgroup `oom_kill` counter is CUMULATIVE
+  and untimestamped, so it does not by itself prove C6 was the OOM victim -
+  the local Flask/terminals died at the same minute with NO local OOM,
+  reboot, or app-error event, and the window carries DNS/domain-controller
+  connectivity errors, so a network blip SIGHUPing an un-nohup'd run is an
+  equally live cause. Both are now closed off: relaunched under `setsid`
+  (PPID 1, own session - survives SSH drops) via run_c6.sh, which always
+  writes run_c6.exit with the exit code + oom_kill counter + peak bytes.
+  Rule-3 gap fixed: watchdog_pod_run.py runs LOCALLY and polls the sentinel
+  (a cgroup OOM SIGKILLs python, so no in-process completion path can report
+  it, and pod-side agent_notify writes to the POD's notices.jsonl where the
+  panel never sees it). No Flask restart needed.
+
+- **[2026-07-16] (Claude)** — **HUMANOID: page shell fixed (navbar was missing,
+  termdock needed a refresh to fit), replay video module added, run 4 relaunched
+  detached after the crash.** Both page bugs were ONE cause: `humanoid.html`
+  merged the standard two-element shell into a single
+  `<main id="page-main" class="hm-wrap">` carrying only `max-width`/`margin`.
+  `.tlm-body` is a `height:100vh` flex column and `termdock.js` appends its dock
+  to `document.body`, so a `<main>` without `flex:1 1 auto; overflow-y:auto`
+  mis-sizes the column — topbar pushed out, dock unfitted until a resize event
+  re-ran `fit()`. Restored `<main class="hm-main"><div class="hm-wrap">` to match
+  /lm and /animation. **No Flask restart needed** (template + static only).
+
+  **New `humanoid_render.py` — a viewer, never a trainer.** Replays the latest
+  checkpoint on the same fixed seeds with the same stored standardization stats
+  and progress channels, so the distance under the video IS the number on the
+  page, not a re-roll. Writes `static/humanoid/stack.mp4` +
+  `radial_data/humanoid_replay.json` (already matched by the export whitelist —
+  no `app.py` change). Module 2 registered; renderer now handles a `video` export
+  generically. Verified live: replay mean 0.8901 m reproduces the checkpoint's
+  0.89 m record exactly.
+
+  **The crash was not ours.** Run 3 died with every worker throwing
+  `BrokenPipeError` / `DuplicateHandle: Access is denied` at once and no error of
+  its own — the signature of the parent being killed, not a fault in
+  `humanoid_radial.py` (user confirms a concurrent project's run took the app
+  down). Run 4 is therefore relaunched **detached** from the termdock so another
+  project's crash cannot orphan it again; log `radial_data/run_humanoid_4.log`.
+  In flight: anchor 1.386 m, opening bar 1.042 m, space 0 gen 0 at 1.212 m.
+
 - **[2026-07-16] (Claude)** — **C5: cloze data scaling works - 0.1516 top-1 /
   0.3273 top-5 at 50k phrases (61%/69% of the table ceiling, up from
   57%/62%).** The bag baseline rose most (linear ear content feeds on
@@ -39,9 +896,19 @@ log below; don't rewrite existing entries.
   module page), `/api/humanoid/modules` + `/api/humanoid/export/<name>`, navbar
   entry, `runs/humanoid/`, `CHANGELOG_HUMANOID.md`.
   **Flask restart needed** for the new route/template (agent does not restart).
-  KNOWN GAP: the anchor's 192-eval CEM budget is far below the stack head's
-  cumulative spend — an unfair ruler; re-measuring at matched budget before any
-  headline claim.
+  **Run 2 result: the stack LOSES to its anchor — 1.398 m vs 1.674 m, and
+  nothing walks.** Run 1's "win" (1.043 vs 0.582) was a rigged ruler: the anchor
+  had 192 CEM evals vs the stack head's thousands. At matched budget (80x48) the
+  anchor jumps to 1.674 and wins. Both numbers are *topple* distance — Humanoid
+  terminates when the torso drops, so every episode ends ~step 16 and distance is
+  flat noise; "who walks furthest" is not yet an answerable question. Also fixed:
+  sigma decay 0.85^80 → 2e-6 collapsed the search (now 0.97, floor 0.02).
+  Diagnoses: (1) cap 0.15 m sits at the K=4 seed-noise floor, so the stack
+  self-stops on noise not exhaustion; (2) R0 starved — 16 features vs 348 raw
+  channels, and the R0-fatness law says perception-bound tasks need a FAT R0;
+  (3) per-genome capping is structurally wrong here — one scalar genome cannot
+  move a walking record alone, so R0 freezes at 2. Next: batch-freeze top-N per
+  round, cap on ROUND gain, and measure cross-seed spread before trusting any cap.
 
 - **[2026-07-16] (Claude)** — **C4: ear-capacity NULL + the cloze ceiling.**
   128-dim directional ears: 0.1384/0.2850, slightly below 64-dim

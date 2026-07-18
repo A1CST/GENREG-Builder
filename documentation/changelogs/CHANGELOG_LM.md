@@ -6,6 +6,391 @@ Seeded 2026-07-05 from the main changelog (keyword split, best effort).
 
 ---
 
+- **[2026-07-17] (Claude)** — **TEMPORAL COMPOSITION arc: next-word is dead,
+  but temporal composition is real - as PERSISTENCE, not transitions. /lm
+  modules 30-31.** Full day exploring whether temporal (stream) composition
+  helps the language line, after the head-bug work.
+  **Transition operator (order-sensitive, `a[t]` vs `b[t-o]`):** built
+  `radial_temporal.py` (temporal space 0 -> static space 1, genome-only head)
+  + the char/word stream builders. NEXT-WORD is a NULL 3 ways - word (temporal
+  0.0744 vs static 0.0715, split-metric noise), char (0.0685 vs 0.0719, loss),
+  and recency-pooling (no help). Next-word is recency/position/content-
+  dominated and n-gram-shaped: the wrong task. STRUCTURE tasks: real-vs-shuffled
+  full-scramble looked like a win (0.996) but was a position artifact (linear
+  anchor 0.986); the LOCAL-shuffle control (adjacent swaps preserve position,
+  break local transitions) collapsed the anchor and isolated the real signal -
+  temporal beats static 0.7365 vs 0.6909 at 4 swaps (~14 SE) where position is
+  useless. GRAMMAR (word real-vs-shuffled on embed_rs vectors): the cleanest
+  dissociation - static froze ZERO genomes (stuck at chance), temporal the only
+  earner, but weak (0.62) because embed_rs is SEMANTIC not syntactic.
+  **Persistence operator (order-INVARIANT accumulation) - the payoff:**
+  `persistence_test.py`. Persistence = a repeating signal, accumulated; a
+  per-frame detector summed over the stream. Corrupted-viewpoint letters (K=8,
+  noise+occlusion+jitter): single view 0.3835 -> pixel-space accumulate 0.5465
+  -> FEATURE-space accumulate **0.93**. The pixel-vs-feature gap proves
+  accumulation must be over detector RESPONSES not pixels (views aren't
+  aligned; the detector fires wherever the letter lands). This is the temporal
+  space's real primitive: coherent accumulator of recurring responses =
+  persistence/attention; static = classifier of what survived. Saved as memory
+  temporal-persistence-operator. /lm modules 30 (transition arc) + 31
+  (persistence); exports kid_temporal.json / kid_persistence.json; whitelist
+  broadened to kid_* (needs the pending Flask restart). All runs on a fresh pod
+  (old one died mid-session; data regenerated, eye-anchor reproduced prior DNE
+  0.0614 exactly). Next-word stays off the table; the temporal line continues
+  as persistence.
+
+- **[2026-07-16] (Claude)** — **/lm PAGE: modules 24-29 (the full head-bug
+  arc) + the export route was BROKEN for the entire kid curriculum.
+  FLASK RESTART NEEDED.**
+  **Bug found while adding the modules:** `/api/lm/export/<name>` (app.py
+  ~1617) whitelists `(lm_radial|lm_probe|embed_report)[A-Za-z0-9_]*\.json`,
+  but every kid module points at `kid_stage*.json`. Verified live:
+  `curl /api/lm/export/kid_stageC5.json -> HTTP 404 {"error":"not an lm
+  export"}`. **Modules 17-23 (stages A, B, C, C2, C3, C4, C5) have been
+  rendering "export not available" since the curriculum started** - the files
+  were on disk the whole time, the route just refused the name. Fixed by
+  adding `kid_stage` to the pattern (still fullmatch-anchored; `[A-Za-z0-9_]*`
+  admits no dots or slashes, so no traversal).
+  **Restart needed and why:** `lm_modules.json` is read from disk per request,
+  so the server already lists all 29 modules - but the whitelist is code.
+  Until the user restarts Flask, 24-29 will appear and their exports will 404
+  exactly as 17-23 do now. Agents never restart the server.
+  **Modules added** (append-only; no template edits, no existing module or
+  entry altered, per the /lm contract):
+  - **24 kid-stage-c6** - 100k scaling, 0.1538/0.3455, 2 genomes. Carries the
+    correction that "the data lever is spent" was the head, and that scaling
+    made the head bug WORSE.
+  - **25 kid-stage-d1** - autoregression's first attempt: 0.1678 with ZERO
+    genomes = a ridge head, 98% of 936,481 params. The head bug, stated.
+  - **26 kid-stage-d2** - genome-only head: 0 -> 153 genomes, params -> 97,568,
+    and still honestly losing to ridge (0.1403 vs 0.1678).
+  - **27 kid-stage-c7** - the C line's headlines were the head; honest evolved
+    cloze is 0.0889, not 0.1538.
+  - **28 kid-stage-d-decomp** - DLEN beats ridge (first ever); the COMPOSE is
+    a null (val down, test up = noise).
+  - **29 kid-stage-d-ablate** - the ears suppress evolution; the eye is real
+    (0.0753, 37x chance, pixels only); the dial is TABLE SHARE not question
+    size; the size law retracted.
+  Every export sets `fat_anchor_test` = that run's linear reference so the
+  existing generic renderer draws it as the "anchor (no genomes)" bar - the
+  metric this whole line now turns on - plus a `breakdown` table for the
+  cross-run grids. **Caveat stated in each desc: the anchor bar is VAL-side
+  while the model bars are TEST**; there is no test-side anchor for the
+  genome-only runs (D1/C6 ARE the test-side head numbers, which is why they
+  appear in 26/27's breakdown).
+  **Data-loss note:** D1's export no longer existed - `stage_d` derives its
+  filename from (stage letter + ears tag), so D2 wrote `kid_stageD3.json` over
+  it. Module 25 is reconstructed verbatim from the json read during the D1 run
+  (test 0.1678/0.3563, 0 spaces, 812 genomes, 918,000 head params, 1253s), and
+  says so in its `note`. The filename collision is a real trap for any future
+  A/B on the same stage - worth a run tag at the source.
+
+- **[2026-07-16] (Claude)** — **EAR ABLATION: the ears SUPPRESS evolution.
+  Take them away and genomes BEAT ridge by 22% on pixels alone - the first
+  clean case in this line where the evolved model wins because the signal is
+  non-linear.**
+  Same kid_next.npz pixels, same split, cached word features, genome-only
+  head. The ONLY variable is ears on/off:
+  ```
+  bank        linear anchor   genomes(val)   test     verdict
+  eye + ears     0.1703          0.1514      0.1403   ridge wins by 12%
+  eye only       0.0614          0.0752      0.0753   EVOLUTION wins by 22%
+  [DNE] spaces [56, 1] | TEST 0.0753 / 0.2378 | 37x chance (0.002)
+  ```
+  **WHY:** the ears (embed_rs_next / _prev / _sim) are dense, type-level
+  LOOKUP TABLES. Ridge reads a table perfectly; there is no structure left for
+  composition to add. They carry **0.109 of the 0.1703 anchor** - i.e. most of
+  every language number this project has reported. So they did not merely
+  inflate the score, they ACTIVELY STARVED evolution by handing the head a
+  linearly-sufficient answer.
+  **The collapse had TWO stacked causes, not one:** (1) the head reading the
+  raw environment (found and fixed earlier today), and (2) a ridge-friendly
+  table sitting in the environment. Fixing only (1) still left evolution
+  losing; fixing (2) is what flips the verdict. My earlier note that "the
+  `next` ear is doing the work" was right about the ANCHOR but missed the
+  suppression - the more important half.
+  **THE POSITIVE RESULT (the real one):** the kid's EYE genuinely carries
+  language signal. Four rendered context words predict the next word at
+  **0.0753, 37x chance, from pixels alone** - and composition is what extracts
+  it (0.0752 vs ridge's 0.0614). Every prior "the eye contributes nothing to
+  language" reading in this file is wrong; the eye was simply never measured
+  without a table drowning it.
+  **THE "QUESTION-SIZE LAW" IS FALSIFIED - my own claim, one entry below,
+  is WRONG.** I wrote that % of anchor scales monotonically with question size
+  (8 -> 101%, 26 -> 95%, 500 -> 86%). The no-ears arm reverses the ordering:
+  ```
+  question        classes  ears   % of anchor
+  DLEN length        8      on      100.7%
+  DFL first letter   26     on       94.6%
+  D2 next word       500    on       88.9%
+  DFLNE first letter 26     OFF     106.4%   (val 0.1687 vs anchor 0.1586)
+  DNE next word      500    OFF     122.5%   (val 0.0752 vs anchor 0.0614)
+  ```
+  WITH ears % falls with class count; WITHOUT ears it RISES. A real law of
+  question size would point the same way in both. It does not - so question
+  size was never the driver. **The surviving explanation is EAR SHARE of the
+  anchor:**
+  ```
+  question       ear share of anchor          evolution % of anchor
+  first letter   0.0697 / 0.2283 =  31%              94.6%
+  next word      0.1089 / 0.1703 =  64%              88.9%
+  either, ears off             0%                 106-122%
+  ```
+  The more of the anchor a LOOKUP TABLE supplies, the worse evolution does
+  against ridge - monotone across every cell measured. Same suppression law,
+  now on a dial.
+  **PREDICTION MADE AND CONFIRMED (DLENNE):** ear share predicted that length's
+  anchor would barely move without ears, since length is not what a
+  continuation table encodes. Measured: length 0.3186 -> **0.2618 (-18%)**,
+  where next-word collapsed 0.1703 -> 0.0614 (-64%). Grid complete and
+  monotone:
+  ```
+  question       with-ears anchor  no-ears anchor  ear share  evo % of anchor
+  length              0.3186          0.2618         17.8%        100.7%
+  first letter        0.2283          0.1586         30.5%         94.6%
+  next word           0.1703          0.0614         63.9%         88.9%
+  ```
+  Lowest ear share = the ONLY question evolution wins with ears on; highest ear
+  share = the biggest shortfall. This is materially stronger than the retracted
+  size law: that was 3 points fitted post-hoc and died at first ablation; this
+  made a falsifiable call in advance and survived it. It also explains DLEN's
+  win with no special pleading - 8 classes was never the reason.
+  (DLENNE: val 0.2716 vs anchor 0.2618 = 103.7%, TEST 0.2741 / 0.9445,
+  spaces [48, 2].)
+  **Observed, NOT a law:** with ears OFF, evolution's margin rises with class
+  count (length 103.7% -> first letter 106.4% -> next word 122.5%), plausibly
+  because the linear head degrades faster than composition as the problem
+  hardens. 3 points, no prediction tested - i.e. exactly the shape of the claim
+  that just got retracted. Do not promote it without an independent test.
+  Saved as a cross-project memory (evolution-suppression-law) with the
+  diagnostic: on any "evolution earns nothing", check genomes-frozen, re-run
+  with head_mode=genomes, and ablate table-like channels BEFORE concluding the
+  question is hard. Honest metric = % of the linear anchor; genome_share is
+  confounded (head = (features+1) x n_classes, so few classes inflate it).
+
+- **[2026-07-16] (Claude)** — **DECOMPOSED D (the user's call): evolution
+  BEATS the ridge head for the first time on the smallest question; % of
+  anchor scales monotonically with question size; but the sub-answers DO NOT
+  compose back up.**
+  Setup: three stages over the SAME kid_next.npz pixels and the SAME split.
+  DFL/DLEN labels are DERIVED from the same next-word answers (no new data, no
+  new pixels, test untouched). Head genome-only throughout, so every stage
+  earns its own model.
+  ```
+  stage  classes  val_final  ref_anchor  % of anchor  test
+  DLEN     8       0.3207     0.3186      100.7%      0.3266
+  DFL      26      0.2159     0.2283       94.6%      0.2184
+  DC       500     0.1461     0.1703       85.8%      0.1464
+  D2       500     0.1514     0.1703       88.9%      0.1403   (undecomposed)
+  ```
+  **1. DLEN BEATS ITS ANCHOR (val 0.3207 > 0.3186)** - the first genome-only
+  model anywhere in this line to beat a ridge head on the same environment.
+  **2. ~~THE SCALE LAW is clean and monotone: 8 -> 101%, 26 -> 95%,
+  500 -> 86%~~ - RETRACTED, see the EAR ABLATION entry above.** I claimed the
+  gap to a linear head grows with the SIZE of the question. The ear-ablation
+  arm reverses the ordering (no ears: 26 -> 106%, 500 -> 122%), which a real
+  size law could not do. The driver is EAR SHARE of the anchor, not class
+  count. Left here, struck through rather than deleted, because the numbers in
+  this row are real and only the interpretation was wrong.
+  **3. DEPTH returns when the question is answerable:** DFL stacked 5 spaces
+  (108/43/12/18/7), val 0.1923 -> 0.2022 -> 0.2079 -> 0.2156 -> 0.2159 - a real
+  composition ladder. D2 was one wide space (140) + two vestigial; depth was
+  doing nothing there.
+  **4. COMPOSE IS A NULL - DC IS NOT A WIN.** Handing the 500-way question 308
+  pre-solved genomes (188 DFL + 120 DLEN) as ENVIRONMENT channels (bank 2724 ->
+  3032) bought nothing: DC **LOST** to D2 on val (0.1461 vs 0.1514) and won on
+  test (0.1464 vs 0.1403). The two metrics move in OPPOSITE directions =>
+  noise, not signal. DC even earned fewer genomes (147 vs 153). Knowing the
+  next word's first letter and its length AS FEATURES does not get you to
+  which of 500 words it is.
+  **VERDICT: the decomposition thesis HALF-confirms.** Decomposing makes each
+  piece answerable (evolution matches or beats ridge on it) - but the
+  REASSEMBLY is where it dies. My earlier "the question is too big, decompose
+  it" framing was only half right; the open problem is not finding answerable
+  sub-questions, it is that their answers do not carry the 500-way question.
+  Worth noting the sub-questions chosen may simply be too WEAK a summary of a
+  word identity: DFL is only 0.2184 accurate and DLEN 0.3266, so "first letter
+  + length" is not merely a coarse summary - it is a coarse summary the model
+  cannot even read reliably. Composing two weak, noisy predictors cannot
+  exceed what they encode.
+  **CORRECTION (same entry, my error):** I first justified DFL as "reusing
+  stage B's spelling, which D throws away". That is WRONG and worth recording
+  so nobody builds on it. The next word is NEVER RENDERED - no spelling
+  competence applies to it, and predicting its first letter is not a
+  perceptual question at all. Stage B's competence is used to READ THE CONTEXT
+  WORDS via the frozen A->B eye, which every D stage already does; D throws
+  nothing away. The same error kills the "per-letter-position spelling" probe
+  I proposed: predicting letter i of an unseen word is exactly as unanswerable
+  as predicting the word. Do not run it.
+  The honest open question instead: the linear anchor 0.1703 may BE roughly
+  the information a 4-word context carries about the next word in this
+  environment, in which case DC's 0.1461 (86% of it) is near the real limit
+  and no decomposition helps. Two cheap probes that would settle it - (a) the
+  symbolic next-word TABLE ceiling (the C4 treatment, which for cloze gave
+  0.2494/0.4728) to say what is knowable at all, and (b) an EAR ABLATION to
+  say how much of 0.1703 is the `next` ear rather than the eye.
+  **Infra win:** the word-feature cache did exactly its job - DLEN and DC
+  skipped the 21-min eye sweep and each completed in **8 seconds**. Question
+  design is now essentially free to iterate on cached features; only a new
+  data set or a changed eye costs a sweep.
+  All runs detached + watchdogged, `exit=0`, no OOM, sentinel clean.
+
+- **[2026-07-16] (Claude)** — **C7: THE C LINE'S HEADLINE NUMBERS WERE THE
+  RIDGE HEAD, NOT THE KID. Genome-only cloze earns 56 genomes (C6 froze 2)
+  and reaches TEST 0.0889 where its head reported 0.1538.**
+  Setup: stage C re-run with `head_mode="genomes"` on C6's EXACT 100k
+  kid_cloze.npz - the head rule is the ONLY variable. Validated by the
+  environment reproducing to 4dp: C7's reference linear anchor is **val
+  0.1538**, precisely C6's word-bag baseline.
+  Raw:
+  ```
+  [C] head = GENOMES ONLY. Reference linear anchor (bag+ears straight to a
+      ridge head, NOT model input): val 0.1538
+    [C space 0] opening - bank 2724 channels, base 0 cols
+      round 0  +27 (space 27)  val 0.0795
+      round 2  +16 (space 48)  val 0.0895
+    [C space 0] FULL: 49 genomes, val 0.0905 (+0.0905) (2264s)
+    [C space 1] FULL: 7 genomes, val 0.0924 (+0.0019)
+  [kid C] DONE: TEST top1 0.0889 top5 0.2505 (2265s)
+  C7 RESULT: {"test_acc": 0.0889, "test_top5": 0.2505, "space_caps": [49, 7],
+              "ref_anchor": 0.1538, "genome_share": 0.4046,
+              "total_params": 47864}
+  ```
+  **(1) The head bug masked earning in cloze too:** 2 -> 56 genomes the moment
+  the head stopped reading the raw environment. C's composition was never
+  dead; it was outbid.
+  **(2) But the evolved model is far weaker than the head it replaced:**
+  0.0889 vs 0.1538 = **58% of its own anchor**. Therefore **C6's 0.1538, C5's
+  0.1516 and C3's 0.1418 were RIDGE-HEAD readouts of the bag+ears** - those
+  runs froze 2/5/10 genomes, so the accuracy was overwhelmingly the linear
+  head. The "61%/69%/73% of the table ceiling" framing was measuring the head,
+  not the curriculum. The honest evolved cloze number is **0.0889**.
+  **Re-reads the D comparison:** next-word genomes reach **84%** of their
+  anchor (0.1403/0.1678); cloze genomes reach **58%**. The supposedly HARDER
+  question is where evolution does relatively better - consistent with the
+  `next` ear being aligned to next-word prediction, and a hint that the ear
+  choice, not the question's difficulty, sets what evolution can reach.
+  **NOT re-tested - do not assume:** C6's "data scaling is spent" was measured
+  in the head-fed regime. There is no genome-only C at 50k, so whether scaling
+  helps when genomes carry the weight is an OPEN question. The scaling entry
+  above stands only for the head-fed setup.
+  Hygiene: C6's artifacts backed up to `kid_stageC3_c6.json` /
+  `kid_modelC3_c6.json` and restored as canonical (C7 is an experiment until
+  it earns the stage-C slot on the numbers); C7 archived as `*_c7.json`.
+  Decomposed D auto-started behind it on GPU release (2010s wait).
+
+- **[2026-07-16] (Claude)** — **STAGE D + THE HEAD BUG: the semantic-stage
+  collapse was the READOUT, not the question. 0 genomes -> 153.**
+  Stage D = autoregression: P_C=4 context words as tile strips, name the word
+  that FOLLOWS them, target never rendered (strictly harder than cloze - no
+  right-hand context). Built by generalizing stage_c with
+  data/stage/warm/head_mode whose DEFAULTS keep C byte-identical
+  (`head_mode="all"`, `stage="C"`, `warm=None`); `make_next_d` + `stage_d`
+  wrapper. No 250-line copy.
+  **D1 (legacy head): TEST 0.1678/0.3563 with ZERO genomes frozen** - not a
+  model, just a ridge head (98% of 936,481 params). It even beat C6's
+  0.1538 on the harder question, which was the tell.
+  **THE BUG (the user's catch, and the important result of the day):** the
+  head was fed the RAW environment - `all_tr` = 297 bag columns + **1536 raw
+  ear channels** + warm = 1835 columns wired straight into the readout. So a
+  genome could only earn by beating a FULL LINEAR READOUT OF THE WHOLE
+  ENVIRONMENT. That single fact explains the entire curriculum collapse
+  (C3 10 -> C5 5 -> C6 2 -> D 0) AND why data scaling made it worse: more
+  data enriches the linear answer, RAISING the bar evolution must clear. The
+  earlier "cloze is semantic, pixels contain no answer" reading was WRONG -
+  the genomes could always find the signal; the anchor was eating it first.
+  Stage A was the control sitting in plain sight: empty head -> 515 genomes.
+  **FIX:** `head_mode="genomes"` - head sees ONLY frozen genome outputs; bag
+  and ears become ENVIRONMENT the genomes read from, never head inputs.
+  **D2 (same data, only the head rule changed): 153 genomes [140, 6, 7],
+  val 0.0 -> 0.1514, TEST 0.1403 top-1 / 0.3294 top-5, total params 936,481
+  -> 97,568, genome_share 2% -> 21%.** Space 0 alone froze 140 genomes from
+  an empty head (+0.1441) - the first real earning on a semantic stage in
+  this curriculum.
+  **HONEST - do not read D2 as a win:** the evolved model LOSES to the linear
+  head it replaced (0.1403 vs 0.1678 test; val 0.1514 vs the 0.1703 reference
+  anchor). Evolution now carries the model but is ~2.75 points short of ridge
+  on the same environment. The head is also still 79% of params (77,000 vs
+  20,568) - not the old bug (it only reads genomes now), just the cost of a
+  500-class readout. The run self-stopped BY RULE while still climbing (space
+  2 gain 0.0028 < MIN_SPACE_GAIN 0.003), and the shape is one wide space (140)
+  + two thin (6, 7), so depth is contributing ~nothing.
+  This is the user's predicted DECOMPOSITION signal: 140 genomes of signal
+  found instantly, then a stall short of ridge = the question is too big to
+  answer in one leap, not signal-free. Next: decompose next-word into
+  answerable questions (next word's LENGTH, its FIRST LETTER - which reuses
+  stage B's earned spelling, currently thrown away at D - function-vs-content)
+  and compose. Awaiting the user's call.
+  Infra: `warm` defaults None for D (C's 2 genomes measured NEGATIVE as a warm
+  base: 0.1703 -> 0.1699); `ref_anchor` + `genome_share` now recorded on every
+  run; a genome-only head that earns nothing prints `NO MODEL (0 genomes
+  earned)` rather than reporting a head-only number as a result. Cosmetic:
+  the inner replay log tag now follows the stage (was hardcoded `[C] slot`).
+
+- **[2026-07-16] (Claude)** — **C6 RESULT: 100k phrases - the data-scaling
+  lever is SPENT. TEST 0.1538 top-1 / 0.3455 top-5 (62%/73% of the table
+  ceiling), and evolution earned nothing again.** Doubling 50k -> 100k bought
+  **+0.0022 top-1** (0.1516 -> 0.1538) and +0.018 top-5 (0.3273 -> 0.3455).
+  C5 gained ~4 points of ceiling-share from the previous doubling; C6 gained
+  ~1 on top-1. The curve is flat: the last per-slot-GPU-bank scale step
+  returned almost nothing, so more phrases is no longer the lever.
+  THE REAL SIGNAL: the whole gain is the LINEAR bag baseline rising on data
+  (val 0.1538). Composition earned **2 genomes at val 0.1529 - BELOW its own
+  0.1538 baseline** - then space 1 produced nothing and stopped. Genomes
+  earned: C3 10 -> C5 5 -> C6 2, monotonically dying as data grows. The bag
+  keeps eating the content the composition space would have had to earn:
+  a richer linear answer raises the bar evolution must clear, and the cloze
+  question stays unanswerable by composition on top of it (fitness-as-
+  answerable-question: the question is not getting more findable with N).
+  Cost note: 2357 of 2360s was feature building (the 4x slot-outer eye
+  sweeps); evolution itself ran in ~3s. The RAM fix worked - run completed
+  at ~108GB peak where 211GB died. Sentinel: `exit=0 oom_kill=1
+  peak_bytes=250999996416` - the oom_kill counter did NOT increment across
+  this successful run, which retroactively supports the pre-existing
+  oom_kill=1 having been the original C6 (the local same-minute crash is
+  still unexplained and remains un-investigated per the user's call).
+  No page module added: a +0.0022 null needs the user's call on how to frame
+  it.
+  CORRECTION (same session): I first wrote here that stage_c has no
+  `_record_run` wiring. That was WRONG - stage_c:737 calls it and C6 recorded
+  fine. The actual rule-4 gap is narrower and worth knowing:
+  `_record_run` hardcodes `_RUNS = <here>/runs/radial_stack` and IGNORES the
+  `cfg["env"]` label it is handed, so every curriculum stage files under
+  runs/radial_stack/ rather than runs/kid-stageC/ (C6 =
+  runs/radial_stack/20260716-162608-radial_stack-251ee1). It also writes on
+  the POD, so the local /runs page cannot see it until shadowed back. Its
+  whole body is wrapped in `try/except` that only prints "(non-fatal)", so a
+  recording failure never fails a run - worth remembering when a run seems
+  to have vanished from /runs.
+
+- **[2026-07-16] (Claude)** — **C6 relaunched: stage-C `word_feats` rewritten
+  SLOT-OUTER + row-chunked; peak RAM 211GB -> 53GB.** C6 (100k phrases) died
+  at 10:18 EDT mid `[C] replaying A(515) -> B(297)`. Cause: `word_feats`
+  parked ALL slot banks in system RAM at once - P_C(4) x 515 x N x L_MAX(8) x
+  G(8) x G(8) fp16 = **211GB at 100k** - and this container is capped at
+  **251GB**, not the 1.5TB the line-530 comment assumed. C5's park-in-RAM fix
+  bought exactly one doubling (105GB at 50k) and C6 was the step that ran out.
+  Fix: one slot bank parked at a time (52.7GB), B chain in `ROW_CH=10000`
+  phrase chunks (5.3GB GPU). Feature values are UNCHANGED - `feature_r0` is
+  per-row with baked gate stats, so reordering the sweep cannot move a number.
+  A per-chunk `Env` was REJECTED: `Env` derives its patch-PCA basis from
+  `Xtr[:2000]`, so each chunk would have invented its own basis and silently
+  made features a function of the chunk - the exact
+  features-are-the-environment violation the C-line already fixed once. Price:
+  P_C eye sweeps instead of one.
+  **Diagnosis honesty:** the cgroup `oom_kill` counter is cumulative and
+  untimestamped, so it does NOT alone prove C6 was the OOM victim. The local
+  Flask + terminals died in the same minute with no local OOM, no reboot and
+  no app-error event, while the window carries DNS/domain-controller errors -
+  so a network blip SIGHUPing an un-nohup'd run is equally consistent. Both
+  causes are now closed: `run_c6.sh` launches under `setsid` (verified PPID 1,
+  own session) and always writes `run_c6.exit` (code + oom_kill + peak bytes).
+  **Rule-3 gap:** the crash raised no alert. A cgroup OOM SIGKILLs python so
+  no in-process completion path can report it, and pod-side `agent_notify`
+  writes to the POD's `notices.jsonl` where the panel never looks - so
+  `watchdog_pod_run.py` now runs LOCALLY and polls the sentinel. C5's results
+  and modules are intact; nothing was lost. No Flask restart needed.
+
 - **[2026-07-16] (Claude)** — **C5: cloze data scaling works - 0.1516 top-1 /
   0.3273 top-5 at 50k phrases (61%/69% of the table ceiling, up from
   57%/62%).** The bag baseline rose most (linear ear content feeds on
