@@ -10,6 +10,42 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-18] (Claude)** — **SESSION CLOSE (user's call). State of the
+  line at stop:** the /lm generator is a FOUR-SPECIALIST UNION
+  (continuation + topic + grammar + intent, modules 32-41) on the wiki
+  prose foundation (module 40), decoding at 47 tok/s plain / 10 polished
+  via the exact sparse GPU-resident path; /lm_demo animates the real
+  traced computation; the repo is packaged (lm/, radial/, anim/, mm/,
+  resnet/, services/, cli/); README is concept-first and current.
+  Everything through module 41 is committed and merged to origin/main.
+  PENDING for next session: (1) the one Flask restart that activates the
+  full stack locally; (2) on the next pod: specialist union weights
+  re-measured on the wiki model (topic lam and grammar wg were tuned on
+  the dialogue model; intent measured on wiki), the wiki-blind probe
+  (blind slice 42.1% at 0.0146 - the model's open question), corpus
+  hygiene (nbsp-class markup in the emit vocab), and the intent
+  classifier ceiling (0.55 balanced gates the fourth vote; levers:
+  dialogue-only training, directional substrate, or the linear anchor
+  head at 0.58).
+
+- **[2026-07-18] (Claude)** — **/vision_demo: transfer-efficiency A/B + observation-first
+  rewrite (reviewer feedback).** Added a **from-scratch control** to `mm/vision_continue.py`
+  (`warm=False`: evolve genomes for the 36-class task from an EMPTY base) and an
+  **efficiency** block in `mm/vision_demo.py`: to reach the same accuracy (98.67%),
+  **growing needed 328 new genomes vs 527 from scratch** — reusing the shape features
+  saves ~199 genomes of evolution (~38%); honest nuance shown — from scratch does edge
+  slightly higher (0.9885 @ 639 genomes), so reuse buys efficiency, not a higher ceiling
+  (the table reports both columns). Page: new efficiency table + grow-vs-scratch curve
+  (`static/vision_demo.js` `renderEfficiency`). Copy pass per feedback: dropped "staple"
+  → "composition strategies" (Merge / Grow); cross-modal transfer promoted to an
+  observation-first **callout** (shape bank reads letters 92.3% / letter bank reads
+  shapes 100% → "suggests a largely shared feature basis", not an assertion); added the
+  "why doesn't it explode" (union: banks frozen, only a linear readout learned) and "why
+  no catastrophic forgetting" (continued: prior genomes frozen, new ones scored only on
+  residual) explanations; new "What this suggests" section framing it as composability /
+  closure-under-composition of the representation. **Flask restart** still pending for the
+  page routes.
+
 - **[2026-07-18] (Claude)** — **THE INTENT SPECIALIST (/lm module 41,
   user's call - and genome #1's homecoming): punctuation as free ground
   truth, the FOURTH vote joins the union.** "The training data is free.
