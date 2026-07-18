@@ -6,6 +6,12 @@ Seeded 2026-07-05 from the main changelog (keyword split, best effort).
 
 ---
 
+- **[2026-07-18] (Claude)** — **Intent specialist (module 41): punctuation
+  labels, balanced 0.5502 (anchor 0.5803 - tabulatable regime, honest),
+  adjacency response-fit steering deployed at lam_i=0.5 (-0.720 ->
+  -0.635). FOUR-specialist union live. Run
+  runs/lm/20260718-133403-lm-intent-f2b572. Detail in main CHANGELOG.**
+
 - **[2026-07-18] (Claude)** — **Production decode: 47.5 tok/s plain, 10.0
   polished (was 13.7/1.84) - sparse head + numpy genomes + table cache +
   lockstep polish + GPU-resident head; exact, gated, byte-same outputs.

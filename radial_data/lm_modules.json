@@ -320,6 +320,14 @@
    "export": "kid_wiki.json",
    "title": "40 · THE PROSE FOUNDATION: 15x corpus, 9x tables, wiki register - first prose-shaped output",
    "desc": "The user closed the arc: the composition is proven, the FOUNDATION is the constraint - massively increase the corpus, prose instead of movie dialogue. Done: pure wiki prose, window region 8MB -> 120MB, tables 16MB -> 150MB slice (quad 14.4M keys vs 1.8M; tables now 1.08GB - the biggest tier of the model), V/W unchanged to isolate the corpus variable. TEST 0.2998/0.5032 = +42% over its own trigram baseline (NOT comparable to the dialogue 0.5601 - different question, coverage 94.6 -> 82.7%). THE SAMPLES ARE THE RESULT - first prose-shaped output of the line: \"was a scottish footballer who played as a right arm medium\", \"which is an independent and effective\". Honest flags: blind slice 0.0146 (wiki blind = unpredictable specifics - the dialogue quad/skip probe did not transfer, probe it next); nbsp markup leakage; 200k windows OOMed (150k profile shipped). Infra: pipeline fully corpus-parameterized (checkpoint self-describes its table files, pack signature includes them); wiki tables + checkpoint + data pulled before pod shutdown; pack build queued for the next pod (local 32GB cannot hold the bank). The specialists (topic/grammar) load unchanged against the new targets but their union weights are UNMEASURED on this model - first task next session. lm/lm_word_wiki.py."
+  },
+  {
+   "id": "lm-intent-specialist",
+   "date": "2026-07-18",
+   "kind": "run",
+   "export": "kid_intent.json",
+   "title": "41 · THE INTENT SPECIALIST: punctuation is free ground truth - the fourth vote joins the union",
+   "desc": "The user closed the loop to genome #1: train intent on punctuation (free labels - every sentence carries its mark), evolve detectors, freeze, union. Classifier (temporal genomes, first 10 words, balanced classes): 0.5502 balanced, question recall 0.7403 - the 07-09 opener lesson reproduced. HONEST: the position anchor hits 0.5803; evolution at 95% of it - intent is opener-dominated, i.e. near-linear-in-position, the tabulatable regime (consistent with the MNIST/suppression laws). The union steering is FREE DATA squared: per-word response log-odds counted from sentence ADJACENCY (what follows a question vs a statement), evidence-floored, judged on a DISJOINT held-out slice. Measured: response-fit -0.720 -> -0.635 at lam_i=0.5 for -0.12 fluency; saturates at 1.0 (the classifier is the ceiling). DEPLOYED at 0.5: the live generator is now a FOUR-SPECIALIST UNION - continuation proposes, topic steers, grammar vets, intent shapes the response. lm/intent_model.py + intent_union.py; model kid_intent_model.json."
   }
  ]
 }
