@@ -53,6 +53,7 @@ PROJECT_GROUPS = [
         ("xray",      "X-Ray",     "/xray",         "#79c0ff"),
         ("radial",    "Radial",    "/radial",       "#f778ba"),
         ("rdemo",     "Demo",      "/radial/demo",  "#f0a0c8"),
+        ("vision_demo", "Vision Demo", "/vision_demo", "#5fd0c0"),
     ]),
     ("Sequence", [
         ("lm",        "LM",        "/lm",           "#56d364"),
@@ -1799,9 +1800,11 @@ def lm_autocomplete():
         lam = request.args.get("lam", 1.5, type=float)
         topk = request.args.get("topk", 3, type=int)
         best = request.args.get("best", 1, type=int)
+        ilam = request.args.get("intent", 0.5, type=float)
         return jsonify(lm_word_infer.complete(prompt, n_words=n, temp=temp,
                                               steer=steer, lam=lam,
-                                              topk=topk, best_of=best))
+                                              topk=topk, best_of=best,
+                                              intent_lam=ilam))
     except Exception as exc:
         return jsonify({"error": f"autocomplete failed: {exc}"}), 500
 
@@ -1933,6 +1936,93 @@ def api_progress_data():
         return resp
     except Exception as exc:
         return jsonify({"error": str(exc)}), 500
+
+
+@app.route("/vision_demo")
+def vision_demo_page():
+    """VISION DEMO — showcases two gradient-free staples on vision-grounded models:
+    (1) UNION of a frozen shape recognizer + a frozen letter recognizer into one
+    36-class head, and (2) CONTINUED TRAINING of the shape model until it also
+    reads letters (one model, no separate letter model). Data-driven from
+    radial_data/vision_demo.json (built by mm/vision_demo.py)."""
+    resp = app.make_response(render_template("vision_demo.html"))
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
+
+
+@app.route("/api/vision_demo/data")
+def api_vision_demo_data():
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                        "radial_data", "vision_demo.json")
+    if not os.path.isfile(path):
+        return jsonify({"error": "vision_demo.json not built yet — run mm/vision_demo.py"}), 404
+    try:
+        with open(path, encoding="utf-8") as f:
+            resp = jsonify(json.load(f))
+        resp.headers["Cache-Control"] = "no-store"
+        return resp
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+
+@app.route("/api/vision_demo/samples")
+def api_vision_demo_samples():
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                        "radial_data", "vision_demo_samples.json")
+    if not os.path.isfile(path):
+        return jsonify({"error": "samples not built — run mm/vision_samples.py"}), 404
+    with open(path, encoding="utf-8") as f:
+        resp = jsonify(json.load(f))
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
+
+
+_VISION_DL = {
+    "shape":     ("multimodal/dot_shape_model.json",       "dot_shape_model.json"),
+    "letter":    ("multimodal/kid_modelA.json",            "kid_modelA.json"),
+    "union":     ("multimodal/mm_model.json",              "mm_model.json"),
+    "continued": ("multimodal/vision_continue_model.json", "vision_continue_model.json"),
+    "infer":     ("mm/vision_infer.py",                    "vision_infer.py"),
+}
+_VISION_README = (
+    "GENREG vision demo — try the gradient-free vision checkpoints yourself.\n\n"
+    "Files:\n"
+    "  vision_infer.py             the inference CLI\n"
+    "  dot_shape_model.json        shape recognizer (10 classes)\n"
+    "  kid_modelA.json             letter recognizer (26 classes)\n"
+    "  mm_model.json               UNION: shapes+letters fused, one 36-class head\n"
+    "  vision_continue_model.json  CONTINUED: the shape model grown to read letters\n\n"
+    "Run (from inside the GENREG repo, with numpy/torch/pillow installed):\n"
+    "  python vision_infer.py --model continued\n"
+    "  python vision_infer.py --model shape --n 12 --save out/\n\n"
+    "The script reuses the repo's radial grammar so predictions match the page.\n"
+    "Gradient-free: no training here, only a closed-form ridge readout.\n"
+)
+
+
+@app.route("/api/vision_demo/download/<name>")
+def api_vision_demo_download(name):
+    root = os.path.dirname(os.path.abspath(__file__))
+    if name == "bundle":
+        import io as _io
+        import zipfile
+        buf = _io.BytesIO()
+        with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+            for rel, arc in _VISION_DL.values():
+                p = os.path.join(root, rel)
+                if os.path.isfile(p):
+                    z.write(p, arc)
+            z.writestr("README.txt", _VISION_README)
+        buf.seek(0)
+        return send_file(buf, mimetype="application/zip", as_attachment=True,
+                         download_name="genreg_vision_demo.zip")
+    if name not in _VISION_DL:
+        return jsonify({"error": "unknown download"}), 404
+    rel, arc = _VISION_DL[name]
+    p = os.path.join(root, rel)
+    if not os.path.isfile(p):
+        return jsonify({"error": f"{arc} not built yet"}), 404
+    return send_file(p, as_attachment=True, download_name=arc)
 
 
 def _resnet_out_dir():

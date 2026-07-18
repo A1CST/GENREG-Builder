@@ -10,6 +10,39 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-18] (Claude)** — **THE INTENT SPECIALIST (/lm module 41,
+  user's call - and genome #1's homecoming): punctuation as free ground
+  truth, the FOURTH vote joins the union.** "The training data is free.
+  Every sentence already has its punctuation." Built exactly per the
+  playbook: classifier = temporal genomes over the first 10 words
+  (embed_rs), 3 balanced classes from the sentence's own mark
+  (statement/question/exclaim), from the dialogue-rich corpus region.
+  **Balanced 0.5502, question recall 0.7403** - the 2026-07-09 opener
+  lesson reproduced by evolution. HONEST: the position-concat anchor
+  reaches 0.5803; evolution lands at 95% of it - intent is
+  opener-dominated (near-linear-in-position), the tabulatable regime
+  where genomes earn little, exactly as the MNIST/suppression laws
+  predict. **The union steering is free data squared:** per-target-word
+  response log-odds counted from sentence ADJACENCY (the words FOLLOWING
+  a question vs a statement vs an exclaim; train slice 60-100MB), judged
+  on a DISJOINT held-out slice (100-120MB). Measured on 16 known-intent
+  prompts through the full polished decode:
+  ```
+  lam_i    response-fit    fluency
+  0.0      -0.720          -9.17
+  0.5      -0.635          -9.29   << DEPLOYED
+  1.0      -0.615          -9.38   (saturates - the classifier is the
+  2.0      -0.616          -9.73    ceiling at 0.55 balanced)
+  ```
+  **DEPLOYED at intent_lam=0.5** (complete() + route param `intent`).
+  The live generator is now a FOUR-SPECIALIST UNION: continuation
+  proposes, topic steers, grammar vets each word, intent shapes the
+  response to what the prompt asked for. Module 41 (kid_intent.json), run
+  runs/lm/20260718-133403-lm-intent-f2b572, lm/intent_model.py +
+  intent_union.py, model kid_intent_model.json. Trained and measured
+  entirely LOCALLY on the 4080 (46s training) - no pod needed. Same
+  pending Flask restart.
+
 - **[2026-07-18] (Claude)** — **PRODUCTION DECODE (user's call: "a
   production number, not research"): 13.7 -> 47.5 tok/s plain, 1.84 ->
   10.0 tok/s polished - 3.5x/5.4x, all EXACT and gate-verified.** The

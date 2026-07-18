@@ -760,6 +760,102 @@ def _build_safe():
         _STATE.update(status="error", error=str(exc))
 
 
+
+_INTENT = {}
+
+
+def _intent_assets():
+    """Lazy intent-specialist assets (module 41): temporal classifier on
+    the prompt (punctuation-trained, free labels) + per-target response
+    log-odds per intent counted from sentence adjacency (train slice;
+    the judge slice is disjoint)."""
+    if _INTENT.get("ready") or _INTENT.get("failed"):
+        return _INTENT
+    try:
+        with open(os.path.join(_HERE, "radial_data",
+                               "kid_intent_model.json")) as f:
+            im = json.load(f)
+        with open(os.path.join(_HERE, "radial_data",
+                               "intent_response_counts.json")) as f:
+            rc = json.load(f)
+        ze = np.load(os.path.join(_HERE, "radial_data", "embed_rs.npz"),
+                     allow_pickle=True)
+        ivocab = {str(w): i for i, w in enumerate(ze["vocab"])}
+        iE = ze["feat"].astype(np.float32)
+        Ti = im["T"]
+        icmu = np.array(im["cmu"], np.float32)
+        icsd = np.array(im["csd"], np.float32)
+        ifmu = np.array(im["fmu"], np.float32)
+        ifsd = np.array(im["fsd"], np.float32)
+        ihm = np.array(im["head_mu"], np.float32)
+        ihs = np.array(im["head_sd"], np.float32)
+        iWm = np.array(im["head_W"], np.float32)
+
+        def _tfeat(F, g):
+            N, T_, C_ = F.shape
+            z = None
+            for t in g["terms"]:
+                o = min(t["o"], T_ - 1)
+                xa = F[:, o:, t["a"] % C_]
+                xb = F[:, :T_ - o, t["b"] % C_]
+                if t["op"] == 0:
+                    v = xa * xb
+                elif t["op"] == 1:
+                    v = xa - xb
+                else:
+                    v = np.minimum(xa, xb)
+                p = t["pool"]
+                if p == 1:
+                    v = v.max(1)
+                elif p == 2:
+                    v = v[:, -1]
+                elif p == 3:
+                    wt = np.arange(1, v.shape[1] + 1, dtype=v.dtype)
+                    v = (v * wt).sum(1) / wt.sum()
+                else:
+                    v = v.mean(1)
+                z = t["w"] * v if z is None else z + t["w"] * v
+            return z
+
+        def classify(words):
+            """First T prompt words -> (probs over 3 intents) or None."""
+            ids = [ivocab.get(w) for w in words[:Ti]]
+            if sum(i is not None for i in ids) < 3:
+                return None
+            X = np.zeros((1, Ti, iE.shape[1]), np.float32)
+            for t, i in enumerate(ids):
+                if i is not None:
+                    X[0, t] = iE[i]
+            X = np.clip((X - icmu) / icsd, -8, 8)
+            cols = [np.nan_to_num(_tfeat(X, g), nan=0.0, posinf=0.0,
+                                  neginf=0.0).clip(-1e6, 1e6)
+                    for g in im["genomes"]]
+            Ft = np.clip((np.stack(cols, 1) - ifmu) / ifsd, -8, 8)
+            A = np.hstack([(Ft - ihm) / ihs, np.ones((1, 1), np.float32)])
+            lg = (A @ iWm)[0]
+            e = np.exp(lg - lg.max())
+            return e / e.sum()
+
+        # response-fit steering: z-scored log-odds per intent, floor >=3
+        cnt, tot = rc["counts"], rc["totals"]
+        V_ = len(_M["targets"])
+        Si = np.zeros((V_, 3), np.float32)
+        gtot = sum(tot)
+        for k, w in enumerate(_M["targets"]):
+            cs = cnt.get(w)
+            if not cs or sum(cs) < 3:
+                continue
+            allc = sum(cs)
+            for c in range(3):
+                Si[k, c] = (np.log((cs[c] + 0.5) / (tot[c] + 0.5 * V_))
+                            - np.log((allc + 0.5) / (gtot + 0.5 * V_)))
+        Si = (Si - Si.mean(0)) / (Si.std(0) + 1e-9)
+        _INTENT.update(ready=True, classify=classify, S=Si,
+                       names=im["names"], balanced=im["balanced_acc"])
+    except Exception as exc:            # optional - never break decode
+        _INTENT.update(failed=True, error=str(exc))
+    return _INTENT
+
 _STEER = {}
 _GRAM = {}
 
@@ -923,7 +1019,7 @@ def _steer_assets():
 
 
 def complete(prompt, n_words=24, temp=0.7, seed=None, steer="auto", lam=1.5,
-             topk=3, best_of=1):
+             topk=3, best_of=1, intent_lam=0.5):
     """Autocomplete `prompt` with the latest word checkpoint.
 
     steer: 'auto' (default) steers word choice toward the prompt's topic
@@ -956,6 +1052,15 @@ def complete(prompt, n_words=24, temp=0.7, seed=None, steer="auto", lam=1.5,
     lam = max(0.0, min(4.0, float(lam)))
     topk = max(1, min(10, int(topk)))
     best_of = max(1, min(8, int(best_of)))
+    intent_lam = max(0.0, min(4.0, float(intent_lam)))
+    i_star, i_name = None, None
+    if intent_lam > 0:
+        ia = _intent_assets()
+        if ia.get("ready"):
+            ip = ia["classify"](words)
+            if ip is not None and float(ip.max()) >= 0.45:
+                i_star = int(ip.argmax())
+                i_name = ia["names"][i_star]
     t_star, t_name, t_p = None, None, None
     if steer != "off" and lam > 0:
         sa = _steer_assets()
@@ -991,6 +1096,8 @@ def complete(prompt, n_words=24, temp=0.7, seed=None, steer="auto", lam=1.5,
                     if kr is not None:
                         bonus[kr] = 0.0
                 lg = lg + bonus
+            if i_star is not None:
+                lg = lg + intent_lam * _INTENT["S"][:, i_star]
             rep = 2.0 + (lam if t_star is not None else 0.0)
             for wd in out_words[-16:]:
                 kr = _M["tgt_i"].get(wd)
@@ -1058,6 +1165,8 @@ def complete(prompt, n_words=24, temp=0.7, seed=None, steer="auto", lam=1.5,
                         if kr is not None:
                             bonus[kr] = 0.0
                     lg = lg + bonus
+                if i_star is not None:
+                    lg = lg + intent_lam * _INTENT["S"][:, i_star]
                 rep = 2.0 + (lam if t_star is not None else 0.0)
                 for wd in st["out"][-16:]:
                     kr = _M["tgt_i"].get(wd)
@@ -1125,4 +1234,5 @@ def complete(prompt, n_words=24, temp=0.7, seed=None, steer="auto", lam=1.5,
             "vocab": V, "context": W, "val_acc": round(_M["val_acc"], 4),
             "decode_scale": _M["s_cal"],
             "topic": t_name, "topic_p": t_p,
-            "steered": t_star is not None, "lam": lam}
+            "steered": t_star is not None, "lam": lam,
+            "intent": i_name}
