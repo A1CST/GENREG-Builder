@@ -25,6 +25,9 @@ Phase C — THE GENOME MAP: fingerprint every evolved genome by its behavior
 
 Everything logged to radial_data/evo_*.json; no gradients anywhere.
 """
+import os as _os, sys as _sys                     # repo-root shim
+_sys.path.insert(0, _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))
+import genreg_paths                               # noqa: F401
 import json
 import os
 import time
@@ -35,7 +38,7 @@ import radial_map as rm
 from radial_baseline import cifar_data, _tprims, _lens_apply_t, _kridge_factory
 from radial_slice_ga import _cache_grams, N_FIT, N_VAL
 
-_HERE = os.path.dirname(os.path.abspath(__file__))
+_HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 L = 300
 
 

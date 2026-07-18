@@ -13,6 +13,9 @@ No gradients anywhere — closed-form solves only.
 Data: radial-owned copies only (radial_data/*.npz); source projects read once,
 never written.
 """
+import os as _os, sys as _sys                     # repo-root shim
+_sys.path.insert(0, _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))
+import genreg_paths                               # noqa: F401
 import os
 import json
 import time
@@ -20,7 +23,7 @@ import numpy as np
 
 import radial_map as rmap
 
-_HERE = os.path.dirname(os.path.abspath(__file__))
+_HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _MNIST_NPZ = os.path.join(_HERE, "radial_data", "mnist_radial.npz")
 _CIFAR_NPZ = os.path.join(_HERE, "radial_data", "cifar_radial.npz")
 _WIKI = os.path.join(_HERE, "corpora", "wikipedia", "wiki_corpus.txt")

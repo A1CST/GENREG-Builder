@@ -22,6 +22,9 @@ starved die and their slots go to children). Fitness runs on the Schur
 fast path; crossover p=0.5 (validated). Full 50k, honest 10k val, test
 touched once. Checkpoints per round; STOP lever = radial_data/STOP_EVO.
 """
+import os as _os, sys as _sys                     # repo-root shim
+_sys.path.insert(0, _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))
+import genreg_paths                               # noqa: F401
 import json
 import os
 import time
@@ -31,7 +34,7 @@ import numpy as np
 import radial_evo2 as e2
 from radial_evo import _tprims, _STOP
 
-_HERE = os.path.dirname(os.path.abspath(__file__))
+_HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 # ---------------------------------------------------------------------------

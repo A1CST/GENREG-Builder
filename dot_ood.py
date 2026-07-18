@@ -22,6 +22,7 @@ import time
 
 import numpy as np
 
+import genreg_paths                               # noqa: F401
 from radial_evo import _tprims
 from radial_evo2 import feature
 from dot_track import gen_dot, _rand_color

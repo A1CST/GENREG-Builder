@@ -37,6 +37,7 @@ import numpy as np
 
 from anim_ablate import _features, gen
 from anim_infer import count_params
+import genreg_paths                               # noqa: F401
 from radial_anim import T, PATHS, SHAPE_NAMES
 from radial_evo import _tprims
 from radial_evo2 import Env

@@ -42,6 +42,9 @@ Numerical rails per TEMPORAL_RADIAL_STACK_GUIDE section 4: TF32 off, gram in
 fp32 / factor+solve in fp64 (inside _ridge_soft / make_scorer), every genome
 column sanitised, standardise with TRAIN statistics only.
 """
+import os as _os, sys as _sys                     # repo-root shim
+_sys.path.insert(0, _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))
+import genreg_paths                               # noqa: F401
 import argparse
 import gc
 import hashlib
@@ -57,7 +60,7 @@ from radial_evo2 import (new_genome, mutate, feature, make_scorer,
                          SCALES, C_PER_SCALE, _PRIMS, _OPS)
 from radial_stack import _rotate_features
 
-_HERE = os.path.dirname(os.path.abspath(__file__))
+_HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_DIR = os.path.join(_HERE, "corpora", "mnist")
 OUT_DIR = os.path.join(_HERE, "radial_data")
 RUNS_DIR = os.path.join(_HERE, "runs", "mnist_radial")

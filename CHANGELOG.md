@@ -10,6 +10,23 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-18] (Claude)** — **RADIAL files -> radial/ package (user's
+  call, cleanup round 3) + genreg_paths.py, the central path helper.** 11
+  files move: the shared core (radial_evo, radial_evo2, radial_stack), the
+  radial-line experiments (radial_baseline/map/push80/slice_ga/synth), the
+  seed-stack (cifar_radial, mnist_radial) and radial_anim. Because ~48
+  files across five lines import the radial core by bare name, path
+  handling is now CENTRALIZED: `genreg_paths.py` (repo root) puts root +
+  every package dir (lm/, radial/) on sys.path in one import - moved
+  scripts' shims import it, lm/ scripts' existing shims were extended
+  with it, and each root consumer (anim_*, dot_*, mm_*, resnet_evo,
+  app.py) gets one `import genreg_paths` line BEFORE its first
+  radial/lm import. New package dirs get added in ONE place from now on.
+  Verified: lm inference chain + pack build, mm_merge, anim_infer,
+  dot_track, radial_stack, cifar_radial, and a full `import app` (every
+  route) - all OK; pod mirrored (radial/ + lm/ + genreg_paths, flat
+  copies removed) and pod imports verified. Same pending Flask restart.
+
 - **[2026-07-18] (Claude)** — **lm/ package round 2: radial_lm.py,
   radial_kid.py, radial_embed.py move in too (user's call - they ARE the
   LM line: corpus regions, the kid curriculum, the embed_rs ears).**

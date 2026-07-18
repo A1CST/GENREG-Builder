@@ -13,6 +13,9 @@ Per-lens Gram matrices are cached on the GPU once, and fitness is evaluated
 for the WHOLE population in a single batched solve per generation — the 4080
 does one (POP, N, N) LU instead of thousands of sequential small calls.
 """
+import os as _os, sys as _sys                     # repo-root shim
+_sys.path.insert(0, _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))
+import genreg_paths                               # noqa: F401
 import json
 import os
 import time
@@ -22,7 +25,7 @@ import numpy as np
 import radial_map as rm
 from radial_baseline import cifar_data, _tprims, _lens_apply_t, _kridge_factory
 
-_HERE = os.path.dirname(os.path.abspath(__file__))
+_HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 K = 24            # genome length (matches the measured slice size)
 L = 300           # lens pool
