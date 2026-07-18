@@ -249,6 +249,7 @@ class LeanModel:
             if a > best[1]:
                 best = (lam, a)
         hm, hs, Wm = fit(Ftr, Y, best[0])
+        self._hm, self._hs, self._Wm = hm, hs, Wm
         s = torch.hstack([(Fte - hm) / hs,
                           torch.ones(self.Nte, 1, device=dev)]) @ Wm
         self.preds = s.argmax(1).cpu().numpy()

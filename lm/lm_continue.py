@@ -19,6 +19,11 @@ Everything gradient-free. Run on the pod:
     python lm_continue.py probe
     python lm_continue.py continue
 """
+import os as _os, sys as _sys                     # repo-root shim
+for _p in (_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))),
+           _os.path.dirname(_os.path.abspath(__file__))):
+    if _p not in _sys.path:
+        _sys.path.insert(0, _p)
 import json
 import os
 import pickle
@@ -31,7 +36,7 @@ from radial_evo import _tprims, _STOP
 import radial_lm_word as rw
 import radial_stack as rk
 
-_HERE = os.path.dirname(os.path.abspath(__file__))
+_HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 RD = os.path.join(_HERE, "radial_data")
 
 
@@ -249,6 +254,7 @@ class LeanModel:
             if a > best[1]:
                 best = (lam, a)
         hm, hs, Wm = fit(Ftr, Y, best[0])
+        self._hm, self._hs, self._Wm = hm, hs, Wm
         s = torch.hstack([(Fte - hm) / hs,
                           torch.ones(self.Nte, 1, device=dev)]) @ Wm
         self.preds = s.argmax(1).cpu().numpy()

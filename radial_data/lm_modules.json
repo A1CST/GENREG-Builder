@@ -6,7 +6,7 @@
    "date": "2026-07-15",
    "kind": "run",
    "export": "lm_radial.json",
-   "title": "1 Â· Character level, composition isolated",
+   "title": "1 Ã‚Â· Character level, composition isolated",
    "desc": "Char IDs in (one-hot), no vision confound. The genome stack composes cross-position conjunctions beyond the additive anchor. Best seed shown; multi-seed spread 0.386-0.406. Broke the bigram ceiling by +11 points on every seed."
   },
   {
@@ -14,7 +14,7 @@
    "date": "2026-07-15",
    "kind": "run",
    "export": "lm_radial_glyph.json",
-   "title": "2 Â· Glyph frames: vision + language at once",
+   "title": "2 Ã‚Â· Glyph frames: vision + language at once",
    "desc": "Stage-2 of the char line: every character rendered as a noisy 32x32 glyph frame; the temporal radial stack does perception AND sequence prediction simultaneously. Also broke the bigram ceiling."
   },
   {
@@ -22,7 +22,7 @@
    "date": "2026-07-15",
    "kind": "run",
    "export": "lm_radial_word.json",
-   "title": "3 Â· Word level, V=2000, SVD embeddings (fat head)",
+   "title": "3 Ã‚Â· Word level, V=2000, SVD embeddings (fat head)",
    "desc": "The pivot to words: SVD embeddings + identity one-hots + continuation tables, everything into a flat head. Strong numbers, wrong shape: 4.8M+ params, almost all head, 66 evolved. Samples: locally grammatical, falls into conversational-filler attractors."
   },
   {
@@ -30,7 +30,7 @@
    "date": "2026-07-15",
    "kind": "run",
    "export": "lm_radial_word_lean.json",
-   "title": "4 Â· LEAN: genomes carry the model",
+   "title": "4 Ã‚Â· LEAN: genomes carry the model",
    "desc": "Anchor removed from head and fitness base per the shape diagnosis. Genomes finally earn on language (334 frozen, 37 attend/content-addressing). 14x fewer params at 67% of fat accuracy."
   },
   {
@@ -38,7 +38,7 @@
    "date": "2026-07-15",
    "kind": "run",
    "export": "lm_radial_word_hybrid.json",
-   "title": "5 Â· HYBRID: genomes + 256 semantic channels",
+   "title": "5 Ã‚Â· HYBRID: genomes + 256 semantic channels",
    "desc": "Lean head plus only the continuation-embedding block (never the raw identity/probability channels). Recovers half the fat gap at 1.2M params."
   },
   {
@@ -46,7 +46,7 @@
    "date": "2026-07-15",
    "kind": "embed",
    "export": "embed_report_wiki120.json",
-   "title": "6 Â· RS embedding space (5k words, 120MB wiki)",
+   "title": "6 Ã‚Â· RS embedding space (5k words, 120MB wiki)",
    "desc": "Evolution separates words instead of predicting: each frozen genome is one embedding dimension, fitness is separation quality on held-out profile halves. Beat the SVD gate 3x on this corpus; neighbors king->frederick/emperor/prince, said->told/stated/explained."
   },
   {
@@ -54,7 +54,7 @@
    "date": "2026-07-15",
    "kind": "run",
    "export": "lm_radial_word_rsembed.json",
-   "title": "7 Â· Swap A/B: RS-5k embeddings, fat head",
+   "title": "7 Ã‚Â· Swap A/B: RS-5k embeddings, fat head",
    "desc": "The evolved table replaces SVD. Fat head loses 8.4 top-1 - later shown to be almost entirely the 5k-vs-30k coverage confound, not semantics."
   },
   {
@@ -62,7 +62,7 @@
    "date": "2026-07-15",
    "kind": "run",
    "export": "lm_radial_word_rsembed_lean.json",
-   "title": "8 Â· Swap A/B: RS-5k embeddings, lean",
+   "title": "8 Ã‚Â· Swap A/B: RS-5k embeddings, lean",
    "desc": "Through composition the gap nearly closes: top-5 ties SVD-lean, and lean-RS recovers 98.8% of its own fat ceiling vs 82% for SVD. Evolved embeddings are more composable."
   },
   {
@@ -70,7 +70,7 @@
    "date": "2026-07-15",
    "kind": "embed",
    "export": "embed_report_wiki120_30k.json",
-   "title": "9 Â· RS embedding space rebuilt at 30k words",
+   "title": "9 Ã‚Â· RS embedding space rebuilt at 30k words",
    "desc": "Coverage-confound probe: same corpus, same fitness, 30k vocabulary. The intrinsic spearman gate flipped against RS - and predicted nothing about task value. The task A/B is the real gate."
   },
   {
@@ -78,7 +78,7 @@
    "date": "2026-07-15",
    "kind": "run",
    "export": "lm_radial_word_rs30k.json",
-   "title": "10 Â· RS-30k fat: evolved embeddings TIE SVD",
+   "title": "10 Ã‚Â· RS-30k fat: evolved embeddings TIE SVD",
    "desc": "With coverage matched, the evolved table ties SVD through the flat head (0.3296 vs 0.3276). The entire earlier gap was coverage. Evolution's embeddings equal SVD for linear use, from 120MB vs SVD's full corpus."
   },
   {
@@ -86,7 +86,7 @@
    "date": "2026-07-15",
    "kind": "run",
    "export": "lm_radial_word_rs30k_lean.json",
-   "title": "11 Â· RS-30k lean: BEST lean model - evolved embeddings beat SVD through composition",
+   "title": "11 Ã‚Â· RS-30k lean: BEST lean model - evolved embeddings beat SVD through composition",
    "desc": "0.2973 top-1 / 0.5009 top-5 at 1.09M params - beats SVD-lean by +3.0/+5.5 and reaches 90% of its fat ceiling in 3 spaces. Genomes compose better over structure evolution built."
   },
   {
@@ -94,7 +94,7 @@
    "date": "2026-07-15",
    "kind": "run",
    "export": "lm_probe_lean.json",
-   "title": "12 · PROBE: where the lean model is blind",
+   "title": "12 Â· PROBE: where the lean model is blind",
    "desc": "Read-only breakdown of the RS-30k lean checkpoint. The reveal: when the continuation table's own top-5 contains the target (62% of test) the model scores 0.4801; when it does not (38%) it scores 0.0040 - chance. The model never overrides its tables, and the words it misses most are the commonest ones (i, you, the, it), which wider context determines."
   },
   {
@@ -102,7 +102,7 @@
    "date": "2026-07-15",
    "kind": "run",
    "export": "lm_radial_word_cont.json",
-   "title": "13 · CONTINUE-TRAIN on the blind spot - method works, repair does not",
+   "title": "13 Â· CONTINUE-TRAIN on the blind spot - method works, repair does not",
    "desc": "The animation Module-3 warm start ported to language: frozen 285-genome base, new spaces on a 3x table-miss-weighted mix, head refit on the true distribution. No forgetting (has-target class held), overall +0.2, but the miss class barely moved (0.0040 to 0.0056) and evolution went dry after 10 genomes. Finding: continue-training cannot conjure signal the environment does not carry - the miss class needs NEW environment statistics (skip-gram tables, syntax-position profiles), not more search over the same channels."
   },
   {
@@ -110,7 +110,7 @@
    "date": "2026-07-15",
    "kind": "run",
    "export": "lm_radial_word_cont2.json",
-   "title": "14 · SKIP-GRAM ENVIRONMENT + CONTINUE-TRAIN - the loop closes: 0.3992, best model of the line",
+   "title": "14 Â· SKIP-GRAM ENVIRONMENT + CONTINUE-TRAIN - the loop closes: 0.3992, best model of the line",
    "desc": "Module 13 said the miss class needs new environment statistics. Added: skip-gram continuation tables keyed (w-3,w-1) and (w-3,w-2) - wider context the trigram tables cannot see - as 4,256 new channels, with a headroom diagnostic first (45.9% of blind windows answerable). Continue-trained the same frozen base: +65 genomes, 45s. TEST 0.2974 -> 0.3992 top-1, 0.5010 -> 0.5981 top-5; the blind class went 0.0040 -> 0.1106 (28x); every slice improved; no forgetting. This lean model now beats every fat head ever built here (best 0.3296) at ~1.1M params. The probe -> environment-gap -> continue-train loop is validated on language."
   },
   {
@@ -118,7 +118,7 @@
    "date": "2026-07-15",
    "kind": "run",
    "export": "lm_radial_word_cont3.json",
-   "title": "15 · SECOND CRANK: far skip-grams take it to 0.4832 - simple-neural-LM territory",
+   "title": "15 Â· SECOND CRANK: far skip-grams take it to 0.4832 - simple-neural-LM territory",
    "desc": "The loop again, on the Module-14 model: rebuild verified (0.3987 vs 0.3992), far tables keyed (w-4,w-1)/(w-5,w-1) added, headroom 64.9% of remaining errors answerable. Continue-train: +178 genomes, 64s. TEST 0.3992 -> 0.4832 top-1, 0.5981 -> 0.6643 top-5. Blind class 0.1106 -> 0.2051; bigram-backoff 0.327 -> 0.476. Cumulative crank: 0.2974 -> 0.3992 -> 0.4832 at ~1.2M params, gradient-free."
   },
   {
@@ -126,7 +126,7 @@
    "date": "2026-07-15",
    "kind": "run",
    "export": "lm_radial_word_cont4.json",
-   "title": "16 · THIRD CRANK: 4-gram + far skips -> 0.5663 top-1 / 0.7280 top-5 - past the usefulness bar",
+   "title": "16 Â· THIRD CRANK: 4-gram + far skips -> 0.5663 top-1 / 0.7280 top-5 - past the usefulness bar",
    "desc": "True 4-gram table (last three words) + skips (w-6,w-1)/(w-5,w-2). Headroom: 84.5% of remaining errors answerable, quad alone 68%. Continue-train: +80 genomes, 32s. TEST 0.4832 -> 0.5663 top-1, 0.6643 -> 0.7280 top-5 - top-5 crosses the genuinely-useful band (60-70%). Blind class 0.2051 -> 0.2938. Cumulative crank: 0.2974 -> 0.3992 -> 0.4832 -> 0.5663 at ~1.2M params, gradient-free, one frozen base grown by continue-training."
   },
   {
@@ -134,7 +134,7 @@
    "date": "2026-07-15",
    "kind": "run",
    "export": "kid_stageA.json",
-   "title": "17 · THE CURRICULUM begins - Stage A: letters. TEST 0.9960 in 7 seconds",
+   "title": "17 Â· THE CURRICULUM begins - Stage A: letters. TEST 0.9960 in 7 seconds",
    "desc": "The user's design: build models that learn English like a kid - letters, then words (fill-in-the-blank), then cloze phrases, then autoregression; each stage its own model or continue-trained on the previous. Stage A: identify single rendered letters (26 classes, sizes 14-26px, jitter, noise). 515 perception genomes, self-stopped at 2 spaces, TEST 0.9960 - gate PASSED. This is also the diagnosis of the sentence-strip failure: perception earns instantly on single glyphs; the vision line needed a childhood. Stage A's frozen genomes become Stage B's eye."
   },
   {
@@ -142,7 +142,7 @@
    "date": "2026-07-15",
    "kind": "run",
    "export": "kid_stageB.json",
-   "title": "18 · Curriculum Stage B: words - the model learns to SPELL. 0.7066 top-1 / 0.9358 top-5",
+   "title": "18 Â· Curriculum Stage B: words - the model learns to SPELL. 0.7066 top-1 / 0.9358 top-5",
    "desc": "A word is a strip of 8 letter tiles; identify which of 500 words (from pixels only). Stage A's 515 letter genomes frozen as the eye. The measured story: the orderless letter-bag baseline (eye only, no order) scores 0.1910; the first composition space adds +45 points by putting letters IN ORDER - that gap is spelling. 297 new genomes, 30 seconds. Next gate: Stage C, cloze."
   },
   {
@@ -150,7 +150,7 @@
    "date": "2026-07-15",
    "kind": "run",
    "export": "kid_stageC.json",
-   "title": "19 · Curriculum Stage C: cloze - GATE FAILED, and the failure is the lesson",
+   "title": "19 Â· Curriculum Stage C: cloze - GATE FAILED, and the failure is the lesson",
    "desc": "Name the blanked word in a 4-word phrase (V=500, pixels only, A->B chain frozen as the per-slot word eye). Word-bag baseline 0.0608; evolution earned NOTHING on top (first space produced zero genomes); final 0.0668 top-1 / 0.2150 top-5 - 33x chance but no composition. The lesson: perception stages (letters, spelling) pass in seconds because their answers are deterministic in the pixels; the SEMANTIC stage has no answer in 20k phrases of pixels alone. A kid at this stage has years of heard language - distributional experience. The curriculum's next design decision: give Stage C 'listening experience' (corpus co-occurrence statistics as environment), scale the data by orders of magnitude, or both."
   },
   {
@@ -158,7 +158,7 @@
    "date": "2026-07-15",
    "kind": "run",
    "export": "kid_stageC2.json",
-   "title": "20 · Stage C2: the kid gets EARS - cloze doubles (0.1212) but the gate holds",
+   "title": "20 Â· Stage C2: the kid gets EARS - cloze doubles (0.1212) but the gate holds",
    "desc": "The RS-evolved semantic space (evolution's own 30k-word layer) attached as 512 ear channels on the observed context words; the blank stays unknown. Cloze 0.0668 -> 0.1212 top-1 / 0.2684 top-5 (61x chance) - real signal, still no pass, and evolution again earned zero composition. The sharpened diagnosis: the ears carry SIMILARITY (what words mean like) but cloze needs SEQUENCE experience (what follows what). A kid's listening includes heard word-order. Next design question: an evolved continuation layer (RS-style, but separating contexts by what follows them) as the second ear."
   },
   {
@@ -166,7 +166,7 @@
    "date": "2026-07-16",
    "kind": "run",
    "export": "kid_stageC3.json",
-   "title": "21 · Stage C3: sequence ears - evolution EARNS on semantics for the first time. 0.1418 / 0.2952",
+   "title": "21 Â· Stage C3: sequence ears - evolution EARNS on semantics for the first time. 0.1418 / 0.2952",
    "desc": "Two new evolution-bred ears join: embed_rs_next (genomes separating words by what FOLLOWS them - numbers cluster perfectly, speech verbs together) and embed_rs_prev (by what PRECEDES - openly grammatical: past-tense verbs cluster, the-determiner nouns cluster). The ear ladder on cloze: deaf 0.0668 -> similarity 0.1212 -> +sequence 0.1418 top-1 / 0.2952 top-5 (71x chance) - and for the first time on the semantic stage, composition genomes froze (10). The gate is still shy of decisive; the named next lever: scale the directional ears (64 -> 128+ dims) or evolve pair-context continuation ears."
   },
   {
@@ -174,7 +174,7 @@
    "date": "2026-07-16",
    "kind": "run",
    "export": "kid_stageC4.json",
-   "title": "22 · C4: ear capacity ruled out + the ceiling that reframes the gate",
+   "title": "22 Â· C4: ear capacity ruled out + the ceiling that reframes the gate",
    "desc": "Directional ears scaled 64->128 dims: 0.1384/0.2850 - slightly BELOW the 64-dim run. Capacity is not the bottleneck. Then the reference we never had: perfect symbolic tables (tri/bi/uni, vocab-restricted) score 0.2494 top-1 / 0.4728 top-5 on this exact cloze set. The evolution-made kid (0.1418/0.2952) runs at 57-62% of the table ceiling - from raw pixels and evolution-bred experience only. The gate question is now calibrated: is 60%-of-ceiling a pass, or do we close the gap (the kid also sees RIGHT context, which the tables cannot - headroom above the ceiling exists in principle)."
   },
   {
@@ -182,8 +182,120 @@
    "date": "2026-07-16",
    "kind": "run",
    "export": "kid_stageC5.json",
-   "title": "23 · C5: data scaling works - 0.1516 / 0.3273, 61% / 69% of the ceiling",
+   "title": "23 Â· C5: data scaling works - 0.1516 / 0.3273, 61% / 69% of the ceiling",
    "desc": "2.5x the cloze experience (50k phrases): +1.0 top-1 / +3.2 top-5 over C3. The bag baseline rose most (0.1190 -> 0.1421 val) - the ears' linear content feeds on data. Gap to the table ceiling now 61% top-1 / 69% top-5. C6 at 100k phrases launching (the last scale step before per-slot GPU banks need chunking). Infra: slot banks now park in the pod's 1.5TB system RAM (4 x 26GB on-GPU OOMed at 50k)."
+  },
+  {
+   "id": "kid-stage-c6",
+   "date": "2026-07-16",
+   "kind": "run",
+   "export": "kid_stageC6.json",
+   "title": "24 · C6: data scaling at 100k - the curve goes flat. 0.1538 / 0.3455",
+   "desc": "Doubling the cloze experience 50k -> 100k bought +0.0022 top-1 (0.1516 -> 0.1538) and +0.018 top-5, where the previous doubling gained ~4 points of ceiling-share. Composition froze just 2 genomes, at val 0.1529 - BELOW its own 0.1538 bag baseline - and the genome count kept dying as data grew: C3 10 -> C5 5 -> C6 2. Read at the time as 'the data lever is spent'. It was not that: modules 25-27 show the head was eating the signal, and MORE DATA MADE THAT WORSE by enriching the linear answer a genome had to beat. Infra: word_feats rewritten slot-outer + row-chunked, peak RAM 211GB -> 53GB (the 251GB container had OOM-killed the first attempt)."
+  },
+  {
+   "id": "kid-stage-d1",
+   "date": "2026-07-16",
+   "kind": "run",
+   "export": "kid_stageD1.json",
+   "title": "25 · D1: autoregression opens - and scores 0.1678 with ZERO genomes. The head bug.",
+   "desc": "Stage D asks the causal question: 4 context words as tile strips, name the word that FOLLOWS - the target is never rendered (unlike cloze, no right-hand context). It 'beat' C6's 0.1538 on the harder question, which was the tell: evolution froze ZERO genomes, so this is not a model at all - it is a ridge head, 98% of its 936,481 params. THE BUG: the head was fed the RAW environment (297 bag columns + 1536 raw ear channels = 1835 columns straight into the readout), so a genome could only earn by beating a full linear readout of everything. That single fact explains the whole curriculum collapse C3 10 -> C5 5 -> C6 2 -> D 0. Stage A was the control all along: it starts from an EMPTY head and earns 515."
+  },
+  {
+   "id": "kid-stage-d2",
+   "date": "2026-07-16",
+   "kind": "run",
+   "export": "kid_stageD2.json",
+   "title": "26 · D2: genome-only head - 0 genomes becomes 153. Evolution carries the model.",
+   "desc": "Same data, same machinery; the ONLY change is the head rule. The head now sees ONLY frozen genome outputs - the word bag and the ears are ENVIRONMENT that genomes read from, never head inputs. Result: 153 genomes (140/6/7) built from an empty head, val 0.0 -> 0.1514, params 936,481 -> 97,568, evolved share 2% -> 21%. The first real earning on a semantic stage in this curriculum. BUT read it honestly: the evolved model LOSES to the linear head it replaced (0.1403 vs D1's 0.1678; val 0.1514 vs the 0.1703 anchor). Evolution now carries the model and is ~2.75 points short of ridge. It also self-stopped by rule while still climbing (space 2 gain 0.0028 < MIN_SPACE_GAIN 0.003)."
+  },
+  {
+   "id": "kid-stage-c7",
+   "date": "2026-07-16",
+   "kind": "run",
+   "export": "kid_stageC7.json",
+   "title": "27 · C7: the C line's headline numbers were the RIDGE HEAD, not the kid. 0.0889",
+   "desc": "Stage C re-run with the genome-only head on C6's EXACT 100k data - the head rule is the only variable (validated: C7's reference anchor is val 0.1538, C6's word-bag baseline to 4dp). Genomes came alive exactly as in D: C6 froze 2, C7 froze 56. But the evolved model reaches only 0.0889 where its head reported 0.1538 - 58% of its own anchor. THEREFORE C6's 0.1538, C5's 0.1516 and C3's 0.1418 were ridge-head readouts of the bag+ears (those runs froze 2/5/10 genomes, so the accuracy was overwhelmingly linear), and the '61%/69%/73% of the table ceiling' framing measured the HEAD. The honest evolved cloze number is 0.0889. C6 is preserved as the canonical stage-C model; C7 is archived as the experiment."
+  },
+  {
+   "id": "kid-stage-d-decomp",
+   "date": "2026-07-16",
+   "kind": "run",
+   "export": "kid_stageDdecomp.json",
+   "title": "28 · Decomposed D: the pieces are answerable - but they do NOT compose back up",
+   "desc": "Ask what the kid can answer instead of the 500-way leap: the next word's LENGTH (8 classes) and its FIRST LETTER (26), then compose both into the full question with the sub-genomes as ENVIRONMENT channels. Same pixels, same split, labels derived from the same next-word answers, genome-only head throughout. DLEN reached 0.3266 (val 0.3207 vs anchor 0.3186) - the FIRST genome-only model in this line to BEAT a ridge head. DFL reached 0.2184 (95% of anchor) and stacked real depth: 5 spaces, 108/43/12/18/7. BUT THE COMPOSE IS A NULL: handing the 500-way question 308 pre-solved genomes bought nothing - DC LOST to D2 on val (0.1461 vs 0.1514) and won on test (0.1464 vs 0.1403); metrics disagreeing in opposite directions means noise. Decomposing makes each piece answerable; the REASSEMBLY is where it dies. Infra: the word-feature cache let DLEN and DC skip the 21-min eye sweep and finish in 8 SECONDS each."
+  },
+  {
+   "id": "kid-stage-d-ablate",
+   "date": "2026-07-16",
+   "kind": "run",
+   "export": "kid_stageDablate.json",
+   "title": "29 · EAR ABLATION: the ears SUPPRESS evolution. Take them away and genomes BEAT ridge.",
+   "desc": "The question every number above rests on: is the kid's EYE doing anything, or is it all the ear table? Same pixels, same split, genome-only head; the only variable is ears on/off. NEXT WORD: with ears, anchor 0.1703 vs genomes 0.1514 - ridge wins by 12%. Without ears, anchor 0.0614 vs genomes 0.0752 - EVOLUTION WINS BY 22%. The ears (embed_rs_next/_prev/_sim) are dense type-level LOOKUP TABLES: ridge reads a table perfectly and leaves no residual for composition to earn, so they did not merely inflate the score - they STARVED evolution. The collapse had TWO stacked causes: the head reading the raw bank (module 25) AND a ridge-friendly table in the environment. THE POSITIVE RESULT: the eye is real - 4 rendered context words predict the next word at 0.0753, 37x chance, FROM PIXELS ALONE, and composition is what extracts it. THE DIAL IS TABLE SHARE, NOT QUESTION SIZE: length 17.8% ears -> 100.7% of anchor; first letter 30.5% -> 94.6%; next word 63.9% -> 88.9%. Confirmed by a prediction made BEFORE the deciding run (length's anchor should barely move without ears: measured -18%, vs -64% for next word). An earlier 'question-size law' I drew from the ears-on arm alone is RETRACTED - the ears-off arm reverses the ordering, which a size law cannot do."
+  },
+  {
+   "id": "lm-temporal-transition",
+   "date": "2026-07-17",
+   "kind": "run",
+   "export": "kid_temporal.json",
+   "title": "30 · Temporal TRANSITION operator: next-word is DEAD, but order-structure is detectable only where position can't cheat",
+   "desc": "The three-day question: does temporal (relative-time) composition help language? NEXT-WORD: no - temporal ties/loses static at both word and char granularity (0.0744 vs 0.0715 word; 0.0685 vs 0.0719 char), and recency pooling didn't rescue it. Next-word is recency/position/content-dominated, n-gram-shaped - the wrong task, confirmed 3 ways. STRUCTURE: on real-vs-shuffled, a full scramble is a position artifact (linear anchor 0.986), but the LOCAL-shuffle control (adjacent swaps preserve position, break local transitions) collapses the anchor and isolates the real signal: at 4 swaps temporal beats static 0.7365 vs 0.6909 (~14 SE), on a task where position is useless. GRAMMAR (word real-vs-shuffled, embed_rs vectors): the cleanest dissociation - static-position composition freezes ZERO genomes (stuck at chance), temporal is the ONLY earner, but weak (0.62) because embed_rs is SEMANTIC not syntactic. Verdict: the transition operator detects ORDER where order is the signal and position can't substitute - but next-word isn't that task."
+  },
+  {
+   "id": "lm-persistence",
+   "date": "2026-07-17",
+   "kind": "run",
+   "export": "kid_persistence.json",
+   "title": "31 · PERSISTENCE - the correct temporal operator: 0.38 (single view) → 0.93 (accumulate)",
+   "desc": "The real primitive. Persistence = a signal that REPEATS over time, ACCUMULATED; the accumulated signal is what the static space consumes. A per-frame detector applied at every view, its response SUMMED across the stream - recurring invariant structure accumulates, independent per-view corruption averages out. ORDER-INVARIANT, which is exactly why the transition experiments above couldn't test it. Testbed (dog-across-angles analog): one letter rendered K=8 times under heavy corruption (noise .45 + 9x9 occlusion + size/jitter), so a single view is unreliable (0.3835). Accumulating in PIXEL space blurs (0.5465) because the letter isn't aligned across views; accumulating in FEATURE (detector) space RECOVERS identity at 0.93 - the detector fires on the letter wherever it appears, so the invariant reinforces while the viewpoint washes out. Architecture: temporal space = coherent accumulator of recurring detector responses (persistence/attention); static space = classifier of what survived. Time gives the rotation free; seeds manufacture it."
+  },
+  {
+   "id": "lm-persistence-lang",
+   "date": "2026-07-18",
+   "kind": "run",
+   "export": "kid_plang.json",
+   "title": "32 · PERSISTENCE ON LANGUAGE: topic identity 0.22 (single word) → 0.61 (accumulate) - the operator transfers",
+   "desc": "The letters operator (module 31) ported to word streams. The recurring signal is the TOPIC: every word of a 12-word window is one noisy view of it - topical words fire a topic-detector wherever they land, function words are the corruption. 8 Wikipedia topics, each word its evolved embed_rs vector, TEST = articles never seen in training (the question is the topic, not the document). Same vec-genome detectors, same budget, three arms: one word 0.2247; accumulate in RAW embed space (mean vector, the pixel-mean analog) 0.4871; accumulate DETECTOR RESPONSES over the 12 words (persistence) 0.6109. Chance 0.125. The exact letters ordering, and evolution EARNS: ACCUM beats the strongest linear anchor (mean-vec ridge 0.4815) by +13 points and the fat concat anchor (0.4463) by +16 - the embed table alone cannot answer the topic question; accumulated nonlinear detector responses can. Position HURTS here (concat anchor 0.4463 < mean anchor 0.4815): the task is order-invariant, exactly the regime the persistence operator owns. build_topic_stream.py + persistence_lang.py."
+  },
+  {
+   "id": "lm-topic-steer",
+   "date": "2026-07-18",
+   "kind": "run",
+   "export": "kid_steer.json",
+   "title": "33 · TOPIC-STEERED GENERATION: the persistence state drives word choice - hold 0.125 → 0.81, free at lambda=0.5",
+   "desc": "First generation-side use of the persistence operator, toward the goal: a model that responds AND holds the topic. The module-32 topic model is linear over accumulated detector responses, so every target word has a fixed per-topic contribution; the prompt's accumulated state picks the topic and lambda times that contribution is added to the generator's logits before top-5 selection - topical words enter the candidate pool that local statistics alone never surface. Topic-hold (independent corpus-count judge on held-out articles): 0.125 unsteered (= chance: the base generator emits pure dialogue register) → 0.44 at lambda=0.5 → 0.81 at lambda=2.0. Cost curve on held-out next-word: FREE at lambda=0.5 (0.325 vs 0.3225 baseline), -3.5pts at 1.0, -12.5 at 2.0. The steering fix that made lambda>1 usable: no bonus for already-emitted words + lambda-scaled repetition penalty (kills the wine-wine-wine degeneracy). HONEST: coherence is fragmented dialogue-corpus English - the bottleneck is the V=2000 dialogue-heavy target vocab (chemistry holds worst: almost no chemistry words exist to emit). Next lever: a topical target vocabulary. topic_steer.py, pod run."
+  },
+  {
+   "id": "lm-topic-steer-v5k",
+   "date": "2026-07-18",
+   "kind": "run",
+   "export": "kid_steer5k.json",
+   "title": "34 · V=5000 GENERATOR + steering: the vocabulary bottleneck fixed, the noise floor exposed",
+   "desc": "The word generator retrained with a 5,000-word target vocabulary (150k windows, W=16, same corpus mix): test 0.2949/0.5401 - the V=2000 accuracy held on a 2.5x harder question, 69% above its own trigram baseline. Steering re-run unchanged: hold 0.125 -> 0.50/0.56/0.69/0.75 at lam 0.5/1/1.5/2 (vs 0.44/0.56/0.69/0.81 at V=2000); next-word cost now steeper (0.26 -> 0.2175 at lam 0.5). WHAT THE CRANK BOUGHT (the samples, not the headline): module 33's worst topic was chemistry - zero chemistry words existed to emit; now \"stab it s acid and lonely she was oxygen anyway ... the ll reaction\" holds 2/2. Music emits piano/opera/jazz/orchestra, football emits football/matches/medal, astronomy galaxy/stars. WHAT IT COST: the top-5000 tail carries noisy proper names (aubrey/freddy/kathryn/otis) whose 30-examples-per-class logits and topic scores are unreliable - \"aubrey fight aubrey run aubrey\" killed both law prompts. The bottleneck moved from vocabulary coverage to tail noise. Next levers: filter/downweight the steering tail (frequency or topic-sharpness floor on S), and a stronger local model. Infra: three real OOM/numerics fixes landed in core (radial_evo2 scorer chunking + jitter fallback, radial_lm_word lazy attend substrate) - the fat-bank design was 92GB resident at V=5000 before them. lm_word_v5k.py; checkpoint deployed (backups: lm_model_word_v2000.json / lm_word_v2000_backup.npz)."
+  },
+  {
+   "id": "lm-topic-steer-evidence",
+   "date": "2026-07-18",
+   "kind": "run",
+   "export": "kid_steer_ev.json",
+   "title": "35 · EVIDENCE FLOOR: topic-hold 16/16 at lam=2 - steer only where the topic model has experience",
+   "desc": "Module 34's diagnosis (the 5000-word tail's proper names are steering noise) turned into a rule: a word keeps its steering score ONLY if the topic model actually experienced it (>=3 occurrences in the TRAIN articles; 2860/5000 targets survive; aubrey/kathryn/freddy/otis/stab all zeroed, oxygen 305/jury 335/orchestra 151 kept). The judge stays on the disjoint TEST articles, so the filter cannot grade itself. Result: better hold at EVERY lambda and roughly HALF the coherence cost - hold 0.562/0.750/0.875/1.000 at lam 0.5/1/1.5/2 (unfiltered: 0.500/0.562/0.688/0.750), next-word 0.2575/0.225/0.185/0.1625 (unfiltered: 0.2175/0.155/0.105/0.0725). lam=2 holds 16/16 - the first perfect topic-hold in the line. Samples at lam=1.5 are the line's best: dense topical vocabulary (oxygen/reaction/chemical, wine/bread/chocolate/cooking, football/club/matches/medal), no name attractors, no loops. DEPLOYED: live /lm autocomplete now steers at lam=1.5 (hold 0.875), auto mode, confidence gate 0.30, evidence floor on - with a hold-topic checkbox and per-completion topic annotation. English is still fragmented corpus register - coherence is the next lever, not vocabulary or steering."
+  },
+  {
+   "id": "lm-coherence-decode",
+   "date": "2026-07-18",
+   "kind": "run",
+   "export": "kid_coherence.json",
+   "title": "36 · COHERENCE decode grid: best-of-8 rerank buys +0.78 nats (2.2x) at equal topic-hold",
+   "desc": "The last lever of the goal (consistent sentences that hold topic), attacked decode-side: grid over temp {0.7, 0.9} x top-k {3, 5} x best-of-{1,8}, steering fixed at the deployed lam=1.5 evidence-floored config. Judged by an independent n-gram model from a disjoint corpus slice + distinct-2 + the module-33 topic judge; the best-of-8 reranker uses the model's own continuation tables, so no metric grades its own selection. Results: temp 0.7 / top-3 beats the deployed decode on BOTH axes (judge -8.980 vs -9.196, hold 0.875 vs 0.812) and is now the live default; best-of-8 on top reaches judge -8.418 (+0.78 nats over baseline = 2.2x per-word likelihood) at hold 0.812 and is deployed as the page's opt-in polish checkbox (~8x latency). distinct-2 >= 0.99 everywhere - the repetition machinery holds under every config. Samples read phrase-like: \"in his own acid and ... i don t know what oxygen wouldn ... you re reaction to a element\". coherence_decode.py."
+  },
+  {
+   "id": "lm-crank-v5k",
+   "date": "2026-07-18",
+   "kind": "run",
+   "export": "kid_crank.json",
+   "title": "37 · THE CRANK: 0.295 → 0.560 top-1, and topic-hold 16/16 now costs 6.5 points instead of 34",
+   "desc": "The modules-14-16 recipe at 10x vocabulary. PROBE first: 40.1% of test blind to the tri/bi tables, quad/skip tables answer 62.4% of it (answerable 59.9% -> 84.9%) - crank gated on that number, then run. RETRAIN (bank 17.3k -> 27.7k cols, only lever): TEST 0.2949 -> 0.5601 top-1, 0.5401 -> 0.7753 top-5, 3.2x the trigram baseline; blind slice 0.3123, has-target 0.7262 - the probe's prediction held. V=500 went 0.30 -> 0.57 with this recipe; V=5000 goes 0.29 -> 0.56. RE-MEASURE ON TOP: steering now holds 16/16 at lam=2 for -6.5 points of next-word (0.500 -> 0.435; pre-crank the same hold cost -34); lam=0.5 IMPROVES accuracy. Coherence grid: best-of-8 at temp 0.9/top-5 is the new polish point (judge -8.60, hold 0.81, distinct-2 1.0); low-temp polish now over-suppresses topical words. DEPLOYED: live defaults lam=2.0, temp 0.9, top-5; the checkpoint ships with an INFERENCE PACK (norm stats + solved head, ~600MB) so the local 4080 - which cannot hold the 27.7k-col bank - loads in seconds instead of falling back to an hour-long CPU replay (the \"40-minute ETA\" the live module showed). Three more memory/numerics fixes in core en route. The goal ledger: topic-hold SOLVED at trivial cost, vocabulary solved, base model doubled - the road to fluency is now more context + more tables, the exact axis this crank validated."
   }
  ]
 }

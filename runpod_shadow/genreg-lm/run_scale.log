@@ -1,0 +1,18 @@
+lm_word: 150000/20000 x 16-word windows, V=2000 (covers 89.8% of train tokens) -> /workspace/genreg-lm/radial_data/lm_word.npz
+embed ridge (no genomes): val 0.2984 test 0.3276 (267s)
+  [space 0] opening — reads 128 embedding dims per word (per-slot perception, window-mean)
+    round   0  +4 (space 4)  val 0.0475  starved/gen 3.0
+    round   1  +0 (space 4)  val 0.0475  starved/gen 4.0  d-val +0.0000 (cap 0.0002)
+    space FULL at 4 genomes — 1 consecutive rounds below cap (last +0.0000 < 0.0002); stacking next
+  [space 0] FULL: 4 genomes, val 0.2986 (+0.0002) (269s)
+  [hand-off] positional bank: 6320 channels (4 R0 genomes x 16 slots + 2x2000 identity + 2256 continuation)
+  [space 1] opening — reads 6320 channels (R0-genome x POSITION + identity one-hots)
+    round   0  +0 (space 0)  val 0.2986  starved/gen 3.9
+    round   1  +0 (space 0)  val 0.2986  starved/gen 4.1  d-val +0.0000 (cap 0.0002)
+    space FULL at 0 genomes — 1 consecutive rounds below cap (last +0.0000 < 0.0002); stacking next
+  [space 1] produced nothing — stop
+  [decode] calibrated scale 20.0 (val nll 4.157)
+  sample: the first part of the | world is not an easy job for you to know what he s in the middle of the month club anyone else to do
+  sample: he was born in the | morning you re not going to be a good man i m not sure i m going to be a good time too much
+  sample: one of the most important | thing is i m not sure i don t know what you re not going to be a good idea and i m not
+[radial-lm-word] DONE: 1 spaces [4], anchor top1 0.3276 top5 0.5845, stack TEST top1 0.3273 TOP5 0.5843 vs {'unigram': 0.0498, 'bigram': 0.1629, 'trigram': 0.1822} (trigram top5 0.6092) (286s)

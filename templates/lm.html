@@ -64,15 +64,24 @@
       <h2>LIVE · autocomplete with the latest checkpoint</h2>
       <div class="dt">always the newest word model on disk</div>
       <div class="ds">Type a few words; the current checkpoint continues them
-        (calibrated sharpness, top-5 sampling, repetition penalty). The first
-        completion builds the model once (~2-3 min); after that it is instant.
-        Model parameters appear after the first completion.</div>
+        (calibrated sharpness, top-5 sampling, repetition penalty, topic
+        steering when the prompt's topic is confident, best-of-8 polish).
+        First completion loads the inference pack (~10s); after that each
+        completion is a couple of seconds. Model parameters appear after the
+        first completion.</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
         <input id="lmw-prompt" type="text" placeholder="type the start of a sentence…"
                style="flex:1 1 340px;min-width:240px;padding:8px 10px;font-size:13px;
                       font-family:ui-monospace,monospace;background:#0b0e12;
                       color:#dbe2ea;border:1px solid #2f4152;border-radius:6px" />
         <button class="lm-btn" id="lmw-go">Complete</button>
+        <label style="font-size:11px;color:#8b95a1;display:flex;gap:5px;
+                      align-items:center;cursor:pointer">
+          <input type="checkbox" id="lmw-steer" checked /> hold topic</label>
+        <label style="font-size:11px;color:#8b95a1;display:flex;gap:5px;
+                      align-items:center;cursor:pointer"
+               title="best-of-8 rerank by continuation-table log-prob — noticeably more fluent, ~8x slower">
+          <input type="checkbox" id="lmw-polish" checked /> polish</label>
         <span id="lmw-go-status" style="font-size:11px;color:#8b95a1"></span>
       </div>
       <div id="lmw-out" style="margin-top:10px"></div>
@@ -260,27 +269,49 @@
         st = document.getElementById("lmw-go-status"),
         out = document.getElementById("lmw-out"),
         pbox = document.getElementById("lmw-params");
-    function go() {
+    var buildT0 = null;
+    function go(isRetry) {
       var prompt = inp.value.trim();
       if (!prompt) { st.textContent = "type a few words first"; return; }
       btn.disabled = true;
-      st.textContent = "completing…";
-      fetch("/api/lm/autocomplete?n=24&prompt=" + encodeURIComponent(prompt))
+      if (!isRetry) { st.textContent = "completing…"; }
+      var steerOn = document.getElementById("lmw-steer").checked;
+      var polish = document.getElementById("lmw-polish").checked;
+      fetch("/api/lm/autocomplete?n=24&steer=" + (steerOn ? "auto" : "off") +
+            "&best=" + (polish ? 8 : 1) +
+            "&prompt=" + encodeURIComponent(prompt))
         .then(function (r) { return r.json(); })
         .then(function (d) {
-          if (d.error) { st.textContent = d.error; btn.disabled = false; return; }
-          if (d.building) {
-            st.textContent = "building from the checkpoint… " + (d.progress || "");
-            setTimeout(go, 3000);
+          if (d.error) {
+            st.textContent = d.error; btn.disabled = false; buildT0 = null;
             return;
           }
+          if (d.building) {
+            if (!buildT0) { buildT0 = Date.now(); }
+            var el = d.elapsed != null ? d.elapsed
+                   : Math.round((Date.now() - buildT0) / 1000);
+            var eta = d.eta != null
+              ? " · ~" + (d.eta > 90 ? Math.round(d.eta / 60) + " min"
+                                     : d.eta + "s") + " left"
+              : " (one-time, ~3-6 min)";
+            st.textContent = "building the model from the checkpoint" +
+              (d.progress ? " — " + d.progress : "") +
+              " · " + el + "s elapsed" + eta;
+            setTimeout(function () { go(true); }, 3000);
+            return;
+          }
+          buildT0 = null;
           btn.disabled = false;
           st.textContent = "";
           var div = document.createElement("div");
           div.className = "lm-genome";
-          div.innerHTML = '<span class="g2"></span> <span class="tx"></span>';
+          div.innerHTML = '<span class="g2"></span> <span class="tx"></span>' +
+            ' <span class="cm"></span>';
           div.querySelector(".g2").textContent = d.prompt;
           div.querySelector(".tx").textContent = d.completion;
+          div.querySelector(".cm").textContent = d.steered
+            ? "# topic: " + d.topic + " (" + d.topic_p + ")"
+            : (d.topic === null && d.lam > 0 ? "# no confident topic" : "");
           out.insertBefore(div, out.firstChild);
           var p = d.params;
           pbox.textContent = "model parameters: " + p.total.toLocaleString() +

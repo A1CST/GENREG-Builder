@@ -11,6 +11,11 @@ radial_temporal.py already consumes.
 
   python build_char_stream.py [--smoke]
 """
+import os as _os, sys as _sys                     # repo-root shim
+for _p in (_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))),
+           _os.path.dirname(_os.path.abspath(__file__))):
+    if _p not in _sys.path:
+        _sys.path.insert(0, _p)
 import json
 import os
 import sys
@@ -22,7 +27,7 @@ from radial_evo import _tprims, _STOP
 from radial_evo2 import Env
 import radial_stack as rk
 
-_HERE = os.path.dirname(os.path.abspath(__file__))
+_HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 RD = os.path.join(_HERE, "radial_data")
 OUT = "wf_char_stream.pt"
 

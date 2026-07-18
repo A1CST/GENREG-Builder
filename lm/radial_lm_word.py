@@ -19,6 +19,11 @@ stack must compose them into a next-word prediction.
 Train/test from disjoint corpus regions. Exports
 radial_data/lm_radial_word.json (+ lm_model_word.json). No gradients.
 """
+import os as _os, sys as _sys                     # repo-root shim
+for _p in (_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))),
+           _os.path.dirname(_os.path.abspath(__file__))):
+    if _p not in _sys.path:
+        _sys.path.insert(0, _p)
 import json
 import os
 import time
@@ -29,11 +34,15 @@ from radial_evo import _tprims, _STOP
 from radial_lm import _clean, _load_regions
 import radial_stack as rk
 
-_HERE = os.path.dirname(os.path.abspath(__file__))
+_HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FEATS = os.path.join(_HERE, "corpora", "wikipedia", "wiki_feats.npz")
 W = 6                                    # context words per window
 V = 500                                  # prediction vocabulary (top-V)
 D = 128                                  # embedding dims
+EXTRA_TABLES = False                     # module-36+ crank: quad + skip
+                                         # continuation blocks in the bank
+                                         # (lm_crank.py tables; checkpoint
+                                         # gets bank="skip5k")
 
 
 EMBED_NPZ = FEATS                        # swap point: set to an RS table
@@ -274,13 +283,25 @@ def run(pop_size=64, gens=12, max_rounds=400, seed=5, max_spaces=16,
 
     _uni_prob = _cont_prob(uni_c)
 
+    if EXTRA_TABLES:
+        from lm_crank import build_tables
+        quad_t, skipA_t, skipB_t = build_tables()
+        N_EXTRA = 2 * (D + V) + D        # quad[vec|prob] skipA[vec|prob]
+    else:                                 # skipB[vec] - probe-ranked widths
+        quad_t = skipA_t = skipB_t = None
+        N_EXTRA = 0
+
     def _cont_raw(ctx):
         """Continuation channels: expected next EMBEDDING (2D dims, lossy
         but generalizing) + the exact next-word PROBABILITY VECTOR over
         the V targets (the table's candidate list, which the embedding
-        blurs — run 6: trigram top-5 0.639 vs our 0.548)."""
+        blurs — run 6: trigram top-5 0.639 vs our 0.548). With
+        EXTRA_TABLES (the module-36+ crank): quad (w-3,w-2,w-1) and skipA
+        (w-3,w-1) as [vec|prob] blocks, skipB (w-3,w-2) as vec only; a
+        silent extra table contributes ZEROS (no backoff — the base block
+        already backs off)."""
         N = len(ctx)
-        out = np.zeros((N, 2 * D + V), np.float32)
+        out = np.zeros((N, 2 * D + V + N_EXTRA), np.float32)
         for i in range(N):
             j1, j2 = int(ctx[i, W - 2]), int(ctx[i, W - 1])
             w1 = vocab[j1] if j1 >= 0 else None
@@ -288,14 +309,31 @@ def run(pop_size=64, gens=12, max_rounds=400, seed=5, max_spaces=16,
             key = (w1, w2)
             if key in tri_c:
                 out[i, :D] = _cont_vec(tri_c[key])
-                out[i, 2 * D:] = _cont_prob(tri_c[key])
+                out[i, 2 * D:2 * D + V] = _cont_prob(tri_c[key])
             elif w2 in bi_c:
                 out[i, :D] = _cont_vec(bi_c[w2])
-                out[i, 2 * D:] = _cont_prob(bi_c[w2])
+                out[i, 2 * D:2 * D + V] = _cont_prob(bi_c[w2])
             else:
                 out[i, :D] = _uni_vec
-                out[i, 2 * D:] = _uni_prob
+                out[i, 2 * D:2 * D + V] = _uni_prob
             out[i, D:2 * D] = _cont_vec(bi_c[w2]) if w2 in bi_c else _uni_vec
+            if EXTRA_TABLES:
+                j0 = int(ctx[i, W - 3])
+                w0 = vocab[j0] if j0 >= 0 else None
+                base = 2 * D + V
+                dq = quad_t.get((w0, w1, w2))
+                if dq:
+                    out[i, base:base + D] = _cont_vec(dq)
+                    out[i, base + D:base + D + V] = _cont_prob(dq)
+                base += D + V
+                da = skipA_t.get((w0, w2))
+                if da:
+                    out[i, base:base + D] = _cont_vec(da)
+                    out[i, base + D:base + D + V] = _cont_prob(da)
+                base += D + V
+                db = skipB_t.get((w0, w1))
+                if db:
+                    out[i, base:base + D] = _cont_vec(db)
         return torch.tensor(out, device=dev)
 
     # standardization stats from TRAIN only — per-batch stats NaN on a
@@ -320,7 +358,7 @@ def run(pop_size=64, gens=12, max_rounds=400, seed=5, max_spaces=16,
           torch.tensor(cols, device=dev, dtype=torch.long)] = 1.0
         return M
 
-    N_CONT = 2 * D + V                   # continuation block width
+    N_CONT = 2 * D + V + N_EXTRA         # continuation block width
 
     def _bank0(ctx, cont_raw=None):
         emb = _embed_bank(torch, dev, ctx, feat_t, mu, sd)
@@ -331,29 +369,37 @@ def run(pop_size=64, gens=12, max_rounds=400, seed=5, max_spaces=16,
     B0_tr = _bank0(ctx_tr, _cont_tr_raw)  # (Ntr, W*D + 2V + N_CONT)
     B0_te = _bank0(ctx_te, _cont_te_raw)
 
-    # attend-genome substrate: per-slot query scores + candidate probs
-    featV_np = np.zeros((V, D), np.float32)
-    for k, wd_ in enumerate(targets):
-        j = w2i.get(wd_)
-        if j is not None:
-            featV_np[k] = feat[j]
-    featV = torch.tensor(featV_np, device=dev)
-    featV = featV / (featV.norm(dim=1, keepdim=True) + 1e-6)
+    # attend-genome substrate: per-slot query scores + candidate probs.
+    # ONLY the lean path evolves attend genomes (feature_attend reads
+    # ss/prob nowhere else), and the substrate is W x (N, V) half - 24GB
+    # at V=5000 - so the non-lean path must not build it (it OOMed the
+    # 96GB pod holding a substrate it never reads).
+    if lean:
+        featV_np = np.zeros((V, D), np.float32)
+        for k, wd_ in enumerate(targets):
+            j = w2i.get(wd_)
+            if j is not None:
+                featV_np[k] = feat[j]
+        featV = torch.tensor(featV_np, device=dev)
+        featV = featV / (featV.norm(dim=1, keepdim=True) + 1e-6)
 
-    def _slot_scores(ctx):
-        idx = torch.tensor(np.maximum(ctx.astype(np.int64), 0), device=dev)
-        mask = torch.tensor((ctx >= 0).astype(np.float32), device=dev)
-        out = []
-        for f in range(W):
-            e = feat_t[idx[:, f]] * mask[:, f:f + 1]
-            e = e / (e.norm(dim=1, keepdim=True) + 1e-6)
-            out.append((e @ featV.T).half())
-        return out
+        def _slot_scores(ctx):
+            idx = torch.tensor(np.maximum(ctx.astype(np.int64), 0), device=dev)
+            mask = torch.tensor((ctx >= 0).astype(np.float32), device=dev)
+            out = []
+            for f in range(W):
+                e = feat_t[idx[:, f]] * mask[:, f:f + 1]
+                e = e / (e.norm(dim=1, keepdim=True) + 1e-6)
+                out.append((e @ featV.T).half())
+            return out
 
-    ss_tr = _slot_scores(ctx_tr)
-    ss_te = _slot_scores(ctx_te)
-    prob_tr = _cont_tr_raw[:, 2 * D:]
-    prob_te = _cont_te_raw[:, 2 * D:]
+        ss_tr = _slot_scores(ctx_tr)
+        ss_te = _slot_scores(ctx_te)
+        prob_tr = _cont_tr_raw[:, 2 * D:]
+        prob_te = _cont_te_raw[:, 2 * D:]
+    else:
+        # the raw continuation blocks are baked into B0 already
+        del _cont_tr_raw, _cont_te_raw
 
     n_fit = int(Ntr * 0.8)
     yv = torch.tensor(ytr[n_fit:], device=dev)
@@ -484,12 +530,24 @@ def run(pop_size=64, gens=12, max_rounds=400, seed=5, max_spaces=16,
         """fp64 ridge head, lam picked on the val split, test touched once;
         returns {k: top-k accuracy}."""
         def _fit(Xf, Yf, lam):
+            # gram accumulated in ROW CHUNKS: the one-shot hstack copy of
+            # the normalized design matrix is 13GB+ at 27.7k cols x 120k
+            # rows (the crank bank) and OOMed the pod; per-chunk fp32
+            # grams summed in fp64 need ~2GB and accumulate no worse
             n, d = Xf.shape
             hm, hs = Xf.mean(0), Xf.std(0) + 1e-6
-            A = torch.hstack([(Xf - hm) / hs, torch.ones(n, 1, device=dev)])
-            G = (A.T @ A).double() + lam * torch.eye(d + 1, device=dev,
-                                                     dtype=torch.float64)
-            Wm = torch.linalg.solve(G, (A.T @ Yf).double()).float()
+            CH = 30000
+            G = torch.zeros((d + 1, d + 1), device=dev, dtype=torch.float64)
+            R = torch.zeros((d + 1, Yf.shape[1]), device=dev,
+                            dtype=torch.float64)
+            for a in range(0, n, CH):
+                Ab = torch.hstack([(Xf[a:a + CH] - hm) / hs,
+                                   torch.ones(min(CH, n - a), 1, device=dev)])
+                G += (Ab.T @ Ab).double()
+                R += (Ab.T @ Yf[a:a + CH]).double()
+                del Ab
+            G += lam * torch.eye(d + 1, device=dev, dtype=torch.float64)
+            Wm = torch.linalg.solve(G, R).float()
             return hm, hs, Wm
 
         best_lam, best_v = 3.0, -1.0
@@ -510,11 +568,45 @@ def run(pop_size=64, gens=12, max_rounds=400, seed=5, max_spaces=16,
                                  .float().mean()), 4)
         return out, (hm, hs, Wm)
 
+    # the space loop is over: the next-space banks (built at the end of
+    # space 0, 17GB+ at the crank width) and the per-word row banks are
+    # dead weight for the head fits - free them before stacking
+    bank_tr = bank_te = None
+    rows_tr = rows_te = None
+    torch.cuda.empty_cache()
     Ftr = torch.stack(all_tr, 1)
     Fte = torch.stack(all_te, 1)
     stack_k, head = _head_topk(Ftr, Fte)
     anchor_k, _ = _head_topk(B0_tr, B0_te)
     best = stack_k[1]
+
+    # per-slice metrics: BLIND = target absent from the tri/bi/uni top-5
+    # (the slice the module-36+ crank tables exist to answer)
+    hm_s, hs_s, Wm_s = head
+    s_te = torch.hstack([(Fte - hm_s) / hs_s,
+                         torch.ones(Nte, 1, device=dev)]) @ Wm_s
+    preds_te = s_te.argmax(1).cpu().numpy()
+    del s_te
+    blind_mask = np.zeros(Nte, bool)
+    for i in range(Nte):
+        jb1, jb2 = int(ctx_te[i, W - 2]), int(ctx_te[i, W - 1])
+        wb1 = vocab[jb1] if jb1 >= 0 else None
+        wb2 = vocab[jb2] if jb2 >= 0 else None
+        if (wb1, wb2) in tri_c:
+            cur = tri_c[(wb1, wb2)]
+        elif wb2 in bi_c:
+            cur = bi_c[wb2]
+        else:
+            cur = uni_c
+        blind_mask[i] = targets[int(yte[i])] not in \
+            sorted(cur, key=cur.get, reverse=True)[:5]
+    nb = int(blind_mask.sum())
+    blind_top1 = round(float((preds_te[blind_mask] ==
+                              yte[blind_mask]).mean()), 4) if nb else None
+    covered_top1 = round(float((preds_te[~blind_mask] ==
+                                yte[~blind_mask]).mean()), 4)
+    print(f"[slice] blind {nb}/{Nte} ({nb / Nte:.1%}): top1 {blind_top1} | "
+          f"has-target: top1 {covered_top1}", flush=True)
 
     # decode calibration: ridge margins are nearly flat, so raw softmax
     # samples word salad. Fit ONE scale on the val split's log-likelihood
@@ -637,6 +729,9 @@ def run(pop_size=64, gens=12, max_rounds=400, seed=5, max_spaces=16,
            "val_final": spaces[-1]["val_after"] if spaces else round(float(oh_val), 4),
            "spaces": spaces, "baselines": baselines,
            "n_genomes": sum(len(sp) for sp in space_genomes),
+           "blind_frac": round(nb / Nte, 4), "blind_top1": blind_top1,
+           "covered_top1": covered_top1,
+           "bank": "skip5k" if EXTRA_TABLES else "base",
            "task": f"predict the NEXT WORD (top-{V} vocab) from {W} context "
                    "words entering as 128-d corpus-SVD embeddings; the "
                    "embed-ridge anchor is linear-from-embeddings — genomes "
@@ -646,7 +741,8 @@ def run(pop_size=64, gens=12, max_rounds=400, seed=5, max_spaces=16,
     with open(op, "w") as f:
         json.dump(out, f, indent=1)
     model = {"context_words": W, "vocab": V, "spaces": space_genomes,
-             "label": "next-word", "input": "wiki-svd-embeddings"}
+             "label": "next-word", "input": "wiki-svd-embeddings",
+             "bank": "skip5k" if EXTRA_TABLES else "base"}
     with open(os.path.join(_HERE, "radial_data", "lm_model_word.json"), "w") as f:
         json.dump(model, f)
     rk._record_run(

@@ -15,6 +15,11 @@ Runs the same 3 arms on the char stream, binary (real=1, shuffled=0):
 
   python radial_temporal_shuffle.py --cache wf_char_stream.pt
 """
+import os as _os, sys as _sys                     # repo-root shim
+for _p in (_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))),
+           _os.path.dirname(_os.path.abspath(__file__))):
+    if _p not in _sys.path:
+        _sys.path.insert(0, _p)
 import json
 import os
 import sys

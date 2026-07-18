@@ -10,6 +10,404 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-18] (Claude)** — **Fluency honesty pass + defaults retuned:
+  lam 2.0 -> 1.5, polish (best-of-8) ON by default.** The user called out
+  that single-sample fluency did not improve - and the judge agrees:
+  post-crank single-sample at the deployed decode scored -9.43 vs -9.20
+  pre-crank (steering at lam=2 injects topic words that break local table
+  context, and sampled text leaves the table-covered manifold - the
+  exposure gap). What DID improve: next-word accuracy (0.295 -> 0.560),
+  hold cost (6.5pts vs 34), and POLISH fluency (best-of-8 temp0.9/top5:
+  judge -8.60, the line's best, hold 0.81). So the deployed default IS now
+  that measured point: lam=1.5 + polish checked by default - verified
+  locally at 2.1-2.6s per polished completion via the inference pack
+  (cheap enough to default). Live-module copy updated (pack load ~10s, not
+  '2-3 min'). Needs the next Flask restart for the lam default; template
+  changes live on refresh.
+
+- **[2026-07-18] (Claude)** — **POST-CRANK RE-MEASURE + DEPLOY (/lm module
+  37) + the INFERENCE PACK (the "40-minute ETA" fix).** Steering and the
+  coherence grid re-run against the 0.5601 crank model:
+  ```
+  lam        0.0    0.5    1.0    1.5    2.0
+  hold       0.188  0.375  0.688  0.812  1.000
+  next-word  0.500  0.508  0.490  0.473  0.435
+  ```
+  **Topic-hold 16/16 now costs 6.5 points of next-word (was 34 pre-crank),
+  and lam=0.5 IMPROVES accuracy.** Coherence winner flipped with the
+  stronger base: best-of-8 at temp 0.9/top-5 (judge -8.60, hold 0.81,
+  distinct-2 1.0); low-temp polish now over-suppresses topical words
+  (judge -8.19 but hold 0.56 - not deployed). **New live defaults: lam=2.0,
+  temp 0.9, top-5** (lm_word_infer + route), polish = best-of-8 at the
+  same settings. **INFERENCE PACK:** the live module's build replays the
+  full bank - 27.7k cols x 150k rows, which exceeds the local 4080 and
+  fell back to an hour-long CPU replay (the user's climbing-ETA report).
+  lm_word_infer now saves the replay's end products (norm stats + solved
+  head, ~600MB, signature-checked against the checkpoint) after any full
+  build and LOADS them in seconds on later builds; the pack is being
+  built on the pod and pulled home. One Flask restart after the pull and
+  local autocomplete starts near-instantly on the crank model. Module 37
+  (export kid_crank.json) tells the full crank story; run
+  `runs/lm/20260718-023911-lm-postcrank-91f425`; logs shadowed.
+
+- **[2026-07-18] (Claude)** — **/progress: guarantee fresh data on every visit.** Added
+  `Cache-Control: no-store` to `/api/progress/data` and `{cache:"no-store"}` to the
+  client fetch, so navigating to the page always re-parses the current `CHANGELOG.md`
+  (the endpoint already re-reads the file per request; this stops the browser from
+  serving a cached JSON copy). Not live-polling — updates on page load, as intended.
+  **Flask restart required** (app.py changed).
+
+- **[2026-07-18] (Claude)** — **THE CRANK LANDS: quad/skip continuation
+  tables take the V=5000 generator from TEST 0.2949 -> 0.5601 top-1 /
+  0.5401 -> 0.7753 top-5. The modules-14-16 story reproduces exactly at
+  10x vocabulary (V=500 went 0.30 -> 0.57; V=5000 goes 0.29 -> 0.56).**
+  `lm_word_v5k2.py`: same data, same pipeline, ONLY the probe-gated bank
+  extension (17,304 -> 27,688 cols). Per-slice, the probe's prediction
+  held: the blind slice (40.1% of test, target absent from tri/bi top-5)
+  scores 0.3123 top-1 and the has-target slice 0.7262. The tables ARE the
+  gain (anchor = stack) - environment carries co-occurrence, per the
+  line's standing law. Two more memory fixes en route (attempt 1 OOMed at
+  the head fit, 92GB): the next-space banks (17GB, dead under
+  max_spaces=1) freed before the head fits, and _head_topk's gram now
+  accumulates in 30k-row chunks (fp32 chunk grams summed in fp64 - no
+  13GB design-matrix copy, precision unchanged or better). Checkpoint
+  (bank="skip5k") pulled local + shadowed (a first pull silently grabbed
+  the STALE export because the chained scp after a detached ssh launch
+  never ran - re-pulled and verified 0.5601/skip5k before recording).
+  Steering sweep + coherence grid re-running on the pod against the new
+  model; module 37 publishes the full story when they land. Run
+  `runs/lm/20260718-021722-lm-crank-e4438a`.
+
+- **[2026-07-18] (Claude)** — **/progress: layout fix + interactive dots.** (1) Fixed
+  the page being clipped under the taskbar and the injected terminal dock being
+  pushed off-screen — `.pg-main` is now the `flex:1` internal-scroll region (matches
+  `.tlm-main`), so the shared termdock stays docked at the bottom and is present on
+  the page as requested. (2) Chart dots are now interactive: **hover** shows a
+  viewport-aware popup (flips up near the bottom edge, taskbar-safe) listing that
+  day's changelog entry titles for the project; **click** opens a modal with the full
+  changelog text of those entries (date, author, impact badge, body). Backend
+  `progress_service.py` now emits an `entries` array (title + body per entry);
+  `static/progress.js` builds project|date and date indexes and drives tooltip +
+  modal; `templates/progress.html` gains the modal markup and styles. **Flask restart
+  required** (progress_service.py changed — Python caches the module; restart even if
+  you already restarted for the first version).
+
+- **[2026-07-18] (Claude)** — **NEW: /progress dashboard.** A page over the master
+  `CHANGELOG.md` that separates velocity from advancement. Renders (1) measurable
+  **goal cards** per project (MNIST complete 0.9909; CIFAR 0.7111→0.75; ResNet
+  0.948→0.95; LM 69%→ceiling) from editable `progress_data/goals.json`; (2) a
+  **multi-line chart** — changelog entries per project per day, legend-toggleable;
+  (3) an **impact-weighted timeline** answering "activity ≠ progress": each entry
+  is auto-classified into an impact level (Discovery 5 / Refutation 4 / Validation
+  3 / Architecture 3 / Engineering 1 / Documentation 0.5 / Maintenance 0.3),
+  drawn as stacked daily bars + a weighted-score line; (4) **per-project impact
+  composition** (discovery vs. cleanup share); (5) a computed read-out. New
+  `progress_service.py` (parser + keyword taxonomy), routes `/progress` +
+  `/api/progress/data`, `templates/progress.html`, `static/progress.js` (charts
+  are hand-rolled inline SVG, no external libs). Nav entry (Workspace group) +
+  changelog-modal mapping added. **Flask restart required** to serve the new
+  routes.
+
+- **[2026-07-18] (Claude)** — **THE CRANK (modules 14-16 recipe, ported to
+  V=5000): probe run, tables built, retrain launched.** `lm_crank.py`
+  builds quad (w-3,w-2,w-1), skipA (w-3,w-1), skipB (w-3,w-2) continuation
+  tables from the SAME independent corpus slice as the existing cont
+  tables (30-46MB; disjoint from train/test regions and the module-36
+  judge slice). **PROBE (the gate, run before any retrain): 40.1% of the
+  V5K test set is BLIND to the current tri/bi tables; the new tables
+  answer 62.4% of that blind slice (quad alone 54.3%) - overall table-
+  answerability 59.9% -> 84.9%. Crank justified** (module 14 proceeded on
+  45.9%). Integration: `radial_lm_word.EXTRA_TABLES` extends the bank
+  17,304 -> 27,688 cols (quad + skipA as [vec|prob], skipB vec-only -
+  probe-ranked widths; silent tables contribute zeros, no backoff);
+  checkpoint carries bank="skip5k" and `lm_word_infer` replays the
+  matching bank by flag (old checkpoints unaffected). run() now reports
+  PER-SLICE test metrics (blind vs has-target top-1) so the retrain shows
+  exactly what the tables buy where the probe said they would.
+  `lm_word_infer._build` also gained a CPU-fallback retry on GPU OOM (the
+  fat bank exceeds the local 4080's 16GB; one-time CPU build is slow but
+  lands). Backups: lm_model_word_v5k_base.json / lm_radial_word_v5k_base
+  on both machines. Retrain (lm_word_v5k2.py, max_spaces=1) running on the
+  pod. Probe artifact radial_data/lm_crank_probe.json; tables
+  radial_data/lm_skip5k_tables.pkl.
+
+- **[2026-07-18] (Claude)** — **COHERENCE decode grid (/lm module 36) +
+  deploy: temp 0.7 / top-3 is the new live default (free win on BOTH
+  axes), best-of-8 rerank ships as the page's "polish" checkbox (+0.78
+  nats = 2.2x per-word likelihood at equal topic-hold).** Grid over temp x
+  top-k x best-of with steering fixed at the deployed lam=1.5 evidence-
+  floored config; judged by an INDEPENDENT n-gram model from a corpus
+  slice disjoint from the model's tables and every data region, plus
+  distinct-2 and the module-33 topic judge. The best-of-8 reranker scores
+  candidates with the model's OWN continuation tables - no metric grades
+  its own selection.
+  ```
+  config                    judge     d2      hold
+  temp=0.9 top5 (was live)  -9.196    0.995   0.812
+  temp=0.7 top3             -8.980    0.992   0.875   <- new default
+  temp=0.7 top3 best-of-8   -8.418    0.997   0.812   <- polish mode
+  ```
+  distinct-2 >= 0.99 everywhere (no repetition regression). Deploy:
+  lm_word_infer.complete defaults temp 0.7 / topk 3 / best_of param
+  (capped 8), decode refactored into seeded _gen + cont-table rerank;
+  route passes topk/best; page gains the polish checkbox (tooltip states
+  the ~8x latency). Export kid_coherence.json + module 36; run
+  `runs/lm/20260718-014439-lm-coherence-1ce075`; logs shadowed. Same pending Flask restart.
+  **Goal ledger after modules 32-36:** topic-hold solved (0.875 default /
+  1.0 at lam=2), vocabulary solved (V=5000), coherence measurably improved
+  at the decode ceiling - the remaining gap to fluent sentences is the
+  LOCAL MODEL itself (0.295 top-1 next-word), which is a training lever,
+  not a decode one.
+
+- **[2026-07-18] (Claude)** — **EVIDENCE FLOOR on steering (/lm module 35):
+  topic-hold 16/16 at lam=2 - the first PERFECT hold in the line - and the
+  live default moves to lam=1.5 (hold 0.875).** Module 34's tail-noise
+  diagnosis turned into a rule: a target word keeps its steering bonus
+  ONLY if the topic model actually experienced it (>=3 occurrences in the
+  topic-stream TRAIN articles; 2860/5000 targets survive - aubrey/kathryn/
+  freddy/otis/stab zeroed, oxygen 305/jury 335/orchestra 151 kept). The
+  judge stays on the DISJOINT test articles: the filter cannot grade
+  itself.
+  ```
+  lam           0.0    0.5    1.0    1.5    2.0
+  hold (ev)     0.125  0.562  0.750  0.875  1.000
+  hold (raw)    0.125  0.500  0.562  0.688  0.750
+  sanity (ev)   0.260  0.258  0.225  0.185  0.163
+  sanity (raw)  0.260  0.218  0.155  0.105  0.073
+  ```
+  Better hold at EVERY lambda, roughly half the coherence cost. lam=1.5
+  samples are the line's best - dense topical vocabulary (oxygen/reaction/
+  chemical/gas, wine/bread/chocolate/cooking/dishes, football/club/
+  matches/medal, galaxy/stars), zero name attractors, zero loops. Live
+  autocomplete default set to lam=1.5 (lm_word_infer + route). Export
+  kid_steer_ev.json + module 35 (breakdown pairs both curves); run
+  `runs/lm/20260718-013250-lm-steer-ev-beeaa8`; logs shadowed. English remains fragmented
+  corpus register - the open lever is COHERENCE (local model / decode),
+  not vocabulary or steering, which this closes out. Same pending Flask
+  restart.
+
+- **[2026-07-18] (Claude)** — **LIVE /lm autocomplete now HOLDS TOPIC
+  (steering wired into the product).** `lm_word_infer.complete` gained
+  steer='auto'|'off' and lam (default 1.0): on 'auto' the persistence
+  topic state classifies the prompt and, ONLY when confident (top prob >=
+  0.30 - a generic prompt gets no topic forced onto it), adds the
+  evidence-floored per-target topic bonus to the logits before top-5, with
+  the module-33 decode fixes (no bonus for emitted words, lam-scaled
+  16-word repetition penalty). Steering assets build lazily once per
+  process and degrade gracefully: any failure = plain autocomplete, never
+  a broken endpoint. Route passes steer/lam through; the page gained a
+  "hold topic" checkbox (on by default) and annotates each completion with
+  the detected topic + confidence ("# topic: chemistry (0.74)") or "# no
+  confident topic". Verified locally: chem prompt -> chemistry 0.739
+  (steers), generic errand prompt -> 0.204 (gate holds, no steer);
+  evidence floor keeps 2860/5000 targets. Inline JS node --check'ed; all
+  files syntax-clean. Rides the SAME pending Flask restart (lm_word_infer
+  + app.py are code; the template part is live on refresh but the steer
+  param does nothing until the restart).
+
+- **[2026-07-18] (Claude)** — **/lm LIVE module: build-status flicker fixed
+  + real ETA.** The user hit Complete while the one-time model build was
+  running and the status line ping-ponged every 3s ("completing…" ->
+  "building from the checkpoint… building banks") because the poll retry
+  re-entered go() and re-stamped the pre-fetch text each cycle. Fix
+  (templates/lm.html): retries pass isRetry so "completing…" is only shown
+  on the user's actual click, and the building line is ONE stable message
+  with elapsed seconds. Plus a real ETA: lm_word_infer now stamps a rough
+  completed-fraction per build stage (loading 2%, tables 5%, banks 15%,
+  replay 78%, head 90%) and the building response carries elapsed/eta;
+  the page shows "~N min left" when present and falls back to its own
+  elapsed counter + a static "~3-6 min" when the server predates the
+  change. Inline JS node --check'ed. NOTE: the template fix is live on
+  page refresh; the server-side ETA fields ride the SAME pending Flask
+  restart as the kid_* whitelist (lm_word_infer is imported lazily by the
+  running process). V5K build note: the one-time build is genuinely
+  minutes long now - the flicker made it look hung; it never was.
+
+- **[2026-07-18] (Claude)** — **V=5000 WORD GENERATOR retrained + steering
+  sweep (/lm module 34): the vocabulary bottleneck is FIXED - and the
+  bottleneck moved to tail noise.** The user's call ("crank the V to 5K").
+  `lm_word_v5k.py`: same pipeline, W=16, 150k windows, top-5000 targets
+  (94.6% train-token coverage), max_spaces=1 (space 0 froze 5 genomes at
+  +0.0000 across every attempt - the model is anchor+head, exactly the
+  deployed V=2000 shape). **Generator: TEST top-1 0.2949 / top-5 0.5401 vs
+  its trigram baseline 0.175** - V=2000's accuracy held on a 2.5x harder
+  question, +69% over trigram. Steering re-run unchanged (S matrix now
+  5000x8):
+  ```
+  lambda      0.0     0.5     1.0     1.5     2.0
+  topic-hold  0.125   0.500   0.562   0.688   0.750
+  next-word   0.2600  0.2175  0.1550  0.1050  0.0725
+  ```
+  **The samples are the result, not the headline curve:** module 33's worst
+  topic (chemistry - nothing to emit but "energy") now generates "acid and
+  lonely she was oxygen anyway ... the ll reaction" and holds 2/2 at
+  lam=1.0; music emits piano/opera/jazz/orchestra, football emits
+  football/matches/medal/team, astronomy galaxy/stars. **The cost:** the
+  top-5000 tail carries proper names (aubrey/kathryn/freddy/otis) whose
+  ~30-examples-per-class logits and topic scores are noise - "aubrey fight
+  aubrey run aubrey" killed both law prompts, and sanity falls faster than
+  at V=2000 (steering z-scores over a fatter tail). Hold headline ~matches
+  module 33 (0.75 vs 0.81) because the failure mode swapped, not because
+  nothing improved. Next levers: frequency/topic-sharpness floor on the
+  steering scores; stronger local model. **Three pod crashes root-caused
+  and fixed in core en route** (separate entries below): scorer cube
+  chunking, lazy attend substrate, in-place jitter for non-PSD grams - the
+  run was 92GB resident at V=5000 before them. **V5K checkpoint DEPLOYED
+  locally** (lm_model_word.json + lm_word.npz; the live /lm autocomplete
+  builds from it on next use; backups lm_model_word_v2000.json /
+  lm_word_v2000_backup.npz on both machines). Export kid_steer5k.json +
+  module 34; run `runs/lm/20260718-010506-lm-v5k-0426e0`; logs shadowed to
+  runpod_shadow/genreg-lm/. Same pending Flask restart covers the module.
+
+- **[2026-07-18] (Claude)** — **VIDEO: script-to-slides workflow + pose position persistence.** Reworked the /video slideshow builder ([static/slideshow.js](file:///C:/Users/paytonm/Documents/GENREG/static/slideshow.js), [templates/video.html](file:///C:/Users/paytonm/Documents/GENREG/templates/video.html)). (1) **Assets stay put between frames** — "Add Slide" now inherits the previous slide's pose AND chart with their exact `pose_x/pose_y`/`chart_x/chart_y` position + alignment (replaces the fiddly onion-skin "+" carry-over as the default); added **"Apply this pose/chart + position to all slides"** buttons in the slide editor to lock one placement across the whole deck. (2) New **Script** tab: paste the entire narration into one block; highlight a sentence and click **Highlight → new slide(s)** to append it as the next slide's caption in order, or **Highlight → selected slide caption** to set the current slide. (3) **Span** input makes one highlighted line fill N consecutive slides (caption stays on multiple scenes while poses/charts change). (4) **Auto-split** the whole script into slides by sentence / line / paragraph, append or replace. Script text persists in localStorage. Pure frontend — the Python renderer already honors per-slide positions, so export matches preview. No Flask restart required (static assets hot-loaded).
+
+- **[2026-07-17] (Antigravity)** — **Generated Transparent Happy Anime Pose.** Used diffusion model reference mapping to generate a new happy anime character pose. Post-processed the image using a Pillow Python script to extract background pixels to transparency, saving the result directly to the user's poses library folder at `C:\Users\paytonm\Pictures\poses\happy_pose_anime.png`.
+
+- **[2026-07-17] (Antigravity)** — **Implemented Drag-and-Drop Positioning for Poses & Charts.** Enabled real-time PointerEvent dragging on the preview stage inside [static/slideshow.js](file:///C:/Users/paytonm/Documents/GENREG/static/slideshow.js) to dynamically reposition poses and charts. Integrated custom `pose_x`, `pose_y`, `chart_x`, and `chart_y` attributes in the client SVG generator, the onion-skin overlay positioning, and the python FFmpeg video renderer in [anim_service.py](file:///C:/Users/paytonm/Documents/GENREG/anim_service.py). No Flask restart is required since code is hot-loaded.
+
+- **[2026-07-17] (Antigravity)** — **Added Onion Skinning & Asset Carry-over.** Configured new slides to start blank but show translucent ghost overlays (onion layers) of the previous slide's pose and chart assets in [static/slideshow.js](file:///C:/Users/paytonm/Documents/GENREG/static/slideshow.js). Overlaid interactive green plus buttons (+) centered over the ghosts; clicking a button carries the asset over to the new slide. No Flask restart is required since code is hot-loaded.
+
+- **[2026-07-17] (Antigravity)** — **Added Hover Zoom Previews to Slide Editor.** Integrated viewport-aware floating preview overlays in [static/slideshow.js](file:///C:/Users/paytonm/Documents/GENREG/static/slideshow.js) that pop up on hover over pose or chart cards in the Media Library or over the selected slide's thumbnails in the edit form. Overwrote [templates/video.html](file:///C:/Users/paytonm/Documents/GENREG/templates/video.html) to render mini-preview thumbnails and absolute preview container markup. No Flask restart is required since code is hot-loaded.
+
+- **[2026-07-17] (Antigravity)** — **Added Gemini Terminal Tab Launcher.** Appended a "Gemini" button to the termdock action bar in [static/termdock.js](file:///C:/Users/paytonm/Documents/GENREG/static/termdock.js). Wired [static/app.js](file:///C:/Users/paytonm/Documents/GENREG/static/app.js) to trigger a new terminal tab titled "Gemini" and type the `agy` CLI command into it once the PowerShell shell prompt appears. No Flask restart is required since code is hot-loaded.
+
+- **[2026-07-17] (Antigravity)** — **Added Slide Transition Speed & Restored Terminal Docks.** Restored the standard `xterm` script imports and stylesheets at the bottom of [templates/video.html](file:///C:/Users/paytonm/Documents/GENREG/templates/video.html). Added a Transition Duration input field next to the slide transition type dropdown. Updated [static/slideshow.js](file:///C:/Users/paytonm/Documents/GENREG/static/slideshow.js) to dynamically hide/show the transition speed container, read/write custom transition speeds, and incorporate the custom `transition_dur` in the client-side crossfade render preview. No Flask restart is required since code is hot-loaded.
+
+- **[2026-07-18] (Claude)** — **radial_evo2.make_scorer: non-PSD fallback
+  no longer re-grams in fp64 first.** V5K attempt 3 got through the anchor
+  (embed ridge val 0.2630 / test 0.2950 - in the predicted band) and space
+  0 (5 genomes), then died at space 1: the fp32 gram of the 17k-column
+  base (one-hot identity + prob blocks at V=5000) is numerically non-PSD,
+  and the old fallback - a full fp64 copy of Bfz (16GB+) - OOMed. New
+  order: escalating IN-PLACE diagonal jitter on the existing fp64 gram
+  (10/100/1000x lam, memory-free - equivalent to a stronger ridge on the
+  evolution scorer, and only on bases whose fp32 gram is already broken),
+  with the fp64 re-gram kept as the last resort for small bases. Attempt 4
+  running. No Flask restart.
+
+- **[2026-07-18] (Claude)** — **radial_lm_word.run(): the attend-genome
+  substrate is now built ONLY in lean mode.** Second V5K OOM root-caused:
+  the non-lean path built ss_tr/ss_te (W x (N, V) half = 24GB at V=5000)
+  that ONLY `_run_lean` ever reads - the pod sat at 91GB resident holding
+  a substrate the run never touches (`lm_word_infer` has no attend replay
+  branch either, so the deployed non-lean model provably never froze an
+  attend genome). Non-lean also now frees the raw continuation blocks
+  after B0 is built (-3.9GB). Lean behavior unchanged. V5K attempt 3
+  running with both memory fixes; projected peak ~40GB of 96GB. No Flask
+  restart.
+
+- **[2026-07-18] (Claude)** — **radial_evo2.make_scorer: the incremental
+  score cube (K, n_val, n_classes) is now CHUNKED over the candidate axis
+  K.** One piece was 35.8GB at V=5000 classes (the lm-word V5K retrain
+  OOMed the 96GB pod in round 0) where the original 10-class tasks needed
+  ~100MB. Chunk size targets ~2GB; the loop is EXACT - same soft/acc
+  numbers, lower peak - so no result anywhere changes. V5K retrain
+  relaunched behind it with PYTORCH_CUDA_ALLOC_CONF=expandable_segments
+  (the pod sat at 82GB resident from the V-scaled attend substrate, so
+  fragmentation headroom matters). No Flask restart.
+
+- **[2026-07-17] (Antigravity)** — **Re-configured Video Studio to a Slide Explainer Builder.** Replaced vector puppet rigs on `/video` with an image-based Slide presentation editor. Created [static/slideshow.js](file:///C:/Users/paytonm/Documents/GENREG/static/slideshow.js) to manage localstorage slide decks, preview SVG frames (combining background colors, streaming poses, uploaded embeds/charts, and captioned CC text), and drive timeline play/scrub controls. Appended `/api/poses` (serving assets from `C:\Users\paytonm\Pictures\poses`), `/api/charts` (listing embeds), and `/api/video/render_slides` routes to [app.py](file:///C:/Users/paytonm/Documents/GENREG/app.py). Appended base64 image encoders and frame-by-frame SVG compilers supporting fade transitions to [anim_service.py](file:///C:/Users/paytonm/Documents/GENREG/anim_service.py). Overwrote [templates/video.html](file:///C:/Users/paytonm/Documents/GENREG/templates/video.html) with a slide editor workspace. No Flask restart is required since code is hot-loaded.
+
+- **[2026-07-17] (Antigravity)** — **Implemented Front-Facing Torso & Limb Geometry for Humanoids.** Upgraded [anim_service.py](file:///C:/Users/paytonm/Documents/GENREG/anim_service.py) and [static/animrig.js](file:///C:/Users/paytonm/Documents/GENREG/static/animrig.js) to support complete front-facing body rendering in `rig_svg` / `rigSVG` when `facing == "front"`. Broadens the torso capsule (1.3x width), dynamically centers and scales torso clothing layers (vest, shirt, labcoat, badge), spaces limbs symmetrically, and updates layering order to render the left arm in front of the torso. No Flask restart is required since code is hot-loaded.
+
+- **[2026-07-18] (Claude)** — **TOPIC-STEERED GENERATION (/lm module 33):
+  the persistence topic state drives the live generator's word choice -
+  topic-hold 0.125 -> 0.81, and at lambda=0.5 the gain is FREE (zero
+  next-word cost).** First generation-side step toward the standing goal (a
+  model that responds and HOLDS THE TOPIC). Composition of two frozen
+  models, no retraining: the live autocomplete checkpoint (lm_model_word,
+  W=16, V=2000) + the module-32 persistence topic model. Because the topic
+  head is LINEAR over accumulated detector responses, every target word has
+  a fixed per-topic contribution; the prompt's accumulated state picks the
+  topic and lambda*z(contribution) is added to the logits BEFORE top-5
+  selection, so topical words enter a candidate pool that local statistics
+  never surface. `topic_steer.py`, run on the fresh RunPod (Blackwell 96GB):
+  ```
+  lambda      0.0     0.5     1.0     1.5     2.0
+  topic-hold  0.125   0.438   0.562   0.688   0.812   (16 prompts)
+  next-word   0.3225  0.3250  0.2875  0.2375  0.1975  (400 held-out windows)
+  ```
+  **Topic state: 16/16 prompts correctly classified** by the accumulated
+  persistence state before a single word was generated. **Judge honesty:**
+  topic-hold is scored by an add-alpha content-word log-odds judge built
+  from the topics' HELD-OUT test articles - corpus counts, independent of
+  the steering model, so steering cannot grade itself. **Decode fixes that
+  made lambda>1 usable** (first smoke degenerated into "wine wine wine
+  wine"): the steering bonus is ZEROED for already-emitted words (steer
+  toward NEW topical words) and the repetition penalty scales with lambda
+  so steering cannot outbid it; temp 0.9. **HONEST:** the unsteered base
+  generator is topic-blind (0.125 = chance) and its English is fragmented
+  movie-dialogue register; steering weaves real topical vocabulary in
+  ("river it s ocean ... sea level so we can t miles from here", "match
+  paul you re games theory ... team game") but this is not yet fluent
+  prose. The measured bottleneck is the V=2000 dialogue-heavy TARGET vocab:
+  chemistry holds worst because the emit list contains almost no chemistry
+  words (best available: energy). Next lever: a topical target vocabulary
+  (retrain the word model with topic-weighted targets or a bigger V).
+  Smoke ran locally first (caught the degeneracy); full sweep on the pod
+  after the user posted fresh SSH (wiki dump stays local, so the judge's
+  counts ship as `radial_data/topic_judge_counts.json`). Artifacts:
+  `topic_steer.py`, export `kid_steer.json` (module 33, breakdown cols =
+  hold | next-word), `kid_plang_model.json` (the saved ACCUM topic model:
+  persistence_lang.py now persists genomes + closed-form head + norm stats;
+  deterministic re-run reproduced 0.6109 exactly), run
+  `runs/lm/20260718-001011-lm-steer-9579fc`, results shadowed to
+  `runpod_shadow/genreg-lm/`. Covered by the SAME pending Flask restart
+  (kid_* whitelist); no new restart needed.
+
+- **[2026-07-17] (Antigravity)** — **Added new character variations, environmental objects, and pose verbs to Video Studio.** Modified [anim_service.py](file:///C:/Users/paytonm/Documents/GENREG/anim_service.py) to support 4 new character archetypes (`scientist` with lab coat, `professor` with vest and custom gray hair, `robot` with chassis plate and custom skin, `cyborg` with metallic mask and glowing eye) and 6 new objects (`skyline`, `street`, `house`, `skyscraper`, `lab_building`, `server_rack`). Implemented 4 new reusable animation verbs (`present`, `explain`, `think`, `code`) and separated `walk` into 4 directional walk/climb verbs (`walk_right`, `walk_left`, `walk_up_stairs_right`, `walk_up_stairs_left`) on the backend (`actor_state`) and frontend ([static/animrig.js](file:///C:/Users/paytonm/Documents/GENREG/static/animrig.js)). Added a new `face` action verb and default `facing` actor properties to dynamically render front-facing head geometry (symmetrical eyes, nose path, centered mouth, and accessory layers). Registered verb schemas and added Stage preview test buttons to [static/animstudio.js](file:///C:/Users/paytonm/Documents/GENREG/static/animstudio.js) and [templates/video.html](file:///C:/Users/paytonm/Documents/GENREG/templates/video.html). No Flask restart is required since code is hot-loaded.
+
+- **[2026-07-17] (Antigravity)** — **Added Developer Notes Pad Modal.** Created [static/notes.js](file:///C:/Users/paytonm/Documents/GENREG/static/notes.js) and styled in [static/style.css](file:///C:/Users/paytonm/Documents/GENREG/static/style.css) to build a persistent, cross-project dev notes modal. Injected `✎ Notes` in the navbar, allowing user-typed developer notes scope-filtered by Current Project, Global (All Pages), or All, with theme-colored badges and Ctrl+Enter submit hotkey. Appended dynamic script injection to [static/app.js](file:///C:/Users/paytonm/Documents/GENREG/static/app.js) with a cache-busting query parameter to ensure fresh script updates run workspace-wide. Fixed close/open reference bug on DOM-cached overlay.
+
+- **[2026-07-17] (Antigravity)** — **Implemented 10 QoL Enhancements across GENREG UI/UX.** Redesigned the floating Agent panel to use a flag dropdown indicator on the navbar (`⚑`) with temporary self-dismissing toast notifications. Added collapsible sidebars (`◀` / `▶` tabs) to the main build page, localstorage search/filter/sort state persistence on Runs and Docs dashboards, parameter search filtering in the Run Config panel, Shift+Arrow tab reordering for terminal tabs, a Presets terminal quick-command popover, bidirectional scroll snap controls (`▲ top / newest ▼`) on iteration logs, keyboard-arrow dropdown menu navigation, left-click project assignment on tab labels, and a side-by-side config diff comparer in the Runs dashboard.
+
+- **[2026-07-17] (Antigravity)** — **Added UI/UX Developer Reference Guide.** Created [documentation/UIUX_README.md](file:///C:/Users/paytonm/Documents/GENREG/documentation/UIUX_README.md) to serve as a single reference manual for frontend layouts, styling tokens, xterm.js terminal dock project-tagging, floating notices/run-config panels, and page boilerplates.
+
+- **[2026-07-17] (Claude)** — **PERSISTENCE ON LANGUAGE: the operator
+  TRANSFERS. Topic identity from a 12-word window: 0.2247 (single word) ->
+  0.4871 (raw-space accumulate) -> 0.6109 (feature-space accumulate) - the
+  exact letters ordering (module 31), and this time evolution EARNS over
+  every anchor.** /lm module 32.
+  The language analog of the corrupted-letter views: the recurring signal is
+  the TOPIC - every word of a window is one noisy view of it; topical words
+  fire a topic-detector wherever they land, function words are the
+  corruption. Data: `build_topic_stream.py` - 8 Wikipedia topics x 8 articles
+  each, fetched from the LOCAL dump via zetifile, W=12 in-vocab words per
+  window as embed_rs vectors (30k/128d), 14,131 train / 5,256 test windows.
+  **TEST = windows from articles never seen in training** (article-disjoint,
+  6 train / 2 test per topic), so the question is the topic, not document
+  memorization. `persistence_lang.py` - same vec-genome detectors, same
+  budget, genome-only readout, chance 0.125:
+  ```
+  arm                                   test     anchor (ridge, no genomes)
+  SINGLE   one word (middle)           0.2247    0.2293 (single-word vec)
+  VECMEAN  mean embed vector           0.4871    0.4815 (mean vec - strongest)
+  ACCUM    detector responses over W   0.6109    0.4463 (concat W*D - fat)
+  ```
+  **(1) The letters result reproduces on language:** accumulate in the RAW
+  space and you get the pixel-mean analog (0.4871); accumulate DETECTOR
+  RESPONSES and you recover what no single view carries (0.6109, 631
+  genomes). **(2) Evolution earns - this is not a table readout:** ACCUM
+  beats the strongest linear anchor by +13 points (0.6109 vs 0.4815) and the
+  fat concat anchor by +16. The embed table is present in every arm, so per
+  the suppression law the gain is real composition, not lookup. **(3)
+  Position HURTS (concat anchor 0.4463 < mean anchor 0.4815):** the task is
+  order-invariant - exactly the regime the persistence operator owns, the
+  complement of the transition arc where position was the cheat. Consistent
+  with SINGLE/VECMEAN matching their anchors (a linear read of one
+  vector/mean is near-sufficient at that information budget) while only
+  accumulation-of-responses exceeds its own.
+  Caveats, stated: topics are 8 hand-picked, well-separated Wikipedia
+  subjects - this measures the operator, not hard topic ID; a few titles
+  yielded near-empty text (Criminal law/Constitution/Music: 2 windows -
+  template-heavy pages), law topic has 1,110 train windows vs ~2,000 others.
+  Export `kid_plang.json` + registry module 32 (renders via the breakdown
+  mechanism; anchor bar = mean-vec ridge, test-side). Run recorded at
+  `runs/lm/20260717-232734-lm-plang-6fe949`. Local 4080, 43s, exit clean.
+  **No NEW Flask restart needed** - kid_plang.json is covered by the same
+  pending `kid_*` whitelist restart from 2026-07-17; module 32 will 404
+  alongside the others until that one restart happens.
+
 - **[2026-07-18] (Claude)** — **/cifar + /mnist pages rebuilt to the radial
   seed-stack (NEEDS FLASK RESTART).** Both pages now headline the radial seed-stack
   (tiles + a ladder card fed by new `/api/cifar/radial` and `/api/mnist/radial`
