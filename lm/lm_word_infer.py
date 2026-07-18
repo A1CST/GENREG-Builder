@@ -83,7 +83,9 @@ def _build():
     # bank (27.7k cols x 150k rows) exceeds the local 4080 and its CPU
     # fallback takes an hour+; loading the pack takes seconds.
     sig = {"W": W, "V": V, "bank": ckpt.get("bank", "base"),
-           "spaces": [len(sp) for sp in ckpt["spaces"]]}
+           "spaces": [len(sp) for sp in ckpt["spaces"]],
+           "cont_pkl": ckpt.get("cont_pkl") or "lm_cont_tables.pkl",
+           "skip_pkl": ckpt.get("skip_pkl")}
     pack = None
     pack_path = os.path.join(_HERE, "radial_data", "lm_infer_pack.pt")
     if os.path.exists(pack_path):
@@ -113,8 +115,8 @@ def _build():
 
     _stage("loading continuation tables", 0.05)
     import pickle
-    with open(os.path.join(_HERE, "radial_data", "lm_cont_tables.pkl"),
-              "rb") as f:
+    cont_pkl = ckpt.get("cont_pkl") or "lm_cont_tables.pkl"
+    with open(os.path.join(_HERE, "radial_data", cont_pkl), "rb") as f:
         uni_c, bi_c, tri_c = pickle.load(f)
 
     def _cont_vec(dist):
@@ -139,8 +141,10 @@ def _build():
     _uni_vec, _uni_prob = _cont_vec(uni_c), _cont_prob(uni_c)
     extra = ckpt.get("bank") == "skip5k"   # module-36+ crank bank
     if extra:
-        from lm_crank import build_tables
-        quad_t, skipA_t, skipB_t = build_tables()
+        import lm_crank
+        if ckpt.get("skip_pkl"):
+            lm_crank.SKIP_PKL = ckpt["skip_pkl"]
+        quad_t, skipA_t, skipB_t = lm_crank.build_tables()
         N_EXTRA = 2 * (D + V) + D
     else:
         quad_t = skipA_t = skipB_t = None

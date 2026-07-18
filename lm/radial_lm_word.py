@@ -40,6 +40,13 @@ FEATS = os.path.join(_HERE, "corpora", "wikipedia", "wiki_feats.npz")
 W = 6                                    # context words per window
 V = 500                                  # prediction vocabulary (top-V)
 D = 128                                  # embedding dims
+TRAIN_MB = 8.0                           # window-region size (module-40+:
+TEST_MB = 2.0                            # the wiki prose crank scales these)
+TBL_PKL = "lm_cont_tables.pkl"           # cont-table cache + its source
+TBL_SEEK = 30_000_000                    # slice (disjoint from regions)
+TBL_MB = 16
+TBL_TOPK = 0                             # >0: keep only top-K continuations
+                                         # per key (RAM control at 150MB+)
 EXTRA_TABLES = False                     # module-36+ crank: quad + skip
                                          # continuation blocks in the bank
                                          # (lm_crank.py tables; checkpoint
@@ -67,7 +74,7 @@ def make_word_data(n_train=60000, n_test=8000, seed=0,
     rng = np.random.default_rng(seed)
     vocab, feat, freq = _load_embed()
     w2i = {w: i for i, w in enumerate(vocab)}
-    train_text, test_text = _load_regions(train_mb=8.0, test_mb=2.0)
+    train_text, test_text = _load_regions(train_mb=TRAIN_MB, test_mb=TEST_MB)
     tr_tok, te_tok = _tokens(train_text), _tokens(test_text)
 
     # top-V target vocabulary by TRAIN-REGION frequency (not global wiki)
@@ -109,7 +116,7 @@ def make_word_data(n_train=60000, n_test=8000, seed=0,
 def word_ngram_baselines(ctx_words_te, y_te, targets):
     """Word unigram/bigram/trigram with backoff, fit on the train region.
     ctx_words_te: (n, W) arrays of the actual context WORD STRINGS."""
-    train_text, _ = _load_regions(train_mb=8.0, test_mb=2.0)
+    train_text, _ = _load_regions(train_mb=TRAIN_MB, test_mb=TEST_MB)
     toks = _tokens(train_text)
     uni, bi, tri = {}, {}, {}
     for i in range(len(toks) - 2):
@@ -234,7 +241,7 @@ def run(pop_size=64, gens=12, max_rounds=400, seed=5, max_spaces=16,
     # independent of the training windows AND the test region — otherwise
     # val leaks through the tables and evolution's fitness compass chases
     # memorization (run 4: val +1.5pt genome gain, test +0.2).
-    tbl_pkl = os.path.join(_HERE, "radial_data", "lm_cont_tables.pkl")
+    tbl_pkl = os.path.join(_HERE, "radial_data", TBL_PKL)
     if os.path.exists(tbl_pkl):
         import pickle
         with open(tbl_pkl, "rb") as fh:
@@ -243,8 +250,8 @@ def run(pop_size=64, gens=12, max_rounds=400, seed=5, max_spaces=16,
         with open(os.path.join(_HERE, "corpora", "combined",
                                "combined_corpus.txt"), "r",
                   encoding="utf-8", errors="ignore") as fh:
-            fh.seek(30_000_000)          # past the window + test regions
-            table_text = _clean(fh.read(16_000_000))
+            fh.seek(TBL_SEEK)            # past the window + test regions
+            table_text = _clean(fh.read(int(TBL_MB * 1_000_000)))
         toks = _tokens(table_text)
         uni_c, bi_c, tri_c = {}, {}, {}
         for i in range(len(toks) - 2):
@@ -254,6 +261,13 @@ def run(pop_size=64, gens=12, max_rounds=400, seed=5, max_spaces=16,
             key = (toks[i], toks[i + 1])
             tri_c.setdefault(key, {})
             tri_c[key][toks[i + 2]] = tri_c[key].get(toks[i + 2], 0) + 1
+        if TBL_TOPK:
+            for d_ in (bi_c, tri_c):
+                for k_ in d_:
+                    v_ = d_[k_]
+                    if len(v_) > TBL_TOPK:
+                        d_[k_] = dict(sorted(v_.items(), key=lambda x: x[1],
+                                             reverse=True)[:TBL_TOPK])
         import pickle
         with open(tbl_pkl, "wb") as fh:
             pickle.dump((uni_c, bi_c, tri_c), fh)
@@ -743,7 +757,10 @@ def run(pop_size=64, gens=12, max_rounds=400, seed=5, max_spaces=16,
         json.dump(out, f, indent=1)
     model = {"context_words": W, "vocab": V, "spaces": space_genomes,
              "label": "next-word", "input": "wiki-svd-embeddings",
-             "bank": "skip5k" if EXTRA_TABLES else "base"}
+             "bank": "skip5k" if EXTRA_TABLES else "base",
+             "cont_pkl": TBL_PKL,
+             "skip_pkl": __import__("lm_crank").SKIP_PKL if EXTRA_TABLES
+             else None}
     with open(os.path.join(_HERE, "radial_data", "lm_model_word.json"), "w") as f:
         json.dump(model, f)
     rk._record_run(
