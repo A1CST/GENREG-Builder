@@ -381,7 +381,23 @@ def _build():
         return float(np.mean([lp(words[i], words[i + 1], words[i + 2])
                               for i in range(len(words) - 2)]))
 
-    _M.update(cont_score=_cont_score)
+    def _table_support(w0, w1, w2, n_each=20):
+        """Target-vocab words the continuation tables expect after this
+        3-word context - the fluent manifold for the merit-pool decode."""
+        sup = set()
+        dicts = [tri_c.get((w1, w2)), bi_c.get(w2)]
+        if extra:
+            dicts += [quad_t.get((w0, w1, w2)), skipA_t.get((w0, w2)),
+                      skipB_t.get((w0, w1))]
+        for d in dicts:
+            if d:
+                for w in sorted(d, key=d.get, reverse=True)[:n_each]:
+                    k = tgt_i.get(w)
+                    if k is not None:
+                        sup.add(k)
+        return sup
+
+    _M.update(cont_score=_cont_score, table_support=_table_support)
     _M.update(step=_step_logits, torch=torch, w2i=w2i, targets=targets,
               tgt_i=tgt_i, W=W, V=V, s_cal=s_cal, val_acc=val_acc,
               genome_params=genome_params, head_params=head_params,
@@ -426,15 +442,28 @@ def _steer_assets():
         tm, responses, topic_probs, hm, hs, Wm = load_topic_model(torch, dev)
         S = target_topic_scores(torch, dev, responses, hm, hs, Wm,
                                 _M["targets"], evidence=load_evidence())
+
+        def tscore(words, t_star):
+            """Topic head logit over a word list - the hybrid reranker's
+            topic term."""
+            r = responses(words)
+            if r is None:
+                return 0.0
+            acc = r.mean(0, keepdim=True)
+            lg = torch.hstack([(acc - hm) / hs,
+                               torch.ones(1, 1, device=dev)]) @ Wm
+            return float(lg[0, t_star])
+
         _STEER.update(ready=True, S=S.cpu().numpy().astype(np.float64),
-                      topics=tm["topics"], topic_probs=topic_probs)
+                      topics=tm["topics"], topic_probs=topic_probs,
+                      tscore=tscore)
     except Exception as exc:            # steering is optional - never break
         _STEER.update(failed=True, error=str(exc))   # plain autocomplete
     return _STEER
 
 
-def complete(prompt, n_words=24, temp=0.9, seed=None, steer="auto", lam=1.5,
-             topk=5, best_of=1):
+def complete(prompt, n_words=24, temp=0.7, seed=None, steer="auto", lam=1.5,
+             topk=3, best_of=1):
     """Autocomplete `prompt` with the latest word checkpoint.
 
     steer: 'auto' (default) steers word choice toward the prompt's topic
@@ -479,8 +508,13 @@ def complete(prompt, n_words=24, temp=0.9, seed=None, steer="auto", lam=1.5,
                     t_name, t_p = sa["topics"][t_star], round(pm, 3)
 
     def _gen(sd):
+        """Merit-pool decode (module 38): candidates = (model top-10 that
+        the continuation tables support) UNION (strong topic words the
+        model rates in its top-25), ranked by the steered logits - fluency
+        stays table-anchored, topic words compete on merit."""
         rng = np.random.default_rng(sd)
         win = list(win0)
+        ctx_words = list(words)
         out_words = []
         for _ in range(max(1, min(60, int(n_words)))):
             lg = _M["step"](win).detach().cpu().numpy().astype(np.float64)
@@ -497,21 +531,43 @@ def complete(prompt, n_words=24, temp=0.9, seed=None, steer="auto", lam=1.5,
                 kr = _M["tgt_i"].get(wd)
                 if kr is not None:
                     lg[kr] -= rep
-            top = np.argsort(lg)[-topk:]
-            z = lg[top] - lg[top].max()
-            p = np.exp(z)
-            p /= p.sum()
-            k = int(rng.choice(top, p=p))
+            order = np.argsort(lg)
+            c3 = ctx_words[-3:] if len(ctx_words) >= 3 else \
+                [None] * (3 - len(ctx_words)) + ctx_words
+            sup = _M["table_support"](c3[0], c3[1], c3[2])
+            pool = [int(k) for k in order[-10:] if k in sup]
+            if t_star is not None:
+                Scol = _STEER["S"][:, t_star]
+                pool += [int(k) for k in order[-25:]
+                         if Scol[k] > 2.0 and int(k) not in pool
+                         and _M["targets"][k] not in out_words]
+            top = (np.array(sorted(pool, key=lambda k: lg[k])[-topk:])
+                   if pool else order[-3:])
+            if len(top) == 1:
+                k = int(top[0])
+            else:
+                z = lg[top] - lg[top].max()
+                p = np.exp(z)
+                p /= p.sum()
+                k = int(rng.choice(top, p=p))
             out_words.append(_M["targets"][k])
+            ctx_words.append(_M["targets"][k])
             win = win[1:] + [_M["w2i"].get(_M["targets"][k], -1)]
         return out_words
 
     if best_of == 1:
         out_words = _gen(seed)
-    else:                                     # 'polish': best-of-k rerank
+    else:                                     # 'polish': hybrid best-of-k
         seeds = np.random.default_rng(seed).integers(0, 2**31, best_of)
-        out_words = max((_gen(int(s)) for s in seeds),
-                        key=_M["cont_score"])
+        cands = [_gen(int(s)) for s in seeds]
+        cs = np.array([_M["cont_score"](c) for c in cands])
+        if t_star is not None and _STEER.get("tscore"):
+            ts_ = np.array([_STEER["tscore"](c, t_star) for c in cands])
+            zc = (cs - cs.mean()) / (cs.std() + 1e-9)
+            zt = (ts_ - ts_.mean()) / (ts_.std() + 1e-9)
+            out_words = cands[int(np.argmax(zc + zt))]
+        else:
+            out_words = cands[int(np.argmax(cs))]
     return {"prompt": " ".join(words), "completion": " ".join(out_words),
             "params": {"genome": _M["genome_params"],
                        "head": _M["head_params"],

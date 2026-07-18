@@ -1,0 +1,7 @@
+[steer] evidence floor: 2860/5000 targets keep steering (>= 3 occurrences in train articles)
+[coh5] t0.7 top3 single: judge -8.6661 d2 0.9919 hold 0.6875
+[coh5] t0.7 top3 best8: judge -8.1725 d2 0.9918 hold 0.6875
+[coh5] t0.5 top3 single: judge -8.2629 d2 0.9973 hold 0.5625
+[coh5] t0.5 top3 best8: judge -7.7176 d2 0.9918 hold 0.5625
+COH5 RESULT: [{"tag": "t0.7 top3 single", "temp": 0.7, "topk": 3, "mode": "single", "judge_logprob": -8.6661, "distinct2": 0.9919, "hold": 0.6875}, {"tag": "t0.7 top3 best8", "temp": 0.7, "topk": 3, "mode": "best8", "judge_logprob": -8.1725, "distinct2": 0.9918, "hold": 0.6875}, {"tag": "t0.5 top3 single", "temp": 0.5, "topk": 3, "mode": "single", "judge_logprob": -8.2629, "distinct2": 0.9973, "hold": 0.5625}, {"tag": "t0.5 top3 best8", "temp": 0.5, "topk": 3, "mode": "best8", "judge_logprob": -7.7176, "distinct2": 0.9918, "hold": 0.5625}]
+COH5 DONE

@@ -296,6 +296,14 @@
    "export": "kid_crank.json",
    "title": "37 · THE CRANK: 0.295 → 0.560 top-1, and topic-hold 16/16 now costs 6.5 points instead of 34",
    "desc": "The modules-14-16 recipe at 10x vocabulary. PROBE first: 40.1% of test blind to the tri/bi tables, quad/skip tables answer 62.4% of it (answerable 59.9% -> 84.9%) - crank gated on that number, then run. RETRAIN (bank 17.3k -> 27.7k cols, only lever): TEST 0.2949 -> 0.5601 top-1, 0.5401 -> 0.7753 top-5, 3.2x the trigram baseline; blind slice 0.3123, has-target 0.7262 - the probe's prediction held. V=500 went 0.30 -> 0.57 with this recipe; V=5000 goes 0.29 -> 0.56. RE-MEASURE ON TOP: steering now holds 16/16 at lam=2 for -6.5 points of next-word (0.500 -> 0.435; pre-crank the same hold cost -34); lam=0.5 IMPROVES accuracy. Coherence grid: best-of-8 at temp 0.9/top-5 is the new polish point (judge -8.60, hold 0.81, distinct-2 1.0); low-temp polish now over-suppresses topical words. DEPLOYED: live defaults lam=2.0, temp 0.9, top-5; the checkpoint ships with an INFERENCE PACK (norm stats + solved head, ~600MB) so the local 4080 - which cannot hold the 27.7k-col bank - loads in seconds instead of falling back to an hour-long CPU replay (the \"40-minute ETA\" the live module showed). Three more memory/numerics fixes in core en route. The goal ledger: topic-hold SOLVED at trivial cost, vocabulary solved, base model doubled - the road to fluency is now more context + more tables, the exact axis this crank validated."
+  },
+  {
+   "id": "lm-fluency-frontier",
+   "date": "2026-07-18",
+   "kind": "run",
+   "export": "kid_fluency.json",
+   "title": "38 · THE FLUENCY FRONTIER: merit-pool decode - +1.4 nats over the old live decode at hold 0.69",
+   "desc": "The verdict on module 37 (fluency still garbage) drove four decode rounds that mapped the whole fluency/hold frontier. Round 2: sharp + table-guided decode buys up to +2.7 nats (judge -6.88 vs -9.55) but hold collapses - sharp logits out-compete the steering bonus and the guided pool (continuation-table support) structurally EXCLUDES topic words after dialogue context. Round 3: no rerank can recover hold when no candidate contains topic words. Round 4: positionally privileging topic words overshoots (hold 0.94, judge -10.4). Round 5, the resolution - the MERIT POOL: table-supported words UNION admitted topic words (strong S, model top-25), ALL ranked by the steered logits; hybrid best-of-8 rerank (fluency z + topic z). Deployed: judge -8.17 at hold 0.69, distinct-2 0.99, ~5s per polished completion via the inference pack. Honest frame: this is the decode-frontier OPTIMUM for the current 0.56 model; the frontier itself is a model property - moving it (not sliding along it) needs training-side work (register-matched data / blended-rollout continue-train, the old campaign validated exposure-gap fix). coherence_decode2-5.py."
   }
  ]
 }
