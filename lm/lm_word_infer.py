@@ -401,6 +401,40 @@ def _build():
                         sup.add(k)
         return sup
 
+    def _step_raw(win_ids):
+        """(feature row F1 [cpu], logits) - the demo trace decomposes the
+        head dot-product per bank block from these + _M['head']."""
+        ctx1 = np.array([win_ids], np.int32)
+        B01 = _bank0(ctx1)
+        cols = [B01[0]]
+        if ckpt["spaces"]:
+            r1 = _rows(ctx1)
+            slot_vals = [_san(rk.feature_vec(torch, tp, r1, g)).view(1, W)
+                         for g in ckpt["spaces"][0]]
+            f0 = torch.cat([v.mean(1, keepdim=True) for v in slot_vals], 1)
+            zmu, zsd = space_stats[0]
+            cols.append((((f0 - zmu) / zsd).clamp(-8, 8))[0])
+        F1 = torch.cat(cols).view(1, -1)
+        lg = (torch.hstack([(F1 - hm) / hs,
+                            torch.ones(1, 1, device=dev)]) @ Wm)[0]
+        return F1[0].cpu(), lg
+
+    n_gen_ = len(ckpt["spaces"][0]) if ckpt["spaces"] else 0
+    _layout = [("embed", 0, W * D), ("id_prev", W * D, W * D + V),
+               ("id_last", W * D + V, W * D + 2 * V)]
+    _c0 = W * D + 2 * V
+    _layout += [("tbl_vec", _c0, _c0 + 2 * D),
+                ("tbl_prob", _c0 + 2 * D, _c0 + 2 * D + V)]
+    if extra:
+        _b = _c0 + 2 * D + V
+        _layout += [("quad_vec", _b, _b + D), ("quad_prob", _b + D, _b + D + V),
+                    ("skipA_vec", _b + D + V, _b + 2 * D + V),
+                    ("skipA_prob", _b + 2 * D + V, _b + 2 * D + 2 * V),
+                    ("skipB_vec", _b + 2 * D + 2 * V, _b + 3 * D + 2 * V)]
+    _cols0 = W * D + 2 * V + N_CONT
+    _layout += [("genomes", _cols0, _cols0 + n_gen_)]
+    _M.update(step_raw=_step_raw, head=(hm, hs, Wm), layout=_layout,
+              genome_defs=ckpt["spaces"][0] if ckpt["spaces"] else [])
     _M.update(cont_score=_cont_score, table_support=_table_support)
     _M.update(step=_step_logits, torch=torch, w2i=w2i, targets=targets,
               tgt_i=tgt_i, W=W, V=V, s_cal=s_cal, val_acc=val_acc,

@@ -223,6 +223,7 @@ function ensureTerm(meta) {
   tabEl.addEventListener("click", (e) => {
     if (e.target.classList.contains("close")) { send({ op: "close", id: meta.id }); e.stopPropagation(); return; }
     if (e.target.classList.contains("pdot")) { openProjMenu(meta.id, e.target); e.stopPropagation(); return; }
+    if (e.target.classList.contains("tag-prefix")) { openProjMenu(meta.id, e.target); e.stopPropagation(); return; }
     setActive(meta.id);
   });
   // right-click anywhere on the tab tags it with a project
@@ -259,8 +260,8 @@ function ensureTerm(meta) {
 
 function refreshTab(t) {
   const p = projFor(t.id);
-  t.tabEl.querySelector(".title").textContent =
-    (p ? p.label + " · " : "") + t.title;
+  t.tabEl.querySelector(".title").innerHTML =
+    (p ? `<span class="tag-prefix" title="Click to change project label" style="border-bottom:1px dashed ${p.color}; cursor:pointer; margin-right:4px;">${p.label}</span> · ` : "") + t.title;
   t.tabEl.classList.toggle("dead", !t.alive);
   t.tabEl.classList.toggle("tagged", !!p);
   const dot = t.tabEl.querySelector(".pdot");
@@ -413,6 +414,13 @@ function handleEvent(ev) {
         t.promptTimer = setTimeout(() => launchClaude(t), 5000);
         setActive(t.id);
       }
+      if (pendingGemini > 0 && ev.title === "Gemini") {
+        pendingGemini--;
+        t.waitPrompt = true;
+        t.promptBuf = "";
+        t.promptTimer = setTimeout(() => launchGemini(t), 5000);
+        setActive(t.id);
+      }
       return;
     }
     case "terminal_closed": releaseHeld(ev.id); removeTerm(ev.id); return;
@@ -430,7 +438,10 @@ function handleEvent(ev) {
           .replace(/\x1b\][^\x07]*(\x07|\x1b\\)/g, "")   // OSC sequences
           .replace(/\x1b\[[0-9;?]*[ -\/]*[@-~]/g, "")     // CSI sequences
           .replace(/\r/g, "");
-        if (/PS [^>\n]*> ?$/.test(clean.trimEnd())) launchClaude(t);
+        if (/PS [^>\n]*> ?$/.test(clean.trimEnd())) {
+          launchClaude(t);
+          launchGemini(t);
+        }
       }
       break;
     case "clear": t.term.reset(); break;
@@ -440,11 +451,19 @@ function handleEvent(ev) {
 // Type the claude command into a ready shell: Escape first (PSReadLine
 // RevertLine wipes any stray escape-reply characters), then the command.
 function launchClaude(t) {
-  if (!t.waitPrompt) return;
+  if (!t.waitPrompt || t.title !== "Claude") return;
   t.waitPrompt = false;
   clearTimeout(t.promptTimer);
   send({ op: "input", id: t.id, data: "\x1b" });
   setTimeout(() => send({ op: "input", id: t.id, data: "claude --dangerously-skip-permissions\r" }), 150);
+}
+
+function launchGemini(t) {
+  if (!t.waitPrompt || t.title !== "Gemini") return;
+  t.waitPrompt = false;
+  clearTimeout(t.promptTimer);
+  send({ op: "input", id: t.id, data: "\x1b" });
+  setTimeout(() => send({ op: "input", id: t.id, data: "agy\r" }), 150);
 }
 
 // -- buttons + resize ------------------------------------------------------
@@ -463,6 +482,15 @@ document.getElementById("btn-claude").addEventListener("click", () => {
   if (t) { try { const d = t.fit.proposeDimensions(); if (d) { cols = d.cols; rows = d.rows; } } catch (_) {} }
   pendingClaude++;
   send({ op: "create", cols, rows, title: "Claude" });
+});
+
+let pendingGemini = 0;
+document.getElementById("btn-gemini").addEventListener("click", () => {
+  const t = terms.get(activeId);
+  let cols = 100, rows = 30;
+  if (t) { try { const d = t.fit.proposeDimensions(); if (d) { cols = d.cols; rows = d.rows; } } catch (_) {} }
+  pendingGemini++;
+  send({ op: "create", cols, rows, title: "Gemini" });
 });
 document.getElementById("btn-clear").addEventListener("click", () => activeId != null && send({ op: "clear", id: activeId }));
 document.getElementById("btn-restart").addEventListener("click", () => activeId != null && send({ op: "restart", id: activeId }));
@@ -486,11 +514,13 @@ document.getElementById("btn-stop").addEventListener("click", () => activeId != 
     const p = location.pathname;
     if (p === "/") return "BUILD";
     const rules = [["/radial", "RADIAL"], ["/cifar", "CIFAR"],
-                   ["/mnist", "MNIST"], ["/lm", "LM"], ["/diff", "DIFFEVO"],
+                   ["/mnist", "MNIST"], ["/lm_demo", "LM"], ["/lm", "LM"],
+                   ["/diff", "DIFFEVO"],
                    ["/animation", "ANIMATION"], ["/pure", "PURE"],
                    ["/xray", "XRAY"], ["/i2", "I2"], ["/tree", "TREE"],
                    ["/evolang", "EVOLANG"], ["/images", "IMAGES"],
                    ["/video", "VIDEO"], ["/humanoid", "HUMANOID"],
+                   ["/progress", "PROGRESS"],
                    ["/history", "HISTORY"]];
     for (const [pre, proj] of rules)
       if (p === pre || p.startsWith(pre + "/")) return proj;
@@ -537,7 +567,29 @@ document.getElementById("btn-stop").addEventListener("click", () => activeId != 
   btn.addEventListener("click", open);
   closeBtn.addEventListener("click", close);
   overlay.addEventListener("click", (e) => e.target === overlay && close());
-  document.addEventListener("keydown", (e) => e.key === "Escape" && !overlay.hidden && close());
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !overlay.hidden) {
+      close();
+    } else if (e.shiftKey && e.key === "ArrowLeft" && activeId !== null) {
+      const t = terms.get(activeId);
+      if (t && t.tabEl) {
+        const prev = t.tabEl.previousElementSibling;
+        if (prev && prev.classList.contains("tab")) {
+          tabsEl.insertBefore(t.tabEl, prev);
+          e.preventDefault();
+        }
+      }
+    } else if (e.shiftKey && e.key === "ArrowRight" && activeId !== null) {
+      const t = terms.get(activeId);
+      if (t && t.tabEl) {
+        const next = t.tabEl.nextElementSibling;
+        if (next && next.classList.contains("tab")) {
+          tabsEl.insertBefore(t.tabEl, next.nextSibling);
+          e.preventDefault();
+        }
+      }
+    }
+  });
 })();
 
 // Auto-refit the active terminal whenever its container actually changes size
@@ -556,4 +608,65 @@ if (document.fonts && document.fonts.ready) {
   document.fonts.ready.then(() => { const t = terms.get(activeId); if (t) fitAndReport(t); });
 }
 
+// -- terminal quick command presets -----------------------------------------
+const PRESETS = [
+  { name: "Run pytest (all tests)", cmd: "pytest" },
+  { name: "Post alert notice", cmd: "python agent_notify.py \"Alert notice\" \"Description\" --kind alert --source human" },
+  { name: "Start LM training run", cmd: "python radial_evo.py" },
+  { name: "Show python processes", cmd: "Get-Process -Name python" }
+];
+let cmdMenu = null;
+function closeCmdMenu() {
+  if (cmdMenu) { cmdMenu.remove(); cmdMenu = null; }
+}
+document.addEventListener("click", (e) => {
+  if (!e.target.closest("#btn-quick-cmds") && !e.target.closest(".term-cmd-menu")) {
+    closeCmdMenu();
+  }
+});
+
+const termActions = document.querySelector(".term-actions");
+if (termActions) {
+  const cmdBtn = document.createElement("button");
+  cmdBtn.id = "btn-quick-cmds";
+  cmdBtn.className = "term-cmd-btn";
+  cmdBtn.title = "Execute common presets";
+  cmdBtn.textContent = "Presets";
+  termActions.appendChild(cmdBtn);
+
+  cmdBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    if (cmdMenu) { closeCmdMenu(); return; }
+    if (activeId === null) return;
+    
+    cmdMenu = document.createElement("div");
+    cmdMenu.className = "term-cmd-menu";
+    
+    PRESETS.forEach((p) => {
+      const item = document.createElement("div");
+      item.className = "term-cmd-item";
+      item.textContent = p.name;
+      item.title = p.cmd;
+      item.addEventListener("click", () => {
+        send({ op: "input", id: activeId, data: p.cmd + "\r" });
+        closeCmdMenu();
+      });
+      cmdMenu.appendChild(item);
+    });
+
+    document.body.appendChild(cmdMenu);
+
+    const r = cmdBtn.getBoundingClientRect();
+    cmdMenu.style.top = (r.top - cmdMenu.offsetHeight - 4) + "px";
+    cmdMenu.style.left = Math.max(8, r.left + r.width - cmdMenu.offsetWidth) + "px";
+  });
+}
+
 connect();
+
+// Load notes script dynamically to run on all pages
+(() => {
+  const s = document.createElement("script");
+  s.src = "/static/notes.js?v=" + Date.now();
+  document.body.appendChild(s);
+})();

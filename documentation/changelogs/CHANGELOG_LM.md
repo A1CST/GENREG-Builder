@@ -6,6 +6,12 @@ Seeded 2026-07-05 from the main changelog (keyword split, best effort).
 
 ---
 
+- **[2026-07-18] (Claude)** — **/lm_demo page: the real computation,
+  animated from a recorded trace (bank -> decomposed head math -> genomes
+  -> specialist votes -> sample). Route + nav + modal mapping; trace via
+  lm/lm_demo_trace.py. FLASK RESTART for the route. Detail in main
+  CHANGELOG.**
+
 - **[2026-07-18] (Claude)** — **Local pack builder (32GB-safe, GPU-chunked
   gram) + inference bench; wiki polished samples + perf pending the chain.
   Rerunnable: build_pack_local.py then bench_infer.py. Module 40 already

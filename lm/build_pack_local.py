@@ -31,7 +31,7 @@ import numpy as np
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 RD = os.path.join(_ROOT, "radial_data")
-CH = 20000
+CH = 12000
 
 
 def main():
@@ -214,12 +214,12 @@ def main():
         for a in range(rows_lo, rows_hi, CH):
             b = min(a + CH, rows_hi)
             Ab = torch.hstack([((F[a:b].to(dev) - hm_d) / hs_d),
-                               torch.ones(b - a, 1, device=dev)])
-            Yb = -torch.ones((b - a, V), device=dev)
+                               torch.ones(b - a, 1, device=dev)]).double()
+            Yb = -torch.ones((b - a, V), device=dev, dtype=torch.float64)
             Yb[torch.arange(b - a),
                torch.tensor(ytr[a:b].astype(np.int64), device=dev)] = 1.0
-            G += (Ab.T @ Ab).double()
-            R += (Ab.T @ Yb).double()
+            G.addmm_(Ab.T, Ab)            # in place - no big temporary
+            R.addmm_(Ab.T, Yb)
             del Ab, Yb
         return G, R
 
@@ -269,6 +269,8 @@ def main():
             s_cal, best_nll = sc, tot / cnt
 
     log("final head on ALL rows")
+    del Gf, Rf, Wm_f, best
+    torch.cuda.empty_cache()
     hm = F.mean(0)
     hs = F.std(0) + 1e-6
     G, R = gram(0, Ntr, hm, hs)

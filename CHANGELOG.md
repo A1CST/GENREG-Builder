@@ -10,6 +10,51 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-18] (Claude)** — **NEW PAGE /lm_demo (user's call: a LEGIT
+  animation, not bar graphs): the model's computation, traced live and
+  animated. FLASK RESTART NEEDED for the route.** Sequence-tab entry "LM
+  Demo". Nothing on the page is mocked - `lm/lm_demo_trace.py` runs the
+  REAL module-40 model and records, per generation step: the bank block
+  activations (24-cell mean-pooled strips of the actual 27,697-column
+  row), the head dot-product DECOMPOSED per block for every pool
+  candidate (logit(w) = sum over blocks of A_block . W_block - the exact
+  linear algebra, split apart; lm_word_infer gained step_raw/head/layout
+  hooks), the 9 evolved genome structures verbatim with their live
+  outputs, the topic steering bonus per candidate, the grammar
+  specialist's per-candidate margins, the merit pool with admitted-word
+  badges, repetition penalties, softmax and the sampled word.
+  `templates/lm_demo.html` animates the trace on canvas in 6 phases per
+  word: context slides -> the bank paints (real activations,
+  diverging color map) -> block contributions fly into stacked
+  per-candidate logit accumulators -> genomes pulse (structure graphs
+  drawn from the checkpoint JSON: channel taps -> prim chains -> combine
+  op, gate flag) -> specialists stamp their votes -> softmax fills,
+  sample flashes, the word flies to the output line. Controls:
+  play/pause, step fwd/back, speed 0.5/1/2x, prompt selector. HOVER
+  INSPECTOR shows exact numbers: full per-block decomposition for a
+  candidate, the raw strip values for a block, the verbatim genome JSON.
+  Route /lm_demo + /api/lm/demo_trace (serves radial_data/
+  lm_demo_trace.json; graceful message until the trace is generated).
+  Changelog-modal mapping /lm_demo -> LM added (the checklist trap). No
+  runs/ folder - the page trains nothing. Inline JS node --check'ed.
+  Trace generation chains after the local pack build finishes.
+
+- **[2026-07-18] (Claude)** — **CIFAR seed-stack reproduced LOCALLY on the 4080
+  (16 GB) — composed-only TEST 0.7095, genomes earn +1.28%.** Ran `cifar_radial.py`
+  at 6 seeds / 256 roles / grid 4, full 50k train / 10k test, gradient-free,
+  test-touched-once, in **9.4 min at ~7.8 GB peak** (well inside 16 GB). Ladder:
+  anchor (patch-PCA ridge, not a component) 0.3986 → single-seed 0.6847 →
+  stats-only 0.6957 → **composed-only 0.7095** → single+composed (production) 0.7048.
+  **Genome ablation: residual over single+stats = +0.0128** — the 384 evolved
+  across-seed genomes compose signal the deterministic cross-pose stats can't hold;
+  stronger than the pod record's +0.0101, confirming the evolution-suppression law
+  on non-tabulatable CIFAR at a smaller config. Head 167,690 / evolved genomes
+  11,233 / PCA basis 68,628. **0.0016 below the 0.7111 pod record** (8 seeds / 384
+  roles, head 249,750) at ~2/3 the head params — that record config still OOMs on
+  16 GB and would need a CPU wide-ridge fallback to run locally. Run
+  `20260718-062939-cifar_radial-2fb7b7` (recorded to `runs/cifar_radial/`, five-file
+  set). No code changed; experiment only.
+
 - **[2026-07-18] (Claude)** — **Local low-RAM pack builder + inference
   benchmark (module 40 follow-up; power-flicker checkpoint entry).**
   `lm/build_pack_local.py`: builds the inference pack on the 32GB
