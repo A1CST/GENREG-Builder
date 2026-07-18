@@ -6,6 +6,13 @@ Seeded 2026-07-05 from the main changelog (keyword split, best effort).
 
 ---
 
+- **[2026-07-18] (Claude)** — **Prose foundation (module 40): wiki corpus
+  15x, tables 9x (1.08GB), first prose-shaped samples. 0.2998/0.5032
+  (+42% over own trigram; not comparable to dialogue 0.5601). Blind slice
+  0.0146 needs a wiki probe; pack + specialist re-measure await the next
+  pod. Run runs/lm/20260718-063008-lm-wiki-9ded75. Detail in main
+  CHANGELOG.**
+
 - **[2026-07-18] (Claude)** — **Grammar specialist (module 39): 0.6642 on
   pure order (anchor below chance); per-step union lifts hold 0.69->0.81
   free; three-specialist decode deployed. Run

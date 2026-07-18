@@ -312,6 +312,14 @@
    "export": "kid_grammar.json",
    "title": "39 · THE GRAMMAR SPECIALIST: 0.664 on pure word order; per-step union lifts hold 0.69 → 0.81 free",
    "desc": "The user called the architecture: do not fight the fluency/hold frontier with one model - train a GRAMMAR specialist (like the topic specialist) and union them. Substrate: the directional RS spaces (embed_rs_prev|next, the syntactic role vectors built 07-16), exactly the fix module 30 said the semantic substrate needed. One question only - is this word order proper (real vs 1-4 adjacent swaps): TEST 0.6642 with 138 temporal genomes vs anchor 0.4606 (below chance: no position shortcut exists, the earn is pure order structure) - beats module 30 ceiling on the harder control. UNION: post-hoc best-of-8 rerank = honest NULL (+0.07 nats, hold flat) because same-decode candidates do not differ in grammar; PER-STEP voting - the specialist scores each candidate word in the merit pool before sampling - lifts hold 0.688 -> 0.812 at flat judge (-8.12 vs -8.14) at wg=1. DEPLOYED. The live decode is now a three-specialist union: continuation model+tables propose, topic model steers, grammar model vets each word. Net arc: same hold as the old decode (0.81) at +1.4 nats fluency. lm/grammar_model.py + grammar_union(2).py; model kid_grammar_model.json; ~13s polished locally."
+  },
+  {
+   "id": "lm-wiki-foundation",
+   "date": "2026-07-18",
+   "kind": "run",
+   "export": "kid_wiki.json",
+   "title": "40 · THE PROSE FOUNDATION: 15x corpus, 9x tables, wiki register - first prose-shaped output",
+   "desc": "The user closed the arc: the composition is proven, the FOUNDATION is the constraint - massively increase the corpus, prose instead of movie dialogue. Done: pure wiki prose, window region 8MB -> 120MB, tables 16MB -> 150MB slice (quad 14.4M keys vs 1.8M; tables now 1.08GB - the biggest tier of the model), V/W unchanged to isolate the corpus variable. TEST 0.2998/0.5032 = +42% over its own trigram baseline (NOT comparable to the dialogue 0.5601 - different question, coverage 94.6 -> 82.7%). THE SAMPLES ARE THE RESULT - first prose-shaped output of the line: \"was a scottish footballer who played as a right arm medium\", \"which is an independent and effective\". Honest flags: blind slice 0.0146 (wiki blind = unpredictable specifics - the dialogue quad/skip probe did not transfer, probe it next); nbsp markup leakage; 200k windows OOMed (150k profile shipped). Infra: pipeline fully corpus-parameterized (checkpoint self-describes its table files, pack signature includes them); wiki tables + checkpoint + data pulled before pod shutdown; pack build queued for the next pod (local 32GB cannot hold the bank). The specialists (topic/grammar) load unchanged against the new targets but their union weights are UNMEASURED on this model - first task next session. lm/lm_word_wiki.py."
   }
  ]
 }

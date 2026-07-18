@@ -29,20 +29,25 @@ import numpy as np
 
 _HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 RD = os.path.join(_HERE, "radial_data")
-TBL = os.path.join(RD, "lm_skip5k_tables.pkl")
+SKIP_PKL = "lm_skip5k_tables.pkl"
+TBL_SEEK = 30_000_000
+TBL_MB = 16
+TBL_TOPK = 0
+CORPUS = None                              # None = combined corpus
 
 
 def build_tables():
-    if os.path.exists(TBL):
-        with open(TBL, "rb") as f:
+    tbl = os.path.join(RD, SKIP_PKL)
+    if os.path.exists(tbl):
+        with open(tbl, "rb") as f:
             return pickle.load(f)
     from radial_lm import _clean
     t0 = time.time()
-    with open(os.path.join(_HERE, "corpora", "combined",
-                           "combined_corpus.txt"), "r",
-              encoding="utf-8", errors="ignore") as fh:
-        fh.seek(30_000_000)              # the cont-tables slice
-        toks = _clean(fh.read(16_000_000)).split()
+    src = CORPUS or os.path.join(_HERE, "corpora", "combined",
+                                 "combined_corpus.txt")
+    with open(src, "r", encoding="utf-8", errors="ignore") as fh:
+        fh.seek(TBL_SEEK)                # the cont-tables slice
+        toks = _clean(fh.read(int(TBL_MB * 1_000_000))).split()
     quad, skipA, skipB = {}, {}, {}
     for i in range(3, len(toks)):
         w = toks[i]
@@ -55,7 +60,14 @@ def build_tables():
         b = (toks[i - 3], toks[i - 2])
         skipB.setdefault(b, {})
         skipB[b][w] = skipB[b].get(w, 0) + 1
-    with open(TBL, "wb") as f:
+    if TBL_TOPK:
+        for d_ in (quad, skipA, skipB):
+            for k_ in d_:
+                v_ = d_[k_]
+                if len(v_) > TBL_TOPK:
+                    d_[k_] = dict(sorted(v_.items(), key=lambda x: x[1],
+                                         reverse=True)[:TBL_TOPK])
+    with open(tbl, "wb") as f:
         pickle.dump((quad, skipA, skipB), f)
     print(f"[crank] tables built: quad {len(quad):,} skipA {len(skipA):,} "
           f"skipB {len(skipB):,} keys ({round(time.time() - t0)}s)",

@@ -1,0 +1,14 @@
+lm_word: 150000/20000 x 16-word windows, V=5000 (covers 82.7% of train tokens) -> /workspace/genreg-lm/radial_data/lm_word.npz
+embed ridge (no genomes): val 0.2686 test 0.3001 (131s)
+  [space 0] opening — reads 128 embedding dims per word (per-slot perception, window-mean)
+    round   0  +9 (space 9)  val 0.0906  starved/gen 5.1
+    round   1  +0 (space 9)  val 0.0906  starved/gen 5.3  d-val +0.0000 (cap 0.0014)
+    space FULL at 9 genomes — 1 consecutive rounds below cap (last +0.0000 < 0.0014); stacking next
+  [space 0] FULL: 9 genomes, val 0.2685 (+-0.0000) (155s)
+  [hand-off] positional bank: 25784 channels (9 R0 genomes x 16 slots + 2x5000 identity + 15640 continuation)
+[slice] blind 8417/20000 (42.1%): top1 0.0146 | has-target: top1 0.507
+  [decode] calibrated scale 20.0 (val nll 2.450)
+  sample: the first part of the | national football league nfl he played college baseball for the the district of the central election commission of career schools and the technical back
+  sample: he was born in the | town of oak there are a total of nbsp was a scottish footballer who played as a right arm medium the addition of a
+  sample: one of the most important | islamic state of the art of fact that the world was published in the spring of the situation which is an independent and effective
+[radial-lm-word] DONE: 1 spaces [9], anchor top1 0.2998 top5 0.5032, stack TEST top1 0.2998 TOP5 0.5032 vs {'unigram': 0.0909, 'bigram': 0.1862, 'trigram': 0.211} (trigram top5 0.5792) (445s)

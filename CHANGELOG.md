@@ -10,6 +10,36 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-18] (Claude)** — **THE PROSE FOUNDATION (/lm module 40,
+  user's call): corpus massively increased and switched to wiki prose -
+  the first prose-shaped output in the line's history.** "The composition
+  architecture is proven... the foundation needs to be better." Done in
+  one isolated-variable move (W=16/V=5000 unchanged): pure wiki prose
+  (wiki_corpus.txt 316MB shipped to pod), window region 8MB -> 120MB
+  (15x), 150k windows, cont+quad/skip tables from a 150MB slice (9x:
+  quad 14.4M keys vs 1.8M; tables now 1.08GB, top-20 pruned per key).
+  TEST 0.2998 top-1 / 0.5032 top-5 = +42% over its own trigram baseline
+  (0.211) - NOT comparable to the dialogue crank 0.5601: different
+  corpus = different question (target coverage 94.6% -> 82.7%). **THE
+  SAMPLES ARE THE RESULT** (from the run itself, no post-tests - pod
+  shutdown per the user):
+  "he was born in the | town of oak there are a total of nbsp was a
+  scottish footballer who played as a right arm medium the addition of a"
+  - real clause structure at last. Flags, honest: blind slice 42.1% at
+  top-1 0.0146 (wiki blind = unpredictable specifics - the dialogue-era
+  quad/skip probe promise did NOT transfer; probe before concluding);
+  "nbsp" markup leakage (corpus hygiene); 200k windows OOMed the head
+  fit, 150k profile shipped. Ops under the clock: first launch aborted
+  cleanly (corpus not on pod - the && guard caught it), OOM diagnosed and
+  relaunched at 150k with cached tables, auto-puller secured checkpoint +
+  data + 1.08GB of tables + log before shutdown. Pack build queued for
+  the NEXT pod (local 32GB RAM cannot hold the 27.7k-col bank; the live
+  module keeps running the dialogue-crank pack until then - flip back is
+  one file copy if wanted). Specialist union weights UNMEASURED on this
+  model - first task next session. Module 40 (kid_wiki.json), run
+  runs/lm/20260718-063008-lm-wiki-9ded75, lm/lm_word_wiki.py, shadows
+  complete.
+
 - **[2026-07-18] (Claude)** — **THE GRAMMAR SPECIALIST (/lm module 39,
   the user's architecture call): one model that knows ONLY grammar, and
   the per-step union lifts topic-hold 0.69 -> 0.81 at zero fluency cost.**
