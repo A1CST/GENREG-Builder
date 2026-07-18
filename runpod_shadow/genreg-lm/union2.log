@@ -1,0 +1,7 @@
+[steer] evidence floor: 2860/5000 targets keep steering (>= 3 occurrences in train articles)
+[union2] wg=0.0: judge -8.1393 d2 0.9891 hold 0.6875
+[union2] wg=1.0: judge -8.1185 d2 0.9728 hold 0.8125
+[union2] wg=2.0: judge -8.4202 d2 0.9755 hold 0.8125
+[union2] wg=4.0: judge -8.5066 d2 0.981 hold 0.6875
+UNION2 RESULT: [{"wg": 0.0, "judge_logprob": -8.1393, "distinct2": 0.9891, "hold": 0.6875}, {"wg": 1.0, "judge_logprob": -8.1185, "distinct2": 0.9728, "hold": 0.8125}, {"wg": 2.0, "judge_logprob": -8.4202, "distinct2": 0.9755, "hold": 0.8125}, {"wg": 4.0, "judge_logprob": -8.5066, "distinct2": 0.981, "hold": 0.6875}]
+UNION2 DONE

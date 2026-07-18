@@ -1,0 +1,21 @@
+[gram] 48000 real sequences, T=10, D=128 (prev|next role)
+[gram] pairs: Ntr=80000 Nte=16000 (chance 0.5)
+[gram] linear anchor (concat ridge): val 0.4606
+    round   0  +15 (space 15)  val 0.5546  starved/gen 9.2
+    round   1  +12 (space 27)  val 0.5721  starved/gen 8.5  d-val +0.0176 (cap 0.0014)
+    round   2  +9 (space 36)  val 0.5846  starved/gen 8.3  d-val +0.0124 (cap 0.0014)
+    round   3  +19 (space 55)  val 0.6088  starved/gen 7.4  d-val +0.0242 (cap 0.0014)
+    round   4  +19 (space 74)  val 0.6286  starved/gen 7.2  d-val +0.0197 (cap 0.0014)
+    round   5  +10 (space 84)  val 0.6355  starved/gen 8.0  d-val +0.0069 (cap 0.0014)
+    round   6  +2 (space 86)  val 0.6392  starved/gen 8.6  d-val +0.0037 (cap 0.0014)
+    round   7  +14 (space 100)  val 0.6499  starved/gen 8.2  d-val +0.0107 (cap 0.0014)
+    round   8  +13 (space 113)  val 0.6563  starved/gen 8.8  d-val +0.0064 (cap 0.0014)
+    round   9  +11 (space 124)  val 0.6615  starved/gen 8.5  d-val +0.0052 (cap 0.0014)
+    round  10  +4 (space 128)  val 0.6638  starved/gen 8.5  d-val +0.0023 (cap 0.0014)
+    round  11  +6 (space 134)  val 0.6691  starved/gen 8.8  d-val +0.0053 (cap 0.0014)
+    round  12  +3 (space 137)  val 0.6741  starved/gen 9.6  d-val +0.0049 (cap 0.0014)
+    round  13  +1 (space 138)  val 0.6738  starved/gen 9.3  d-val +-0.0003 (cap 0.0014)
+    space FULL at 138 genomes — 1 consecutive rounds below cap (last +-0.0003 < 0.0014); stacking next
+[gram] TEST 0.6642 (138 temporal genomes, anchor 0.4606, chance 0.5)
+GRAM RESULT: {"test_acc": 0.6642, "val_acc": 0.6736250519752502, "n_genomes": 138, "anchor": 0.4606, "chance": 0.5, "Ntr": 80000, "Nte": 16000, "T": 10, "D": 128, "seconds": 8}
+GRAM DONE
