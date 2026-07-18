@@ -350,16 +350,19 @@ def _build():
             f0 = torch.cat([v.mean(1, keepdim=True) for v in slot_vals], 1)
             zmu, zsd = space_stats[0]
             cols.append((((f0 - zmu) / zsd).clamp(-8, 8))[0])
-            pmu, psd = handoff_stats
-            b = torch.cat([(torch.cat(slot_vals, 1) - pmu).div(psd).clamp(-8, 8),
-                           _identity(ctx1, W - 2), _identity(ctx1, W - 1),
-                           B01[:, -N_CONT:]], 1)
-            for sp, (zmu, zsd) in zip(ckpt["spaces"][1:], space_stats[1:]):
-                f = torch.stack([_san(rk.feature_vec(torch, tp, b, g))
-                                 for g in sp], 1)
-                f = ((f - zmu) / zsd).clamp(-8, 8)
-                cols.append(f[0])
-                b = torch.cat([b, f], 1)
+            if len(ckpt["spaces"]) > 1:      # handoff only for deep stacks
+                pmu, psd = handoff_stats
+                b = torch.cat([(torch.cat(slot_vals, 1) - pmu)
+                               .div(psd).clamp(-8, 8),
+                               _identity(ctx1, W - 2), _identity(ctx1, W - 1),
+                               B01[:, -N_CONT:]], 1)
+                for sp, (zmu, zsd) in zip(ckpt["spaces"][1:],
+                                          space_stats[1:]):
+                    f = torch.stack([_san(rk.feature_vec(torch, tp, b, g))
+                                     for g in sp], 1)
+                    f = ((f - zmu) / zsd).clamp(-8, 8)
+                    cols.append(f[0])
+                    b = torch.cat([b, f], 1)
         F1 = torch.cat(cols).view(1, -1)
         return (torch.hstack([(F1 - hm) / hs,
                               torch.ones(1, 1, device=dev)]) @ Wm)[0]

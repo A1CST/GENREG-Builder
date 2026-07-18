@@ -10,6 +10,24 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-18] (Claude)** — **Wiki model LIVE locally: pack built on the
+  32GB box (val 0.2685 = the pod's number to 4dp), benched, demo trace
+  generated - /lm_demo is ready.** The single-space handoff unpack bug in
+  _step_logits fixed (local packs correctly omit handoff stats; the step
+  now guards on stack depth). BENCH (RTX 4080, full three-specialist
+  decode): load 35.4s (incl. the 1.1GB wiki tables), plain 13.7 tok/s,
+  best-of-8 polish + grammar voting 1.84 tok/s. POLISHED SAMPLES - the
+  register shift is complete: unsteered "in the th century a period of to
+  an end to the time of the national census the population was";
+  chemistry-steered "oxygen acid is reaction energy chemical element
+  electrical alpha in gas volume of the ... ph d in oil chemistry at the
+  university". Module-40 export enriched with polished_samples +
+  inference perf (new fields only; nothing rewritten). Demo trace
+  (105KB, 2 prompts x 14 steps, full head decomposition per step) saved -
+  /api/lm/demo_trace serves it. ONE Flask restart now delivers: the wiki
+  model live with 35s startup, all 41 page modules, and the /lm_demo
+  animation.
+
 - **[2026-07-18] (Claude)** — **README corrections (user's feedback): all
   em dashes removed, CIFAR de-centered (the radial space + genomes are the
   centerpiece; the vision lines are the exploration that produced the
