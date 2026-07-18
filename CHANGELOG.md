@@ -10,6 +10,16 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-18] (Claude)** — **README corrections (user's feedback): all
+  em dashes removed, CIFAR de-centered (the radial space + genomes are the
+  centerpiece; the vision lines are the exploration that produced the
+  breakthroughs; CIFAR relabeled from "the flagship" to "a vision model"),
+  and the X-Ray avenue description FIXED - /xray is the genome microscope
+  (watch a solved genome pull tangled data into class clusters live), not
+  medical imaging; the wrong description came in with another session's
+  avenues section on main. Emoji scan clean (allowed monochrome glyphs
+  only). Merged to main.**
+
 - **[2026-07-18] (Claude)** — **README restructured (user's call): the
   gradient-free concept, radial spaces, and genomes are front and center;
   CIFAR demoted to a Results subsection.** The intro now leads with the

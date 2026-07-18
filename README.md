@@ -9,25 +9,25 @@ no pretrained weights*. The guiding thesis:
 > solution.
 
 The centerpiece is the **radial space**: treat a dataset as an *environment*
-that evolved **feature programs — genomes — navigate**. The environment carries
+that evolved **feature programs, genomes, that navigate it**. The environment carries
 the statistics (patch-PCA maps, corpus count tables, embedding spaces built
 from the data itself); evolution never re-learns what can be counted or
 projected. It searches only for the **tiny relationships the environment
-cannot express on its own** — and a closed-form ridge reads the result out.
+cannot express on its own** - and a closed-form ridge reads the result out.
 No gradients, no backprop, anywhere, ever.
 
 The same machinery runs vision (CIFAR/MNIST), language (a word-level LM with
-topic and grammar specialists), animation, and streams — because nothing in it
+topic and grammar specialists), animation, and streams - because nothing in it
 is task-specific: genomes are programs over whatever environment they are
 dropped into. The parameter ledger makes the thesis concrete: in the current
 language system, **~12,000 evolved parameters steer a 138M-parameter
-closed-form readout over 34M count-table keys** — evolution is 0.008% of the
+closed-form readout over 34M count-table keys** - evolution is 0.008% of the
 mass and it is the part that decides.
 
 **Composition over monoliths.** Capabilities are separate specialists, each
 bred on one answerable question (continuation, topic, grammar), unioned at
 decode time. A specialist that knows *only* whether word order is proper can
-lift a generator it never trained with — measured, not hoped.
+lift a generator it never trained with - measured, not hoped.
 
 ---
 
@@ -154,62 +154,65 @@ The full thesis and invariants live in
 
 ## The avenues
 
-The radial CIFAR line is the centerpiece, but the same thesis — *evolve the
-features under a designed landscape, never a gradient* — is pushed down a dozen
+The radial space and its genomes are the centerpiece; the vision lines
+(CIFAR, ResNet, MNIST) are where exploring them produced the breakthroughs
+and the laws. The same thesis - *evolve the
+features under a designed landscape, never a gradient* - is pushed down a dozen
 avenues, each its own page in the lab GUI. Every avenue keeps the house rules
 (no gradients, soft fitness, energy homeostasis, test touched once) and logs to
 its own changelog under `documentation/changelogs/`.
 
-**Vision — evolved features on images**
-- **CIFAR** (`/cifar`) — the flagship. Populations of tiny gradient-free feature
+**Vision - evolved features on images**
+- **CIFAR** (`/cifar`) - a vision model. Populations of tiny gradient-free feature
   genomes on CIFAR-10 pass hand-crafted features (0.711 single-substrate, 0.770
   as a multi-substrate union) with no backprop.
-- **Radial** (`/radial`) — the engine behind it all: the radial space, the genome
+- **Radial** (`/radial`) - the engine behind it all: the radial space, the genome
   **microscope**, and the behavior map of what evolution actually built.
-- **ResNet** (`/resnet`) — evolves *residual-block* genomes and shows gradient-free
+- **ResNet** (`/resnet`) - evolves *residual-block* genomes and shows gradient-free
   **stacking** beating a single deep space once each space hands spatial grids to
   the next (the "fat-R0" law).
-- **MNIST** (`/mnist`) — the tabulatable control: seed-axis genomes reach 0.9909
-  (past 99%), where evolution earns ~0 residual — proof of when the substrate,
+- **MNIST** (`/mnist`) - the tabulatable control: seed-axis genomes reach 0.9909
+  (past 99%), where evolution earns ~0 residual - proof of when the substrate,
   not selection, is doing the work.
-- **X-Ray** (`/xray`) — the same feature-evolution pipeline pointed at medical
-  images.
+- **X-Ray** (`/xray`) - the genome microscope: watch a solved genome act on
+  real data live, pulling a tangled point cloud into clean class clusters,
+  layer by layer. The genome working, made visible.
 
-**Sequence — language & time series without gradients**
-- **LM** (`/lm`) — gradient-free language modeling built as an append-only stack of
+**Sequence - language & time series without gradients**
+- **LM** (`/lm`) - gradient-free language modeling built as an append-only stack of
   modules: intent-first "diffusion" of words, and composed continuation banks
   (bigram → trigram → quad/skip) that currently reach ~69% of the classical cloze
   ceiling.
-- **TSDB** (`/tsdb`) — the time-series arm of the sequence work.
+- **TSDB** (`/tsdb`) - the time-series arm of the sequence work.
 
-**Evolve — generative & control substrates**
-- **DiffEvo** (`/diff`) — denoising diffusion by neuroevolution: tiny per-pixel
+**Evolve - generative & control substrates**
+- **DiffEvo** (`/diff`) - denoising diffusion by neuroevolution: tiny per-pixel
   denoisers, one shared population per noise level, bred on minibatch fitness.
-- **Animation** (`/animation`) — the attention line: *tracking the cursor* (where)
+- **Animation** (`/animation`) - the attention line: *tracking the cursor* (where)
   unlocks *recognizing shape* (what), plus a temporal **persistence operator** that
   accumulates a detector's response over a stream.
-- **PURE** (`/pure`) — the control baseline: a plain GA with none of GENREG's bells
+- **PURE** (`/pure`) - the control baseline: a plain GA with none of GENREG's bells
   and whistles, the yardstick every added mechanism is measured against; also a
   node-graph model assembler where each constraint is a wired-in node.
-- **Humanoid** (`/humanoid`) — evolved humanoid figure/motion sandbox.
+- **Humanoid** (`/humanoid`) - evolved humanoid figure/motion sandbox.
 
-**Media & Net — where the evolved genomes become content**
-- **Video** (`/video`) — a slideshow / explainer studio: build image-based decks
+**Media & Net - where the evolved genomes become content**
+- **Video** (`/video`) - a slideshow / explainer studio: build image-based decks
   (poses + charts + captions), paste a full script and split it into slides, and
   render to MP4 through an ffmpeg pipeline.
-- **Images** (`/images`) — the reverse tab: image or video → a prompt, via
+- **Images** (`/images`) - the reverse tab: image or video → a prompt, via
   captioning plus CLIP-ranked medium/style/lighting tags.
-- **I2** (`/i2`) — a peer-to-peer latent-vector content network in which an evolved
+- **I2** (`/i2`) - a peer-to-peer latent-vector content network in which an evolved
   VAE is the "genome" and a canvas browser is the client, with a YouTube-style
   social layer.
 
-**Workspace — the shared instruments**
-- **Runs** (`/runs`) — every project's training runs recorded in one comparable
+**Workspace - the shared instruments**
+- **Runs** (`/runs`) - every project's training runs recorded in one comparable
   layout; the shared bench for reading and comparing results across avenues.
-- **Progress** (`/progress`) — a dashboard over this changelog: per-project activity
+- **Progress** (`/progress`) - a dashboard over this changelog: per-project activity
   over time, measurable completion toward each avenue's goal, and an
   impact-weighted timeline that separates real advancement from raw velocity.
-- **Build / Plan / History / Docs** (`/`, `/plan`, `/history`, `/docs`) — the build
+- **Build / Plan / History / Docs** (`/`, `/plan`, `/history`, `/docs`) - the build
   console with real in-page terminals, planning, history, and the rules/findings
   docs.
 
