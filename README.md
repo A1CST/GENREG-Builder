@@ -124,12 +124,18 @@ stacking idea in `documentation/stacking.txt`, realized.
 ### Language (the /lm line)
 
 A word-level LM built the same way: evolution composes on an environment of
-n-gram continuation tables and corpus-built embeddings; a persistence-based
-**topic specialist** (16/16 topic-hold) and a temporal **grammar specialist**
-(pure word-order signal, anchor below chance) vote per decode step. The
-specialist union **moved the fluency/topic frontier** (+1.4 nats at equal
-hold) where single-model decode tuning could only trade along it. Full story:
-`documentation/changelogs/CHANGELOG_LM.md`, modules 32-40 on the `/lm` page.
+n-gram continuation tables (34M keys from 150MB of wiki prose) and
+corpus-built embeddings. Four frozen specialists vote at decode time, each
+bred on one free-label question: the **continuation** model proposes, a
+persistence-based **topic specialist** steers (16/16 topic-hold), a temporal
+**grammar specialist** vets word order (pure order signal, anchor below
+chance), and an **intent specialist** (punctuation as free ground truth)
+shapes the response to what the prompt asked. The union **moved the
+fluency/topic frontier** (+1.4 nats at equal hold) where single-model decode
+tuning could only trade along it. Inference: 47 tok/s plain / 10 tok/s fully
+polished on one consumer GPU, exact sparse decode, no gradients anywhere.
+Full story: `documentation/changelogs/CHANGELOG_LM.md`, modules 32-41 on the
+`/lm` page; the computation itself is animated live on `/lm_demo`.
 
 ---
 
