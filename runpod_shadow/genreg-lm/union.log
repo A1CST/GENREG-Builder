@@ -1,0 +1,9 @@
+[steer] evidence floor: 2860/5000 targets keep steering (>= 3 occurrences in train articles)
+[union] grammar model loaded: test 0.6642 (138 genomes)
+[union] generated 8x16 at deployed merit decode (39s)
+[union] wg=0.0: judge -8.1393 d2 0.9891 hold 0.6875
+[union] wg=0.5: judge -8.0649 d2 0.9891 hold 0.6875
+[union] wg=1.0: judge -8.2355 d2 0.9864 hold 0.6875
+[union] wg=2.0: judge -8.1936 d2 0.9891 hold 0.6875
+UNION RESULT: [{"wg": 0.0, "judge_logprob": -8.1393, "distinct2": 0.9891, "hold": 0.6875}, {"wg": 0.5, "judge_logprob": -8.0649, "distinct2": 0.9891, "hold": 0.6875}, {"wg": 1.0, "judge_logprob": -8.2355, "distinct2": 0.9864, "hold": 0.6875}, {"wg": 2.0, "judge_logprob": -8.1936, "distinct2": 0.9891, "hold": 0.6875}]
+UNION DONE

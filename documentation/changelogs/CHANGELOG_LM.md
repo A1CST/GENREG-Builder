@@ -6,6 +6,11 @@ Seeded 2026-07-05 from the main changelog (keyword split, best effort).
 
 ---
 
+- **[2026-07-18] (Claude)** — **Grammar specialist (module 39): 0.6642 on
+  pure order (anchor below chance); per-step union lifts hold 0.69->0.81
+  free; three-specialist decode deployed. Run
+  runs/lm/20260718-044436-lm-grammar-eb736f. Detail in main CHANGELOG.**
+
 - **[2026-07-18] (Claude)** — **Fluency frontier (module 38): merit-pool
   decode deployed - judge -8.17 (+1.4 nats) at hold 0.69, ~5s polished.
   Frontier mapped across 4 rounds; moving it further is training-side.

@@ -426,6 +426,66 @@ def _build_safe():
 
 
 _STEER = {}
+_GRAM = {}
+
+
+def _gram_assets():
+    """Lazy grammar-specialist assets (module 39): temporal genomes over
+    the directional (syntactic) RS vectors + head - votes per decode step
+    on which candidate word keeps the order grammatical."""
+    if _GRAM.get("ready") or _GRAM.get("failed"):
+        return _GRAM
+    try:
+        import torch
+        gp = os.path.join(_HERE, "radial_data", "kid_grammar_model.json")
+        with open(gp) as f:
+            gm = json.load(f)
+        zp = np.load(os.path.join(_HERE, "radial_data", "embed_rs_prev.npz"),
+                     allow_pickle=True)
+        zn = np.load(os.path.join(_HERE, "radial_data", "embed_rs_next.npz"),
+                     allow_pickle=True)
+        dev = "cuda" if torch.cuda.is_available() else "cpu"
+        gvocab = {str(w): i for i, w in enumerate(zp["vocab"])}
+        gE = np.concatenate([zp["feat"], zn["feat"]], 1).astype(np.float32)
+        T = gm["T"]
+        gcmu = np.array(gm["cmu"], np.float32)
+        gcsd = np.array(gm["csd"], np.float32)
+        gfmu = torch.tensor(gm["fmu"], device=dev)
+        gfsd = torch.tensor(gm["fsd"], device=dev)
+        ghm = torch.tensor(gm["head_mu"], device=dev)
+        ghs = torch.tensor(gm["head_sd"], device=dev)
+        gWm = torch.tensor(gm["head_W"], device=dev)
+        import radial_temporal as rt
+
+        def margins(ctx_words, cand_words):
+            """Real-vs-shuffled margin of (last T-1 ctx + cand), batched
+            over candidates."""
+            base = ctx_words[-(T - 1):]
+            if len(base) < T - 1:
+                base = [None] * (T - 1 - len(base)) + list(base)
+            Xb = np.zeros((len(cand_words), T, gE.shape[1]), np.float32)
+            for t, w in enumerate(base):
+                i = gvocab.get(w) if w else None
+                if i is not None:
+                    Xb[:, t] = gE[i]
+            for c, w in enumerate(cand_words):
+                i = gvocab.get(w)
+                if i is not None:
+                    Xb[c, T - 1] = gE[i]
+            Xb = np.clip((Xb - gcmu) / gcsd, -8, 8)
+            F = torch.tensor(Xb, device=dev)
+            cols = [rt._finite(torch, rt.temporal_feat(torch, F, g))
+                    for g in gm["genomes"]]
+            Ft = ((torch.stack(cols, 1) - gfmu) / gfsd).clamp(-8, 8)
+            s = torch.hstack([(Ft - ghm) / ghs,
+                              torch.ones(len(cand_words), 1,
+                                         device=dev)]) @ gWm
+            return (s[:, 1] - s[:, 0]).cpu().numpy()
+
+        _GRAM.update(ready=True, margins=margins, test_acc=gm["test_acc"])
+    except Exception as exc:            # the vote is optional - never break
+        _GRAM.update(failed=True, error=str(exc))
+    return _GRAM
 
 
 def _steer_assets():
@@ -541,12 +601,21 @@ def complete(prompt, n_words=24, temp=0.7, seed=None, steer="auto", lam=1.5,
                 pool += [int(k) for k in order[-25:]
                          if Scol[k] > 2.0 and int(k) not in pool
                          and _M["targets"][k] not in out_words]
-            top = (np.array(sorted(pool, key=lambda k: lg[k])[-topk:])
+            top = (np.array(sorted(pool, key=lambda k: lg[k])[-5:])
                    if pool else order[-3:])
+            lg2 = lg[top].astype(np.float64)
+            ga = _gram_assets()
+            if ga.get("ready") and len(top) > 1:
+                gmg = ga["margins"](ctx_words,
+                                    [_M["targets"][k] for k in top])
+                lg2 = lg2 + 1.0 * ((gmg - gmg.mean())
+                                   / (gmg.std() + 1e-9))
+            sel = np.argsort(lg2)[-topk:]
+            top, lg2 = top[sel], lg2[sel]
             if len(top) == 1:
                 k = int(top[0])
             else:
-                z = lg[top] - lg[top].max()
+                z = lg2 - lg2.max()
                 p = np.exp(z)
                 p /= p.sum()
                 k = int(rng.choice(top, p=p))

@@ -10,6 +10,40 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-18] (Claude)** — **THE GRAMMAR SPECIALIST (/lm module 39,
+  the user's architecture call): one model that knows ONLY grammar, and
+  the per-step union lifts topic-hold 0.69 -> 0.81 at zero fluency cost.**
+  "We don't need an all-in-one model, we need multiple models - like we
+  did for TOPIC, we do for grammar." Built exactly that:
+  **The specialist** (lm/grammar_model.py): real-vs-locally-shuffled (1-4
+  adjacent swaps) 10-word sequences over the DIRECTIONAL RS substrate
+  (embed_rs_prev|next = 128-d syntactic role vectors, built 07-16; module
+  30 said the semantic substrate was the cap) - TEST 0.6642, 138 temporal
+  genomes, anchor 0.4606 BELOW chance (no position shortcut exists; the
+  earn is pure word order). Saved frozen (kid_grammar_model.json).
+  **The union** (grammar_union.py / grammar_union2.py): post-hoc best-of-8
+  rerank = honest NULL (+0.07 nats, hold flat - same-decode candidates
+  are near-identical in grammar, nothing to pick between); PER-STEP
+  voting - the specialist scores each candidate word in the merit pool
+  (margin of last-9 context + candidate) before sampling - at wg=1:
+  ```
+  wg    judge     hold
+  0.0   -8.139    0.688
+  1.0   -8.119    0.812   << DEPLOYED
+  2.0   -8.420    0.812
+  ```
+  **DEPLOYED** in lm_word_infer._gen (lazy _gram_assets, optional - any
+  failure degrades to the merit decode). The live decode is now a
+  THREE-SPECIALIST UNION: continuation model + tables propose, the topic
+  model steers, the grammar model vets each word. **Net arc vs the
+  pre-frontier live decode: the same hold (0.81) at +1.4 nats fluency -
+  the specialists moved the frontier, exactly as the user said they
+  would.** Samples: "with medical scientist don t you think it s a
+  surgery right now". ~13s polished locally (grammar vote adds ~5 window
+  evals/step). Module 39 (kid_grammar.json), run
+  runs/lm/20260718-044436-lm-grammar-eb736f, everything shadowed +
+  pod-synced. Same pending Flask restart.
+
 - **[2026-07-18] (Claude)** — **THE FLUENCY FRONTIER (/lm module 38): four
   decode rounds map the fluency/topic-hold trade and the MERIT POOL
   resolves it - deployed at judge -8.17 (+1.4 nats over the previous live
