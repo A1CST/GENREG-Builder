@@ -30,6 +30,9 @@ Protocol: newline-delimited JSON over a localhost TCP socket.
 Run standalone:  python terminal_daemon.py
 (app.py spawns this automatically if it isn't already running.)
 """
+import os as _os, sys as _sys                     # repo-root shim
+_sys.path.insert(0, _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))
+import genreg_paths                               # noqa: F401
 
 import datetime
 import json
@@ -54,7 +57,7 @@ BUFFER_LIMIT = 256 * 1024        # per-terminal replay buffer (characters)
 CLOSE_GRACE = 300                # seconds (5 minutes)
 
 # Where the Ghostwriter records terminal transcripts.
-LOG_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+LOG_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                        "terminal_logs")
 
 # Strip ANSI so the plain-text transcript reads like the on-screen conversation.

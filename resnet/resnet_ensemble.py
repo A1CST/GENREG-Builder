@@ -10,6 +10,9 @@ the stacking that follows are cheap.
 
 Usage:  python resnet_ensemble.py [target] [seed1 seed2 seed3 ...]
 """
+import os as _os, sys as _sys                     # repo-root shim
+_sys.path.insert(0, _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))
+import genreg_paths                               # noqa: F401
 import json
 import sys
 import time

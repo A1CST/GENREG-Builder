@@ -33,7 +33,7 @@ try:
 except ImportError:
     import animation_data as ad
 
-_HERE = os.path.dirname(os.path.abspath(__file__))
+_HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SHAPE_RES, LETTER_RES = mm.SHAPE_RES, mm.LETTER_RES
 N_SHAPES, N_LETTERS = mm.N_SHAPES, mm.N_LETTERS
 CLASSES = list(ra.SHAPE_NAMES) + list(LETTERS)

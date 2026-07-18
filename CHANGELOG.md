@@ -10,6 +10,26 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-18] (Claude)** — **ROOT CLEANUP ROUND 4 (user's call): 23
+  more files leave the repo root.** New packages: `anim/` (anim_* +
+  dot_* - the animation/attention line), `mm/` (multimodal), `resnet/`
+  (stacked-residual line), `services/` (anim_service, video_service,
+  progress_service, agent_board - the Flask page services), `cli/`
+  (run_job, terminal_daemon, watchdog_pod_run - standalone CLIs, now run
+  as `python cli/<x>.py`; tools/ is gitignored, hence the name); genome_xray joins `radial/`. genreg_paths
+  gains the new dirs (one place, as designed); app.py's terminal-daemon
+  spawn path updated to cli/. **Root keepers, each with a reason:**
+  app.py (Flask entry), genreg_paths.py (the path anchor), agent_notify.py
+  (the documented agent CLI - AGENTS.md rule 3 says `python
+  agent_notify.py`, every agent calls it), zetifile.py (shared corpus
+  service: I2 + LM + app). Verified after the move: full `import app`
+  (every route), lm inference chain, anim/video/agent-board services,
+  mm/dot/xray - all OK; pod mirrored (anim/anim_infer + genreg_paths;
+  lm_word_infer verified there). Other sessions' UNTRACKED root scripts
+  (anim_bg_*, humanoid_*, i2_*) stay untracked - their sessions own them.
+  NOTE: `python terminal_daemon.py` / `run_job.py` / `watchdog_pod_run.py`
+  invocations become `python cli/<x>.py`.
+
 - **[2026-07-18] (Claude)** — **RADIAL files -> radial/ package (user's
   call, cleanup round 3) + genreg_paths.py, the central path helper.** 11
   files move: the shared core (radial_evo, radial_evo2, radial_stack), the

@@ -11,6 +11,9 @@ polls the pod's exit sentinel (written by the run's shell wrapper).
 
 Exits after posting. Safe to leave running; it only reads.
 """
+import os as _os, sys as _sys                     # repo-root shim
+_sys.path.insert(0, _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))
+import genreg_paths                               # noqa: F401
 import argparse
 import subprocess
 import time

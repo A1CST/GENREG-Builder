@@ -7,7 +7,7 @@ import os as _os
 import sys as _sys
 
 _ROOT = _os.path.dirname(_os.path.abspath(__file__))
-for _d in ("", "lm", "radial"):
+for _d in ("", "lm", "radial", "anim", "mm", "resnet", "services"):
     _p = _os.path.join(_ROOT, _d) if _d else _ROOT
     if _p not in _sys.path:
         _sys.path.insert(0, _p)

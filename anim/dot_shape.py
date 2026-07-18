@@ -26,7 +26,7 @@ try:
 except ImportError:
     import animation_data as ad
 
-_HERE = os.path.dirname(os.path.abspath(__file__))
+_HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CROP = 20                                   # attended-window size (native px)
 NSH = 10
 

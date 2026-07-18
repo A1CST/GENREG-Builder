@@ -23,6 +23,9 @@ Scene format:
    overlays: [{type: caption|title|box, text, t0, t1, x, y, w}],  point, fade
    audio: "<library file>" (optional voiceover track)}
 """
+import os as _os, sys as _sys                     # repo-root shim
+_sys.path.insert(0, _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))
+import genreg_paths                               # noqa: F401
 
 import json
 import math
@@ -41,7 +44,7 @@ try:
 except Exception as _e:                       # pragma: no cover
     RASTER_OK, RASTER_ERR = False, str(_e)
 
-BASE = os.path.dirname(os.path.abspath(__file__))
+BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 RIG_DIR = os.path.join(BASE, "runs", "video", "rigs")
 SCENE_DIR = os.path.join(BASE, "runs", "video", "scenes")
 STORY_DIR = os.path.join(BASE, "runs", "video", "stories")
@@ -164,10 +167,11 @@ SHIRT = ["#5577aa", "#7a8c69", "#a06868", "#8a7fae", "#6a9a9a", "#b08d57"]
 PANTS = ["#3a4150", "#4d4438", "#2e3a2e", "#37324a", "#514646"]
 INK = "#20242a"                     # outline colour for the flat style
 
-CHAR_ARCHETYPES = ["researcher", "guard", "dclass", "suit", "civilian"]
+CHAR_ARCHETYPES = ["researcher", "guard", "dclass", "suit", "civilian", "scientist", "professor", "robot", "cyborg"]
 OBJ_ARCHETYPES = ["crate", "table", "door", "terminal", "containment",
                   "tree", "bush", "rock", "desk", "plant", "whiteboard",
-                  "building", "streetlight"]
+                  "building", "streetlight", "skyline", "street", "house",
+                  "skyscraper", "lab_building", "server_rack"]
 ARCHETYPES = CHAR_ARCHETYPES + OBJ_ARCHETYPES
 SCENE_TEMPLATES = ["basic", "office", "forest", "city"]
 
@@ -200,7 +204,7 @@ def _humanoid(rng, torso_fill, pants_fill, extras):
     leg_w, arm_w = 0.075 * H, 0.055 * H
     arm_h = torso_h * 0.88
     hip, shoulder_y = torso_w * 0.16, -(leg_h + torso_h) + 10
-    skin = rng.choice(SKIN)
+    skin = extras.get("skin") or rng.choice(SKIN)
 
     # two-segment limbs: thigh/shin and upper-arm/forearm, hinged at the
     # knee/elbow (the lower segment's group origin IS the joint pivot)
@@ -252,7 +256,7 @@ def _humanoid(rng, torso_fill, pants_fill, extras):
            _ell(0, 0, head_r * 0.27, head_r * 0.28), "#4a2424", z=1, sw=1),
     ]
 
-    hair_kind = rng.choice(["flat", "side", "bald", "flat", "side"])
+    hair_kind = extras.get("hair_kind") or rng.choice(["flat", "side", "bald", "flat", "side"])
     if extras.get("hat") == "cap":
         parts.append(_p("cap", "other", "head", (-head_r * 0.1, -head_r * 1.42),
                         _rect(-head_r * 0.95, -head_r * 0.55, head_r * 1.9, head_r * 0.75, 4),
@@ -260,8 +264,8 @@ def _humanoid(rng, torso_fill, pants_fill, extras):
         parts.append(_p("visor", "other", "head", (head_r * 0.35, -head_r * 0.88),
                         _rect(0, -3, head_r * 1.0, 6, 3),
                         extras.get("hat_fill", "#2e3a55"), z=2))
-    elif hair_kind != "bald":
-        hair = rng.choice(HAIR)
+    elif hair_kind not in ("bald", "none"):
+        hair = extras.get("hair_fill") or rng.choice(HAIR)
         # cap of hair over the top and down the back of the head
         parts.append(_p("hair", "other", "head", (0, 0),
                         _ell(-head_r * 0.18, -head_r * 1.48, head_r * 0.8, head_r * 0.52),
@@ -311,6 +315,47 @@ def _character(archetype, rng):
                                       _path(f"M 0 {-(lh + th) + 8} l 5 10 l -5 {th * 0.34} "
                                             f"l -5 {-th * 0.34} Z"), "#7a2430", z=0.6, sw=1)]}
         return _humanoid(rng, "#2c2f38", rng.choice(PANTS), extras)
+    if archetype == "scientist":
+        extras = {"glasses": rng.random() < 0.75, "parts": [
+            lambda tw, lh, th, hr: _p("labcoat", "other", "torso", (0, 0),
+                                      _rect(-tw * 0.52, -(lh + th * 0.88), tw * 1.04, th * 0.95, 4),
+                                      "#ffffff", z=0.4),
+            lambda tw, lh, th, hr: _p("shirt", "other", "torso", (0, 0),
+                                      _rect(-tw * 0.17, -(lh + th) + 6, tw * 0.34, th * 0.5),
+                                      rng.choice(SHIRT), z=0.5),
+            lambda tw, lh, th, hr: _p("tie", "other", "torso", (0, 0),
+                                      _path(f"M 0 {-(lh + th) + 8} l 3 6 l -3 {th * 0.2} l -3 {-th * 0.2} Z"), "#41546e", z=0.6, sw=1),
+        ]}
+        return _humanoid(rng, "#ffffff", rng.choice(PANTS), extras)
+    if archetype == "professor":
+        extras = {"glasses": True, "hair_kind": "side", "hair_fill": "#d8d3c5", "parts": [
+            lambda tw, lh, th, hr: _p("vest", "other", "torso", (0, 0),
+                                      _rect(-tw * 0.42, -(lh + th) + 8, tw * 0.84, th * 0.75, 4),
+                                      "#614d3f", z=0.5),
+            lambda tw, lh, th, hr: _p("shirt", "other", "torso", (0, 0),
+                                      _rect(-tw * 0.18, -(lh + th) + 6, tw * 0.36, th * 0.45),
+                                      "#ffffff", z=0.4),
+        ]}
+        return _humanoid(rng, "#614d3f", "#3c3836", extras)
+    if archetype == "robot":
+        extras = {"skin": "#5a6375", "hair_kind": "none", "parts": [
+            lambda tw, lh, th, hr: _p("visor", "other", "head", (hr * 0.3, -hr * 1.05),
+                                      _rect(-4, -4, 16, 8, 2), "#00ffff", z=1, sw=0),
+            lambda tw, lh, th, hr: _p("chassis", "other", "torso", (0, 0),
+                                      _rect(-tw * 0.3, -(lh + th * 0.8), tw * 0.6, th * 0.5, 4),
+                                      "#ffd700", z=0.5, sw=1.5),
+        ]}
+        return _humanoid(rng, "#3b4252", "#2e3440", extras)
+    if archetype == "cyborg":
+        extras = {"parts": [
+            lambda tw, lh, th, hr: _p("metalface", "other", "head", (hr * 0.2, -hr * 1.3),
+                                      _rect(0, 0, hr * 0.8, hr * 0.8, 3), "#8892b0", z=4.5),
+            lambda tw, lh, th, hr: _p("redeye", "other", "head", (hr * 0.5, -hr * 1.05),
+                                      _ell(0, 0, 3, 3), "#ff0000", z=5, sw=0),
+            lambda tw, lh, th, hr: _p("techarm", "other", "arm_r", (0, 0),
+                                      _rect(-4, 0, 8, 30, 2), "#8892b0", z=3.5, sw=1),
+        ]}
+        return _humanoid(rng, rng.choice(SHIRT), "#1c2330", extras)
     # civilian
     return _humanoid(rng, rng.choice(SHIRT), rng.choice(PANTS),
                      {"glasses": rng.random() < 0.25})
@@ -441,14 +486,98 @@ def _object(archetype, rng):
                 parts.append(_p(f"w{r}_{c}", "other", "body", (0, 0),
                                 _rect(x, y, ww, wh, 1), win_on if lit else win_off, z=1, sw=1))
         return parts, {"w": w + 20, "h": h + 30}
-    # streetlight
-    lh = rng.uniform(220, 280)
-    return [_p("pole", "other", None, (0, 0), _rect(-4, -lh, 8, lh, 2), "#3a3f47", z=0),
-            _p("base", "other", None, (0, 0), _rect(-12, -8, 24, 8, 2), "#3a3f47", z=1),
-            _p("arm", "other", "pole", (0, 0), _rect(0, -lh, lh * 0.28, 7, 3), "#3a3f47", z=1),
-            _p("head", "other", "pole", (lh * 0.28, -lh + 3), _ell(0, 6, 14, 8), "#e0c477",
-               z=2, sw=1.5),
-            ], {"w": lh * 0.7 + 30, "h": lh + 20}
+    if archetype == "skyline":
+        w = rng.uniform(400, 600)
+        h = rng.uniform(250, 380)
+        parts = []
+        colors = ["#2b303c", "#242832", "#1f222b"]
+        for i in range(5):
+            bw = rng.uniform(80, 140)
+            bh = rng.uniform(h * 0.5, h)
+            bx = -w/2 + (i * w/4) - bw/2 + rng.uniform(-20, 20)
+            parts.append(_p(f"b{i}", "other", None, (bx, 0), _rect(-bw/2, -bh, bw, bh), colors[i % len(colors)], z=i))
+            if rng.random() < 0.5:
+                parts.append(_p(f"ant{i}", "other", f"b{i}", (0, -bh), _rect(-1.5, -30, 3, 30), colors[i % len(colors)], z=0))
+        return parts, {"w": w + 50, "h": h + 50}
+    if archetype == "street":
+        w, h = rng.uniform(300, 500), 40
+        parts = [
+            _p("pavement", "other", None, (0, 0), _rect(-w/2, -h, w, h), "#3e424b", z=0),
+            _p("curb", "other", None, (0, 0), _rect(-w/2, -h, w, 4), "#8e929b", z=1)
+        ]
+        dash_w = 20
+        for x in range(int(-w/2 + 10), int(w/2 - 10), int(dash_w * 2)):
+            parts.append(_p(f"dash_{x}", "other", None, (x, -h/2 - 2), _rect(0, 0, dash_w, 4), "#d1b045", z=1, sw=0))
+        return parts, {"w": w + 20, "h": h + 20}
+    if archetype == "house":
+        w, h = rng.uniform(120, 160), rng.uniform(110, 140)
+        body = rng.choice(["#8f6250", "#5c6e8f", "#7a8f6e", "#8c8f8a"])
+        roof = rng.choice(["#5e3434", "#34415e", "#444a44"])
+        parts = [
+            _p("walls", "other", None, (0, 0), _rect(-w/2, -h, w, h), body, z=0),
+            _p("roof", "other", None, (0, 0), _path(f"M {-w/2 - 10} {-h} L 0 {-h - h*0.4} L {w/2 + 10} {-h} Z"), roof, z=1),
+            _p("door", "other", None, (0, 0), _rect(-15, -45, 30, 45), "#3e2723", z=1),
+            _p("knob", "other", "door", (8, -22), _ell(0, 0, 2.5, 2.5), "#ffd700", z=1, sw=0),
+            _p("win", "other", None, (-w*0.28, -h*0.75), _rect(-14, -14, 28, 28, 2), "#e0f7fa", z=1, sw=1),
+            _p("win_pane", "other", "win", (0, 0), _path("M -14 0 H 14 M 0 -14 V 14"), "none", z=1, stroke=INK, sw=1),
+        ]
+        return parts, {"w": w + 30, "h": h * 1.5}
+    if archetype == "skyscraper":
+        w, h = rng.uniform(140, 180), rng.uniform(400, 550)
+        body = rng.choice(["#1d2330", "#2c3545", "#212836"])
+        win_color = "#e0f7fa"
+        parts = [
+            _p("body", "other", None, (0, 0), _rect(-w / 2, -h, w, h), body, z=0),
+            _p("ant", "other", None, (0, -h), _rect(-2, -45, 4, 45), "#11141a", z=0),
+            _p("ant_glow", "other", "ant", (0, -45), _ell(0, 0, 5, 5), "#ff3333", z=1, sw=0)
+        ]
+        cols, rows = rng.randint(4, 5), rng.randint(8, 12)
+        ww, wh = w / (cols * 2), h / (rows * 2.2)
+        for r in range(rows):
+            for c in range(cols):
+                x = -w/2 + w * (c + 0.5)/cols - ww/2
+                y = -h + h * (r + 0.25)/(rows + 0.3)
+                lit = rng.random() < 0.6
+                parts.append(_p(f"w{r}_{c}", "other", "body", (0, 0),
+                                _rect(x, y, ww, wh, 0.5), win_color if lit else "#11141d", z=1, sw=0.5))
+        return parts, {"w": w + 20, "h": h + 60}
+    if archetype == "lab_building":
+        w, h = rng.uniform(220, 300), rng.uniform(260, 360)
+        body = "#dcdfe4"
+        parts = [
+            _p("body", "other", None, (0, 0), _rect(-w / 2, -h, w, h), body, z=0),
+            _p("roof", "other", "body", (0, 0), _rect(-w / 2 - 4, -h - 6, w + 8, 6), "#3b4252", z=1),
+            _p("door_l", "other", None, (-24, -55), _rect(0, 0, 24, 55), "#4c566a", z=1),
+            _p("door_r", "other", None, (0, -55), _rect(0, 0, 24, 55), "#4c566a", z=1),
+            _p("stripe1", "other", "body", (0, 0), _rect(-w*0.44, -h + 30, 16, h - 80), "#5e81ac", z=1, sw=0),
+            _p("stripe2", "other", "body", (0, 0), _rect(w*0.44 - 16, -h + 30, 16, h - 80), "#5e81ac", z=1, sw=0),
+            _p("sign", "other", "body", (0, -h * 0.75), _rect(-40, -12, 80, 24, 4), "#88c0d0", z=1, sw=1),
+        ]
+        return parts, {"w": w + 30, "h": h + 20}
+    if archetype == "server_rack":
+        w, h = rng.uniform(70, 90), rng.uniform(160, 190)
+        parts = [
+            _p("frame", "other", None, (0, 0), _rect(-w/2, -h, w, h, 3), "#1e1e24", z=0),
+        ]
+        slots = 10
+        slot_h = (h - 20) / slots
+        for i in range(slots):
+            y = -h + 10 + i * slot_h
+            parts.append(_p(f"blade_{i}", "other", "frame", (0, 0), _rect(-w/2 + 6, y + 2, w - 12, slot_h - 4, 1), "#2d2d34", z=1))
+            led1 = "#00ff00" if rng.random() < 0.8 else "#ff0000"
+            led2 = "#00ff00" if rng.random() < 0.5 else "#888888"
+            parts.append(_p(f"led1_{i}", "other", f"blade_{i}", (-w/2 + 12, y + slot_h/2 - 1.5), _ell(0, 0, 2, 2), led1, z=2, sw=0))
+            parts.append(_p(f"led2_{i}", "other", f"blade_{i}", (-w/2 + 18, y + slot_h/2 - 1.5), _ell(0, 0, 2, 2), led2, z=2, sw=0))
+        return parts, {"w": w + 20, "h": h + 20}
+    if archetype == "streetlight":
+        lh = rng.uniform(220, 280)
+        return [_p("pole", "other", None, (0, 0), _rect(-4, -lh, 8, lh, 2), "#3a3f47", z=0),
+                _p("base", "other", None, (0, 0), _rect(-12, -8, 24, 8, 2), "#3a3f47", z=1),
+                _p("arm", "other", "pole", (0, 0), _rect(0, -lh, lh * 0.28, 7, 3), "#3a3f47", z=1),
+                _p("head", "other", "pole", (lh * 0.28, -lh + 3), _ell(0, 6, 14, 8), "#e0c477",
+                   z=2, sw=1.5),
+                ], {"w": lh * 0.7 + 30, "h": lh + 20}
+    raise ValueError(f"unknown archetype: {archetype}")
 
 
 def generate_rig(archetype, seed=None, name=""):
@@ -532,6 +661,7 @@ def actor_state(actor, actions, t, is_char):
     """Position / facing / pose of one actor at time t (verb math)."""
     x, y = float(actor.get("x", 0)), float(actor.get("y", 0))
     flip = bool(actor.get("flip"))
+    facing = actor.get("facing", "profile")
     opacity = 1.0
     rot = {}
     mouth = "closed"
@@ -549,26 +679,30 @@ def actor_state(actor, actions, t, is_char):
             continue
         u = min(1.0, (t - t0) / (t1 - t0))
         verb, args = a.get("verb"), a.get("args") or {}
-        if verb == "walk":
+        if verb in ("walk_right", "walk_left", "walk_up_stairs_right", "walk_up_stairs_left"):
             to_x = float(args.get("to_x", x))
-            if abs(to_x - x) > 0.5:
-                flip = to_x < x
+            to_y = float(args.get("to_y", y))
+            if verb in ("walk_right", "walk_up_stairs_right"):
+                flip = False
+            else:
+                flip = True
             if t <= t1:
                 walking = True
                 ph = 2 * math.pi * 1.6 * (t - t0)
                 s = math.sin(ph)
                 rot["leg_l"] = 24 * s
                 rot["leg_r"] = -24 * s
-                # knee flexes while its leg swings, straight at the pass
-                rot["leg_l_lower"] = -20 * max(0.0, s)
-                rot["leg_r_lower"] = -20 * max(0.0, -s)
+                lift = -35 if "stairs" in verb else -20
+                rot["leg_l_lower"] = lift * max(0.0, s)
+                rot["leg_r_lower"] = lift * max(0.0, -s)
                 rot["arm_l"] = -16 * s
                 rot["arm_r"] = 16 * s
-                # elbow keeps a soft bend opposite the upper-arm swing
                 rot["arm_l_lower"] = -10 - 8 * max(0.0, s)
                 rot["arm_r_lower"] = 10 + 8 * max(0.0, -s)
                 dy = -3 * abs(s)
             x = _lerp(x, to_x, u)
+            if "stairs" in verb:
+                y = _lerp(y, to_y, u)
         elif verb == "move":
             x = _lerp(x, float(args.get("to_x", x)), u)
             y = _lerp(y, float(args.get("to_y", y)), u)
@@ -584,6 +718,49 @@ def actor_state(actor, actions, t, is_char):
             else:
                 ang = -75
             rot[arm] = ang if arm == "arm_r" else -ang
+        elif verb == "present" and t <= t1:
+            arm = "arm_r" if args.get("arm", "r") == "r" else "arm_l"
+            target_ang = float(args.get("angle", -45.0))
+            ramp = 0.35
+            if t - t0 < ramp:
+                ang = _lerp(0, target_ang, (t - t0) / ramp)
+            elif t1 - t < ramp:
+                ang = _lerp(0, target_ang, (t1 - t) / ramp)
+            else:
+                ang = target_ang
+            rot[arm] = ang if arm == "arm_r" else -ang
+        elif verb == "explain" and t <= t1:
+            ph = 2 * math.pi * 2.5 * (t - t0)
+            rot["arm_l"] = -15 + 10 * math.sin(ph)
+            rot["arm_r"] = -15 + 10 * math.cos(ph)
+            rot["arm_l_lower"] = -40 + 15 * math.cos(ph)
+            rot["arm_r_lower"] = -40 + 15 * math.sin(ph)
+        elif verb == "think" and t <= t1:
+            ramp = 0.35
+            if t - t0 < ramp:
+                u_r = (t - t0) / ramp
+                rot["arm_r"] = _lerp(0, -110, u_r)
+                rot["arm_r_lower"] = _lerp(0, -100, u_r)
+            elif t1 - t < ramp:
+                u_r = (t1 - t) / ramp
+                rot["arm_r"] = _lerp(0, -110, u_r)
+                rot["arm_r_lower"] = _lerp(0, -100, u_r)
+            else:
+                rot["arm_r"] = -110
+                rot["arm_r_lower"] = -100
+            dy += math.sin(2 * math.pi * 0.8 * (t - t0)) * 0.8
+        elif verb == "code" and t <= t1:
+            rot["arm_l"] = -60
+            rot["arm_r"] = -60
+            ph = 2 * math.pi * 5.0 * (t - t0)
+            rot["arm_l_lower"] = -90 + 8 * math.sin(ph)
+            rot["arm_r_lower"] = -90 + 8 * math.cos(ph)
+        elif verb == "face":
+            dir_val = args.get("dir", "profile")
+            if dir_val == "front" or int(args.get("front", 0)) == 1:
+                facing = "front"
+            else:
+                facing = "profile"
         elif verb == "fade":
             opacity = _lerp(float(args.get("from", 1)), float(args.get("to", 0)), u)
         elif verb in ("open", "close"):
@@ -597,7 +774,8 @@ def actor_state(actor, actions, t, is_char):
         trans["door"] = (amp_dx * openness, amp_dy * openness)
         rot["hinge"] = rot.get("hinge", 0) + amp_ang * openness
     return {"x": x, "y": y, "flip": flip, "opacity": opacity, "rot": rot,
-            "trans": trans, "mouth": mouth, "dy": dy, "walking": walking}
+            "trans": trans, "mouth": mouth, "dy": dy, "walking": walking,
+            "facing": facing}
 
 
 # --------------------------------------------------------------------------
@@ -647,7 +825,26 @@ def rig_svg(rig, pose=None):
         tag = p.get("tag", "other")
         if tag in MOUTH_TAGS and tag != f"mouth_{mouth}":
             return ""
+        facing = pose.get("facing") or rig.get("facing") or "profile"
+        torso_part = next((hp for hp in parts if hp.get("id") == "torso"), None)
+        torso_w, torso_h, leg_h, shoulder_y = 40.0, 80.0, 84.0, -154.0
+        if torso_part and torso_part.get("shape") and torso_part["shape"].get("width"):
+            torso_w = float(torso_part["shape"]["width"])
+            torso_h = float(torso_part["shape"]["height"])
+            ty = float(torso_part["shape"]["y"])
+            leg_h = -ty - torso_h
+            shoulder_y = ty + 10.0
         ox, oy = p.get("offset", [0, 0])
+        if facing == "front":
+            pid = p.get("id")
+            if pid == "arm_l":
+                ox, oy = -torso_w * 0.65, shoulder_y
+            elif pid == "arm_r":
+                ox, oy = torso_w * 0.65, shoulder_y
+            elif pid == "leg_l":
+                ox = -torso_w * 0.3
+            elif pid == "leg_r":
+                ox = torso_w * 0.3
         px, py = p.get("pivot", [0, 0])
         tx, ty = trans.get(tag, (0, 0))
         # verb rotation + the part's authored base rotation (both subtree-wide)
@@ -656,13 +853,73 @@ def rig_svg(rig, pose=None):
         if ang:
             tf += f" rotate({ang},{px},{py})"
         shape = _shape_svg(p)
+        if facing == "front":
+            head_part = next((hp for hp in parts if hp.get("id") == "head"), None)
+            head_r = 20.0
+            if head_part and head_part.get("shape") and head_part["shape"].get("ry"):
+                head_r = float(head_part["shape"]["ry"])
+            pid = p.get("id")
+            fill, stroke, sw = p.get("fill"), p.get("stroke"), p.get("sw", 2)
+            if pid == "torso":
+                shape = f'<rect x="{-torso_w * 0.65}" y="{torso_part["shape"]["y"]}" width="{torso_w * 1.3}" height="{torso_h}" rx="9" fill="{_esc(fill)}" stroke="{_esc(stroke)}" stroke-width="{sw}"/>'
+            elif pid in ("vest", "shirt", "labcoat", "dtag"):
+                shape = f'<g transform="scale(1.3, 1)">{_shape_svg(p)}</g>'
+            elif pid == "head":
+                shape = f'<ellipse cx="0" cy="{-head_r}" rx="{head_r}" ry="{head_r}" fill="{_esc(fill)}" stroke="{_esc(stroke)}" stroke-width="{sw}"/>'
+            elif pid == "eye":
+                shape = (f'<g transform="translate({-ox}, 0)">'
+                         f'<ellipse cx="{-head_r * 0.28}" cy="0" rx="2.7" ry="2.7" fill="{_esc(fill)}"/>'
+                         f'<ellipse cx="{head_r * 0.28}" cy="0" rx="2.7" ry="2.7" fill="{_esc(fill)}"/>'
+                         f'</g>')
+            elif pid == "nose":
+                shape = (f'<g transform="translate({-ox}, 0)">'
+                         f'<path d="M -4 {-head_r * 0.72} Q 0 {-head_r * 0.65} 4 {-head_r * 0.72}" fill="none" stroke="{_esc(stroke)}" stroke-width="{sw}"/>'
+                         f'</g>')
+            elif pid.startswith("mouth_"):
+                shape = f'<g transform="translate({-ox}, 0)">{_shape_svg(p)}</g>'
+            elif pid == "glasses":
+                shape = (f'<g transform="translate({-ox}, 0)">'
+                         f'<path d="M {-head_r * 0.6} 0 H {head_r * 0.6}" fill="none" stroke="{_esc(stroke)}" stroke-width="{sw}"/>'
+                         f'<rect x="{-head_r * 0.58}" y="-6" width="{head_r * 0.4}" height="12" rx="3" fill="none" stroke="{_esc(stroke)}" stroke-width="{sw}"/>'
+                         f'<rect x="{head_r * 0.18}" y="-6" width="{head_r * 0.4}" height="12" rx="3" fill="none" stroke="{_esc(stroke)}" stroke-width="{sw}"/>'
+                         f'</g>')
+            elif pid == "hair":
+                shape = (f'<g transform="translate({-ox}, 0)">'
+                         f'<ellipse cx="0" cy="{-head_r * 1.38}" rx="{head_r * 0.95}" ry="{head_r * 0.42}" fill="{_esc(fill)}" stroke="{_esc(stroke)}" stroke-width="{sw}"/>'
+                         f'</g>')
+            elif pid == "hair_back":
+                shape = (f'<g transform="translate({-ox}, 0)">'
+                         f'<ellipse cx="{-head_r * 0.72}" cy="{-head_r * 0.8}" rx="{head_r * 0.38}" ry="{head_r * 0.7}" fill="{_esc(fill)}"/>'
+                         f'<ellipse cx="{head_r * 0.72}" cy="{-head_r * 0.8}" rx="{head_r * 0.38}" ry="{head_r * 0.7}" fill="{_esc(fill)}"/>'
+                         f'</g>')
+            elif pid == "cap":
+                shape = (f'<g transform="translate({-ox}, 0)">'
+                         f'<rect x="{-head_r * 0.92}" y="{-head_r * 0.55}" width="{head_r * 1.84}" height="{head_r * 0.7}" rx="4" fill="{_esc(fill)}" stroke="{_esc(stroke)}" stroke-width="{sw}"/>'
+                         f'</g>')
+            elif pid == "visor":
+                vw = head_r * 1.0 if rig.get("archetype") == "robot" else head_r * 1.84
+                shape = (f'<g transform="translate({-ox}, 0)">'
+                         f'<rect x="{-vw / 2}" y="-3" width="{vw}" height="6" rx="2" fill="{_esc(fill)}" stroke="{_esc(stroke)}" stroke-width="{sw}"/>'
+                         f'</g>')
+            elif pid == "metalface":
+                shape = (f'<g transform="translate({-ox}, 0)">'
+                         f'<rect x="{-head_r * 0.4}" y="{-head_r * 1.3}" width="{head_r * 0.8}" height="{head_r * 0.8}" rx="2" fill="{_esc(fill)}" stroke="{_esc(stroke)}" stroke-width="{sw}"/>'
+                         f'</g>')
+            elif pid == "redeye":
+                shape = (f'<g transform="translate({-ox}, 0)">'
+                         f'<ellipse cx="0" cy="0" rx="3" ry="3" fill="{_esc(fill)}"/>'
+                         f'</g>')
         scl = float(p.get("scale", 1) or 1)
         if scl != 1:                       # scales the shape only, not children
             shape = f'<g transform="scale({scl})">{shape}</g>'
-        children = sorted(kids.get(p.get("id"), []), key=lambda c: c.get("z", 0))
-        inner = ("".join(emit(c) for c in children if c.get("z", 0) < 0)
+        def get_z(c):
+            if facing == "front" and c.get("id") == "arm_l":
+                return 3
+            return c.get("z", 0)
+        children = sorted(kids.get(p.get("id"), []), key=get_z)
+        inner = ("".join(emit(c) for c in children if get_z(c) < 0)
                  + shape
-                 + "".join(emit(c) for c in children if c.get("z", 0) >= 0))
+                 + "".join(emit(c) for c in children if get_z(c) >= 0))
         return f'<g transform="{tf}">{inner}</g>'
 
     return "".join(emit(p) for p in sorted(roots, key=lambda r: r.get("z", 0)))
@@ -898,3 +1155,179 @@ def render_story(shots, out_name=""):
 
     threading.Thread(target=run, daemon=True, name="anim-story").start()
     return job
+
+
+import base64
+
+def _get_base64_img(path):
+    if not os.path.isfile(path):
+        return None
+    try:
+        with open(path, "rb") as f:
+            data = f.read()
+        ext = os.path.splitext(path)[1].lower().strip(".")
+        if ext == "jpg":
+            ext = "jpeg"
+        b64 = base64.b64encode(data).decode("utf-8")
+        return f"data:image/{ext};base64,{b64}"
+    except Exception:
+        return None
+
+def slide_to_svg_group(slide, w=1280, h=720):
+    """Render a single slide as an SVG group <g> string."""
+    out = []
+    
+    # Pose Image (User photos from C:/Users/paytonm/Pictures/poses)
+    pose = slide.get("pose")
+    if pose:
+        pose_path = os.path.normpath(os.path.join("C:/Users/paytonm/Pictures/poses", pose))
+        if pose_path.startswith("C:\\Users\\paytonm\\Pictures\\poses"):
+            img_uri = _get_base64_img(pose_path)
+            if img_uri:
+                px, py, pw, ph = 80, 80, 450, 480
+                if slide.get("pose_x") is not None and slide.get("pose_y") is not None:
+                    px = float(slide["pose_x"])
+                    py = float(slide["pose_y"])
+                else:
+                    align = slide.get("pose_align", "left")
+                    if align == "right":
+                        px = 750
+                    elif align == "center":
+                        px = (w - pw) // 2
+                out.append(f'<image href="{img_uri}" x="{px}" y="{py}" width="{pw}" height="{ph}" preserveAspectRatio="xMidYMid meet"/>')
+                
+    # Chart Image / Uploaded Embed Graphic (From runs/video/library)
+    chart = slide.get("chart")
+    if chart:
+        chart_path = os.path.normpath(os.path.join(video_service.LIB_DIR, video_service.safe_name(chart)))
+        if chart_path.startswith(os.path.normpath(video_service.LIB_DIR)):
+            img_uri = _get_base64_img(chart_path)
+            if img_uri:
+                cx, cy, cw, ch_h = 650, 80, 550, 420
+                if slide.get("chart_x") is not None and slide.get("chart_y") is not None:
+                    cx = float(slide["chart_x"])
+                    cy = float(slide["chart_y"])
+                else:
+                    align = slide.get("chart_align", "right")
+                    if align == "left":
+                        cx = 80
+                    elif align == "center":
+                        cx = (w - cw) // 2
+                out.append(f'<image href="{img_uri}" x="{cx}" y="{cy}" width="{cw}" height="{ch_h}" preserveAspectRatio="xMidYMid meet"/>')
+                
+    # Caption / CC Text
+    text = slide.get("text")
+    if text:
+        lines = str(text).split("\n")
+        y0 = 630 - (len(lines) - 1) * 14
+        ts = "".join(f'<tspan x="640" dy="{26 * 1.35 if i > 0 else 0}">{_esc(ln)}</tspan>' for i, ln in enumerate(lines))
+        out.append(f'<rect x="100" y="570" width="1080" height="110" rx="8" fill="#10141c" fill-opacity="0.85" stroke="#1c232c" stroke-width="1"/>')
+        out.append(f'<text x="640" y="{y0}" font-family="Arial, Helvetica, sans-serif" font-size="24" font-weight="bold" fill="#f0ede4" text-anchor="middle">{ts}</text>')
+        
+    return "".join(out)
+
+def slideshow_svg(slides, t, w=1280, h=720):
+    """Renders a complete SVG frame for time t, handling crossfades."""
+    ranges = []
+    curr = 0.0
+    for s in slides:
+        dur = float(s.get("duration", 3.0))
+        trans_dur = float(s.get("transition_dur", 0.5)) if s.get("transition") == "fade" else 0.0
+        ranges.append({
+            "slide": s,
+            "start": curr,
+            "end": curr + dur,
+            "trans_dur": trans_dur
+        })
+        curr += dur
+        
+    bg_color = slides[0].get("bg", "#0b0d10") if slides else "#0b0d10"
+    out = [f'<svg xmlns="http://www.w3.org/2000/svg" width="{w}" height="{h}" viewBox="0 0 {w} {h}">',
+           f'<rect width="{w}" height="{h}" fill="{_esc(bg_color)}"/>']
+           
+    for idx, r in enumerate(ranges):
+        if r["start"] <= t <= r["end"]:
+            if r["trans_dur"] > 0.0 and (r["end"] - t) < r["trans_dur"] and idx < len(ranges) - 1:
+                next_r = ranges[idx + 1]
+                alpha = (t - (r["end"] - r["trans_dur"])) / r["trans_dur"]
+                out.append(f'<g opacity="{1.0 - alpha:.3f}">{slide_to_svg_group(r["slide"], w, h)}</g>')
+                out.append(f'<g opacity="{alpha:.3f}">{slide_to_svg_group(next_r["slide"], w, h)}</g>')
+            else:
+                out.append(slide_to_svg_group(r["slide"], w, h))
+            break
+    else:
+        if ranges:
+            out.append(slide_to_svg_group(ranges[-1]["slide"], w, h))
+            
+    out.append("</svg>")
+    return "".join(out)
+
+def render_slides(slides, out_name="", fps=24, w=1280, h=720):
+    """Encodes a presentation slides deck into an MP4 file."""
+    if not RASTER_OK:
+        raise RuntimeError(f"resvg unavailable: {RASTER_ERR} (pip install resvg-py)")
+    if not video_service.available():
+        raise RuntimeError("ffmpeg unavailable")
+        
+    fps = max(1, min(60, int(fps)))
+    dur = sum(float(s.get("duration", 3.0)) for s in slides)
+    if dur <= 0.01:
+        raise ValueError("total duration must be greater than 0")
+    total = int(round(fps * dur))
+    
+    audio = None
+    first_slide_audio = next((s.get("audio") for s in slides if s.get("audio")), None)
+    if first_slide_audio:
+        audio = os.path.normpath(os.path.join(video_service.LIB_DIR, video_service.safe_name(first_slide_audio)))
+        if not os.path.isfile(audio):
+            audio = None
+            
+    name = slug(out_name or "slideshow")
+    out = video_service.unique_path(name + ".mp4")
+    cmd = [video_service.FFMPEG, "-y",
+           "-f", "image2pipe", "-vcodec", "png", "-r", str(fps), "-i", "-"]
+    if audio:
+        cmd += ["-i", audio]
+    cmd += ["-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "20", "-preset", "medium"]
+    if audio:
+        cmd += ["-c:a", "aac", "-b:a", "192k", "-shortest"]
+    cmd += [out]
+    
+    job = video_service.custom_job("slides", f"{name} · {dur:.1f}s @ {fps}fps", out)
+    
+    def run():
+        try:
+            proc = subprocess.Popen(cmd, stdin=subprocess.PIPE,
+                                     stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
+                                     creationflags=video_service.CREATE_NO_WINDOW)
+            job["proc"] = proc
+            for i in range(total):
+                if job.get("cancelled"):
+                    break
+                svg = slideshow_svg(slides, i / fps, w, h)
+                png = bytes(resvg_py.svg_to_bytes(svg_string=svg))
+                proc.stdin.write(png)
+                job["progress"] = (i + 1) / total
+            proc.stdin.close()
+            err = proc.stderr.read().decode("utf-8", "replace")
+            proc.wait()
+            job["proc"] = None
+            if job.get("cancelled"):
+                job.update(status="cancelled", message="cancelled")
+                try:
+                    os.unlink(out)
+                except OSError:
+                    pass
+            elif proc.returncode == 0:
+                job.update(status="done", progress=1.0)
+                video_service.invalidate_meta(os.path.basename(out))
+            else:
+                job.update(status="error",
+                           message="\n".join(err.strip().splitlines()[-6:]))
+        except Exception as exc:
+            job.update(status="error", message=str(exc))
+        job["finished"] = time.time()
+        
+    threading.Thread(target=run, daemon=True, name="slides-render").start()
+    return job
+

@@ -11,6 +11,9 @@ Modes:
   rot_deg = per-space increment: R1 = rot_deg, R2 = 2*rot_deg, R3 = 3*rot_deg
 Usage:  python resnet_rot_sweep.py [block|embed]
 """
+import os as _os, sys as _sys                     # repo-root shim
+_sys.path.insert(0, _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))
+import genreg_paths                               # noqa: F401
 import json
 import sys
 import time

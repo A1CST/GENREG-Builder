@@ -9,6 +9,9 @@ i2_node.py's JOB_WHITELIST.
   python run_job.py --node http://127.0.0.1:8800 --status <job_id>
   python run_job.py --node http://127.0.0.1:8800 --cancel <job_id>
 """
+import os as _os, sys as _sys                     # repo-root shim
+_sys.path.insert(0, _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))
+import genreg_paths                               # noqa: F401
 import argparse
 import base64
 import json
@@ -19,7 +22,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-APP_DIR = os.path.dirname(os.path.abspath(__file__))
+APP_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 KEY_PATH = os.path.join(APP_DIR, "i2_admin_key.json")
 
 

@@ -27,7 +27,7 @@ try:
 except ImportError:
     import animation_data as ad
 
-_HERE = os.path.dirname(os.path.abspath(__file__))
+_HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 # non-red distractor colors (the red cursor stays uniquely red)

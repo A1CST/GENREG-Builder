@@ -5,12 +5,15 @@ Writes the standard five-file run record into runs/<env>/<run-id>/ so the run
 shows up on the /runs page next to every other project, and posts an Agent-panel
 notice when the run ends. Both are best-effort (never break training).
 """
+import os as _os, sys as _sys                     # repo-root shim
+_sys.path.insert(0, _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))
+import genreg_paths                               # noqa: F401
 import datetime
 import hashlib
 import json
 import os
 
-_HERE = os.path.dirname(os.path.abspath(__file__))
+_HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 def record(env, cfg, hist, stats, label, tags=None, log_lines=None, notify=True):
