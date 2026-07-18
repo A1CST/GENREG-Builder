@@ -75,6 +75,21 @@ class Gen(Env4):
                 featV[k] = self.feat[j]
         fV = torch.tensor(featV, device=self.dev)
         self.featV = fV / (fV.norm(dim=1, keepdim=True) + 1e-6)
+        # gate stats in feature_vec are BATCH statistics (block-diff: env
+        # blocks exact, genome spaces diverge on 1-row banks). Steps are
+        # evaluated appended to a fixed reference batch.
+        R = 2048
+        B0w = self.B0_te.shape[1]
+        leanw = sum(c.shape[1] for c in self.cols_te)
+        c2w = sum(c.shape[1] for c in self.cont2_cols_te)
+        bk = self.bank3_te
+        self.refB0 = self.B0_te[:R]
+        self.refAB = bk[:R, B0w + leanw:B0w + leanw + 4256]
+        self.refFar = bk[:R, B0w + leanw + 4256 + c2w:
+                         B0w + leanw + 4256 + c2w + 4256]
+        self.refT4 = self.t4_te[:R]
+        self.ss_ref = [x[:R] for x in self.ss_te]
+        self.probs_ref = {k: v[:R] for k, v in self.probs_te.items()}
 
     # -- single-row builders (mirror the batch ones exactly) ------------
     def _dist_pe(self, table, key):
@@ -175,6 +190,13 @@ class Gen(Env4):
                 bank = torch.cat([bank, f], 1)
             return cols, bank
 
+        B0 = torch.cat([self.refB0, B0], 0)
+        skipAB = torch.cat([self.refAB, skipAB], 0)
+        far = torch.cat([self.refFar, far], 0)
+        t4 = torch.cat([self.refT4, t4], 0)
+        ss = [torch.cat([r, x], 0) for r, x in zip(self.ss_ref, ss)]
+        probs = {k: torch.cat([self.probs_ref[k], probs[k]], 0)
+                 for k in probs}
         lean_cols, bank = space_cols(self.ckpt["spaces"], self.stats, B0)
         bank = torch.cat([bank, skipAB], 1)
         c2_cols, bank = space_cols(self.cont2_spaces, self.cont2_stats, bank)
@@ -186,10 +208,11 @@ class Gen(Env4):
             return {"B0": B0, "skipAB": skipAB, "far": far, "t4": t4,
                     "lean": lean_cols, "c2": c2_cols, "c3": c3_cols,
                     "c4": c4_cols}
-        F1 = torch.cat(lean_cols + c2_cols
-                       + [skipAB[:, 2 * V:], far[:, 2 * V:]] + c3_cols
-                       + [t4[:, 3 * V:]] + c4_cols
-                       + [B0[:, -(2 * D + V):-V]], 1)
+        F1 = torch.cat([x[-1:] for x in lean_cols + c2_cols]
+                       + [skipAB[-1:, 2 * V:], far[-1:, 2 * V:]]
+                       + [x[-1:] for x in c3_cols] + [t4[-1:, 3 * V:]]
+                       + [x[-1:] for x in c4_cols]
+                       + [B0[-1:, -(2 * D + V):-V]], 1)
         hm, hs, Wm = self._hm, self._hs, self._Wm
         return (torch.hstack([(F1 - hm) / hs,
                               torch.ones(1, 1, device=dev)]) @ Wm)[0]

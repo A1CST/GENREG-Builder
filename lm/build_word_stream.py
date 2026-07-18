@@ -12,6 +12,11 @@ position from cheating.
 
   python build_word_stream.py [--smoke]
 """
+import os as _os, sys as _sys                     # repo-root shim
+for _p in (_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))),
+           _os.path.dirname(_os.path.abspath(__file__))):
+    if _p not in _sys.path:
+        _sys.path.insert(0, _p)
 import os
 import sys
 import time
@@ -20,7 +25,7 @@ import numpy as np
 
 from radial_lm import _clean
 
-_HERE = os.path.dirname(os.path.abspath(__file__))
+_HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 RD = os.path.join(_HERE, "radial_data")
 OUT = "wf_word_stream.pt"
 

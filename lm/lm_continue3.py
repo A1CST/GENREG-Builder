@@ -16,6 +16,11 @@ continue-train). This module repeats it on the Module-14 model:
 
     python lm_continue3.py
 """
+import os as _os, sys as _sys                     # repo-root shim
+for _p in (_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))),
+           _os.path.dirname(_os.path.abspath(__file__))):
+    if _p not in _sys.path:
+        _sys.path.insert(0, _p)
 import json
 import os
 import pickle
@@ -29,7 +34,7 @@ from lm_continue2 import Env2
 import radial_lm_word as rw
 import radial_stack as rk
 
-_HERE = os.path.dirname(os.path.abspath(__file__))
+_HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 def _build_far_tables():

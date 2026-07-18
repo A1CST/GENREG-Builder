@@ -6,6 +6,104 @@ Seeded 2026-07-05 from the main changelog (keyword split, best effort).
 
 ---
 
+- **[2026-07-18] (Claude)** — **LM scripts -> lm/ package (21 files, repo
+  cleanup on the user's call); radial_lm.py stays root (shared). Pod
+  mirrored. Commit 23ef447. Detail in main CHANGELOG.**
+
+- **[2026-07-18] (Claude)** — **Fluency honesty pass: single-sample judge
+  flat (-9.43 vs -9.20) - the crank bought accuracy + hold cost + POLISH
+  fluency (-8.60), not raw sample fluency. Defaults retuned to the
+  measured best point: lam=1.5, polish on (2.1-2.6s local). Detail in
+  main CHANGELOG.**
+
+- **[2026-07-18] (Claude)** — **Post-crank deploy (module 37): hold 16/16
+  at -6.5pts (lam=2 default), polish temp0.9/top5 best-of-8, inference
+  pack fixes the local hour-long build. Run runs/lm/20260718-023911-lm-postcrank-91f425.
+  Detail in main CHANGELOG.**
+
+- **[2026-07-18] (Claude)** — **CRANK LANDS: 0.2949 -> 0.5601 top-1
+  (0.7753 top-5); blind slice 0.3123, has-target 0.7262 - the probe's
+  prediction held. Run runs/lm/20260718-021722-lm-crank-e4438a. Post-crank sweeps running;
+  module 37 on their landing. Detail in main CHANGELOG.**
+
+- **[2026-07-18] (Claude)** — **Crank probe + retrain launch:** 40.1% of
+  test blind, new quad/skip tables answer 62.4% of it (answerable 59.9% ->
+  84.9%). Bank 17.3k -> 27.7k cols, checkpoint bank="skip5k", infer
+  replays by flag + CPU fallback for the 4080. Retrain on pod. Detail in
+  main CHANGELOG same date.
+
+- **[2026-07-18] (Claude)** — **Coherence grid (module 36): temp 0.7/top-3
+  new live default (judge -8.98, hold 0.875); best-of-8 polish checkbox
+  (-8.418, 2.2x, ~8x latency). Run runs/lm/20260718-014439-lm-coherence-1ce075. Detail in main
+  CHANGELOG.**
+
+- **[2026-07-18] (Claude)** — **EVIDENCE FLOOR (module 35): 16/16 hold at
+  lam=2; live default lam=1.5 (hold 0.875, sanity 0.185).** Steering
+  restricted to words with >=3 occurrences in the topic TRAIN articles
+  (2860/5000). Better hold at every lambda, ~half the coherence cost vs
+  module 34. Run runs/lm/20260718-013250-lm-steer-ev-beeaa8. Detail in main CHANGELOG.
+
+- **[2026-07-18] (Claude)** — **Live autocomplete holds topic:** steering
+  (auto, confidence-gated at 0.30, evidence-floored, lam 1.0) wired into
+  lm_word_infer.complete + route + page checkbox; graceful fallback to
+  plain autocomplete on any steering failure. Same pending Flask restart.
+  Detail in main CHANGELOG same date.
+
+- **[2026-07-18] (Claude)** — **/lm LIVE module: status flicker fixed +
+  build ETA.** Poll retries no longer re-stamp "completing…" (one stable
+  building line with elapsed); lm_word_infer stamps stage fractions and
+  serves elapsed/eta, shown as "~N min left". Template fix live on
+  refresh; backend ETA rides the same pending Flask restart. Detail in
+  main CHANGELOG same date.
+
+- **[2026-07-18] (Claude)** — **V=5000 GENERATOR + steering (module 34):
+  vocabulary bottleneck FIXED; bottleneck moved to tail noise.** Generator
+  test 0.2949/0.5401 (trigram baseline 0.175) - V=2000 accuracy held on a
+  2.5x harder question. Steering: hold 0.125 -> 0.75 (lam 2), sanity falls
+  faster than V=2000. Chemistry - module 33's dead topic - now emits
+  acid/oxygen/reaction/element and holds 2/2 at lam=1; the cost is noisy
+  proper-name attractors from the 5000-word tail (aubrey/kathryn/freddy).
+  Three pod OOM/numerics fixes landed in core (radial_evo2 scorer chunk +
+  jitter fallback, radial_lm_word lazy attend substrate). V5K checkpoint
+  deployed with V2000 backups kept. lm_word_v5k.py; export kid_steer5k.json;
+  run runs/lm/20260718-010506-lm-v5k-0426e0. Full detail in main CHANGELOG
+  same date.
+
+- **[2026-07-18] (Claude)** — **TOPIC-STEERED GENERATION (module 33):
+  topic-hold 0.125 -> 0.81 across lambda 0->2; FREE at lambda=0.5 (hold
+  0.438 at next-word 0.325 vs 0.3225 baseline).** The module-32 persistence
+  topic model steers the live word generator: linear topic head => fixed
+  per-topic score per target word; the prompt's accumulated state picks the
+  topic (16/16 correct); lambda*score added to logits before top-5 so
+  topical words enter the pool. Judge = held-out-article corpus counts,
+  independent of the steering model. Decode fixes: no bonus for emitted
+  words + lambda-scaled repetition penalty (kills the wine-wine-wine
+  degeneracy caught in the local smoke). Bottleneck measured: the V=2000
+  dialogue-heavy target vocab (chemistry worst - no chemistry words to
+  emit); next lever is a topical target vocabulary. `topic_steer.py` on the
+  fresh pod; `kid_plang_model.json` saved (persistence_lang.py now persists
+  the ACCUM model; re-run reproduced 0.6109 exactly); export
+  `kid_steer.json`; run `runs/lm/20260718-001011-lm-steer-9579fc`; shadow
+  copies in runpod_shadow/genreg-lm/. Same pending Flask restart covers
+  module 33. Full detail in main CHANGELOG same date.
+
+- **[2026-07-17] (Claude)** — **PERSISTENCE ON LANGUAGE (module 32): the
+  operator transfers. Topic identity from a 12-word window: single word
+  0.2247 -> raw-space accumulate 0.4871 -> feature-space accumulate 0.6109
+  (chance 0.125) - the exact letters ordering, and evolution EARNS over every
+  anchor (+13 over the strongest, mean-vec ridge 0.4815; +16 over the fat
+  concat 0.4463).** The recurring signal is the TOPIC: every word of a window
+  is one noisy view of it. `build_topic_stream.py` (8 wiki topics x 8
+  articles via local zetifile, embed_rs vectors, article-disjoint test) +
+  `persistence_lang.py` (SINGLE / VECMEAN / ACCUM, same detectors and
+  budget). Position hurts (concat anchor < mean anchor) = the order-invariant
+  regime persistence owns. Caveats: 8 well-separated hand-picked topics
+  (measures the operator, not hard topic ID); 3 near-empty articles; law
+  topic lighter (1,110 train windows). Export kid_plang.json, module 32,
+  run `runs/lm/20260717-232734-lm-plang-6fe949`. Covered by the SAME pending
+  Flask restart as modules 17-31 (kid_* whitelist); no new restart needed.
+  Full detail in main CHANGELOG same date.
+
 - **[2026-07-17] (Claude)** — **TEMPORAL COMPOSITION arc: next-word is dead,
   but temporal composition is real - as PERSISTENCE, not transitions. /lm
   modules 30-31.** Full day exploring whether temporal (stream) composition

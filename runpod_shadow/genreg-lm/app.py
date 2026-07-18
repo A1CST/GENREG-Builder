@@ -24,8 +24,6 @@ import time
 from flask import (Flask, render_template, jsonify, request, send_file,
                    send_from_directory)
 from flask_sock import Sock
-sys.path.insert(0, os.path.join(os.path.dirname(
-    os.path.abspath(__file__)), "lm"))   # lm-package path
 
 app = Flask(__name__)
 app.config["SOCK_SERVER_OPTIONS"] = {"ping_interval": 25}
@@ -33,69 +31,6 @@ app.config["SOCK_SERVER_OPTIONS"] = {"ping_interval": 25}
 app.config["TEMPLATES_AUTO_RELOAD"] = True
 app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0
 sock = Sock(app)
-
-# ---------------------------------------------------------------------------
-# THE PROJECT REGISTRY — one source of truth for BOTH the top navigation
-# (grouped dropdowns) AND the terminal-tag picker (static/app.js). Add a
-# project here once and it appears in the nav group you assign it to and in
-# the "tag this terminal" menu automatically — no second list to keep in sync.
-#
-# Each entry: (key, label, href, color). `key` must match the `nav_active`
-# value a page sets and the tag stored per terminal. Groups are ordered; the
-# order inside a group is the order shown in its dropdown.
-# ---------------------------------------------------------------------------
-PROJECT_GROUPS = [
-    ("Vision", [
-        ("mnist",     "MNIST",     "/mnist",        "#e3b341"),
-        ("cifar",     "CIFAR",     "/cifar",        "#ff7b72"),
-        ("resnet",    "ResNet",    "/resnet",       "#d29922"),
-        ("xray",      "X-Ray",     "/xray",         "#79c0ff"),
-        ("radial",    "Radial",    "/radial",       "#f778ba"),
-        ("rdemo",     "Demo",      "/radial/demo",  "#f0a0c8"),
-    ]),
-    ("Sequence", [
-        ("lm",        "LM",        "/lm",           "#56d364"),
-        ("tsdb",      "TSDB",      "/tsdb",         "#39c5cf"),
-    ]),
-    ("Evolve", [
-        ("diff",      "DiffEvo",   "/diff",         "#d2a8ff"),
-        ("animation", "Animation", "/animation",    "#ff9e64"),
-        ("humanoid",  "Humanoid",  "/humanoid",     "#ffa657"),
-        ("pure",      "PURE",      "/pure",         "#7ee787"),
-    ]),
-    ("Media & Net", [
-        ("images",    "Images",    "/images",       "#a5a5f5"),
-        ("video",     "Video",     "/video",        "#f0883e"),
-        ("i2",        "I2",        "/i2",           "#2ea043"),
-        ("pia",       "PIA",       "/pia",          "#db61a2"),
-    ]),
-    ("Workspace", [
-        ("build",     "Build",     "/",             "#4ea1ff"),
-        ("plan",      "Plan",      "/plan",         "#8ab4f8"),
-        ("history",   "History",   "/history",      "#c8a2ff"),
-        ("runs",      "Runs",      "/runs",         "#58a6ff"),
-        ("progress",  "Progress",  "/progress",     "#7ee787"),
-        ("docs",      "Docs",      "/docs",         "#8b95a1"),
-    ]),
-]
-
-
-@app.context_processor
-def _inject_project_nav():
-    """Expose the project registry to every template: `nav_groups` drives the
-    grouped nav dropdowns, `projects_json` is emitted as window.GENREG_PROJECTS
-    so static/app.js builds the terminal-tag picker from the SAME list."""
-    import json as _json
-    groups = []
-    flat = []
-    for gname, items in PROJECT_GROUPS:
-        gi = []
-        for key, label, href, color in items:
-            entry = {"key": key, "label": label, "href": href, "color": color}
-            gi.append(entry)
-            flat.append({"key": key, "label": label, "color": color})
-        groups.append({"label": gname, "memberkeys": [i["key"] for i in gi], "members": gi})
-    return {"nav_groups": groups, "projects_json": _json.dumps(flat)}
 
 # Neuroevolution training (Snake / 2048). Imported lazily-guarded so a missing
 # numpy/engine never stops the terminal interface from serving.
@@ -665,19 +600,6 @@ def api_mnist_reload():
     return jsonify({"ok": True})
 
 
-@app.route("/api/mnist/radial")
-def api_mnist_radial():
-    """The radial seed-stack ladder (single / union / composed-across-seed) —
-    the manufactured-rotation static-classification result. Reads the exported
-    JSON written by mnist_radial.run(); returns {} until the first run lands."""
-    p = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                     "radial_data", "mnist_radial.json")
-    if not os.path.exists(p):
-        return jsonify({})
-    with open(p) as f:
-        return jsonify(json.load(f))
-
-
 # ── TSDB ────────────────────────────────────────────────────────────
 # A small Float64 block store (TSDB.js). The page runs an in-browser port
 # of it and feeds it real MNIST pipeline metrics as Float64 row data.
@@ -862,19 +784,6 @@ def api_cifar_reload():
         return jsonify({"err": CF_ERR or "cifar unavailable"})
     cifar_service.SERVICE.reload()
     return jsonify({"ok": True})
-
-
-@app.route("/api/cifar/radial")
-def api_cifar_radial():
-    """The radial seed-stack ladder on CIFAR (single / stats-only / composed) +
-    the genome ablation — where the evolved genomes finally earn residual. Reads
-    the export written by cifar_radial/mnist_radial.run(); {} until it lands."""
-    p = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                     "radial_data", "cifar_radial.json")
-    if not os.path.exists(p):
-        return jsonify({})
-    with open(p) as f:
-        return jsonify(json.load(f))
 
 
 @app.route("/diff")
@@ -1248,7 +1157,7 @@ def animation_radial_state():
                     f"runpod_shadow/radial_data/anim_radial{sfx}.json"):
             path = os.path.join(base, rel)
             if os.path.exists(path):
-                with open(path, encoding="utf-8") as f:
+                with open(path) as f:
                     return jsonify(_json.load(f))
         return jsonify({"pending": True})
     except Exception as exc:
@@ -1280,7 +1189,7 @@ def animation_ablation():
                     "runpod_shadow/radial_data/anim_ablation.json"):
             path = os.path.join(base, rel)
             if os.path.exists(path):
-                with open(path, encoding="utf-8") as f:
+                with open(path) as f:
                     return jsonify(_json.load(f))
         return jsonify({"pending": True})
     except Exception as exc:
@@ -1297,271 +1206,11 @@ def animation_validation():
                     "runpod_shadow/radial_data/anim_validation.json"):
             path = os.path.join(base, rel)
             if os.path.exists(path):
-                with open(path, encoding="utf-8") as f:
+                with open(path) as f:
                     return jsonify(_json.load(f))
         return jsonify({"pending": True})
     except Exception as exc:
         return jsonify({"error": f"animation validation failed: {exc}"}), 500
-
-
-@app.route("/api/animation/bg")
-def animation_bg():
-    """Scaling module — background-robustness A/B: the motion model trained on
-    solid-black vs per-frame random-color backgrounds (matched settings)."""
-    try:
-        import json as _json
-        base = os.path.dirname(os.path.abspath(__file__))
-        out = {}
-        for tag in ("black", "color"):
-            for rel in (f"radial_data/anim_radial_{tag}.json",
-                        f"runpod_shadow/radial_data/anim_radial_{tag}.json"):
-                path = os.path.join(base, rel)
-                if os.path.exists(path):
-                    with open(path, encoding="utf-8") as f:
-                        out[tag] = _json.load(f)
-                    break
-        if not out:
-            return jsonify({"pending": True})
-        return jsonify(out)
-    except Exception as exc:
-        return jsonify({"error": f"animation bg failed: {exc}"}), 500
-
-
-_BG_SAMPLE_KINDS = {"black": "black", "color": "randcolor", "inv": "inv"}
-
-
-@app.route("/api/animation/bg_samples")
-def animation_bg_samples():
-    """Animated preview sequences for the scaling modules — a few 6-frame
-    windows per background treatment as base64 RGB frames. ?kinds=black,color,inv
-    (default black,color)."""
-    try:
-        import base64
-        import radial_anim as ra
-        n = max(1, min(12, request.args.get("n", 6, type=int)))
-        size = request.args.get("size", "fixed")
-        res = max(16, min(64, request.args.get("res", 32, type=int)))
-        kinds = [k for k in request.args.get("kinds", "black,color").split(",")
-                 if k in _BG_SAMPLE_KINDS]
-        out = {}
-        for tag in kinds:
-            X8, y, ysh = ra.sample_seqs(n=n, bg=_BG_SAMPLE_KINDS[tag], seed=7,
-                                        size=size, res=res)
-            out[tag] = [{"data": base64.b64encode(X8[i].tobytes()).decode(),
-                         "size": int(X8.shape[2]), "frames": int(X8.shape[1]),
-                         "path": ra.PATH_NAMES[int(y[i])],
-                         "shape": ra.SHAPE_NAMES[int(ysh[i])]} for i in range(len(X8))]
-        return jsonify(out)
-    except Exception as exc:
-        return jsonify({"error": f"animation bg samples failed: {exc}"}), 500
-
-
-@app.route("/api/animation/cursor")
-def animation_cursor():
-    """Attention thread, Model 1 — the cursor tracker following a moving cursor
-    (dot_infer.py demo + dot_track.py metrics)."""
-    try:
-        import json as _json
-        base = os.path.dirname(os.path.abspath(__file__))
-
-        def _load(name):
-            for rel in (f"radial_data/{name}", f"runpod_shadow/radial_data/{name}"):
-                p = os.path.join(base, rel)
-                if os.path.exists(p):
-                    with open(p, encoding="utf-8") as f:
-                        return _json.load(f)
-            return None
-        demo = _load("dot_cursor_demo.json")
-        if not demo:
-            return jsonify({"pending": True})
-        demo["metrics"] = _load("dot_track.json")
-        return jsonify(demo)
-    except Exception as exc:
-        return jsonify({"error": f"animation cursor failed: {exc}"}), 500
-
-
-@app.route("/api/animation/shape")
-def animation_shape():
-    """Attention thread, Model 1b — recognize the shape under the cursor via the
-    tracker's own attention (dot_shape.py demo + result)."""
-    try:
-        import json as _json
-        base = os.path.dirname(os.path.abspath(__file__))
-
-        def _load(name):
-            for rel in (f"radial_data/{name}", f"runpod_shadow/radial_data/{name}"):
-                p = os.path.join(base, rel)
-                if os.path.exists(p):
-                    with open(p, encoding="utf-8") as f:
-                        return _json.load(f)
-            return None
-        demo = _load("dot_shape_demo.json")
-        if not demo:
-            return jsonify({"pending": True})
-        demo["result"] = _load("dot_shape.json")
-        return jsonify(demo)
-    except Exception as exc:
-        return jsonify({"error": f"animation shape failed: {exc}"}), 500
-
-
-@app.route("/api/animation/footprint")
-def animation_footprint():
-    """Parameter counts + on-disk size for every model on the page (how tiny
-    these gradient-free, CPU-inference models are)."""
-    try:
-        import json as _json
-        base = os.path.dirname(os.path.abspath(__file__))
-        for rel in ("radial_data/anim_footprint.json",
-                    "runpod_shadow/radial_data/anim_footprint.json"):
-            p = os.path.join(base, rel)
-            if os.path.exists(p):
-                with open(p, encoding="utf-8") as f:
-                    return jsonify(_json.load(f))
-        return jsonify({"pending": True})
-    except Exception as exc:
-        return jsonify({"error": f"animation footprint failed: {exc}"}), 500
-
-
-@app.route("/api/animation/ood")
-def animation_ood():
-    """Attention thread — out-of-distribution stress tests for the tracker +
-    shape classifier (dot_ood.py export)."""
-    try:
-        import json as _json
-        base = os.path.dirname(os.path.abspath(__file__))
-        for rel in ("radial_data/dot_ood.json", "runpod_shadow/radial_data/dot_ood.json"):
-            p = os.path.join(base, rel)
-            if os.path.exists(p):
-                with open(p, encoding="utf-8") as f:
-                    return jsonify(_json.load(f))
-        return jsonify({"pending": True})
-    except Exception as exc:
-        return jsonify({"error": f"animation ood failed: {exc}"}), 500
-
-
-@app.route("/api/animation/cursor_field")
-def animation_cursor_field():
-    """Interactive Model-1b — a random scene + a precomputed grid of the model's
-    reads (where the cursor is + what shape is under it) so the browser can show
-    live inference as the mouse moves. ?seed=<int>&stride=<int>. Runs torch
-    inference locally; models must be present."""
-    try:
-        base = os.path.dirname(os.path.abspath(__file__))
-        need = ("dot_model.json", "dot_shape_model.json")
-        if not all(os.path.exists(os.path.join(base, "radial_data", n)) for n in need):
-            return jsonify({"pending": True,
-                            "error": "run dot_track.py then dot_shape.py first"})
-        seed = int(request.args.get("seed", 1))
-        stride = max(1, min(4, int(request.args.get("stride", 2))))
-        import dot_live
-        try:
-            return jsonify(dot_live.compute(seed, stride=stride))
-        except Exception:
-            try:                                    # transient GPU OOM: free and retry once
-                import torch
-                torch.cuda.empty_cache()
-            except Exception:
-                pass
-            return jsonify(dot_live.compute(seed, stride=stride))
-    except Exception as exc:
-        return jsonify({"error": f"animation cursor_field failed: {exc}"}), 500
-
-
-@app.route("/api/animation/multires")
-def animation_multires():
-    """Scaling module 6 — one model across resolutions: the generalization
-    matrix + the continue-on-resolution-mix repairs."""
-    try:
-        import json as _json
-        base = os.path.dirname(os.path.abspath(__file__))
-
-        def _load(name):
-            for rel in (f"radial_data/{name}", f"runpod_shadow/radial_data/{name}"):
-                p = os.path.join(base, rel)
-                if os.path.exists(p):
-                    with open(p, encoding="utf-8") as f:
-                        return _json.load(f)
-            return None
-        out = {"matrix": _load("anim_multires.json"),
-               "mix": _load("anim_continue_res.json"),
-               "lowhigh": _load("anim_res_lowhigh.json")}
-        if not any(out.values()):
-            return jsonify({"pending": True})
-        return jsonify(out)
-    except Exception as exc:
-        return jsonify({"error": f"animation multires failed: {exc}"}), 500
-
-
-@app.route("/api/animation/res")
-def animation_res():
-    """Scaling module 5 — resolution scaling (crank): motion model trained
-    natively at 32/48/64 (anim_res.py)."""
-    try:
-        import json as _json
-        base = os.path.dirname(os.path.abspath(__file__))
-        for rel in ("radial_data/anim_res.json",
-                    "runpod_shadow/radial_data/anim_res.json"):
-            path = os.path.join(base, rel)
-            if os.path.exists(path):
-                with open(path, encoding="utf-8") as f:
-                    return jsonify(_json.load(f))
-        return jsonify({"pending": True})
-    except Exception as exc:
-        return jsonify({"error": f"animation res failed: {exc}"}), 500
-
-
-@app.route("/api/animation/size")
-def animation_size():
-    """Scaling module 4 — the random-color motion model, frozen, on shape sizes
-    it never trained on (anim_size.py)."""
-    try:
-        import json as _json
-        base = os.path.dirname(os.path.abspath(__file__))
-        for rel in ("radial_data/anim_size.json",
-                    "runpod_shadow/radial_data/anim_size.json"):
-            path = os.path.join(base, rel)
-            if os.path.exists(path):
-                with open(path, encoding="utf-8") as f:
-                    return jsonify(_json.load(f))
-        return jsonify({"pending": True})
-    except Exception as exc:
-        return jsonify({"error": f"animation size failed: {exc}"}), 500
-
-
-@app.route("/api/animation/continue")
-def animation_continue():
-    """Scaling module 3 — continue-training (warm-start) repairing the
-    inverted-B&W weakness (anim_continue.py)."""
-    try:
-        import json as _json
-        base = os.path.dirname(os.path.abspath(__file__))
-        for rel in ("radial_data/anim_continue.json",
-                    "runpod_shadow/radial_data/anim_continue.json"):
-            path = os.path.join(base, rel)
-            if os.path.exists(path):
-                with open(path, encoding="utf-8") as f:
-                    return jsonify(_json.load(f))
-        return jsonify({"pending": True})
-    except Exception as exc:
-        return jsonify({"error": f"animation continue failed: {exc}"}), 500
-
-
-@app.route("/api/animation/bg_ood")
-def animation_bg_ood():
-    """Scaling module 2 — the random-color motion model, frozen, on B&W /
-    inverted-B&W regimes it never trained on (anim_bg_ood.py)."""
-    try:
-        import json as _json
-        base = os.path.dirname(os.path.abspath(__file__))
-        for rel in ("radial_data/anim_bg_ood.json",
-                    "runpod_shadow/radial_data/anim_bg_ood.json"):
-            path = os.path.join(base, rel)
-            if os.path.exists(path):
-                with open(path, encoding="utf-8") as f:
-                    return jsonify(_json.load(f))
-        return jsonify({"pending": True})
-    except Exception as exc:
-        return jsonify({"error": f"animation bg ood failed: {exc}"}), 500
 
 
 @app.route("/api/animation/genomes")
@@ -1579,7 +1228,7 @@ def animation_genomes():
                     f"runpod_shadow/radial_data/anim_model{sfx}.json"):
             path = os.path.join(base, rel)
             if os.path.exists(path):
-                with open(path, encoding="utf-8") as f:
+                with open(path) as f:
                     ck = _json.load(f)
                 import anim_infer
                 rnd = _random.Random(request.args.get("seed", 0, type=int))
@@ -1622,7 +1271,7 @@ def lm_radial_state():
         base = os.path.dirname(os.path.abspath(__file__))
         path = os.path.join(base, "radial_data", "lm_radial.json")
         if os.path.exists(path):
-            with open(path, encoding="utf-8") as f:
+            with open(path) as f:
                 return jsonify(_json.load(f))
         return jsonify({"pending": True})
     except Exception as exc:
@@ -1637,126 +1286,11 @@ def lm_radial_word_state():
         base = os.path.dirname(os.path.abspath(__file__))
         path = os.path.join(base, "radial_data", "lm_radial_word.json")
         if os.path.exists(path):
-            with open(path, encoding="utf-8") as f:
+            with open(path) as f:
                 return jsonify(_json.load(f))
         return jsonify({"pending": True})
     except Exception as exc:
         return jsonify({"error": f"lm word failed: {exc}"}), 500
-
-
-@app.route("/humanoid")
-def humanoid_page():
-    """Humanoid — the temporal radial stack on Humanoid-v5, gradient-free
-    locomotion under a continuously raising distance bar."""
-    return render_template("humanoid.html")
-
-
-@app.route("/api/humanoid/modules")
-def humanoid_modules():
-    """The append-only module registry for the Humanoid page."""
-    try:
-        import json as _json
-        base = os.path.dirname(os.path.abspath(__file__))
-        path = os.path.join(base, "radial_data", "humanoid_modules.json")
-        if os.path.exists(path):
-            with open(path, encoding="utf-8") as f:
-                return jsonify(_json.load(f))
-        return jsonify({"modules": []})
-    except Exception as exc:
-        return jsonify({"error": f"humanoid modules failed: {exc}"}), 500
-
-
-@app.route("/api/humanoid/export/<name>")
-def humanoid_export(name):
-    """Serve a Humanoid module's export json (whitelisted patterns only)."""
-    try:
-        import json as _json
-        import re as _re
-        if not _re.fullmatch(r"humanoid_[A-Za-z0-9_]*\.json", name):
-            return jsonify({"error": "not a humanoid export"}), 404
-        base = os.path.dirname(os.path.abspath(__file__))
-        path = os.path.join(base, "radial_data", name)
-        if not os.path.exists(path):
-            return jsonify({"pending": True})
-        with open(path, encoding="utf-8") as f:
-            return jsonify(_json.load(f))
-    except Exception as exc:
-        return jsonify({"error": f"humanoid export failed: {exc}"}), 500
-
-
-@app.route("/history")
-def history_page():
-    """History — an append-only stack of timelines and cause-and-effect maps
-    (mermaid diagrams), one module per iteration, newest at the bottom."""
-    return render_template("history.html")
-
-
-@app.route("/api/history/modules")
-def history_modules():
-    """The append-only module registry for the History page."""
-    try:
-        import json as _json
-        base = os.path.dirname(os.path.abspath(__file__))
-        path = os.path.join(base, "radial_data", "history_modules.json")
-        if os.path.exists(path):
-            with open(path, encoding="utf-8") as f:
-                return jsonify(_json.load(f))
-        return jsonify({"modules": []})
-    except Exception as exc:
-        return jsonify({"error": f"history modules failed: {exc}"}), 500
-
-
-@app.route("/api/history/export/<name>")
-def history_export(name):
-    """Serve a History module's export json (whitelisted patterns only)."""
-    try:
-        import json as _json
-        import re as _re
-        if not _re.fullmatch(r"history_[A-Za-z0-9_]*\.json", name):
-            return jsonify({"error": "not a history export"}), 404
-        base = os.path.dirname(os.path.abspath(__file__))
-        path = os.path.join(base, "radial_data", name)
-        if not os.path.exists(path):
-            return jsonify({"pending": True})
-        with open(path, encoding="utf-8") as f:
-            return jsonify(_json.load(f))
-    except Exception as exc:
-        return jsonify({"error": f"history export failed: {exc}"}), 500
-
-
-@app.route("/api/lm/modules")
-def lm_modules():
-    """The append-only module registry for the LM page."""
-    try:
-        import json as _json
-        base = os.path.dirname(os.path.abspath(__file__))
-        path = os.path.join(base, "radial_data", "lm_modules.json")
-        if os.path.exists(path):
-            with open(path, encoding="utf-8") as f:
-                return jsonify(_json.load(f))
-        return jsonify({"modules": []})
-    except Exception as exc:
-        return jsonify({"error": f"lm modules failed: {exc}"}), 500
-
-
-@app.route("/api/lm/export/<name>")
-def lm_export(name):
-    """Serve a module's export json (whitelisted patterns only)."""
-    try:
-        import json as _json
-        import re as _re
-        if not _re.fullmatch(
-                r"(lm_radial|lm_probe|embed_report|kid_)[A-Za-z0-9_]*\.json",
-                name):
-            return jsonify({"error": "not an lm export"}), 404
-        base = os.path.dirname(os.path.abspath(__file__))
-        path = os.path.join(base, "radial_data", name)
-        if not os.path.exists(path):
-            return jsonify({"pending": True})
-        with open(path, encoding="utf-8") as f:
-            return jsonify(_json.load(f))
-    except Exception as exc:
-        return jsonify({"error": f"lm export failed: {exc}"}), 500
 
 
 @app.route("/api/lm/autocomplete")
@@ -1767,14 +1301,8 @@ def lm_autocomplete():
         import lm_word_infer
         prompt = request.args.get("prompt", "", type=str)
         n = request.args.get("n", 24, type=int)
-        temp = request.args.get("temp", 0.9, type=float)
-        steer = request.args.get("steer", "auto", type=str)
-        lam = request.args.get("lam", 1.5, type=float)
-        topk = request.args.get("topk", 5, type=int)
-        best = request.args.get("best", 1, type=int)
-        return jsonify(lm_word_infer.complete(prompt, n_words=n, temp=temp,
-                                              steer=steer, lam=lam,
-                                              topk=topk, best_of=best))
+        temp = request.args.get("temp", 1.0, type=float)
+        return jsonify(lm_word_infer.complete(prompt, n_words=n, temp=temp))
     except Exception as exc:
         return jsonify({"error": f"autocomplete failed: {exc}"}), 500
 
@@ -1816,7 +1344,7 @@ def radial_baselines_api():
         out = {"domains": {}, "fixes": None}
         for path in sorted(glob.glob(os.path.join(base, "baseline_*.json"))):
             try:
-                with open(path, encoding="utf-8") as f:
+                with open(path) as f:
                     d = _json.load(f)
                 out["domains"][d.get("domain", os.path.basename(path))] = d
             except Exception:
@@ -1886,28 +1414,6 @@ def resnet_page():
     return resp
 
 
-@app.route("/progress")
-def progress_page():
-    """PROGRESS — a dashboard over the master CHANGELOG.md: per-project activity
-    over time, measurable completion toward each project's goal, and an
-    impact-weighted timeline that separates scientific advancement from raw
-    velocity (activity != progress)."""
-    resp = app.make_response(render_template("progress.html"))
-    resp.headers["Cache-Control"] = "no-store"
-    return resp
-
-
-@app.route("/api/progress/data")
-def api_progress_data():
-    try:
-        import progress_service
-        resp = jsonify(progress_service.parse())
-        resp.headers["Cache-Control"] = "no-store"   # always re-parse on visit
-        return resp
-    except Exception as exc:
-        return jsonify({"error": str(exc)}), 500
-
-
 def _resnet_out_dir():
     """Where resnet_evo.py writes its result JSON (F:\\Resnet, or the local
     radial_data fallback when F: is absent — mirrors resnet_evo.OUT_DIR)."""
@@ -1926,7 +1432,7 @@ def resnet_result_api():
         for name in ("resnet_evo_cifar.json", "resnet_evo_smoke.json"):
             path = os.path.join(d, name)
             if os.path.exists(path):
-                with open(path, encoding="utf-8") as f:
+                with open(path) as f:
                     out = json.load(f)
                 out["_source"] = name
                 out["_dir"] = d
@@ -1950,57 +1456,6 @@ def video_page():
 def api_video_status():
     return jsonify({"ok": VID_OK, "err": VID_ERR,
                     "formats": video_service.FORMATS if VID_OK else []})
-
-
-@app.route("/api/poses")
-def api_poses_list():
-    folder = "C:/Users/paytonm/Pictures/poses"
-    if not os.path.isdir(folder):
-        return jsonify([])
-    try:
-        files = []
-        for root, _, filenames in os.walk(folder):
-            for f in filenames:
-                if f.lower().endswith((".png", ".jpg", ".jpeg")):
-                    rel = os.path.relpath(os.path.join(root, f), folder)
-                    files.append(rel.replace("\\", "/"))
-        files.sort()
-        return jsonify(files)
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-
-@app.route("/api/poses/<path:filename>")
-def api_poses_serve(filename):
-    folder = "C:/Users/paytonm/Pictures/poses"
-    return send_from_directory(folder, filename)
-
-
-@app.route("/api/charts")
-def api_charts_list():
-    if not VID_OK:
-        return jsonify([])
-    try:
-        files = sorted([f for f in os.listdir(video_service.LIB_DIR)
-                        if os.path.isfile(os.path.join(video_service.LIB_DIR, f)) and f.lower().endswith((".png", ".jpg", ".jpeg", ".gif"))])
-        return jsonify(files)
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-
-@app.route("/api/video/render_slides", methods=["POST"])
-def api_video_render_slides():
-    data = request.get_json(silent=True) or {}
-    slides = data.get("slides") or []
-    out_name = data.get("out_name", "")
-    fps = int(data.get("fps", 24))
-    w = int(data.get("w", 1280))
-    h = int(data.get("h", 720))
-    try:
-        job = anim_service.render_slides(slides, out_name=out_name, fps=fps, w=w, h=h)
-        return jsonify(video_service.job_view(job))
-    except Exception as exc:
-        return jsonify({"error": str(exc)}), 400
 
 
 @app.route("/api/video/library")

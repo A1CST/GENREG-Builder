@@ -78,8 +78,7 @@ class Env:
         mu = cols.mean(0)
         _, _, V = torch.linalg.svd(cols - mu, full_matrices=False)
         comps = V[:min(C_PER_SCALE, d)]
-        S = self.Xtr.shape[1]                    # input resolution (was hardcoded 32)
-        H = W = (S - ps) // stride + 1
+        H = W = (32 - ps) // stride + 1
 
         def build(X, bs=400):
             out = None
@@ -251,24 +250,8 @@ def make_scorer(torch, base, n_fit, Yf, yv, lam=3.0):
     try:
         L = torch.linalg.cholesky(A)
     except Exception:
-        # fp32-gram roundoff leaves wide bases (10k+ cols with one-hot /
-        # sparse blocks) numerically non-PSD. The fp64 re-gram fallback is
-        # a Bfz-sized copy (16GB+ at 17k cols x 120k rows) that OOMs
-        # exactly when the base is widest - so first try escalating
-        # IN-PLACE diagonal jitter (memory-free; just a stronger ridge on
-        # the evolution scorer), and only re-gram in fp64 when the base is
-        # small enough for the copy to be cheap.
-        L = None
-        for extra in (10 * lam, 100 * lam, 1000 * lam):
-            A.diagonal().add_(extra)             # cumulative
-            try:
-                L = torch.linalg.cholesky(A)
-                break
-            except Exception:
-                pass
-        if L is None:
-            A = Bfz.double().T @ Bfz.double() + eye64
-            L = torch.linalg.cholesky(A)
+        A = Bfz.double().T @ Bfz.double() + eye64
+        L = torch.linalg.cholesky(A)
     W0 = torch.cholesky_solve((Bfz.T @ Yf).double(), L).float()  # (F1, 10)
     S0 = Bvz @ W0                                      # (nv, 10)
     b_soft = float(torch.log_softmax(S0, 1)[torch.arange(nv), yv].mean())
@@ -284,20 +267,10 @@ def make_scorer(torch, base, n_fit, Yf, yv, lam=3.0):
         d = torch.clamp((Cfz * Cfz).sum(0) + lam - (U * P).sum(0), min=1e-6)
         W2 = (Cfz.T @ Yf - U.T @ W0) / d.view(-1, 1)   # (K, 10)
         Q = Cvz - Bvz @ P                              # (nv, K)
-        # the (K, nv, n_cls) score cube is chunked over K: one piece is
-        # 36GB at V=5000 classes (next-word) where the original 10-class
-        # tasks needed 100MB. Chunking is exact - same numbers, less peak.
-        K = Q.shape[1]
-        n_cls = S0.shape[1]
-        kc = max(1, int(2_000_000_000 // max(1, nv * n_cls * 4)))
-        soft, acc = [], []
-        for a in range(0, K, kc):
-            S = (S0.unsqueeze(0) +
-                 Q.T[a:a + kc].unsqueeze(2) * W2[a:a + kc].unsqueeze(1))
-            soft += [float(x) for x in
-                     torch.log_softmax(S, 2)[:, torch.arange(nv), yv].mean(1)]
-            acc += [float(x) for x in (S.argmax(2) == yv).float().mean(1)]
-        return soft, acc
+        S = S0.unsqueeze(0) + Q.T.unsqueeze(2) * W2.unsqueeze(1)   # (K, nv, 10)
+        soft = torch.log_softmax(S, 2)[:, torch.arange(nv), yv].mean(1)
+        acc = (S.argmax(2) == yv).float().mean(1)
+        return [float(x) for x in soft], [float(x) for x in acc]
 
     return score, b_soft, b_acc
 

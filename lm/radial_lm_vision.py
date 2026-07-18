@@ -17,6 +17,11 @@ are the entire environment. Rendering: word text auto-shrunk into 32x32,
 
     python radial_lm_vision.py
 """
+import os as _os, sys as _sys                     # repo-root shim
+for _p in (_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))),
+           _os.path.dirname(_os.path.abspath(__file__))):
+    if _p not in _sys.path:
+        _sys.path.insert(0, _p)
 import json
 import os
 import time
@@ -28,7 +33,7 @@ from radial_evo2 import Env, new_genome, mutate
 import radial_lm_word as rw
 import radial_stack as rk
 
-_HERE = os.path.dirname(os.path.abspath(__file__))
+_HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 RD = os.path.join(_HERE, "radial_data")
 W = 12                                   # words per strip
 V = 1000                                 # target vocabulary

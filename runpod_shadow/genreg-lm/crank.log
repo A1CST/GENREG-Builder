@@ -1,0 +1,13 @@
+embed ridge (no genomes): val 0.4918 test 0.5601 (499s)
+  [space 0] opening — reads 128 embedding dims per word (per-slot perception, window-mean)
+    round   0  +5 (space 5)  val 0.0473  starved/gen 4.6
+    round   1  +0 (space 5)  val 0.0473  starved/gen 5.4  d-val +0.0000 (cap 0.0014)
+    space FULL at 5 genomes — 1 consecutive rounds below cap (last +0.0000 < 0.0014); stacking next
+  [space 0] FULL: 5 genomes, val 0.4919 (+0.0001) (521s)
+  [hand-off] positional bank: 25720 channels (5 R0 genomes x 16 slots + 2x5000 identity + 15640 continuation)
+[slice] blind 8024/20000 (40.1%): top1 0.3123 | has-target: top1 0.7262
+  [decode] calibrated scale 20.0 (val nll 1.974)
+  sample: the first part of the | brain that s our war room we did the other side of the force master shakespeare wait write and a beautiful woman sits on
+  sample: he was born in the | the suitcase bomb act one i m going to need your help i truly leaving john horse go you is something that should interest
+  sample: one of the most important | thing in my life i know you re the one who got away don t you think it s a great girl oh well
+[radial-lm-word] DONE: 1 spaces [5], anchor top1 0.5601 top5 0.7753, stack TEST top1 0.5601 TOP5 0.7752 vs {'unigram': 0.0475, 'bigram': 0.1559, 'trigram': 0.175} (trigram top5 0.5988) (687s)

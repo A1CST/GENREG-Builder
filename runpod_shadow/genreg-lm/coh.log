@@ -1,0 +1,11 @@
+[coh] building generator (frozen replay)...
+[steer] evidence floor: 2860/5000 targets keep steering (>= 3 occurrences in train articles)
+[coh] ready: V=5000 steer=ok
+[coh] temp=0.9 top5: judge logprob -9.196 distinct2 0.9946 hold 0.8125
+[coh] temp=0.7 top5: judge logprob -8.9885 distinct2 1.0 hold 0.6875
+[coh] temp=0.9 top3: judge logprob -9.2568 distinct2 0.9973 hold 0.875
+[coh] temp=0.7 top3: judge logprob -8.9798 distinct2 0.9918 hold 0.875
+[coh] temp=0.9 top5 best-of-8: judge logprob -8.5934 distinct2 0.9973 hold 0.6875
+[coh] temp=0.7 top3 best-of-8: judge logprob -8.418 distinct2 0.9973 hold 0.8125
+COH RESULT: [{"tag": "temp=0.9 top5", "temp": 0.9, "topk": 5, "best_of": 1, "judge_logprob": -9.196, "distinct2": 0.9946, "hold": 0.8125}, {"tag": "temp=0.7 top5", "temp": 0.7, "topk": 5, "best_of": 1, "judge_logprob": -8.9885, "distinct2": 1.0, "hold": 0.6875}, {"tag": "temp=0.9 top3", "temp": 0.9, "topk": 3, "best_of": 1, "judge_logprob": -9.2568, "distinct2": 0.9973, "hold": 0.875}, {"tag": "temp=0.7 top3", "temp": 0.7, "topk": 3, "best_of": 1, "judge_logprob": -8.9798, "distinct2": 0.9918, "hold": 0.875}, {"tag": "temp=0.9 top5 best-of-8", "temp": 0.9, "topk": 5, "best_of": 8, "judge_logprob": -8.5934, "distinct2": 0.9973, "hold": 0.6875}, {"tag": "temp=0.7 top3 best-of-8", "temp": 0.7, "topk": 3, "best_of": 8, "judge_logprob": -8.418, "distinct2": 0.9973, "hold": 0.8125}]
+COH DONE
