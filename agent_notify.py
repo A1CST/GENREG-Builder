@@ -15,6 +15,7 @@ needed; the panel polls the file (through Flask) and badges within ~8 s.
 import argparse
 import sys
 
+import genreg_paths                               # noqa: F401
 import agent_board
 
 
