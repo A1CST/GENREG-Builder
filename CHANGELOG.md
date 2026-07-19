@@ -10,6 +10,27 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-18] (Claude)** — **VIDEO: charts/videos now actually show up
+  - on the stage AND in exports (user's report). ROOT CAUSE: the library
+  contained ZERO images - the "Upload Graphic / Chart" input posts to
+  /api/video/upload, which REJECTED image formats, so image charts never
+  existed; and video files placed as embeds hit <image href=...mp4>
+  (broken icon in the browser, silently absent in resvg). Fixed the whole
+  chain:** (1) uploads accept images (png/jpg/jpeg/gif/webp) into the
+  library; (2) VIDEOS are first-class slide embeds - the chart dropdown
+  gains [video] entries, the Videos cards gain "Use on slide", the STAGE
+  shows the video's server thumbnail (no broken icon), and the EXPORT
+  extracts the video's real frames once per render (ffmpeg fps-matched,
+  550px-scaled) and composites the correct frame per output frame
+  (slide_to_svg_group gains local_t + a chart_frames provider, threaded
+  through the crossfade branches); (3) BONUS BUG: the frame compositor's
+  slide ranges ignored the new duration floors (audio/media) - fixed to
+  _eff_slide_dur, so visuals stay on the right slide while audio holds
+  it. VERIFIED end-to-end: rendered a deck with the muted Gemini clip as
+  an embed - charttest.mp4, 11.5s exactly (10s video floor + 1.5s second
+  slide), frames composited. Upload route rides the pending restart;
+  page is hard-refresh.
+
 - **[2026-07-18] (Claude)** — **VIDEO: embedded-media duration joins the
   slide floor (user's call).** A slide now stays up for
   max(set duration, kept narration, EMBEDDED MEDIA runtime) - if the
@@ -22,6 +43,14 @@ log below; don't rewrite existing entries.
   mp4 is authoritative. VERIFIED on the real muted Gemini clip: 10.0s
   probe; 2s slide -> floors to 10.0s; with 9s narration the 10s video
   still wins. Routes ride the pending restart; page is hard-refresh.
+
+- **[2026-07-18] (Claude)** — **/ocr: reader inference 1.64x faster (5.74→3.51 s/page), accuracy up.**
+  Profiled the 94%-classify cost to a wasted per-page `Mtr` build (`Env.maps` projected the ~9k-tile
+  reference set every call, but inference only reads the `Mte` test slot). Fixes, none sacrificing
+  accuracy: `Env(test_only=True)` skips `Mtr` (byte-identical), module-level SVD cache reuses the
+  deterministic patch-PCA basis across pages, `MAX_ATOMS` 4→3 (fewer candidates + less over-merge →
+  faster AND +0.5% accuracy, 74.8→75.3%). `radial/radial_evo2.py` Env change is backward-compatible.
+  Doc model = 105,429 params (22k genome + 83k head), 1126 evolved genomes, gradient-free. See CHANGELOG_OCR.md.
 
 - **[2026-07-18] (Claude)** — **/ocr: punctuation classes + over-merge fix — clean-PDF read 51% → 82%.**
   Measured the error breakdown first: the proposed "case fix" was only 7% of errors; real levers were

@@ -2375,8 +2375,10 @@ def api_video_upload():
     if not f:
         return jsonify({"error": "no file uploaded"}), 400
     name = video_service.safe_name(f.filename)
-    if os.path.splitext(name)[1] not in video_service.VIDEO_EXTS | video_service.AUDIO_EXTS:
-        return jsonify({"error": "not a recognized video/audio format"}), 400
+    allowed = (video_service.VIDEO_EXTS | video_service.AUDIO_EXTS
+               | {".png", ".jpg", ".jpeg", ".gif", ".webp"})
+    if os.path.splitext(name)[1].lower() not in allowed:
+        return jsonify({"error": "not a recognized media format"}), 400
     path = video_service.unique_path(name)
     f.save(path)
     return jsonify({"ok": True, "name": os.path.basename(path)})
