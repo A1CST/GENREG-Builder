@@ -1237,14 +1237,38 @@ def slide_to_svg_group(slide, w=1280, h=720, local_t=0.0, chart_frames=None):
                         cx = (w - cw) // 2
                 out.append(f'<image href="{img_uri}" x="{cx}" y="{cy}" width="{cw}" height="{ch_h}" preserveAspectRatio="xMidYMid meet"/>')
                 
-    # Caption / CC Text
+    # Caption / CC Text - word-wrapped, box grows with the lines
+    # (identical math to the client preview in slideshow.js)
     text = slide.get("text")
     if text:
-        lines = str(text).split("\n")
-        y0 = 630 - (len(lines) - 1) * 14
-        ts = "".join(f'<tspan x="640" dy="{26 * 1.35 if i > 0 else 0}">{_esc(ln)}</tspan>' for i, ln in enumerate(lines))
-        out.append(f'<rect x="100" y="570" width="1080" height="110" rx="8" fill="#10141c" fill-opacity="0.85" stroke="#1c232c" stroke-width="1"/>')
-        out.append(f'<text x="640" y="{y0}" font-family="Arial, Helvetica, sans-serif" font-size="24" font-weight="bold" fill="#f0ede4" text-anchor="middle">{ts}</text>')
+        def _wrap_cc(txt, max_chars):
+            wrapped = []
+            for para in str(txt).split("\n"):
+                cur = ""
+                for word in para.split():
+                    cand = (cur + " " + word) if cur else word
+                    if len(cand) > max_chars and cur:
+                        wrapped.append(cur)
+                        cur = word
+                    else:
+                        cur = cand
+                wrapped.append(cur)
+            return wrapped
+
+        cc_font = 24
+        lines = _wrap_cc(text, 68)
+        if len(lines) > 4:
+            cc_font = 20
+            lines = _wrap_cc(text, 82)
+        line_h = cc_font * 1.35
+        pad = 14
+        box_h = pad * 2 + line_h * len(lines)
+        box_y = 692 - box_h
+        base0 = box_y + pad + cc_font * 0.85
+        ts = "".join(f'<tspan x="640" dy="{line_h if i > 0 else 0}">{_esc(ln)}</tspan>'
+                     for i, ln in enumerate(lines))
+        out.append(f'<rect x="100" y="{box_y:.1f}" width="1080" height="{box_h:.1f}" rx="8" fill="#10141c" fill-opacity="0.85" stroke="#1c232c" stroke-width="1"/>')
+        out.append(f'<text x="640" y="{base0:.1f}" font-family="Arial, Helvetica, sans-serif" font-size="{cc_font}" font-weight="bold" fill="#f0ede4" text-anchor="middle">{ts}</text>')
         
     return "".join(out)
 

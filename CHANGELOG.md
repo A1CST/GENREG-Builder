@@ -10,6 +10,13 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-19] (Claude)** — **VIDEO: CC captions now word-wrap inside
+  the box.** Shared wrap math in client preview (`static/slideshow.js`)
+  and export renderer (`services/anim_service.py`): ~68 chars/line at
+  24px, auto step-down to 20px/~82 chars past 4 lines; caption box
+  auto-heights and stays bottom-anchored at y=692. Fixes text running
+  over the box edges. Details in CHANGELOG_VIDEO.md.
+
 - **[2026-07-19] (Claude)** — **VIDEO: TTS credit guard - a lookup json
   ties each generated line to its clip so identical narration NEVER bills
   twice (user's call).** `runs/video/slide_audio/tts_cache.json` maps

@@ -915,15 +915,33 @@
       }
     }
 
-    // CC Text
+    // CC Text - word-wrapped to the box, box grows with the lines
     if (s.text) {
       const esc = (txt) => txt.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-      const lines = String(s.text).split("\n");
-      const y0 = 630 - (lines.length - 1) * 14;
-      const ts = lines.map((ln, i) => `<tspan x="640" dy="${i ? 26 * 1.35 : 0}">${esc(ln)}</tspan>`).join("");
-      
-      out.push(`<rect x="100" y="570" width="1080" height="110" rx="8" fill="#10141c" fill-opacity="0.85" stroke="#1c232c" stroke-width="1"/>`);
-      out.push(`<text x="640" y="${y0}" font-family="Arial, Helvetica, sans-serif" font-size="24" font-weight="bold" fill="#f0ede4" text-anchor="middle">${ts}</text>`);
+      const wrapCC = (text, maxChars) => {
+        const outLines = [];
+        String(text).split("\n").forEach((para) => {
+          let cur = "";
+          para.split(/\s+/).filter(Boolean).forEach((word) => {
+            const cand = cur ? cur + " " + word : word;
+            if (cand.length > maxChars && cur) { outLines.push(cur); cur = word; }
+            else cur = cand;
+          });
+          outLines.push(cur || "");
+        });
+        return outLines;
+      };
+      let ccFont = 24;
+      let ccLines = wrapCC(s.text, 68);
+      if (ccLines.length > 4) { ccFont = 20; ccLines = wrapCC(s.text, 82); }
+      const ccLineH = ccFont * 1.35;
+      const ccPad = 14;
+      const ccBoxH = ccPad * 2 + ccLineH * ccLines.length;
+      const ccBoxY = 692 - ccBoxH;
+      const ccBase = ccBoxY + ccPad + ccFont * 0.85;
+      const ts = ccLines.map((ln, i) => `<tspan x="640" dy="${i ? ccLineH : 0}">${esc(ln)}</tspan>`).join("");
+      out.push(`<rect x="100" y="${ccBoxY}" width="1080" height="${ccBoxH}" rx="8" fill="#10141c" fill-opacity="0.85" stroke="#1c232c" stroke-width="1"/>`);
+      out.push(`<text x="640" y="${ccBase}" font-family="Arial, Helvetica, sans-serif" font-size="${ccFont}" font-weight="bold" fill="#f0ede4" text-anchor="middle">${ts}</text>`);
     }
 
     return out.join("");
