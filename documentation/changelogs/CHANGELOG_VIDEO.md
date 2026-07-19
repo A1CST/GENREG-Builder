@@ -9,6 +9,21 @@ the top of the log below, and also in the master CHANGELOG.md.
 
 ---
 
+- **[2026-07-19] (Claude)** — **VIDEO: media timeline responsive
+  pre-restart + the preview stage actually PLAYS videos (user's report).**
+  Two causes: (1) the media timeline armed off /api/video/meta, which is
+  still behind the pending Flask restart - with no duration it stayed
+  hidden. Now the BROWSER probes mp4/webm durations itself
+  (video-element metadata, 5s timeout) as a fallback, and existing decks
+  whose videos were assigned before durations worked are healed on load.
+  (2) Preview showed video charts as static thumbnails by design - wrong
+  for a rehearsal tool. Now a muted HTML <video> overlay is positioned
+  over the stage at the chart's exact box (viewBox -> CSS mapping,
+  letterbox-aware) and driven by the deck clock: hidden before the start
+  offset (the SVG poster shows), seeks on scrub, plays/pauses with the
+  deck, loops when loop is set, holds the last frame when not. Narration
+  owns the audio (overlay always muted). Frontend only, hard refresh.
+
 - **[2026-07-19] (Claude)** — **VIDEO: MEDIA TIMELINE under the audio
   panel (user's call) - choose when a slide's video/animation starts,
   with loop.** When the active slide embeds animated media, a MEDIA
