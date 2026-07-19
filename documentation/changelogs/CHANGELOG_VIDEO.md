@@ -9,6 +9,27 @@ the top of the log below, and also in the master CHANGELOG.md.
 
 ---
 
+- **[2026-07-18] (Claude)** — **VIDEO: charts/videos now actually show up
+  - on the stage AND in exports (user's report). ROOT CAUSE: the library
+  contained ZERO images - the "Upload Graphic / Chart" input posts to
+  /api/video/upload, which REJECTED image formats, so image charts never
+  existed; and video files placed as embeds hit <image href=...mp4>
+  (broken icon in the browser, silently absent in resvg). Fixed the whole
+  chain:** (1) uploads accept images (png/jpg/jpeg/gif/webp) into the
+  library; (2) VIDEOS are first-class slide embeds - the chart dropdown
+  gains [video] entries, the Videos cards gain "Use on slide", the STAGE
+  shows the video's server thumbnail (no broken icon), and the EXPORT
+  extracts the video's real frames once per render (ffmpeg fps-matched,
+  550px-scaled) and composites the correct frame per output frame
+  (slide_to_svg_group gains local_t + a chart_frames provider, threaded
+  through the crossfade branches); (3) BONUS BUG: the frame compositor's
+  slide ranges ignored the new duration floors (audio/media) - fixed to
+  _eff_slide_dur, so visuals stay on the right slide while audio holds
+  it. VERIFIED end-to-end: rendered a deck with the muted Gemini clip as
+  an embed - charttest.mp4, 11.5s exactly (10s video floor + 1.5s second
+  slide), frames composited. Upload route rides the pending restart;
+  page is hard-refresh.
+
 - **[2026-07-18] (Claude)** — **VIDEO: embedded-media duration joins the
   slide floor (user's call).** A slide now stays up for
   max(set duration, kept narration, EMBEDDED MEDIA runtime) - if the

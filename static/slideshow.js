@@ -146,6 +146,18 @@
       chartsList = Array.isArray(charts) ? charts : [];
       populateDropdown($("slide-chart"), chartsList, "none");
       renderChartsLibrary();
+      // videos are selectable slide embeds too (thumbnail on stage,
+      // real frames in the export)
+      try {
+        const vres = await (await fetch("/api/video/videos")).json();
+        const vsel = $("slide-chart");
+        (Array.isArray(vres) ? vres : []).forEach((v) => {
+          const o = document.createElement("option");
+          o.value = v;
+          o.textContent = "[video] " + v;
+          vsel.appendChild(o);
+        });
+      } catch (e) {}
     } catch (e) {
       console.error("Error loading charts:", e);
     }
@@ -241,6 +253,7 @@
         `<span>${name}</span>` +
         `<div style="display:flex; gap:4px; margin-top:4px;">` +
         `<button class="runs-btn vd-mini" data-a="prev">Preview</button>` +
+        `<button class="runs-btn vd-mini" data-a="use">Use on slide</button>` +
         (muted ? `<span style="font-size:10px;color:#7ee787;align-self:center;">muted</span>`
                : `<button class="runs-btn vd-mini" data-a="mute">Mute</button>`) +
         `</div>`;
@@ -248,6 +261,13 @@
       card.querySelector('[data-a="prev"]').addEventListener("click", () => {
         if (vid.paused) { vid.currentTime = 0; vid.play(); }
         else { vid.pause(); }
+      });
+      card.querySelector('[data-a="use"]').addEventListener("click", () => {
+        if (activeIndex < 0) { alert("Select a slide first."); return; }
+        slides[activeIndex].chart = name;
+        $("slide-chart").value = name;
+        refreshChartDur(slides[activeIndex]);
+        saveSlides(); renderPreview(); renderSlideList();
       });
       const muteBtn = card.querySelector('[data-a="mute"]');
       if (muteBtn) {
@@ -272,6 +292,12 @@
       }
       box.appendChild(card);
     });
+  }
+
+  function chartHref(name) {
+    return /\.(mp4|webm|mov|mkv)$/i.test(name || "")
+      ? `/api/video/thumb/${encodeURIComponent(name)}`
+      : `/api/video/file/${encodeURIComponent(name)}`;
   }
 
   function renderPosesLibrary() {
@@ -533,7 +559,7 @@
     const chartMini = $("slide-chart-preview-mini");
     const chartCont = $("slide-chart-preview-container");
     if (slide.chart) {
-      chartMini.src = `/api/video/file/${encodeURIComponent(slide.chart)}`;
+      chartMini.src = chartHref(slide.chart);
       chartCont.style.display = "block";
     } else {
       chartCont.style.display = "none";
@@ -578,7 +604,7 @@
       const chartMini = $("slide-chart-preview-mini");
       const chartCont = $("slide-chart-preview-container");
       if (e.target.value) {
-        chartMini.src = `/api/video/file/${encodeURIComponent(e.target.value)}`;
+        chartMini.src = chartHref(e.target.value);
         chartCont.style.display = "block";
       } else {
         chartCont.style.display = "none";
@@ -792,7 +818,7 @@
       }
       cx = chx + cw / 2;
       cy = chy + ch / 2;
-      out.push(`<image href="/api/video/file/${encodeURIComponent(assetName)}" x="${chx}" y="${chy}" width="${cw}" height="${ch}" preserveAspectRatio="xMidYMid meet"/>`);
+      out.push(`<image href="${chartHref(assetName)}" x="${chx}" y="${chy}" width="${cw}" height="${ch}" preserveAspectRatio="xMidYMid meet"/>`);
     }
     
     g.innerHTML = out.join("");
@@ -848,7 +874,7 @@
       }
       
       if (align !== "none" || s.chart_x !== undefined) {
-        out.push(`<image href="/api/video/file/${encodeURIComponent(s.chart)}" x="${cx}" y="${cy}" width="${cw}" height="${ch}" data-drag="chart" style="cursor: move;" preserveAspectRatio="xMidYMid meet"/>`);
+        out.push(`<image href="${chartHref(s.chart)}" x="${cx}" y="${cy}" width="${cw}" height="${ch}" data-drag="chart" style="cursor: move;" preserveAspectRatio="xMidYMid meet"/>`);
       }
     }
 
@@ -1048,7 +1074,7 @@
       
       const chartMini = $("slide-chart-preview-mini");
       const chartCont = $("slide-chart-preview-container");
-      chartMini.src = `/api/video/file/${encodeURIComponent(tempGhosts.chart)}`;
+      chartMini.src = chartHref(tempGhosts.chart);
       chartCont.style.display = "block";
       
       tempGhosts.chart = "";

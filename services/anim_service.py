@@ -1173,8 +1173,14 @@ def _get_base64_img(path):
     except Exception:
         return None
 
-def slide_to_svg_group(slide, w=1280, h=720):
-    """Render a single slide as an SVG group <g> string."""
+VIDEO_CHART_EXTS = (".mp4", ".webm", ".mov", ".mkv", ".gif")
+
+
+def slide_to_svg_group(slide, w=1280, h=720, local_t=0.0, chart_frames=None):
+    """Render a single slide as an SVG group <g> string. For VIDEO charts,
+    chart_frames maps chart name -> (frame_dir, fps, n_frames) and local_t
+    picks the frame; without a provider the video chart falls back to its
+    first frame if available."""
     out = []
     
     # Pose Image (User photos from C:/Users/paytonm/Pictures/poses)
@@ -1201,7 +1207,14 @@ def slide_to_svg_group(slide, w=1280, h=720):
     if chart:
         chart_path = os.path.normpath(os.path.join(video_service.LIB_DIR, video_service.safe_name(chart)))
         if chart_path.startswith(os.path.normpath(video_service.LIB_DIR)):
-            img_uri = _get_base64_img(chart_path)
+            if chart.lower().endswith(VIDEO_CHART_EXTS) and chart_frames \
+                    and chart in chart_frames:
+                fdir, ffps, nfr = chart_frames[chart]
+                fi = min(nfr, max(1, int(local_t * ffps) + 1))
+                img_uri = _get_base64_img(
+                    os.path.join(fdir, f"f_{fi:05d}.png"))
+            else:
+                img_uri = _get_base64_img(chart_path)
             if img_uri:
                 cx, cy, cw, ch_h = 650, 80, 550, 420
                 if slide.get("chart_x") is not None and slide.get("chart_y") is not None:
@@ -1226,12 +1239,12 @@ def slide_to_svg_group(slide, w=1280, h=720):
         
     return "".join(out)
 
-def slideshow_svg(slides, t, w=1280, h=720):
+def slideshow_svg(slides, t, w=1280, h=720, chart_frames=None):
     """Renders a complete SVG frame for time t, handling crossfades."""
     ranges = []
     curr = 0.0
     for s in slides:
-        dur = float(s.get("duration", 3.0))
+        dur = _eff_slide_dur(s)
         trans_dur = float(s.get("transition_dur", 0.5)) if s.get("transition") == "fade" else 0.0
         ranges.append({
             "slide": s,
@@ -1250,14 +1263,14 @@ def slideshow_svg(slides, t, w=1280, h=720):
             if r["trans_dur"] > 0.0 and (r["end"] - t) < r["trans_dur"] and idx < len(ranges) - 1:
                 next_r = ranges[idx + 1]
                 alpha = (t - (r["end"] - r["trans_dur"])) / r["trans_dur"]
-                out.append(f'<g opacity="{1.0 - alpha:.3f}">{slide_to_svg_group(r["slide"], w, h)}</g>')
-                out.append(f'<g opacity="{alpha:.3f}">{slide_to_svg_group(next_r["slide"], w, h)}</g>')
+                out.append(f'<g opacity="{1.0 - alpha:.3f}">{slide_to_svg_group(r["slide"], w, h, t - r["start"], chart_frames)}</g>')
+                out.append(f'<g opacity="{alpha:.3f}">{slide_to_svg_group(next_r["slide"], w, h, 0.0, chart_frames)}</g>')
             else:
-                out.append(slide_to_svg_group(r["slide"], w, h))
+                out.append(slide_to_svg_group(r["slide"], w, h, t - r["start"], chart_frames))
             break
     else:
         if ranges:
-            out.append(slide_to_svg_group(ranges[-1]["slide"], w, h))
+            out.append(slide_to_svg_group(ranges[-1]["slide"], w, h, 0.0, chart_frames))
             
     out.append("</svg>")
     return "".join(out)
@@ -1365,6 +1378,35 @@ def render_slides(slides, out_name="", fps=24, w=1280, h=720):
                     off += sum(b - a for a, b in segs)
         t_cursor += _eff_slide_dur(s_)
 
+    # pre-extract frames for VIDEO charts (once per unique video, at the
+    # deck fps, capped to the longest slide that embeds it) so the frame
+    # compositor can base64 the right frame per output frame
+    chart_frames = {}
+    import tempfile
+    for s_ in slides:
+        ch_name = s_.get("chart") or ""
+        if not ch_name.lower().endswith(VIDEO_CHART_EXTS):
+            continue
+        if ch_name in chart_frames:
+            continue
+        src = os.path.normpath(os.path.join(
+            video_service.LIB_DIR, video_service.safe_name(ch_name)))
+        if not src.startswith(os.path.normpath(video_service.LIB_DIR)) \
+                or not os.path.isfile(src):
+            continue
+        need = max(_eff_slide_dur(x) for x in slides
+                   if (x.get("chart") or "") == ch_name)
+        fdir = tempfile.mkdtemp(prefix="slidechart_")
+        r_ = subprocess.run(
+            [video_service.FFMPEG, "-y", "-i", src, "-t", f"{need:.3f}",
+             "-vf", f"fps={fps},scale=550:-2",
+             os.path.join(fdir, "f_%05d.png")],
+            capture_output=True, timeout=600,
+            creationflags=video_service.CREATE_NO_WINDOW)
+        nfr = len([f for f in os.listdir(fdir) if f.endswith(".png")])
+        if r_.returncode == 0 and nfr:
+            chart_frames[ch_name] = (fdir, fps, nfr)
+
     name = slug(out_name or "slideshow")
     out = video_service.unique_path(name + ".mp4")
     cmd = [video_service.FFMPEG, "-y",
@@ -1423,7 +1465,7 @@ def render_slides(slides, out_name="", fps=24, w=1280, h=720):
             for i in range(total):
                 if job.get("cancelled"):
                     break
-                svg = slideshow_svg(slides, i / fps, w, h)
+                svg = slideshow_svg(slides, i / fps, w, h, chart_frames)
                 png = bytes(resvg_py.svg_to_bytes(svg_string=svg))
                 proc.stdin.write(png)
                 job["progress"] = (i + 1) / total
