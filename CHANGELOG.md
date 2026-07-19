@@ -10,6 +10,13 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-19] (Claude)** — **VIDEO: Audio Studio modal** - lists
+  every clip per slide with play, editable script line (TTS clips
+  prefill their generated text via new `/api/video/tts_map`), regenerate
+  & replace through the credit guard, and optional permanent purge of
+  the replaced recording (`DELETE ...?purge=1` drops file + cache
+  entry). Details in CHANGELOG_VIDEO.md.
+
 - **[2026-07-19] (Claude)** — **VIDEO: CC captions now word-wrap inside
   the box.** Shared wrap math in client preview (`static/slideshow.js`)
   and export renderer (`services/anim_service.py`): ~68 chars/line at
