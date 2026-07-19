@@ -282,6 +282,7 @@
             <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
               <span style="font-size:11px; color:#5a6672; font-family:ui-monospace,monospace;">SLIDE AUDIO</span>
               <button id="aud-record" class="runs-btn vd-mini">Record</button>
+              <button id="aud-narrate" class="runs-btn vd-mini" title="synthesize this slide's caption with ElevenLabs">Narrate</button>
               <span id="aud-state" style="font-size:11px; color:#8b95a1;"></span>
               <span id="aud-slide-label" style="font-size:11px; color:#5a6672; margin-left:auto;"></span>
             </div>
@@ -355,7 +356,7 @@
           <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-top:10px; border-top:1px solid #1c232c; padding-top:10px;">
             <label style="display:flex; gap:5px; align-items:center; font-size:11.5px; color:#8b95a1;">
               <input type="checkbox" id="tmpl-tts" checked /> generate ElevenLabs narration from each slide's script</label>
-            <input id="tmpl-voice" type="text" placeholder="voice id (blank = default)" style="width: 210px; background:#10141c; border:1px solid #1c232c; color:#c7d0da; border-radius:4px; padding:4px 6px; font-size:11px;" />
+            <input id="tmpl-voice" type="text" value="nxNsTXLZ8x7PeZNBs9Js" placeholder="voice id (blank = default)" style="width: 210px; background:#10141c; border:1px solid #1c232c; color:#c7d0da; border-radius:4px; padding:4px 6px; font-size:11px;" />
           </div>
           <button id="tmpl-load" class="runs-btn tlm-primary" style="width:100%; margin-top:12px;">Build deck from template</button>
           <div id="tmpl-status" style="font-size:11px; color:#8b95a1; margin-top:8px; font-family:ui-monospace,monospace;"></div>

@@ -60,6 +60,7 @@ PROJECT_GROUPS = [
         ("lm",        "LM",        "/lm",           "#56d364"),
         ("lm_demo",   "LM Demo",   "/lm_demo",      "#3fdba0"),
         ("tsdb",      "TSDB",      "/tsdb",         "#39c5cf"),
+        ("replicate", "Replicate", "/replicate",    "#c39bf0"),
     ]),
     ("Evolve", [
         ("diff",      "DiffEvo",   "/diff",         "#d2a8ff"),
@@ -2112,6 +2113,49 @@ def api_ocr_download(name):
     return send_file(p, as_attachment=True, download_name=arc)
 
 
+# ── Replicate (recognize audio by replicating it — temporal radial, realtime) ─
+@app.route("/replicate")
+def replicate_page():
+    """Replicate — multimodal convergence. A concept exists in every perceptual
+    system at once: the visual union (the eyes), the private language (label-free
+    contrastive encoders), the letter bank (symbols), the shape bank (geometry).
+    One ridge head notices they agree. Campaign 1 is CIFAR with every face; audio
+    (realtime temporal replication) comes after. Data-driven from
+    radial_data/replicate_*.json (the /lm append-only pattern)."""
+    resp = app.make_response(render_template("replicate.html"))
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
+
+
+@app.route("/api/replicate/modules")
+def api_replicate_modules():
+    """Append-only module registry for the /replicate iteration log."""
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "radial_data",
+                        "replicate_modules.json")
+    reg = {"modules": []}
+    if os.path.isfile(path):
+        with open(path, encoding="utf-8") as f:
+            reg = json.load(f)
+    resp = jsonify(reg)
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
+
+
+@app.route("/api/replicate/export/<name>")
+def api_replicate_export(name):
+    """Serve a module's export json — whitelisted filename pattern only."""
+    if "/" in name or "\\" in name or ".." in name or \
+            not (name.startswith("replicate_") and name.endswith(".json")):
+        return jsonify({"error": "bad export name"}), 400
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "radial_data", name)
+    if not os.path.isfile(path):
+        return jsonify({"pending": True, "error": f"{name} not built yet"}), 404
+    with open(path, encoding="utf-8") as f:
+        resp = jsonify(json.load(f))
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
+
+
 # ── OCR lineage: node-graph model-lineage editor + server-side execution ────
 @app.route("/ocr/lineage")
 def ocr_lineage_page():
@@ -2317,7 +2361,11 @@ def api_video_tts():
         text = (data.get("text") or "").strip()
         if not text or len(text) > 4000:
             return jsonify({"error": "text empty or too long"}), 400
-        key = os.environ.get("ELEVENLABS_API_KEY", "")
+        key = ""
+        for name in ("ELEVENLABS_API_KEY", "ElevenLabs", "ELEVENLABS"):
+            key = os.environ.get(name, "")
+            if key:
+                break
         if not key:
             kp = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                               ".keys", "elevenlabs.key")
@@ -2325,10 +2373,10 @@ def api_video_tts():
                 with open(kp) as f:
                     key = f.read().strip()
         if not key:
-            return jsonify({"error": "no ElevenLabs key - set "
-                            "ELEVENLABS_API_KEY or put it in "
+            return jsonify({"error": "no ElevenLabs key - set the "
+                            "ElevenLabs env var or put it in "
                             ".keys/elevenlabs.key"}), 503
-        voice = (data.get("voice") or "").strip() or "21m00Tcm4TlvDq8ikWAM"
+        voice = (data.get("voice") or "").strip() or "nxNsTXLZ8x7PeZNBs9Js"
         import re as _re
         if not _re.fullmatch(r"[A-Za-z0-9]{8,40}", voice):
             return jsonify({"error": "bad voice id"}), 400

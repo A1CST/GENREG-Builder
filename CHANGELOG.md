@@ -10,6 +10,179 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-19] (Claude)** — **VIDEO: Script Studio armed - ElevenLabs
+  key wired (the user's `ElevenLabs` system env var; backend checks
+  ELEVENLABS_API_KEY / ElevenLabs / ELEVENLABS then the .keys file),
+  default voice set to the user's (nxNsTXLZ8x7PeZNBs9Js, prefilled in
+  the voice field), and a per-slide NARRATE button added to the audio
+  panel - synthesizes the active slide's caption into an mp3 clip on
+  demand (uses the voice field; clip flows through trim/playback/mux
+  like any recording). VERIFIED LIVE: real API call with the user's key
+  + voice produced a 2.2s mp3 clip (35KB) saved through the slide-clip
+  path. NOTE: the running Flask predates the env var - start Flask from
+  a NEW shell (fresh env) when doing the pending restart, or the route
+  will not see the key.
+
+- **[2026-07-19] (Claude)** — **REPLICATE module 7 (push80): val-greedy
+  package selection GOODHARTS — the a-priori package keeps the record.**
+  Widened the pool (4 new views: flip_rollpp/roll03/roll30/zoomout; 2 new
+  frames: augbasis_s7/_s9 — all cached) and chose a package by greedy
+  forward selection on VAL only: chose [visual, flip_rollpp, roll03, lang],
+  val 0.8004 — but TEST 0.7938, below module 6's a-priori GRAND (0.7967,
+  which STANDS as the record). Lesson logged for the line: with many
+  correlated measurement blocks, package selection is itself a fitness and
+  overfits the val split (~0.7pt val-test gap); prefer a-priori "all
+  measurements" packages or nested/fresh validation for selection. Test
+  touched once; anchors quoted not re-measured.
+  `replicate/replicate_push80.py`; export replicate_push80.json; module
+  `push80` on /replicate; run 20260719-171459-replicate_push80-da2862;
+  notice #620. NEXT (user's direction): question-tuned vocabularies —
+  `evolve_encoder` gained an additive `aug_kind` param (legacy default
+  unchanged); `replicate_vocab.py` trains color/crop/occlude/warp encoders
+  (label-free, 2500 gens each) and caches lang_<kind> blocks for stage 2:
+  CONJUNCTION composition against the measurement package.
+
+- **[2026-07-19] (Claude)** — **REPLICATE module 6: THE WALL MOVED — new
+  gradient-free CIFAR record 0.7967 (prior 0.7702 pod union / 0.7741
+  restated).** New MEASUREMENTS, not new readings: (a) VIEWS — the frozen
+  substrates replayed on flip/±2px-shift/zoom views; (b) FRAME — the frozen
+  visual genomes replayed in an augmented-image patch-PCA basis (the
+  seed-axis trick on the frame). Ladder (test once per arm): visual alone
+  0.7708 → view-mean 0.7762 → visual+view-mean 0.7884 → visual+4-views
+  CONCAT **0.7965** → visual+aug-frame 0.7873 → GRAND (all faces, all
+  measurements, 13.8k cols) **0.7967** (+2.6pt over vision, +2.3pt over
+  the prior best anchor — far beyond the ±1.4pt spread, with FIVE arms
+  independently confirming the direction, both probes earning separately:
+  views +1.8pt, frame +1.7pt). The shared-source diagnosis is confirmed
+  CAUSALLY in both directions: four same-source probes nulled; the first
+  different-measurement probe broke the record — and the previously
+  immortal airplane→ship miss is CORRECT in the best arm's samples. All
+  genomes frozen from prior campaigns; zero new evolution — the record is
+  pure measurement diversity. `replicate/replicate_multiview.py`; export
+  replicate_multiview.json; module `multiview` on /replicate; run
+  20260719-152747-replicate_multiview-2d170e; notice #619.
+
+- **[2026-07-19] (Claude)** — **REPLICATE module 5 (user's question: vision
+  first, then union the trained-off alpha+shape model on): clean NULL — and
+  it sharpens the law.** `replicate/replicate_visunion.py`: visual alone
+  0.7708, +raw letter+shape 0.7708, +offunion model (union + s11's 368
+  composed genomes) 0.7704, +all three seeds' 1,101 composed columns
+  0.7709. The genomes that verifiably earn +0.57..+0.87pt over their own
+  union (module 4, 3-seed) hand vision NOTHING: their nonlinear
+  compositions, selected blind to the visual bank, are still built from
+  the same 32×32 pixels — so even composed, foreign-substrate features are
+  absorbed by the shared source. The 0.77 wall now has four convergent
+  probes (concat, compose-over-all, offunion-earn-but-redundant,
+  visunion); the same airplane→ship miss appears in every configuration.
+  Escaping it requires new measurements (multi-view re-reads, augmented
+  environments, different signals), not new readings. Export
+  replicate_visunion.json; module `visunion` on /replicate; run
+  20260719-145657-replicate_visunion-4eef8a; notice #618.
+
+- **[2026-07-19] (Claude)** — **REPLICATE module 4 RESULT, 3-seed confirmed:
+  evolution EARNS on top of the foreign union — the campaign's first real
+  residual.** Train-off-the-alphabet+shape-union (no visual, no CIFAR-evolved
+  features anywhere): union concat 0.6503-0.6504, union+composed genomes
+  0.6560-0.6591 across seeds 11/23/37 — residual **+0.57 to +0.87pt, same
+  sign all three seeds** (350-383 genomes each, conjunction ops dominant;
+  LEAN genomes-alone ~0.52-0.53 from ~370 tiny columns). Headline: a CIFAR
+  perceiver grown ENTIRELY off substrates that never saw a CIFAR image
+  reaches **0.6591** — above letter-alone 0.6371 and above the hand-crafted
+  Coates-Ng 0.59 anchor. And the contrast completes the story: the SAME rig
+  that earned nothing over the visual bank (module 3 null) earns
+  consistently over the foreign union — evolution finds headroom exactly
+  where the base doesn't already own the signal, which is the
+  evolution-suppression law measured cleanly in one campaign. Runs
+  20260719-144341 (s11) / -144502 (s23) / -144537 (s37); export
+  replicate_offunion.json; module `offunion` on /replicate; notice #614.
+
+- **[2026-07-19] (Claude)** — **REPLICATE module 4 launched: TRAIN OFF THE
+  FOREIGN UNION (user's call).** Union the alphabet + shape banks alone —
+  no visual, no CIFAR-evolved features anywhere — and evolve genomes on top
+  of that union as the environment: can a CIFAR perceiver be GROWN off
+  substrates that never saw CIFAR? `replicate_compose.py` parameterized
+  (`--blocks letter,shape --tag offunion`; export/registry/run naming
+  follows the tag). Same 3.8 rig: conjunction grammar, fresh-val rounds,
+  residual fitness over [union | frozen genomes], test once per arm.
+  Unlike module 3 there is real headroom (union base ~0.6 vs the 0.774
+  ceiling) and smoke earning rates are 3-5x module 3's. Full 50k run
+  (60 rounds) in flight; smoke run 20260719-144248-replicate_offunion-5dc5d6.
+
+- **[2026-07-19] (Claude)** — **REPLICATE module 3 RESULT: compose is a NULL —
+  and with it the diagnosis is complete: the 0.77 wall is SHARED-SOURCE
+  error.** Full run (50k/10k, 40 rounds, 1008s): 237 cross-modal genomes
+  frozen (ops attend/min/absdiff/gate/prod — the conjunction grammar was
+  used), every round's champion earning +0.0008-0.0027 on a fresh val
+  split... and the final head: concat 0.7741, concat+genomes **0.7740**
+  (residual −0.0001), LEAN genomes-alone 0.5401/237 cols. The per-round
+  gains were split noise (10k-val σ ≈ 0.4pt) that never accumulated. THREE
+  probes now agree — module 2 concat (null), module 3 composition (null),
+  and the 7-seed union's own saturation at 0.7702 — so per the seed-union
+  saturation law the errors are shared at the SOURCE: all four faces
+  re-encode the same 32×32 pixels; they are re-viewings of one measurement,
+  not independent measurements. The convergence thesis survives, but it
+  requires faces with INDEPENDENT error — different views/environments
+  (multi-crop, multi-scale, augmented re-reads) or genuinely different
+  signals (the audio campaign) — not more readings of one image. Notices
+  #611/#612; run 20260719-110010-replicate_compose-2fe87d; module on
+  /replicate.
+
+- **[2026-07-19] (Claude)** — **REPLICATE module 3 built: COMPOSE — cross-modal
+  genomes over the joint bank (`replicate/replicate_compose.py`).** The answer
+  to module 2's shared-error null: evolve genomes OVER the 5,093-channel
+  multi-face bank (visual|lang|letter|shape, standardized as module 2's head
+  saw it) with conjunction primitives — prod/gate/min/absdiff across faces +
+  attend genomes (evolved query over key channels, softmax over values) with
+  cross-block index pressure. §3.8-compliant operators: relative weight
+  mutation with the absolute floor, local index drift + rare cross-face
+  jumps, truncation pop//4, admission by output-orthogonality on a fixed
+  probe (|corr|<0.85), live-tunable cap (`replicate/compose_cap.txt`).
+  Fitness = residual ridge gain over the base we KEEP ([full concat |
+  frozen genomes], make_scorer incremental solve) with auto-ablation to
+  free-base if the concat suppresses all earning (guide §3.3). FRESH VAL
+  PER ROUND (the v3-freshval-tower lesson) after the first smoke measurably
+  chased val noise (concat+genomes 0.6990 < concat 0.7060; with fresh-val
+  gate: 0.7060 = no harm). Final: ridge over [concat | genomes] + LEAN arm,
+  lam on val, test once per arm, vs module 2's 0.7714. Full 50k run in
+  flight; export replicate_compose.json, module `compose` on /replicate
+  (arms renderer gained per-export labels).
+
+- **[2026-07-19] (Claude)** — **REPLICATE module 2 RESULT (full 50k/10k):
+  the faces AGREE — and that is exactly why concatenation earns nothing.**
+  Ladder: eyes alone 0.7710 (reproduces the 0.7702 pod union under the
+  honest lam-on-val protocol), ALL faces 0.7714 (+0.04pt = single-seed
+  noise, NOT a record — notice #607 corrected by #608), visual+lang 0.7704,
+  visual+letter+shape 0.7706. The real findings: (1) **cross-domain
+  transfer is real and large** — the frozen LETTER bank alone reads CIFAR
+  at **0.6371** (raw-pixel ridge 0.324, hand-crafted Coates-Ng 0.59), the
+  temporal SHAPE bank alone 0.5137 from 191 features, the private language
+  0.4472 from 64 dims; (2) at a 0.77 floor the faces' errors are SHARED —
+  the seed-union-saturation diagnosis: more banks cannot fix what every
+  bank gets wrong together, so the next move is composition evolution CAN
+  earn on: evolve genomes OVER the joint multi-face bank (cross-modal
+  conjunctions a linear head cannot tabulate), not more concatenation.
+  Export radial_data/replicate_cifar.json, run
+  20260719-012336-replicate_cifar-a2c9eb, module appended to /replicate.
+
+- **[2026-07-19] (Claude)** — **REPLICATE pivot: multimodal CONVERGENCE first,
+  audio later ("a picture is worth a thousand words, including the ones that
+  are words only to the private language").** The project's task is now: give
+  the model EVERY face of the concept and let one ridge head notice they
+  agree — the model is never told "truck", it is given the ability to arrive
+  at its own word for it. New `replicate/replicate_cifar.py` (module 2)
+  attacks CIFAR-10 with four faces: the 7-substrate grammar-v2 visual union
+  (3,645 genomes, 0.7702 record anchor), the private language (3 independent
+  label-free contrastive encoders, seed7/seed101/scaled, r=0.977 convergence
+  line), the frozen LETTER bank replayed on CIFAR in its own basis, and the
+  frozen temporal SHAPE bank reading each image as a static 6-frame clip.
+  Per-block train-stat standardization clamped ±8sd; lam picked on a held-out
+  val split, full-train refit, test touched once per arm (ladder: each face
+  alone, visual+lang, visual+letter+shape, ALL). Blocks cached in
+  `replicate/cache/`. Page lede, route docstring, and `replicate/__init__.py`
+  reframed; `static/replicate.js` gained an `arms` module renderer. Audio
+  (realtime temporal replication) stays the project's later campaign. No
+  Flask restart needed beyond the one already pending for /replicate.
+
 - **[2026-07-19] (Claude)** — **VIDEO SESSION CLOSE (user switching to
   CIFAR). State of /video at stop:** the slide builder is a complete
   narrated-explainer pipeline - slide manager (visual cards,
