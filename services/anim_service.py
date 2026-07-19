@@ -1223,7 +1223,9 @@ def slide_to_svg_group(slide, w=1280, h=720, local_t=0.0, chart_frames=None):
             else:
                 img_uri = _get_base64_img(chart_path)
             if img_uri:
-                cx, cy, cw, ch_h = 650, 80, 550, 420
+                cw = max(80.0, float(slide.get("chart_w", 550) or 550))
+                ch_h = max(60.0, float(slide.get("chart_h", 420) or 420))
+                cx, cy = 650, 80
                 if slide.get("chart_x") is not None and slide.get("chart_y") is not None:
                     cx = float(slide["chart_x"])
                     cy = float(slide["chart_y"])
