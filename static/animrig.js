@@ -43,7 +43,24 @@
     const emit = (p) => {
       const tag = p.tag || "other";
       if (MOUTH_TAGS.has(tag) && tag !== "mouth_" + mouth) return "";
-      const [ox, oy] = p.offset || [0, 0];
+      const facing = pose.facing || rig.facing || "profile";
+      const torsoPart = rig.parts.find(hp => hp.id === "torso");
+      let torsoW = 40, torsoH = 80, legH = 84, shoulderY = -154;
+      if (torsoPart && torsoPart.shape && torsoPart.shape.width) {
+        torsoW = Number(torsoPart.shape.width);
+        torsoH = Number(torsoPart.shape.height);
+        const ty = Number(torsoPart.shape.y);
+        legH = -ty - torsoH;
+        shoulderY = ty + 10;
+      }
+      let [ox, oy] = p.offset || [0, 0];
+      if (facing === "front") {
+        const pid = p.id;
+        if (pid === "arm_l") { ox = -torsoW * 0.65; oy = shoulderY; }
+        else if (pid === "arm_r") { ox = torsoW * 0.65; oy = shoulderY; }
+        else if (pid === "leg_l") { ox = -torsoW * 0.3; }
+        else if (pid === "leg_r") { ox = torsoW * 0.3; }
+      }
       const [px, py] = p.pivot || [0, 0];
       const [tx, ty] = trans[tag] || [0, 0];
       // verb rotation + the part's authored base rotation (both subtree-wide)
@@ -51,12 +68,71 @@
       let tf = `translate(${ox + tx},${oy + ty})`;
       if (ang) tf += ` rotate(${ang},${px},${py})`;
       let shape = shapeSVG(p);
+      if (facing === "front") {
+        const headPart = rig.parts.find(hp => hp.id === "head");
+        const headR = headPart && headPart.shape && headPart.shape.ry ? Number(headPart.shape.ry) : 20;
+        const pid = p.id;
+        if (pid === "torso") {
+          shape = `<rect x="${-torsoW * 0.65}" y="${torsoPart.shape.y}" width="${torsoW * 1.3}" height="${torsoH}" rx="9" fill="${p.fill || 'none'}" stroke="${p.stroke || 'none'}" stroke-width="${p.sw || 0}"/>`;
+        } else if (pid === "vest" || pid === "shirt" || pid === "labcoat" || pid === "dtag") {
+          shape = `<g transform="scale(1.3, 1)">${shapeSVG(p)}</g>`;
+        } else if (pid === "head") {
+          shape = `<ellipse cx="0" cy="${-headR}" rx="${headR}" ry="${headR}" fill="${p.fill || 'none'}" stroke="${p.stroke || 'none'}" stroke-width="${p.sw || 2}"/>`;
+        } else if (pid === "eye") {
+          shape = `<g transform="translate(${-ox}, 0)">`
+                + `<ellipse cx="${-headR * 0.28}" cy="0" rx="2.7" ry="2.7" fill="${p.fill || 'none'}" stroke="${p.stroke || 'none'}" stroke-width="${p.sw || 0}"/>`
+                + `<ellipse cx="${headR * 0.28}" cy="0" rx="2.7" ry="2.7" fill="${p.fill || 'none'}" stroke="${p.stroke || 'none'}" stroke-width="${p.sw || 0}"/>`
+                + `</g>`;
+        } else if (pid === "nose") {
+          shape = `<g transform="translate(${-ox}, 0)">`
+                + `<path d="M -4 ${-headR * 0.72} Q 0 ${-headR * 0.65} 4 ${-headR * 0.72}" fill="none" stroke="${p.stroke || 'none'}" stroke-width="${p.sw || 2}"/>`
+                + `</g>`;
+        } else if (pid.startsWith("mouth_")) {
+          shape = `<g transform="translate(${-ox}, 0)">${shapeSVG(p)}</g>`;
+        } else if (pid === "glasses") {
+          shape = `<g transform="translate(${-ox}, 0)">`
+                + `<path d="M ${-headR * 0.6} 0 H ${headR * 0.6}" fill="none" stroke="${p.stroke || 'none'}" stroke-width="${p.sw || 2}"/>`
+                + `<rect x="${-headR * 0.58}" y="-6" width="${headR * 0.4}" height="12" rx="3" fill="none" stroke="${p.stroke || 'none'}" stroke-width="${p.sw || 2}"/>`
+                + `<rect x="${headR * 0.18}" y="-6" width="${headR * 0.4}" height="12" rx="3" fill="none" stroke="${p.stroke || 'none'}" stroke-width="${p.sw || 2}"/>`
+                + `</g>`;
+        } else if (pid === "hair") {
+          shape = `<g transform="translate(${-ox}, 0)">`
+                + `<ellipse cx="0" cy="${-headR * 1.38}" rx="${headR * 0.95}" ry="${headR * 0.42}" fill="${p.fill || 'none'}" stroke="${p.stroke || 'none'}" stroke-width="${p.sw || 2}"/>`
+                + `</g>`;
+        } else if (pid === "hair_back") {
+          shape = `<g transform="translate(${-ox}, 0)">`
+                + `<ellipse cx="${-headR * 0.72}" cy="${-headR * 0.8}" rx="${headR * 0.38}" ry="${headR * 0.7}" fill="${p.fill || 'none'}"/>`
+                + `<ellipse cx="${headR * 0.72}" cy="${-headR * 0.8}" rx="${headR * 0.38}" ry="${headR * 0.7}" fill="${p.fill || 'none'}"/>`
+                + `</g>`;
+        } else if (pid === "cap") {
+          shape = `<g transform="translate(${-ox}, 0)">`
+                + `<rect x="${-headR * 0.92}" y="${-headR * 0.55}" width="${headR * 1.84}" height="${headR * 0.7}" rx="4" fill="${p.fill || 'none'}" stroke="${p.stroke || 'none'}" stroke-width="${p.sw || 2}"/>`
+                + `</g>`;
+        } else if (pid === "visor") {
+          const vw = rig.archetype === "robot" ? headR * 1.0 : headR * 1.84;
+          shape = `<g transform="translate(${-ox}, 0)">`
+                + `<rect x="${-vw / 2}" y="-3" width="${vw}" height="6" rx="2" fill="${p.fill || 'none'}" stroke="${p.stroke || 'none'}" stroke-width="${p.sw || 2}"/>`
+                + `</g>`;
+        } else if (pid === "metalface") {
+          shape = `<g transform="translate(${-ox}, 0)">`
+                + `<rect x="${-headR * 0.4}" y="${-headR * 1.3}" width="${headR * 0.8}" height="${headR * 0.8}" rx="2" fill="${p.fill || 'none'}" stroke="${p.stroke || 'none'}" stroke-width="${p.sw || 2}"/>`
+                + `</g>`;
+        } else if (pid === "redeye") {
+          shape = `<g transform="translate(${-ox}, 0)">`
+                + `<ellipse cx="0" cy="0" rx="3" ry="3" fill="${p.fill || 'none'}"/>`
+                + `</g>`;
+        }
+      }
       const scl = p.scale !== undefined ? Number(p.scale) || 1 : 1;
       if (scl !== 1) shape = `<g transform="scale(${scl})">${shape}</g>`;   // shape only
-      const ch = (kids[p.id] || []).slice().sort((a, b) => (a.z || 0) - (b.z || 0));
-      const inner = ch.filter((c) => (c.z || 0) < 0).map(emit).join("")
+      const getZ = (c) => {
+        if (facing === "front" && c.id === "arm_l") return 3;
+        return c.z || 0;
+      };
+      const ch = (kids[p.id] || []).slice().sort((a, b) => getZ(a) - getZ(b));
+      const inner = ch.filter((c) => getZ(c) < 0).map(emit).join("")
         + shape
-        + ch.filter((c) => (c.z || 0) >= 0).map(emit).join("");
+        + ch.filter((c) => getZ(c) >= 0).map(emit).join("");
       const idAttr = withIds ? ` data-pid="${esc(p.id)}"` : "";
       return `<g${idAttr} transform="${tf}">${inner}</g>`;
     };
@@ -67,6 +143,7 @@
   function actorState(actor, actions, t, isChar) {
     let x = Number(actor.x) || 0, y = Number(actor.y) || 0;
     let flip = !!actor.flip, opacity = 1;
+    let facing = actor.facing || "profile";
     const rot = {};
     let mouth = "closed";
     let dy = isChar ? Math.sin(2 * Math.PI * 0.5 * t) * 1.5 : 0;
@@ -82,26 +159,33 @@
       if (t1 <= t0 || t < t0) continue;
       const u = Math.min(1, (t - t0) / (t1 - t0));
       const args = a.args || {};
-      if (a.verb === "walk") {
+      if (a.verb === "walk_right" || a.verb === "walk_left" || a.verb === "walk_up_stairs_right" || a.verb === "walk_up_stairs_left") {
         const toX = args.to_x !== undefined ? Number(args.to_x) : x;
-        if (Math.abs(toX - x) > 0.5) flip = toX < x;
+        const toY = args.to_y !== undefined ? Number(args.to_y) : y;
+        if (a.verb === "walk_right" || a.verb === "walk_up_stairs_right") {
+          flip = false;
+        } else {
+          flip = true;
+        }
         if (t <= t1) {
           walking = true;
           const ph = 2 * Math.PI * 1.6 * (t - t0);
           const s = Math.sin(ph);
           rot.leg_l = 24 * s;
           rot.leg_r = -24 * s;
-          // knee flexes while its leg swings, straight at the pass
-          rot.leg_l_lower = -20 * Math.max(0, s);
-          rot.leg_r_lower = -20 * Math.max(0, -s);
+          const lift = a.verb.includes("stairs") ? -35 : -20;
+          rot.leg_l_lower = lift * Math.max(0, s);
+          rot.leg_r_lower = lift * Math.max(0, -s);
           rot.arm_l = -16 * s;
           rot.arm_r = 16 * s;
-          // elbow keeps a soft bend opposite the upper-arm swing
           rot.arm_l_lower = -10 - 8 * Math.max(0, s);
           rot.arm_r_lower = 10 + 8 * Math.max(0, -s);
           dy = -3 * Math.abs(s);
         }
         x = lerp(x, toX, u);
+        if (a.verb.includes("stairs")) {
+          y = lerp(y, toY, u);
+        }
       } else if (a.verb === "move") {
         x = lerp(x, args.to_x !== undefined ? Number(args.to_x) : x, u);
         y = lerp(y, args.to_y !== undefined ? Number(args.to_y) : y, u);
@@ -115,6 +199,48 @@
         else if (t1 - t < ramp) ang = lerp(0, -75, (t1 - t) / ramp);
         else ang = -75;
         rot[arm] = arm === "arm_r" ? ang : -ang;
+      } else if (a.verb === "present" && t <= t1) {
+        const arm = (args.arm || "r") === "r" ? "arm_r" : "arm_l";
+        const targetAng = args.angle !== undefined ? Number(args.angle) : -45;
+        const ramp = 0.35;
+        let ang;
+        if (t - t0 < ramp) ang = lerp(0, targetAng, (t - t0) / ramp);
+        else if (t1 - t < ramp) ang = lerp(0, targetAng, (t1 - t) / ramp);
+        else ang = targetAng;
+        rot[arm] = arm === "arm_r" ? ang : -ang;
+      } else if (a.verb === "explain" && t <= t1) {
+        const ph = 2 * Math.PI * 2.5 * (t - t0);
+        rot.arm_l = -15 + 10 * Math.sin(ph);
+        rot.arm_r = -15 + 10 * Math.cos(ph);
+        rot.arm_l_lower = -40 + 15 * Math.cos(ph);
+        rot.arm_r_lower = -40 + 15 * Math.sin(ph);
+      } else if (a.verb === "think" && t <= t1) {
+        const ramp = 0.35;
+        if (t - t0 < ramp) {
+          const u_r = (t - t0) / ramp;
+          rot.arm_r = lerp(0, -110, u_r);
+          rot.arm_r_lower = lerp(0, -100, u_r);
+        } else if (t1 - t < ramp) {
+          const u_r = (t1 - t) / ramp;
+          rot.arm_r = lerp(0, -110, u_r);
+          rot.arm_r_lower = lerp(0, -100, u_r);
+        } else {
+          rot.arm_r = -110;
+          rot.arm_r_lower = -100;
+        }
+        dy += Math.sin(2 * Math.PI * 0.8 * (t - t0)) * 0.8;
+      } else if (a.verb === "code" && t <= t1) {
+        rot.arm_l = -60;
+        rot.arm_r = -60;
+        const ph = 2 * Math.PI * 5.0 * (t - t0);
+        rot.arm_l_lower = -90 + 8 * Math.sin(ph);
+        rot.arm_r_lower = -90 + 8 * Math.cos(ph);
+      } else if (a.verb === "face") {
+        if (args.dir === "front" || Number(args.front) === 1) {
+          facing = "front";
+        } else {
+          facing = "profile";
+        }
       } else if (a.verb === "fade") {
         opacity = lerp(args.from !== undefined ? Number(args.from) : 1,
           args.to !== undefined ? Number(args.to) : 0, u);
@@ -132,7 +258,7 @@
       trans.door = [ampDx * openness, ampDy * openness];
       rot.hinge = (rot.hinge || 0) + ampAng * openness;
     }
-    return { x, y, flip, opacity, rot, trans, mouth, dy, walking };
+    return { x, y, flip, opacity, rot, trans, mouth, dy, walking, facing };
   }
 
   function overlaySVG(ov, t, w, h) {

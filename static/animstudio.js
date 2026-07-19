@@ -222,8 +222,12 @@
     const loop = 2.5;
     const tt = t % loop;
     const action = { actor: "t", verb: verbTest, t0: 0, t1: loop, args: {} };
-    if (verbTest === "walk") action.args = { to_x: 0 };
-    if (verbTest === "point") action.args = { arm: "r" };
+    if (verbTest.startsWith("walk")) {
+      action.args = { to_x: verbTest.includes("right") ? 100 : -100 };
+      if (verbTest.includes("stairs")) action.args.to_y = -60;
+    }
+    if (verbTest === "point" || verbTest === "present") action.args = { arm: "r", angle: -45 };
+    if (verbTest === "face") action.args = { front: 1 };
     return AnimRig.actorState({ id: "t", x: 0, y: 0 }, [action], tt,
       rig.kind === "character");
   }
@@ -810,6 +814,8 @@
       row.appendChild(mkNum("y", a.y, S((v) => { a.y = v; drawScene(); })));
       row.appendChild(mkNum("scale", a.scale || 1, S((v) => { a.scale = v; drawScene(); }), "0.05"));
       row.appendChild(mkCheck("flip", a.flip, S((v) => { a.flip = v; drawScene(); })));
+      row.appendChild(mkSelect("facing", [["profile", "profile"], ["front", "front"]], a.facing || "profile",
+        S((v) => { a.facing = v; drawScene(); })));
       const rm = el("button", "runs-btn vd-mini", "Remove");
       rm.addEventListener("click", () => {
         pushScn();
@@ -842,10 +848,18 @@
   $("scn-addobject").addEventListener("click", () => addPlacement("scn-addobj", "o"));
 
   const VERB_ARGS = {
-    walk: [["to_x", "to x", 1]],
+    walk_right: [["to_x", "to x", 1]],
+    walk_left: [["to_x", "to x", 1]],
+    walk_up_stairs_right: [["to_x", "to x", 1], ["to_y", "to y", 1]],
+    walk_up_stairs_left: [["to_x", "to x", 1], ["to_y", "to y", 1]],
     move: [["to_x", "to x", 1], ["to_y", "to y", 1]],
     talk: [],
     point: [],
+    present: [["angle", "angle °", 1]],
+    explain: [],
+    think: [],
+    code: [],
+    face: [["front", "front-facing", 1]],
     fade: [["from", "from", 0.05], ["to", "to", 0.05]],
     open: [["dx", "slide x", 1], ["dy", "slide y", 1], ["angle", "hinge °", 1]],
     close: [],
@@ -853,7 +867,12 @@
   // fresh defaults when an action's verb changes
   const VERB_DEFAULTS = {
     open: () => ({ dx: -60, dy: 0, angle: -100 }),
-    walk: () => ({ to_x: Math.round(scene.w * 0.6) }),
+    walk_right: () => ({ to_x: Math.round(scene.w * 0.8) }),
+    walk_left: () => ({ to_x: Math.round(scene.w * 0.2) }),
+    walk_up_stairs_right: () => ({ to_x: Math.round(scene.w * 0.7), to_y: Math.round(scene.h * 0.5) }),
+    walk_up_stairs_left: () => ({ to_x: Math.round(scene.w * 0.3), to_y: Math.round(scene.h * 0.5) }),
+    present: () => ({ arm: "r", angle: -45 }),
+    face: () => ({ front: 1 }),
   };
 
   // Sequencing: actions execute top to bottom. Each action's start mode:
@@ -901,7 +920,7 @@
       const a = scene.actors.find((x) => x.id === actorId);
       return a && rigKind(a.rig) === "object"
         ? ["move", "fade", "open", "close"]
-        : ["walk", "move", "talk", "point", "fade", "open", "close"];
+        : ["walk_right", "walk_left", "walk_up_stairs_right", "walk_up_stairs_left", "move", "talk", "point", "present", "explain", "think", "code", "face", "fade", "open", "close"];
     };
     const S = (fn) => (v) => { pushScn(); fn(v); };
     const rerender = () => { renderActions(); drawScene(); };
@@ -956,7 +975,7 @@
         row.appendChild(mkNum(label, (ac.args || {})[key] !== undefined ? ac.args[key] : 0,
           S((v) => { (ac.args = ac.args || {})[key] = v; drawScene(); }), String(step)));
       });
-      if (ac.verb === "point") {
+      if (ac.verb === "point" || ac.verb === "present") {
         row.appendChild(mkSelect("arm", [["r", "right"], ["l", "left"]],
           (ac.args || {}).arm || "r", S((v) => { (ac.args = ac.args || {}).arm = v; drawScene(); })));
       }
@@ -971,8 +990,8 @@
     if (!scene) return;
     if (!scene.actors.length) { scnStatus.textContent = "add an actor first"; return; }
     pushScn();
-    scene.actions.push({ actor: scene.actors[0].id, verb: "walk", mode: "after",
-      dur: 2, t0: 0, t1: 2, args: { to_x: Math.round(scene.w * 0.6) } });
+    scene.actions.push({ actor: scene.actors[0].id, verb: "walk_right", mode: "after",
+      dur: 2, t0: 0, t1: 2, args: { to_x: Math.round(scene.w * 0.8) } });
     renderActions();
     drawScene();
   });
