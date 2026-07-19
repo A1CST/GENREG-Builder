@@ -9,6 +9,14 @@ the top of the log below, and also in the master CHANGELOG.md.
 
 ---
 
+- **[2026-07-19] (Claude)** — **VIDEO: preview stage screen-boundary
+  outline (user's call).** A dashed gray rect now marks the exact
+  1280x720 frame that ends up in the export, and the stage SVG got
+  `overflow: visible` so an item dragged past the edge stays visible
+  outside the dashed frame instead of silently clipping - placement
+  mistakes are obvious at a glance. Preview-only; exports unchanged.
+  Files: static/slideshow.js (renderPreview), templates/video.html.
+
 - **[2026-07-19] (Claude)** — **VIDEO: media timeline promoted to its
   own panel (user's call).** The MEDIA TIMELINE was nested inside the
   SLIDE AUDIO card; it is now a sibling card in the main column,

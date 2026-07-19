@@ -865,6 +865,21 @@
         }
       }
     }
+
+    // screen-boundary outline: marks the exact 1280x720 frame that ends
+    // up in the export, so placed items are visibly on/off screen
+    const border = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+    border.setAttribute("x", "1.5");
+    border.setAttribute("y", "1.5");
+    border.setAttribute("width", "1277");
+    border.setAttribute("height", "717");
+    border.setAttribute("fill", "none");
+    border.setAttribute("stroke", "#8b95a1");
+    border.setAttribute("stroke-width", "3");
+    border.setAttribute("stroke-dasharray", "14 10");
+    border.setAttribute("opacity", "0.55");
+    border.style.pointerEvents = "none";
+    stage.appendChild(border);
   }
 
   function makeGhostGroup(assetName, align, actionType) {
