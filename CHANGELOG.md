@@ -10,6 +10,33 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-18] (Claude)** — **VIDEO: per-slide AUDIO panel (user's call)
+  - record narration per slide through the browser mic, ordered clips,
+  move/delete, and the renderer muxes every clip at its true timestamp.
+  FLASK RESTART NEEDED (new routes).** Under the stage preview: SLIDE
+  AUDIO panel - Record/Stop (MediaRecorder, webm/opus; the button goes
+  red while recording and the take is PINNED to the slide that was
+  active when recording started, so clicking around mid-take cannot
+  misfile it), clip rows per active slide (index, duration, Play/Stop,
+  move-to-slide dropdown, Delete), multiple clips per slide in order,
+  and a green audio dot on slide-manager cards. Storage: clips POST to
+  /api/video/slide_audio (runs/video/slide_audio/, whitelisted webm ids;
+  GET serves, DELETE is Windows-lock-resilient with a deferred retry -
+  deleting a clip while the browser streams it cannot 500). Durations
+  measured client-side via decodeAudioData (webm blobs report Infinity
+  through the audio element in Chromium). Slide JSON gains
+  slide.clips=[{id,dur}] (NEW field - the existing slide.audio string is
+  the deck-level export track and the export handler clobbers it, so
+  clips deliberately avoid it; both mux together). RENDER:
+  anim_service.render_slides builds ffmpeg adelay/amix graphs - each
+  clip starts at its slide's start time plus the durations of prior
+  clips on the same slide; deck track still supported; output trimmed to
+  deck duration. Verified: endpoint roundtrip + traversal guard via the
+  Flask test client; mux wiring inspected; node --check + ast clean.
+  One build bug caught by the roundtrip test: the SLIDE_AUDIO_DIR
+  definition was skipped by its own existence-guard (the mux patch had
+  already introduced the reference).
+
 - **[2026-07-18] (Claude)** — **VIDEO: slide manager rebuilt (user's call:
   decluttered + the broken delete) - visual cards, drag-to-reorder,
   duplicate, and a robust delete.** ROOT CAUSE of the dead delete: decks
@@ -27,6 +54,12 @@ log below; don't rewrite existing entries.
   tracking preserved across moves; (5) delete fixes activeIndex shifting
   when removing above the selection. Frontend only, hot-loaded
   (cache-busted) - hard refresh, no Flask restart. node --check clean.
+
+- **[2026-07-18] (Claude)** — **/ocr: real-PDF test — honest cross-domain failure.** `ocr/ocr_pdf.py`
+  (fitz raster + per-char ground truth) on RADIAL_SPACE_FINDINGS.pdf. Reader half-reads perfectly-cropped
+  real chars (0.57) but proportional dense-text SEGMENTATION defeats CC and projection profiles (only
+  ~24% of boxes align); it does NOT transfer to thin black-on-white uppercase+punctuation documents.
+  Fix = fold document text into the training environment + line-then-char segmentation. See CHANGELOG_OCR.md.
 
 - **[2026-07-18] (Claude)** — **/ocr: working synthetic screen reader — localization solved, crop
   domain-gap fixed.** Rebuilt `ocr_screen.propose_boxes` (bg-distance mask + dilation + box-merge for

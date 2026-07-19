@@ -54,6 +54,7 @@ PROJECT_GROUPS = [
         ("radial",    "Radial",    "/radial",       "#f778ba"),
         ("rdemo",     "Demo",      "/radial/demo",  "#f0a0c8"),
         ("vision_demo", "Vision Demo", "/vision_demo", "#5fd0c0"),
+        ("ocr",       "OCR",       "/ocr",          "#4fd0e0"),
     ]),
     ("Sequence", [
         ("lm",        "LM",        "/lm",           "#56d364"),
@@ -2025,6 +2026,135 @@ def api_vision_demo_download(name):
     return send_file(p, as_attachment=True, download_name=arc)
 
 
+# ── OCR (gradient-free screen reading, built up in stages) ──────────────────
+@app.route("/ocr")
+def ocr_page():
+    """OCR — gradient-free recognizer trained in a rich environment (moving, colored,
+    varying contrast, many fonts/sizes), built up toward screen reading. Data-driven
+    from radial_data/ocr.json (assembled by ocr/ocr_demo.py)."""
+    resp = app.make_response(render_template("ocr.html"))
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
+
+
+@app.route("/api/ocr/modules")
+def api_ocr_modules():
+    """Append-only module registry for the /ocr iteration log (the /lm pattern)."""
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "radial_data",
+                        "ocr_modules.json")
+    reg = {"modules": []}
+    if os.path.isfile(path):
+        with open(path, encoding="utf-8") as f:
+            reg = json.load(f)
+    resp = jsonify(reg)
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
+
+
+@app.route("/api/ocr/export/<name>")
+def api_ocr_export(name):
+    """Serve a module's export json — whitelisted filename pattern only."""
+    if "/" in name or "\\" in name or ".." in name or \
+            not (name.startswith("ocr_") and name.endswith(".json")):
+        return jsonify({"error": "bad export name"}), 400
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "radial_data", name)
+    if not os.path.isfile(path):
+        return jsonify({"pending": True, "error": f"{name} not built yet"}), 404
+    with open(path, encoding="utf-8") as f:
+        resp = jsonify(json.load(f))
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
+
+
+_OCR_DL = {
+    "digits": ("ocr/models/digits_model.json", "digits_model.json"),
+    "letters": ("ocr/models/letters_model.json", "letters_model.json"),
+    "alnum": ("ocr/models/alnum_model.json", "alnum_model.json"),
+    "infer": ("ocr/ocr_infer.py", "ocr_infer.py"),
+    "glyphs": ("ocr/ocr_glyphs.py", "ocr_glyphs.py"),
+    "model": ("ocr/ocr_model.py", "ocr_model.py"),
+}
+_OCR_README = (
+    "GENREG OCR — test the gradient-free glyph recognizers yourself.\n\n"
+    "Files:\n"
+    "  ocr_infer.py         inference CLI\n"
+    "  ocr_glyphs.py        the rich-environment renderer (moving/colored/multi-font)\n"
+    "  ocr_model.py         checkpoint loader + replay\n"
+    "  <charset>_model.json trained recognizer(s)\n\n"
+    "Run (from inside the GENREG repo, numpy/torch/pillow):\n"
+    "  python ocr_infer.py --charset digits --n 8 --save out/\n\n"
+    "Gradient-free: no training here, only a closed-form ridge readout.\n"
+)
+
+
+@app.route("/api/ocr/download/<name>")
+def api_ocr_download(name):
+    root = os.path.dirname(os.path.abspath(__file__))
+    if name == "bundle":
+        import io as _io
+        import zipfile
+        buf = _io.BytesIO()
+        with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+            for rel, arc in _OCR_DL.values():
+                p = os.path.join(root, rel)
+                if os.path.isfile(p):
+                    z.write(p, arc)
+            z.writestr("README.txt", _OCR_README)
+        buf.seek(0)
+        return send_file(buf, mimetype="application/zip", as_attachment=True,
+                         download_name="genreg_ocr.zip")
+    if name not in _OCR_DL:
+        return jsonify({"error": "unknown download"}), 404
+    rel, arc = _OCR_DL[name]
+    p = os.path.join(root, rel)
+    if not os.path.isfile(p):
+        return jsonify({"error": f"{arc} not built yet — train the model first"}), 404
+    return send_file(p, as_attachment=True, download_name=arc)
+
+
+# ── OCR lineage: node-graph model-lineage editor + server-side execution ────
+@app.route("/ocr/lineage")
+def ocr_lineage_page():
+    """Node-graph editor: wire Dataset -> Train -> Union/Eval and execute the graph;
+    each node fills in with real performance. Backend: ocr/lineage.py."""
+    resp = app.make_response(render_template("lineage.html"))
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
+
+
+@app.route("/api/ocr/lineage/models")
+def api_ocr_lineage_models():
+    from ocr import lineage
+    resp = jsonify({"models": lineage.list_models(),
+                    "charsets": ["digits", "letters", "alnum"]})
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
+
+
+@app.route("/api/ocr/lineage/run", methods=["POST"])
+def api_ocr_lineage_run():
+    from ocr import lineage
+    graph = request.get_json(silent=True) or {}
+    if not graph.get("nodes"):
+        return jsonify({"error": "empty graph"}), 400
+    try:
+        job_id = lineage.run_graph(graph)
+        return jsonify({"job": job_id})
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+@app.route("/api/ocr/lineage/status/<job_id>")
+def api_ocr_lineage_status(job_id):
+    from ocr import lineage
+    job = lineage.get_job(job_id)
+    if not job:
+        return jsonify({"error": "unknown job"}), 404
+    resp = jsonify(job)
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
+
+
 def _resnet_out_dir():
     """Where resnet_evo.py writes its result JSON (F:\\Resnet, or the local
     radial_data fallback when F: is absent — mirrors resnet_evo.OUT_DIR)."""
@@ -2118,6 +2248,58 @@ def api_video_render_slides():
         return jsonify(video_service.job_view(job))
     except Exception as exc:
         return jsonify({"error": str(exc)}), 400
+
+
+@app.route("/api/video/slide_audio", methods=["POST"])
+def api_slide_audio_upload():
+    """Save a browser mic recording (webm/opus blob) for a slide clip."""
+    try:
+        import time as _time
+        import secrets as _secrets
+        data = request.get_data()
+        if not data or len(data) > 30_000_000:
+            return jsonify({"error": "empty or oversized recording"}), 400
+        cid = f"{int(_time.time())}_{_secrets.token_hex(4)}.webm"
+        path = os.path.join(anim_service.SLIDE_AUDIO_DIR, cid)
+        with open(path, "wb") as f:
+            f.write(data)
+        return jsonify({"id": cid})
+    except Exception as exc:
+        return jsonify({"error": f"save failed: {exc}"}), 500
+
+
+@app.route("/api/video/slide_audio/<cid>", methods=["GET", "DELETE"])
+def api_slide_audio(cid):
+    """Serve or delete one slide clip (whitelisted id pattern)."""
+    import re as _re
+    if not _re.fullmatch(r"[0-9]+_[0-9a-f]+\.webm", cid):
+        return jsonify({"error": "bad clip id"}), 400
+    path = os.path.join(anim_service.SLIDE_AUDIO_DIR, cid)
+    if not os.path.isfile(path):
+        return jsonify({"error": "no such clip"}), 404
+    if request.method == "DELETE":
+        try:
+            os.unlink(path)
+            return jsonify({"ok": True})
+        except OSError:
+            # Windows: the clip may still be streaming (browser playback
+            # holds the handle). Retry shortly in the background; the
+            # slide reference is already gone client-side either way.
+            import threading as _th
+
+            def _retry():
+                import time as _t
+                for _ in range(10):
+                    _t.sleep(3)
+                    try:
+                        os.unlink(path)
+                        return
+                    except OSError:
+                        pass
+            _th.Thread(target=_retry, daemon=True).start()
+            return jsonify({"ok": True, "deferred": True})
+    from flask import send_file
+    return send_file(path, mimetype="audio/webm")
 
 
 @app.route("/api/video/library")
