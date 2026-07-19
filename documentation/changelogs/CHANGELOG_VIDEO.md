@@ -9,6 +9,15 @@ the top of the log below, and also in the master CHANGELOG.md.
 
 ---
 
+- **[2026-07-19] (Claude)** — **VIDEO: explicit slide reorder buttons
+  (user's call - drag-to-reorder existed but wasn't reliable enough).**
+  Each slide card's hover actions now include move-up / move-down
+  buttons (monochrome triangles) alongside duplicate and delete; first
+  card's up and last card's down are disabled. `moveSlide(idx, dir)`
+  preserves the active-slide selection across the move and refreshes
+  list, preview, and scrubber range. Drag-to-reorder still works too.
+  Files: static/slideshow.js, templates/video.html.
+
 - **[2026-07-19] (Claude)** — **VIDEO: Audio Studio - one modal to see,
   hear, and re-record every clip in the deck (user's call).** New "Open
   Audio Studio" button under Script Studio opens a modal listing every

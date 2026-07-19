@@ -10,6 +10,10 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-19] (Claude)** — **VIDEO: slide reorder buttons** - move
+  up/down actions on each slide card (drag-reorder kept); active
+  selection preserved across moves. Details in CHANGELOG_VIDEO.md.
+
 - **[2026-07-19] (Claude)** — **VIDEO: Audio Studio modal** - lists
   every clip per slide with play, editable script line (TTS clips
   prefill their generated text via new `/api/video/tts_map`), regenerate
