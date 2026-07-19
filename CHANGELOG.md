@@ -10,6 +10,30 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-18] (Claude)** — **VIDEO: audio TRIM editor + audio-driven
+  minimum slide duration (user's two fixes).**
+  (1) TRIM: each clip row gains a Trim button opening a waveform editor
+  (decoded peaks on canvas) - drag on the wave to create a cut, drag a
+  red edge to resize it, click to select, Delete cut removes it; end
+  trims are just cuts anchored at the edges; Add cut drops one mid-way
+  through the largest kept span. Cuts are stored per clip
+  (clip.cuts=[[s,e],...], normalized/merged), and playback across cuts
+  is SEAMLESS everywhere: the preview player and the clip/trim Play
+  buttons now run on WebAudio (kept segments scheduled back-to-back,
+  sample-accurate - no gap where a trim exists), and the RENDERER builds
+  the matching ffmpeg graph (atrim per kept segment -> concat -> adelay),
+  so the mp4 matches the preview exactly. Clip rows show the EFFECTIVE
+  (kept) duration with a "(trimmed)" tag.
+  (2) MINIMUM SLIDE DURATION: a slide now stays on screen at least as
+  long as its total kept audio - effDur(slide) = max(set duration, sum of
+  effective clip durations) - adopted in every timeline computation
+  (total, ranges, scrub, schedule, slide cards) AND mirrored in the
+  renderer (_eff_slide_dur), with a "slide held at Ns by its audio" hint
+  under the duration input. Verified: cut-complement math matches
+  client/server (5s clip, cuts [0-.5]+[2-2.5] -> 4.0s kept; 2s slide held
+  at 4.0s). node --check + ast clean. Frontend hard-refresh; renderer is
+  hot-loaded.
+
 - **[2026-07-18] (Claude)** — **VIDEO: preview player now PLAYS the
   recorded slide audio.** The Play button only advanced visuals; recorded
   clips were render-time-only. Now play() builds the same clip schedule

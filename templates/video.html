@@ -64,6 +64,17 @@
     .aud-row select { font-size: 10px; background: #0b0e12; color: #c7d0da;
       border: 1px solid #2f4152; border-radius: 4px; padding: 1px 4px; }
     #aud-record.recording { border-color: #f85149; color: #f85149; }
+    .trim-ed { background: #0d1117; border: 1px solid #2f4152; border-radius: 6px;
+      padding: 8px; margin: -2px 0 6px 0; }
+    .trim-cv { width: 100%; height: 64px; display: block; border-radius: 4px;
+      cursor: crosshair; touch-action: none; }
+    .trim-bar { display: flex; gap: 6px; align-items: center; margin-top: 6px; }
+    .trim-bar button { font-size: 10px; padding: 2px 8px; border-radius: 4px;
+      background: #1c2733; color: #dbe2ea; border: 1px solid #2f4152; cursor: pointer; }
+    .trim-bar button:hover { border-color: #4ea1ff; }
+    .trim-bar button:disabled { opacity: 0.4; cursor: default; }
+    .trim-info { font-size: 10px; color: #8b95a1; font-family: ui-monospace, monospace; }
+    .trim-hint { font-size: 9.5px; color: #5a6672; margin-top: 4px; }
     .slide-thumb-wrap {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
