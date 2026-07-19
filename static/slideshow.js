@@ -1670,6 +1670,34 @@
     renderPreview();
   });
 
+  $("aud-narrate").addEventListener("click", async () => {
+    const state = $("aud-state");
+    if (activeIndex < 0) { state.textContent = "select a slide first"; return; }
+    const slide = slides[activeIndex];
+    const text = (slide.text || "").trim();
+    if (!text) { state.textContent = "this slide has no caption to narrate"; return; }
+    const btn = $("aud-narrate");
+    btn.disabled = true;
+    state.textContent = "synthesizing narration...";
+    try {
+      const voice = ($("tmpl-voice") && $("tmpl-voice").value.trim()) || "";
+      const r = await (await fetch("/api/video/tts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: text, voice: voice }),
+      })).json();
+      if (r.error) throw new Error(r.error);
+      slide.clips = slide.clips || [];
+      slide.clips.push({ id: r.id, dur: Number(r.dur) || 0, cuts: [] });
+      saveSlides();
+      state.textContent = `narrated ${(Number(r.dur) || 0).toFixed(1)}s`;
+      renderAudioPanel(); renderSlideList(); updateScrubMax();
+    } catch (e) {
+      state.textContent = "narration failed: " + e.message;
+    }
+    btn.disabled = false;
+  });
+
   $("aud-record").addEventListener("click", async () => {
     const btn = $("aud-record");
     const state = $("aud-state");

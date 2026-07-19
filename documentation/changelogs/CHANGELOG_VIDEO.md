@@ -9,6 +9,19 @@ the top of the log below, and also in the master CHANGELOG.md.
 
 ---
 
+- **[2026-07-19] (Claude)** — **VIDEO: Script Studio armed - ElevenLabs
+  key wired (the user's `ElevenLabs` system env var; backend checks
+  ELEVENLABS_API_KEY / ElevenLabs / ELEVENLABS then the .keys file),
+  default voice set to the user's (nxNsTXLZ8x7PeZNBs9Js, prefilled in
+  the voice field), and a per-slide NARRATE button added to the audio
+  panel - synthesizes the active slide's caption into an mp3 clip on
+  demand (uses the voice field; clip flows through trim/playback/mux
+  like any recording). VERIFIED LIVE: real API call with the user's key
+  + voice produced a 2.2s mp3 clip (35KB) saved through the slide-clip
+  path. NOTE: the running Flask predates the env var - start Flask from
+  a NEW shell (fresh env) when doing the pending restart, or the route
+  will not see the key.
+
 - **[2026-07-19] (Claude)** — **VIDEO SESSION CLOSE (user switching to
   CIFAR). State of /video at stop:** the slide builder is a complete
   narrated-explainer pipeline - slide manager (visual cards,
