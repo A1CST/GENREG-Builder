@@ -10,6 +10,28 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-18] (Claude)** — **VIDEO: preview player now PLAYS the
+  recorded slide audio.** The Play button only advanced visuals; recorded
+  clips were render-time-only. Now play() builds the same clip schedule
+  the renderer uses (slide start + prior-clip offsets), and the tick loop
+  starts/stops Audio elements as the playhead enters/leaves each clip's
+  window - scrub-aware (jumping mid-clip starts playback at the correct
+  offset), loop-aware (audio resets when the deck loops), and pause stops
+  everything. Frontend only, hard refresh.
+
+- **[2026-07-18] (Claude)** — **/ocr: document reader trained on REAL PDF chars — 0.57 → 0.93 on
+  held-out documents.** Folded the domain into the environment: `ocr/ocr_docdata.py` mines exact
+  char+bbox from our documentation PDFs (fitz) → real labeled tiles; dedup content-family twins, split
+  by document (no leakage). New `doc` charset (62-class case-sensitive alnum), `doc` training path
+  (balanced train saved as basis-ref `.npy`, natural-freq held-out-doc test). TEST 0.9316 freq-weighted
+  (anchor 0.5914); held-out PDF case-folded 0.936 vs synthetic 0.57 on the same chars. Segmentation of
+  dense text still open. See CHANGELOG_OCR.md.
+
+- **[2026-07-18] (Claude)** — **VIDEO: audio panel repositioned - it had
+  landed INSIDE the stage's flex-centering wrapper (floating beside the
+  SVG); now it sits properly under the stage preview + scrubber.**
+  Template-only, hard refresh.
+
 - **[2026-07-18] (Claude)** — **VIDEO: library Videos section + one-click
   MUTE (user's call: Gemini-generated animations arrive with baked-in
   audio).** Answered + built: exports save to `runs/video/library/`

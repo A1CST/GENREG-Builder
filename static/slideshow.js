@@ -792,6 +792,47 @@
   }
 
   // Player controls
+  // preview audio: schedule recorded clips at their true timestamps
+  let previewAudios = {};
+  let playSchedule = [];
+
+  function clipSchedule() {
+    const sched = [];
+    let t = 0;
+    slides.forEach((s) => {
+      let off = 0;
+      (s.clips || []).forEach((c, ci) => {
+        const d = Number(c.dur) || 0;
+        sched.push({ key: c.id + ":" + t + ":" + ci, id: c.id,
+                     start: t + off, end: t + off + d });
+        off += d;
+      });
+      t += Number(s.duration) || 3;
+    });
+    return sched;
+  }
+
+  function syncPreviewAudio(t) {
+    playSchedule.forEach((c) => {
+      const a = previewAudios[c.key];
+      const within = t >= c.start && t < c.end - 0.05;
+      if (within && !a) {
+        const el = new Audio(`/api/video/slide_audio/${encodeURIComponent(c.id)}`);
+        previewAudios[c.key] = el;
+        el.currentTime = Math.max(0, t - c.start);
+        el.play().catch(() => {});
+      } else if (!within && a) {
+        a.pause();
+        delete previewAudios[c.key];
+      }
+    });
+  }
+
+  function stopPreviewAudio() {
+    Object.values(previewAudios).forEach((a) => a.pause());
+    previewAudios = {};
+  }
+
   $("player-play").addEventListener("click", () => {
     if (isPlaying) {
       pause();
@@ -806,6 +847,7 @@
     $("player-play").textContent = "Pause";
     playStartRealTime = performance.now();
     playStartScrubTime = currentTime;
+    playSchedule = clipSchedule();
     
     function tick(now) {
       if (!isPlaying) return;
@@ -816,8 +858,10 @@
         currentTime = 0;
         playStartRealTime = now;
         playStartScrubTime = 0;
+        stopPreviewAudio();
       }
       
+      syncPreviewAudio(currentTime);
       $("player-scrub").value = currentTime;
       updateTimeLabel();
       renderPreview();
@@ -830,6 +874,7 @@
     isPlaying = false;
     $("player-play").textContent = "Play";
     if (playerAnimFrame) cancelAnimationFrame(playerAnimFrame);
+    stopPreviewAudio();
   }
 
   $("player-prev").addEventListener("click", () => {
