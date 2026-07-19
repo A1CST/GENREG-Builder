@@ -9,6 +9,22 @@ the top of the log below, and also in the master CHANGELOG.md.
 
 ---
 
+- **[2026-07-19] (Claude)** — **VIDEO: TTS credit guard - a lookup json
+  ties each generated line to its clip so identical narration NEVER bills
+  twice (user's call).** `runs/video/slide_audio/tts_cache.json` maps
+  sha256(voice | whitespace-normalized text) -> {id, dur, voice, text,
+  created}. The /api/video/tts route checks it before touching the API
+  (file-existence validated) and returns the existing clip with
+  cached:true; new generations are recorded after probing. DELETING a
+  TTS clip from a slide keeps the mp3 on disk when the cache owns it
+  (kept:true) - removing a line from one slide can't destroy the reuse
+  for the next deck; mic recordings (.webm) still delete for real. UI
+  surfaces hits ("reused cached narration", "N from cache" on template
+  builds). VERIFIED LIVE: same line twice -> one API call (1.1s) then a
+  cache hit in 10ms returning the SAME clip id (with different
+  whitespace, proving normalization); delete returned kept:true and the
+  file survived. One tiny credit spent on the proof.
+
 - **[2026-07-19] (Claude)** — **VIDEO: Script Studio armed - ElevenLabs
   key wired (the user's `ElevenLabs` system env var; backend checks
   ELEVENLABS_API_KEY / ElevenLabs / ELEVENLABS then the .keys file),

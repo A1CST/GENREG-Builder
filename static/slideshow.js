@@ -1690,7 +1690,8 @@
       slide.clips = slide.clips || [];
       slide.clips.push({ id: r.id, dur: Number(r.dur) || 0, cuts: [] });
       saveSlides();
-      state.textContent = `narrated ${(Number(r.dur) || 0).toFixed(1)}s`;
+      state.textContent = (r.cached ? "reused cached narration " : "narrated ") +
+        `${(Number(r.dur) || 0).toFixed(1)}s`;
       renderAudioPanel(); renderSlideList(); updateScrubMax();
     } catch (e) {
       state.textContent = "narration failed: " + e.message;
@@ -1855,6 +1856,7 @@
             body: JSON.stringify({ text: sl.text, voice: voice }),
           })).json();
           if (r.error) throw new Error(r.error);
+          if (r.cached) window.__ttsCacheHits = (window.__ttsCacheHits || 0) + 1;
           sl.clips = [{ id: r.id, dur: Number(r.dur) || 0, cuts: [] }];
           saveSlides();
         } catch (e) {
@@ -1864,7 +1866,8 @@
         }
         done += 1;
       }
-      status.textContent = `deck built - ${done} slide(s) narrated`;
+      status.textContent = `deck built - ${done} slide(s) narrated` +
+        (window.__ttsCacheHits ? ` (${window.__ttsCacheHits} from cache)` : "");
       renderSlideList(); renderAudioPanel(); updateScrubMax(); renderPreview();
     }
   });

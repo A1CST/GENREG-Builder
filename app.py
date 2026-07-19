@@ -2380,6 +2380,25 @@ def api_video_tts():
         import re as _re
         if not _re.fullmatch(r"[A-Za-z0-9]{8,40}", voice):
             return jsonify({"error": "bad voice id"}), 400
+
+        # credit guard: identical (voice, text) reuses the existing clip
+        import hashlib as _hl
+        norm = " ".join(text.split())
+        ck = _hl.sha256(f"{voice}|{norm}".encode()).hexdigest()
+        cache_path = os.path.join(anim_service.SLIDE_AUDIO_DIR,
+                                  "tts_cache.json")
+        cache = {}
+        if os.path.isfile(cache_path):
+            try:
+                with open(cache_path, encoding="utf-8") as f:
+                    cache = json.load(f)
+            except (ValueError, OSError):
+                cache = {}
+        hit = cache.get(ck)
+        if hit and os.path.isfile(os.path.join(anim_service.SLIDE_AUDIO_DIR,
+                                               hit.get("id", ""))):
+            return jsonify({"id": hit["id"], "dur": hit["dur"],
+                            "cached": True})
         import urllib.request as _ur
         req = _ur.Request(
             f"https://api.elevenlabs.io/v1/text-to-speech/{voice}",
@@ -2401,7 +2420,14 @@ def api_video_tts():
         with open(path, "wb") as f:
             f.write(audio)
         dur = float(video_service.probe(path).get("duration", 0) or 0)
-        return jsonify({"id": cid, "dur": round(dur, 2)})
+        cache[ck] = {"id": cid, "dur": round(dur, 2), "voice": voice,
+                     "text": norm, "created": int(_time.time())}
+        try:
+            with open(cache_path, "w", encoding="utf-8") as f:
+                json.dump(cache, f, indent=1)
+        except OSError:
+            pass
+        return jsonify({"id": cid, "dur": round(dur, 2), "cached": False})
     except Exception as exc:
         return jsonify({"error": f"tts failed: {exc}"}), 500
 
@@ -2434,6 +2460,18 @@ def api_slide_audio(cid):
     if not os.path.isfile(path):
         return jsonify({"error": "no such clip"}), 404
     if request.method == "DELETE":
+        if cid.endswith(".mp3"):
+            cache_path = os.path.join(anim_service.SLIDE_AUDIO_DIR,
+                                      "tts_cache.json")
+            try:
+                with open(cache_path, encoding="utf-8") as f:
+                    cch = json.load(f)
+                if any(v.get("id") == cid for v in cch.values()):
+                    # generated narration: keep the file for credit-free
+                    # reuse; the slide reference is gone client-side
+                    return jsonify({"ok": True, "kept": True})
+            except (ValueError, OSError):
+                pass
         try:
             os.unlink(path)
             return jsonify({"ok": True})
