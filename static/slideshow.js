@@ -81,16 +81,40 @@
                     mediaFloor(slide));
   }
 
+  function probeDurClient(name) {
+    // works before the /api/video/meta route is live (Flask restart):
+    // the browser reads mp4/webm metadata directly
+    return new Promise((resolve) => {
+      if (!/\.(mp4|webm|mov)$/i.test(name)) { resolve(0); return; }
+      const v = document.createElement("video");
+      v.preload = "metadata";
+      v.onloadedmetadata = () => resolve(isFinite(v.duration) ? v.duration : 0);
+      v.onerror = () => resolve(0);
+      v.src = `/api/video/file/${encodeURIComponent(name)}`;
+      setTimeout(() => resolve(0), 5000);
+    });
+  }
+
   async function refreshChartDur(slide) {
     if (!slide.chart) { slide.chart_dur = 0; return; }
+    let d = 0;
     try {
       const r = await (await fetch(
         `/api/video/meta?name=${encodeURIComponent(slide.chart)}`)).json();
-      slide.chart_dur = Number(r.duration) || 0;
-    } catch (e) { slide.chart_dur = 0; }
+      d = Number(r.duration) || 0;
+    } catch (e) { d = 0; }
+    if (!d) d = await probeDurClient(slide.chart);
+    slide.chart_dur = Math.round(d * 10) / 10;
     saveSlides(); renderSlideList(); updateScrubMax(); renderPreview();
     renderMediaTimeline();
   }
+
+  // heal existing decks whose videos were assigned before durations worked
+  slides.forEach((sl) => {
+    if (sl.chart && !sl.chart_dur && /\.(mp4|webm|mov|gif)$/i.test(sl.chart)) {
+      refreshChartDur(sl);
+    }
+  });
 
   function sanitizeSlide(s) {
     // legacy decks stored numbers as strings and lack newer fields; one
@@ -905,6 +929,86 @@
   }
 
   // Player controls
+  // live video overlay: the stage SVG shows a static thumb for video
+  // charts; during preview an HTML <video> is positioned over the stage
+  // at the chart's exact box and kept in sync with the deck clock
+  let stageVideo = null;
+
+  function ensureStageVideo() {
+    if (stageVideo) return stageVideo;
+    const wrap = $("slides-stage").parentElement;
+    stageVideo = document.createElement("video");
+    stageVideo.muted = true;                 // narration owns the audio
+    stageVideo.playsInline = true;
+    stageVideo.style.position = "absolute";
+    stageVideo.style.display = "none";
+    stageVideo.style.objectFit = "contain";
+    stageVideo.style.pointerEvents = "none";
+    wrap.appendChild(stageVideo);
+    return stageVideo;
+  }
+
+  function hideStageVideo() {
+    if (stageVideo) {
+      stageVideo.pause();
+      stageVideo.style.display = "none";
+      stageVideo.dataset.src = "";
+      stageVideo.removeAttribute("src");
+    }
+  }
+
+  function syncStageVideo(t) {
+    // t = deck time; find the active slide and place/seek the overlay
+    let curr = 0;
+    let slide = null;
+    let localT = 0;
+    for (const s of slides) {
+      const d = effDur(s);
+      if (t < curr + d) { slide = s; localT = t - curr; break; }
+      curr += d;
+    }
+    if (!slide || !slide.chart || !/\.(mp4|webm|mov)$/i.test(slide.chart)
+        || !(Number(slide.chart_dur) > 0)) { hideStageVideo(); return; }
+    const start = Number(slide.chart_start) || 0;
+    const d = Number(slide.chart_dur);
+    let mt = localT - start;
+    if (mt < 0) { hideStageVideo(); return; }        // poster shows in SVG
+    if (slide.chart_loop) mt = mt % d;
+    else if (mt >= d) mt = d - 0.05;                  // hold last frame
+    const v = ensureStageVideo();
+    const url = `/api/video/file/${encodeURIComponent(slide.chart)}`;
+    if (v.dataset.src !== url) {
+      v.dataset.src = url;
+      v.src = url;
+      v.loop = !!slide.chart_loop;
+    }
+    // position: map viewBox (1280x720) coords to the stage's CSS box
+    const stage = $("slides-stage");
+    const wrap = stage.parentElement;
+    const sr = stage.getBoundingClientRect();
+    const wr = wrap.getBoundingClientRect();
+    const scale = Math.min(sr.width / 1280, sr.height / 720);
+    const ox = (sr.width - 1280 * scale) / 2 + (sr.left - wr.left);
+    const oy = (sr.height - 720 * scale) / 2 + (sr.top - wr.top);
+    const cw = 550, ch = 420;
+    let cx = 650, cy = 80;
+    if (slide.chart_x !== undefined && slide.chart_x !== null && slide.chart_x !== 0) cx = Number(slide.chart_x);
+    if (slide.chart_y !== undefined && slide.chart_y !== null && slide.chart_y !== 0) cy = Number(slide.chart_y);
+    else {
+      const align = slide.chart_align || "right";
+      if (align === "left") cx = 80;
+      else if (align === "center") cx = (1280 - cw) / 2;
+    }
+    v.style.left = (ox + cx * scale) + "px";
+    v.style.top = (oy + cy * scale) + "px";
+    v.style.width = (cw * scale) + "px";
+    v.style.height = (ch * scale) + "px";
+    v.style.display = "block";
+    if (Math.abs((v.currentTime || 0) - mt) > 0.3) v.currentTime = mt;
+    if (isPlaying && v.paused) v.play().catch(() => {});
+    if (!isPlaying && !v.paused) v.pause();
+  }
+
   // preview audio: WebAudio players so multi-cut clips play SEAMLESSLY
   // (kept segments scheduled back to back, sample-accurate)
   let audioCtx = null;
@@ -1016,6 +1120,7 @@
       }
       
       syncPreviewAudio(currentTime);
+      syncStageVideo(currentTime);
       $("player-scrub").value = currentTime;
       updateTimeLabel();
       renderPreview();
@@ -1029,6 +1134,7 @@
     $("player-play").textContent = "Play";
     if (playerAnimFrame) cancelAnimationFrame(playerAnimFrame);
     stopPreviewAudio();
+    if (stageVideo && !stageVideo.paused) stageVideo.pause();
   }
 
   $("player-prev").addEventListener("click", () => {
@@ -1053,6 +1159,7 @@
     currentTime = Number(e.target.value);
     updateTimeLabel();
     renderPreview();
+    syncStageVideo(currentTime);
   });
 
   $("slides-stage").addEventListener("click", (e) => {
