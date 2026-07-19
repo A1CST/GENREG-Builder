@@ -1262,6 +1262,11 @@ def slideshow_svg(slides, t, w=1280, h=720):
     out.append("</svg>")
     return "".join(out)
 
+SLIDE_AUDIO_DIR = os.path.join(os.path.dirname(os.path.dirname(
+    os.path.abspath(__file__))), "runs", "video", "slide_audio")
+os.makedirs(SLIDE_AUDIO_DIR, exist_ok=True)
+
+
 def render_slides(slides, out_name="", fps=24, w=1280, h=720):
     """Encodes a presentation slides deck into an MP4 file."""
     if not RASTER_OK:
@@ -1281,15 +1286,52 @@ def render_slides(slides, out_name="", fps=24, w=1280, h=720):
         audio = os.path.normpath(os.path.join(video_service.LIB_DIR, video_service.safe_name(first_slide_audio)))
         if not os.path.isfile(audio):
             audio = None
-            
+
+    # per-slide mic clips (slide["clips"] = [{id, dur}, ...] in order):
+    # each clip starts at its slide's start time plus the durations of the
+    # clips before it on the same slide; all clips (and the optional deck
+    # track) are mixed with adelay + amix
+    clip_inputs = []                     # (path, start_ms)
+    t_cursor = 0.0
+    for s_ in slides:
+        off = 0.0
+        for c_ in (s_.get("clips") or []):
+            cid = re.sub(r"[^A-Za-z0-9_.-]", "", str(c_.get("id", "")))
+            p_ = os.path.join(SLIDE_AUDIO_DIR, cid)
+            if cid and os.path.isfile(p_):
+                clip_inputs.append((p_, int(round((t_cursor + off) * 1000))))
+                off += max(0.0, float(c_.get("dur", 0.0)))
+        t_cursor += float(s_.get("duration", 3.0))
+
     name = slug(out_name or "slideshow")
     out = video_service.unique_path(name + ".mp4")
     cmd = [video_service.FFMPEG, "-y",
            "-f", "image2pipe", "-vcodec", "png", "-r", str(fps), "-i", "-"]
+    n_audio_in = 0
     if audio:
         cmd += ["-i", audio]
+        n_audio_in += 1
+    for p_, _ms in clip_inputs:
+        cmd += ["-i", p_]
+        n_audio_in += 1
     cmd += ["-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "20", "-preset", "medium"]
-    if audio:
+    if clip_inputs:
+        parts, labels = [], []
+        ai = 1
+        if audio:
+            parts.append(f"[{ai}:a]anull[t0]")
+            labels.append("[t0]")
+            ai += 1
+        for j, (_p, ms) in enumerate(clip_inputs):
+            parts.append(f"[{ai}:a]adelay={ms}|{ms}[c{j}]")
+            labels.append(f"[c{j}]")
+            ai += 1
+        parts.append("".join(labels) +
+                     f"amix=inputs={len(labels)}:normalize=0:dropout_transition=0[aout]")
+        cmd += ["-filter_complex", ";".join(parts),
+                "-map", "0:v", "-map", "[aout]",
+                "-c:a", "aac", "-b:a", "192k", "-t", f"{dur:.3f}"]
+    elif audio:
         cmd += ["-c:a", "aac", "-b:a", "192k", "-shortest"]
     cmd += [out]
     

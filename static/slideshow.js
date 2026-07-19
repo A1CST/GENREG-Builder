@@ -42,6 +42,10 @@
       duration: Math.max(0.5, Number(s.duration) || 3.0),
       transition: s.transition || "fade",
       transition_dur: Math.max(0, Number(s.transition_dur) || 0.5),
+      clips: Array.isArray(s.clips)
+        ? s.clips.filter((c) => c && c.id)
+            .map((c) => ({ id: String(c.id), dur: Number(c.dur) || 0 }))
+        : [],
     };
   }
   try {
@@ -261,11 +265,14 @@
       ? `<img class="sld-pose" src="/api/poses/${encodeURIComponent(slide.pose)}" draggable="false" />`
       : "";
     const chartDot = slide.chart ? '<span class="sld-dot" title="has chart"></span>' : "";
+    const audDot = (slide.clips && slide.clips.length)
+      ? `<span class="sld-dot" style="background:#7ee787; right: 12px;" title="${slide.clips.length} audio clip(s)"></span>`
+      : "";
     const cap = (slide.text || "").slice(0, 60);
     card.innerHTML =
       `<div class="sld-thumb">${poseImg}` +
       `<span class="sld-num">${idx + 1}</span>` +
-      `<span class="sld-dur">${(Number(slide.duration) || 3).toFixed(1)}s</span>${chartDot}</div>` +
+      `<span class="sld-dur">${(Number(slide.duration) || 3).toFixed(1)}s</span>${chartDot}${audDot}</div>` +
       `<div class="sld-cap">${cap ? "" : '<span class="sld-empty">no caption</span>'}</div>` +
       `<div class="sld-acts">` +
       `<button class="sld-act" data-act="dup" data-idx="${idx}" title="duplicate">+</button>` +
@@ -364,6 +371,7 @@
 
   function selectSlide(idx) {
     activeIndex = idx;
+    setTimeout(renderAudioPanel, 0);
     if (idx !== ghostIndex) {
       tempGhosts = null;
       ghostIndex = -1;
@@ -952,6 +960,134 @@
     $("slide-text").value = scriptSel;
     saveSlides();
     renderPreview();
+  });
+
+
+  // ---- SLIDE AUDIO: per-slide mic recordings (ordered clips) ----------
+  let mediaStream = null;
+  let mediaRecorder = null;
+  let recChunks = [];
+  let playingAudio = null;
+
+  function fmtDur(d) { return (Number(d) || 0).toFixed(1) + "s"; }
+
+  async function clipDuration(blob) {
+    // webm blobs report Infinity via <audio> in Chromium; decode instead
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    try {
+      const buf = await ctx.decodeAudioData(await blob.arrayBuffer());
+      return buf.duration;
+    } finally { ctx.close(); }
+  }
+
+  function renderAudioPanel() {
+    const box = $("aud-clips");
+    const label = $("aud-slide-label");
+    if (!box) return;
+    box.innerHTML = "";
+    if (activeIndex < 0 || !slides[activeIndex]) {
+      label.textContent = "select a slide";
+      $("aud-record").disabled = true;
+      return;
+    }
+    $("aud-record").disabled = false;
+    label.textContent = `slide #${activeIndex + 1}`;
+    const clips = slides[activeIndex].clips || [];
+    if (!clips.length) {
+      box.innerHTML = '<div style="font-size:11px;color:#5a6672;">no recordings for this slide</div>';
+      return;
+    }
+    clips.forEach((clip, ci) => {
+      const row = document.createElement("div");
+      row.className = "aud-row";
+      const moveOpts = slides.map((_, i2) =>
+        `<option value="${i2}" ${i2 === activeIndex ? "disabled" : ""}>#${i2 + 1}</option>`).join("");
+      row.innerHTML =
+        `<span>clip ${ci + 1}</span><span style="color:#8b95a1">${fmtDur(clip.dur)}</span>` +
+        `<button data-a="play">Play</button>` +
+        `<label style="display:flex;gap:4px;align-items:center;color:#8b95a1">move to` +
+        ` <select data-a="move">${moveOpts}</select></label>` +
+        `<button data-a="del" class="aud-del" style="margin-left:auto">Delete</button>`;
+      row.querySelector('[data-a="play"]').addEventListener("click", (ev) => {
+        const btn = ev.target;
+        const wasStop = btn.textContent === "Stop";
+        if (playingAudio) { playingAudio.pause(); playingAudio = null; }
+        document.querySelectorAll('.aud-row [data-a="play"]').forEach(function (b) { b.textContent = "Play"; });
+        if (wasStop) return;
+        playingAudio = new Audio(`/api/video/slide_audio/${encodeURIComponent(clip.id)}`);
+        playingAudio.play();
+        btn.textContent = "Stop";
+        playingAudio.addEventListener("ended", () => { btn.textContent = "Play"; playingAudio = null; });
+      });
+      row.querySelector('[data-a="del"]').addEventListener("click", async () => {
+        slides[activeIndex].clips.splice(ci, 1);
+        saveSlides(); renderAudioPanel(); renderSlideList();
+        try { await fetch(`/api/video/slide_audio/${encodeURIComponent(clip.id)}`, { method: "DELETE" }); }
+        catch (e) { console.error("clip delete", e); }
+      });
+      const sel = row.querySelector('[data-a="move"]');
+      sel.value = String(activeIndex);
+      sel.addEventListener("change", () => {
+        const to = Number(sel.value);
+        if (to === activeIndex || !slides[to]) return;
+        slides[activeIndex].clips.splice(ci, 1);
+        slides[to].clips = slides[to].clips || [];
+        slides[to].clips.push(clip);
+        saveSlides(); renderAudioPanel(); renderSlideList();
+      });
+      box.appendChild(row);
+    });
+  }
+
+  $("aud-record").addEventListener("click", async () => {
+    const btn = $("aud-record");
+    const state = $("aud-state");
+    if (mediaRecorder && mediaRecorder.state === "recording") {
+      mediaRecorder.stop();
+      return;
+    }
+    if (activeIndex < 0) { state.textContent = "select a slide first"; return; }
+    try {
+      if (!mediaStream) {
+        mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      }
+      recChunks = [];
+      mediaRecorder = new MediaRecorder(mediaStream, { mimeType: "audio/webm;codecs=opus" });
+      const forSlide = activeIndex;        // pin: user may click around
+      mediaRecorder.addEventListener("dataavailable", (ev) => {
+        if (ev.data.size) recChunks.push(ev.data);
+      });
+      mediaRecorder.addEventListener("stop", async () => {
+        btn.textContent = "Record";
+        btn.classList.remove("recording");
+        state.textContent = "saving...";
+        try {
+          const blob = new Blob(recChunks, { type: "audio/webm" });
+          const dur = await clipDuration(blob);
+          const res = await (await fetch("/api/video/slide_audio", {
+            method: "POST", body: blob,
+            headers: { "Content-Type": "application/octet-stream" },
+          })).json();
+          if (res.error) throw new Error(res.error);
+          const tgt = slides[forSlide];
+          if (tgt) {
+            tgt.clips = tgt.clips || [];
+            tgt.clips.push({ id: res.id, dur: Math.round(dur * 10) / 10 });
+            saveSlides();
+          }
+          state.textContent = `saved ${fmtDur(dur)} to slide #${forSlide + 1}`;
+          renderAudioPanel(); renderSlideList();
+        } catch (e) {
+          state.textContent = "save failed: " + e.message;
+        }
+      });
+      mediaRecorder.start();
+      btn.textContent = "Stop";
+      btn.classList.add("recording");
+      state.textContent = `recording for slide #${activeIndex + 1}...`;
+    } catch (e) {
+      state.textContent = "mic unavailable: " + e.message;
+    }
   });
 
   // Auto-split the entire script into slides.
