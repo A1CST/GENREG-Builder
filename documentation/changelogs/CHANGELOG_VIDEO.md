@@ -9,6 +9,26 @@ the top of the log below, and also in the master CHANGELOG.md.
 
 ---
 
+- **[2026-07-19] (Claude)** — **VIDEO: MEDIA TIMELINE under the audio
+  panel (user's call) - choose when a slide's video/animation starts,
+  with loop.** When the active slide embeds animated media, a MEDIA
+  TIMELINE appears below the audio clips: a track scaled to the slide's
+  effective duration, the media's play window drawn on it (repeating
+  ghost spans when looping), and a DRAGGABLE START HANDLE (click
+  anywhere on the track also sets the start); a loop checkbox; a live
+  readout ("starts at 1.5s, plays 10.0s (ends 11.5s)" / "loops every
+  10.0s"). SEMANTICS, mirrored exactly in the renderer: the video holds
+  its poster frame until start, then plays; non-looping media FLOORS the
+  slide at start + runtime (the floor order stays duration -> audio ->
+  media); looping media imposes no floor - it fills whatever the slide
+  gives it, repeating (frame index modulo). Frame extraction adapts:
+  loop extracts the full video once (120s cap), non-loop extracts what
+  fits after the start offset. slide.chart_start/chart_loop sanitized +
+  copied by apply-to-all. VERIFIED: floor math both ways (start 1.5 +
+  10s clip -> 11.5s; looping clip on a 4s slide -> 4.0s) and an
+  end-to-end loop render (looptest.mp4, exactly 4.0s). Frontend
+  hard-refresh; renderer hot-loaded.
+
 - **[2026-07-18] (Claude)** — **VIDEO: charts/videos now actually show up
   - on the stage AND in exports (user's report). ROOT CAUSE: the library
   contained ZERO images - the "Upload Graphic / Chart" input posts to
