@@ -2250,6 +2250,49 @@ def api_video_render_slides():
         return jsonify({"error": str(exc)}), 400
 
 
+@app.route("/api/video/videos")
+def api_video_videos():
+    """Library VIDEO files (the Gemini-generated animations live here)."""
+    if not VID_OK:
+        return jsonify([])
+    try:
+        files = sorted([f for f in os.listdir(video_service.LIB_DIR)
+                        if os.path.isfile(os.path.join(video_service.LIB_DIR, f))
+                        and f.lower().endswith((".mp4", ".webm", ".mov",
+                                                ".mkv", ".gif"))])
+        return jsonify(files)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/video/mute", methods=["POST"])
+def api_video_mute():
+    """Write a muted copy of a library video (ffmpeg -an, video stream
+    copied untouched) as <name>_muted.<ext>."""
+    try:
+        data = request.get_json(silent=True) or {}
+        name = video_service.safe_name(data.get("name", ""))
+        src = os.path.normpath(os.path.join(video_service.LIB_DIR, name))
+        if not name or not src.startswith(
+                os.path.normpath(video_service.LIB_DIR))                 or not os.path.isfile(src):
+            return jsonify({"error": "no such video"}), 404
+        stem, ext = os.path.splitext(name)
+        out = video_service.unique_path(stem + "_muted" + ext)
+        import subprocess as _sp
+        r = _sp.run([video_service.FFMPEG, "-y", "-i", src,
+                     "-c:v", "copy", "-an", out],
+                    capture_output=True, text=True, timeout=300,
+                    creationflags=video_service.CREATE_NO_WINDOW)
+        if r.returncode != 0:
+            err_tail = " | ".join(
+                r.stderr.strip().splitlines()[-4:])
+            return jsonify({"error": err_tail}), 500
+        video_service.invalidate_meta(os.path.basename(out))
+        return jsonify({"ok": True, "output": os.path.basename(out)})
+    except Exception as exc:
+        return jsonify({"error": f"mute failed: {exc}"}), 500
+
+
 @app.route("/api/video/slide_audio", methods=["POST"])
 def api_slide_audio_upload():
     """Save a browser mic recording (webm/opus blob) for a slide clip."""
