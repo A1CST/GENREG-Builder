@@ -2250,6 +2250,21 @@ def api_video_render_slides():
         return jsonify({"error": str(exc)}), 400
 
 
+@app.route("/api/video/meta")
+def api_video_meta():
+    """Duration (s) of one library file - 0 for still images."""
+    try:
+        name = video_service.safe_name(request.args.get("name", ""))
+        src = os.path.normpath(os.path.join(video_service.LIB_DIR, name))
+        if not name or not src.startswith(
+                os.path.normpath(video_service.LIB_DIR))                 or not os.path.isfile(src):
+            return jsonify({"error": "no such file"}), 404
+        meta = video_service._meta(name, src)
+        return jsonify({"duration": round(float(meta.get("duration", 0) or 0), 3)})
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+
 @app.route("/api/video/videos")
 def api_video_videos():
     """Library VIDEO files (the Gemini-generated animations live here)."""

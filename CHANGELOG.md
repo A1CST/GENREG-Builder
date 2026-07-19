@@ -10,6 +10,42 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-18] (Claude)** — **VIDEO: embedded-media duration joins the
+  slide floor (user's call).** A slide now stays up for
+  max(set duration, kept narration, EMBEDDED MEDIA runtime) - if the
+  chart is animated media (gif / video), its ffprobe duration becomes a
+  third floor, evaluated after audio exactly as asked. New
+  /api/video/meta?name= (mtime-cached probe; stills report 0 and change
+  nothing); client stores slide.chart_dur (refreshed on chart assignment
+  from the select or the library, copied by apply-to-all); renderer
+  mirrors via _chart_dur in _eff_slide_dur, probing server-side so the
+  mp4 is authoritative. VERIFIED on the real muted Gemini clip: 10.0s
+  probe; 2s slide -> floors to 10.0s; with 9s narration the 10s video
+  still wins. Routes ride the pending restart; page is hard-refresh.
+
+- **[2026-07-18] (Claude)** — **/ocr: punctuation classes + over-merge fix — clean-PDF read 51% → 82%.**
+  Measured the error breakdown first: the proposed "case fix" was only 7% of errors; real levers were
+  punctuation (misread as letters → insertions) and fused letters (deletions). Added `.,-():/%+=;'` to the
+  doc alphabet (74 classes, retrained TEST 0.9154, punctuation per-class 0.9-1.0); rewrote `_merge_x_overlap`
+  to merge only vertically-stacked comps (i/j dots), not adjacent letters. Correct-char share 24.6%→42.0%,
+  insertions 20.7%→11.0%; RADIAL held-out 82% char accuracy, legible incl. paths and dates. Remaining:
+  multi-column/title-page layout under-read (layout analysis), case ~6% (needs x-height feature). See CHANGELOG_OCR.md.
+
+- **[2026-07-18] (Claude)** — **/ocr: end-to-end document reader (rasterize → segment → read).**
+  New `ocr/ocr_readline.py`: whole-page connected-components → cluster into lines by vertical center →
+  read each component with the doc model, confidence-DP splits only genuinely-fused wide blobs. Key
+  unlock was a framing bug (reader trained on fitz side-bearing boxes, segmenter emits tight-ink →
+  0.96→0.12); fixed with canonical `_to_tile(tighten=True)` + retrain (TEST 0.9133). End-to-end on a
+  held-out PDF reads LEGIBLY (~0.49 char-match, correct line order); remaining errors are case confusion
+  and punctuation-as-letters. See CHANGELOG_OCR.md.
+
+- **[2026-07-18] (Claude)** — **VIDEO: trim-editor selection now persists
+  after release** - pointerup was clearing the selection on every
+  interaction, so Delete cut disarmed the moment the mouse let go.
+  Now: releasing keeps the touched cut selected (Delete stays armed);
+  a bare click on empty waveform deselects (and the zero-width cut a
+  click would create is discarded). Frontend only, hard refresh.
+
 - **[2026-07-18] (Claude)** — **VIDEO: audio TRIM editor + audio-driven
   minimum slide duration (user's two fixes).**
   (1) TRIM: each clip row gains a Trim button opening a waveform editor
