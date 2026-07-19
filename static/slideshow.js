@@ -28,6 +28,50 @@
   let ghostIndex = -1;
 
   // Initialize from LocalStorage
+  function normCuts(cuts, dur) {
+    // sorted, merged, clamped removed-intervals within [0, dur]
+    if (!Array.isArray(cuts)) return [];
+    const cs = cuts
+      .map((c) => [Math.max(0, Number(c[0]) || 0),
+                   Math.min(dur, Number(c[1]) || 0)])
+      .filter((c) => c[1] - c[0] > 0.01)
+      .sort((a, b) => a[0] - b[0]);
+    const out = [];
+    cs.forEach((c) => {
+      const last = out[out.length - 1];
+      if (last && c[0] <= last[1] + 0.005) last[1] = Math.max(last[1], c[1]);
+      else out.push([c[0], c[1]]);
+    });
+    return out;
+  }
+
+  function keptSegments(clip) {
+    // complement of the cuts: the audio that actually plays, in order
+    const dur = Number(clip.dur) || 0;
+    const cuts = normCuts(clip.cuts, dur);
+    const segs = [];
+    let t = 0;
+    cuts.forEach((c) => {
+      if (c[0] - t > 0.01) segs.push([t, c[0]]);
+      t = c[1];
+    });
+    if (dur - t > 0.01) segs.push([t, dur]);
+    return segs;
+  }
+
+  function effClipDur(clip) {
+    return keptSegments(clip).reduce((a, seg) => a + (seg[1] - seg[0]), 0);
+  }
+
+  function slideAudioTotal(slide) {
+    return (slide.clips || []).reduce((a, c) => a + effClipDur(c), 0);
+  }
+
+  function effDur(slide) {
+    // a slide is on screen at least as long as its narration
+    return Math.max(Number(slide.duration) || 3.0, slideAudioTotal(slide));
+  }
+
   function sanitizeSlide(s) {
     // legacy decks stored numbers as strings and lack newer fields; one
     // bad slide must never crash the manager
@@ -44,7 +88,8 @@
       transition_dur: Math.max(0, Number(s.transition_dur) || 0.5),
       clips: Array.isArray(s.clips)
         ? s.clips.filter((c) => c && c.id)
-            .map((c) => ({ id: String(c.id), dur: Number(c.dur) || 0 }))
+            .map((c) => ({ id: String(c.id), dur: Number(c.dur) || 0,
+                           cuts: normCuts(c.cuts, Number(c.dur) || 0) }))
         : [],
     };
   }
@@ -304,9 +349,15 @@
   }
 
   function calculateDuration() {
-    totalDuration = slides.reduce((acc, s) => acc + (Number(s.duration) || 3.0), 0);
+    totalDuration = slides.reduce((acc, s) => acc + effDur(s), 0);
     const scrub = $("player-scrub");
     scrub.max = totalDuration;
+    updateTimeLabel();
+  }
+
+  function updateScrubMax() {
+    totalDuration = slides.reduce((acc, sl) => acc + effDur(sl), 0);
+    $("player-scrub").max = totalDuration;
     updateTimeLabel();
   }
 
@@ -335,7 +386,7 @@
     card.innerHTML =
       `<div class="sld-thumb">${poseImg}` +
       `<span class="sld-num">${idx + 1}</span>` +
-      `<span class="sld-dur">${(Number(slide.duration) || 3).toFixed(1)}s</span>${chartDot}${audDot}</div>` +
+      `<span class="sld-dur">${effDur(slide).toFixed(1)}s</span>${chartDot}${audDot}</div>` +
       `<div class="sld-cap">${cap ? "" : '<span class="sld-empty">no caption</span>'}</div>` +
       `<div class="sld-acts">` +
       `<button class="sld-act" data-act="dup" data-idx="${idx}" title="duplicate">+</button>` +
@@ -477,7 +528,7 @@
     // Jump time to start of this slide
     let start = 0;
     for (let i = 0; i < idx; i++) {
-      start += slides[i].duration;
+      start += effDur(slides[i]);
     }
     currentTime = start;
     $("player-scrub").value = currentTime;
@@ -527,7 +578,13 @@
     if (activeIndex >= 0) { slides[activeIndex].text = e.target.value; saveSlides(); renderPreview(); }
   });
   $("slide-duration").addEventListener("input", (e) => {
-    if (activeIndex >= 0) { slides[activeIndex].duration = Math.max(0.5, Number(e.target.value) || 3.0); saveSlides(); renderPreview(); }
+    if (activeIndex >= 0) {
+      slides[activeIndex].duration = Math.max(0.5, Number(e.target.value) || 3.0);
+      const at = slideAudioTotal(slides[activeIndex]);
+      $("aud-state").textContent = at > slides[activeIndex].duration
+        ? `slide held at ${at.toFixed(1)}s by its audio` : "";
+      saveSlides(); renderPreview(); renderSlideList();
+    }
   });
   $("slide-transition").addEventListener("change", (e) => {
     if (activeIndex >= 0) {
@@ -628,7 +685,7 @@
     const ranges = [];
     let curr = 0;
     slides.forEach((s) => {
-      const dur = s.duration;
+      const dur = effDur(s);
       const transDur = s.transition === "fade" ? (s.transition_dur !== undefined ? Number(s.transition_dur) : 0.5) : 0;
       ranges.push({
         slide: s,
@@ -792,9 +849,53 @@
   }
 
   // Player controls
-  // preview audio: schedule recorded clips at their true timestamps
+  // preview audio: WebAudio players so multi-cut clips play SEAMLESSLY
+  // (kept segments scheduled back to back, sample-accurate)
+  let audioCtx = null;
+  const bufferCache = {};
   let previewAudios = {};
   let playSchedule = [];
+
+  function getCtx() {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === "suspended") audioCtx.resume();
+    return audioCtx;
+  }
+
+  async function clipBuffer(id) {
+    if (bufferCache[id]) return bufferCache[id];
+    const resp = await fetch(`/api/video/slide_audio/${encodeURIComponent(id)}`);
+    const buf = await getCtx().decodeAudioData(await resp.arrayBuffer());
+    bufferCache[id] = buf;
+    return buf;
+  }
+
+  function playClipSeamless(clip, offEff) {
+    // start playback offEff seconds into the clip's EFFECTIVE (kept)
+    // timeline; returns a handle with stop()
+    const handle = { sources: [], dead: false,
+                     stop() { this.dead = true;
+                              this.sources.forEach((src) => { try { src.stop(); } catch (e) {} });
+                              this.sources = []; } };
+    clipBuffer(clip.id).then((buf) => {
+      if (handle.dead) return;
+      const ctx = getCtx();
+      let when = ctx.currentTime + 0.02;
+      let skip = Math.max(0, offEff);
+      keptSegments(clip).forEach((seg) => {
+        const segLen = seg[1] - seg[0];
+        if (skip >= segLen) { skip -= segLen; return; }
+        const src = ctx.createBufferSource();
+        src.buffer = buf;
+        src.connect(ctx.destination);
+        src.start(when, seg[0] + skip, segLen - skip);
+        when += segLen - skip;
+        skip = 0;
+        handle.sources.push(src);
+      });
+    }).catch(() => {});
+    return handle;
+  }
 
   function clipSchedule() {
     const sched = [];
@@ -802,12 +903,12 @@
     slides.forEach((s) => {
       let off = 0;
       (s.clips || []).forEach((c, ci) => {
-        const d = Number(c.dur) || 0;
-        sched.push({ key: c.id + ":" + t + ":" + ci, id: c.id,
+        const d = effClipDur(c);
+        sched.push({ key: c.id + ":" + t + ":" + ci, clip: c,
                      start: t + off, end: t + off + d });
         off += d;
       });
-      t += Number(s.duration) || 3;
+      t += effDur(s);
     });
     return sched;
   }
@@ -817,19 +918,16 @@
       const a = previewAudios[c.key];
       const within = t >= c.start && t < c.end - 0.05;
       if (within && !a) {
-        const el = new Audio(`/api/video/slide_audio/${encodeURIComponent(c.id)}`);
-        previewAudios[c.key] = el;
-        el.currentTime = Math.max(0, t - c.start);
-        el.play().catch(() => {});
+        previewAudios[c.key] = playClipSeamless(c.clip, t - c.start);
       } else if (!within && a) {
-        a.pause();
+        a.stop();
         delete previewAudios[c.key];
       }
     });
   }
 
   function stopPreviewAudio() {
-    Object.values(previewAudios).forEach((a) => a.pause());
+    Object.values(previewAudios).forEach((a) => a.stop());
     previewAudios = {};
   }
 
@@ -1111,21 +1209,31 @@
       const moveOpts = slides.map((_, i2) =>
         `<option value="${i2}" ${i2 === activeIndex ? "disabled" : ""}>#${i2 + 1}</option>`).join("");
       row.innerHTML =
-        `<span>clip ${ci + 1}</span><span style="color:#8b95a1">${fmtDur(clip.dur)}</span>` +
+        `<span>clip ${ci + 1}</span><span style="color:#8b95a1">${fmtDur(effClipDur(clip))}${(clip.cuts && clip.cuts.length) ? " (trimmed)" : ""}</span>` +
         `<button data-a="play">Play</button>` +
+        `<button data-a="trim">Trim</button>` +
         `<label style="display:flex;gap:4px;align-items:center;color:#8b95a1">move to` +
         ` <select data-a="move">${moveOpts}</select></label>` +
         `<button data-a="del" class="aud-del" style="margin-left:auto">Delete</button>`;
       row.querySelector('[data-a="play"]').addEventListener("click", (ev) => {
         const btn = ev.target;
         const wasStop = btn.textContent === "Stop";
-        if (playingAudio) { playingAudio.pause(); playingAudio = null; }
+        if (playingAudio) { playingAudio.stop(); playingAudio = null; }
         document.querySelectorAll('.aud-row [data-a="play"]').forEach(function (b) { b.textContent = "Play"; });
         if (wasStop) return;
-        playingAudio = new Audio(`/api/video/slide_audio/${encodeURIComponent(clip.id)}`);
-        playingAudio.play();
+        playingAudio = playClipSeamless(clip, 0);
         btn.textContent = "Stop";
-        playingAudio.addEventListener("ended", () => { btn.textContent = "Play"; playingAudio = null; });
+        setTimeout(() => {
+          if (playingAudio) { playingAudio.stop(); playingAudio = null; }
+          btn.textContent = "Play";
+        }, effClipDur(clip) * 1000 + 150);
+      });
+      row.querySelector('[data-a="trim"]').addEventListener("click", () => {
+        const openEd = document.querySelector(".trim-ed");
+        if (openEd) openEd.remove();
+        if (trimOpen && trimOpen.clip === clip) { trimOpen = null; return; }
+        trimOpen = { clip };
+        openTrimEditor(row, clip);
       });
       row.querySelector('[data-a="del"]').addEventListener("click", async () => {
         slides[activeIndex].clips.splice(ci, 1);
@@ -1145,6 +1253,150 @@
       });
       box.appendChild(row);
     });
+  }
+
+  // ---- TRIM EDITOR: waveform + draggable cut regions -----------------
+  let trimOpen = null;                 // {slide, ci} currently open
+  let trimPlayer = null;
+
+  function drawTrim(cv, buf, clip, sel) {
+    const cx2 = cv.getContext("2d");
+    const W2 = cv.width, H2 = cv.height;
+    cx2.clearRect(0, 0, W2, H2);
+    cx2.fillStyle = "#0b0e12";
+    cx2.fillRect(0, 0, W2, H2);
+    if (buf) {                         // waveform peaks
+      const data = buf.getChannelData(0);
+      const step = Math.max(1, Math.floor(data.length / W2));
+      cx2.fillStyle = "#3d5a80";
+      for (let x = 0; x < W2; x++) {
+        let mx = 0;
+        const a0 = x * step;
+        for (let i2 = a0; i2 < a0 + step && i2 < data.length; i2 += 16) {
+          const v = Math.abs(data[i2]);
+          if (v > mx) mx = v;
+        }
+        const hh = Math.max(1, mx * (H2 - 8));
+        cx2.fillRect(x, (H2 - hh) / 2, 1, hh);
+      }
+    }
+    const dur = Number(clip.dur) || 1;
+    normCuts(clip.cuts, dur).forEach((c, i2) => {
+      const x0 = c[0] / dur * W2, x1 = c[1] / dur * W2;
+      cx2.fillStyle = i2 === sel ? "rgba(248,81,73,0.4)" : "rgba(248,81,73,0.22)";
+      cx2.fillRect(x0, 0, x1 - x0, H2);
+      cx2.fillStyle = "#f85149";
+      cx2.fillRect(x0, 0, 2, H2);
+      cx2.fillRect(x1 - 2, 0, 2, H2);
+    });
+  }
+
+  function openTrimEditor(row, clip) {
+    if (trimPlayer) { trimPlayer.stop(); trimPlayer = null; }
+    const ed = document.createElement("div");
+    ed.className = "trim-ed";
+    ed.innerHTML =
+      '<canvas class="trim-cv" width="560" height="64"></canvas>' +
+      '<div class="trim-bar">' +
+      '<button data-t="play">Play kept</button>' +
+      '<button data-t="addcut">Add cut</button>' +
+      '<button data-t="delcut" disabled>Delete cut</button>' +
+      '<span class="trim-info"></span>' +
+      '<button data-t="close" style="margin-left:auto">Close</button></div>' +
+      '<div class="trim-hint">drag a red edge to resize a cut - drag on the wave to make a new cut - click a cut to select</div>';
+    row.after(ed);
+    const cv = ed.querySelector(".trim-cv");
+    const info = ed.querySelector(".trim-info");
+    const delBtn = ed.querySelector('[data-t="delcut"]');
+    let buf = null;
+    let sel = -1;
+    let drag = null;                   // {mode:'new'|'edge', idx, edge, x0}
+    const dur = Number(clip.dur) || 1;
+
+    function refresh() {
+      clip.cuts = normCuts(clip.cuts, dur);
+      drawTrim(cv, buf, clip, sel);
+      info.textContent = `kept ${effClipDur(clip).toFixed(1)}s of ${dur.toFixed(1)}s` +
+        (clip.cuts.length ? ` - ${clip.cuts.length} cut(s)` : "");
+      delBtn.disabled = sel < 0;
+      saveSlides(); renderSlideList(); updateScrubMax();
+    }
+
+    clipBuffer(clip.id).then((b) => { buf = b; refresh(); });
+
+    function evT(ev) {
+      const r = cv.getBoundingClientRect();
+      return Math.max(0, Math.min(dur,
+        (ev.clientX - r.left) / r.width * dur));
+    }
+
+    cv.addEventListener("pointerdown", (ev) => {
+      const t = evT(ev);
+      const cuts = normCuts(clip.cuts, dur);
+      for (let i2 = 0; i2 < cuts.length; i2++) {
+        const edge0 = Math.abs(t - cuts[i2][0]) < dur * 0.02;
+        const edge1 = Math.abs(t - cuts[i2][1]) < dur * 0.02;
+        if (edge0 || edge1) {
+          drag = { mode: "edge", idx: i2, edge: edge0 ? 0 : 1 };
+          sel = i2;
+          cv.setPointerCapture(ev.pointerId);
+          return;
+        }
+        if (t > cuts[i2][0] && t < cuts[i2][1]) {
+          sel = i2; refresh(); return;
+        }
+      }
+      drag = { mode: "new", x0: t };
+      clip.cuts = cuts.concat([[t, t]]);
+      sel = clip.cuts.length - 1;
+      cv.setPointerCapture(ev.pointerId);
+    });
+    cv.addEventListener("pointermove", (ev) => {
+      if (!drag) return;
+      const t = evT(ev);
+      const cuts = clip.cuts;
+      if (drag.mode === "new") {
+        const c = cuts[cuts.length - 1];
+        c[0] = Math.min(drag.x0, t); c[1] = Math.max(drag.x0, t);
+      } else {
+        cuts[drag.idx][drag.edge] = t;
+        if (cuts[drag.idx][0] > cuts[drag.idx][1]) {
+          const tmp = cuts[drag.idx][0];
+          cuts[drag.idx][0] = cuts[drag.idx][1];
+          cuts[drag.idx][1] = tmp;
+          drag.edge = 1 - drag.edge;
+        }
+      }
+      drawTrim(cv, buf, clip, sel);
+    });
+    cv.addEventListener("pointerup", () => { drag = null; sel = -1; refresh(); });
+
+    ed.querySelector('[data-t="play"]').addEventListener("click", (ev) => {
+      if (trimPlayer) { trimPlayer.stop(); trimPlayer = null;
+        ev.target.textContent = "Play kept"; return; }
+      trimPlayer = playClipSeamless(clip, 0);
+      ev.target.textContent = "Stop";
+      const total = effClipDur(clip);
+      setTimeout(() => { if (trimPlayer) { trimPlayer.stop(); trimPlayer = null; }
+        ev.target.textContent = "Play kept"; }, total * 1000 + 150);
+    });
+    ed.querySelector('[data-t="addcut"]').addEventListener("click", () => {
+      const segs = keptSegments(clip);
+      if (!segs.length) return;
+      const seg = segs.reduce((a, b) => (b[1] - b[0] > a[1] - a[0] ? b : a));
+      const mid = (seg[0] + seg[1]) / 2;
+      const w = Math.min(0.5, (seg[1] - seg[0]) / 4);
+      clip.cuts = normCuts((clip.cuts || []).concat([[mid - w / 2, mid + w / 2]]), dur);
+      sel = -1; refresh();
+    });
+    delBtn.addEventListener("click", () => {
+      if (sel >= 0) { clip.cuts.splice(sel, 1); sel = -1; refresh(); }
+    });
+    ed.querySelector('[data-t="close"]').addEventListener("click", () => {
+      if (trimPlayer) { trimPlayer.stop(); trimPlayer = null; }
+      ed.remove(); trimOpen = null;
+    });
+    refresh();
   }
 
   $("aud-record").addEventListener("click", async () => {

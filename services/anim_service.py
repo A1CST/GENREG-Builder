@@ -1262,6 +1262,48 @@ def slideshow_svg(slides, t, w=1280, h=720):
     out.append("</svg>")
     return "".join(out)
 
+def _norm_cuts(cuts, dur):
+    """Sorted, merged, clamped removed-intervals within [0, dur]."""
+    cs = []
+    for c in (cuts or []):
+        try:
+            a, b = max(0.0, float(c[0])), min(dur, float(c[1]))
+        except (TypeError, ValueError, IndexError):
+            continue
+        if b - a > 0.01:
+            cs.append([a, b])
+    cs.sort()
+    out = []
+    for c in cs:
+        if out and c[0] <= out[-1][1] + 0.005:
+            out[-1][1] = max(out[-1][1], c[1])
+        else:
+            out.append(c)
+    return out
+
+
+def _kept_segments(clip):
+    dur = float(clip.get("dur", 0.0) or 0.0)
+    segs, t = [], 0.0
+    for c in _norm_cuts(clip.get("cuts"), dur):
+        if c[0] - t > 0.01:
+            segs.append((t, c[0]))
+        t = c[1]
+    if dur - t > 0.01:
+        segs.append((t, dur))
+    return segs
+
+
+def _eff_clip_dur(clip):
+    return sum(b - a for a, b in _kept_segments(clip))
+
+
+def _eff_slide_dur(s):
+    base = float(s.get("duration", 3.0) or 3.0)
+    audio = sum(_eff_clip_dur(c) for c in (s.get("clips") or []))
+    return max(base, audio)
+
+
 SLIDE_AUDIO_DIR = os.path.join(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__))), "runs", "video", "slide_audio")
 os.makedirs(SLIDE_AUDIO_DIR, exist_ok=True)
@@ -1275,7 +1317,7 @@ def render_slides(slides, out_name="", fps=24, w=1280, h=720):
         raise RuntimeError("ffmpeg unavailable")
         
     fps = max(1, min(60, int(fps)))
-    dur = sum(float(s.get("duration", 3.0)) for s in slides)
+    dur = sum(_eff_slide_dur(s) for s in slides)
     if dur <= 0.01:
         raise ValueError("total duration must be greater than 0")
     total = int(round(fps * dur))
@@ -1291,7 +1333,7 @@ def render_slides(slides, out_name="", fps=24, w=1280, h=720):
     # each clip starts at its slide's start time plus the durations of the
     # clips before it on the same slide; all clips (and the optional deck
     # track) are mixed with adelay + amix
-    clip_inputs = []                     # (path, start_ms)
+    clip_inputs = []                     # (path, start_ms, kept_segments)
     t_cursor = 0.0
     for s_ in slides:
         off = 0.0
@@ -1299,9 +1341,12 @@ def render_slides(slides, out_name="", fps=24, w=1280, h=720):
             cid = re.sub(r"[^A-Za-z0-9_.-]", "", str(c_.get("id", "")))
             p_ = os.path.join(SLIDE_AUDIO_DIR, cid)
             if cid and os.path.isfile(p_):
-                clip_inputs.append((p_, int(round((t_cursor + off) * 1000))))
-                off += max(0.0, float(c_.get("dur", 0.0)))
-        t_cursor += float(s_.get("duration", 3.0))
+                segs = _kept_segments(c_)
+                if segs:
+                    clip_inputs.append((p_, int(round((t_cursor + off) * 1000)),
+                                        segs))
+                    off += sum(b - a for a, b in segs)
+        t_cursor += _eff_slide_dur(s_)
 
     name = slug(out_name or "slideshow")
     out = video_service.unique_path(name + ".mp4")
@@ -1311,7 +1356,7 @@ def render_slides(slides, out_name="", fps=24, w=1280, h=720):
     if audio:
         cmd += ["-i", audio]
         n_audio_in += 1
-    for p_, _ms in clip_inputs:
+    for p_, _ms, _segs in clip_inputs:
         cmd += ["-i", p_]
         n_audio_in += 1
     cmd += ["-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "20", "-preset", "medium"]
@@ -1322,8 +1367,23 @@ def render_slides(slides, out_name="", fps=24, w=1280, h=720):
             parts.append(f"[{ai}:a]anull[t0]")
             labels.append("[t0]")
             ai += 1
-        for j, (_p, ms) in enumerate(clip_inputs):
-            parts.append(f"[{ai}:a]adelay={ms}|{ms}[c{j}]")
+        for j, (_p, ms, segs) in enumerate(clip_inputs):
+            if len(segs) == 1 and segs[0][0] < 0.01:
+                # untrimmed (or head-only): single atrim keeps it simple
+                a0, b0 = segs[0]
+                parts.append(f"[{ai}:a]atrim=start={a0:.3f}:end={b0:.3f},"
+                             f"asetpts=PTS-STARTPTS,adelay={ms}|{ms}[c{j}]")
+            else:
+                # multi-cut: trim each kept segment, concat SEAMLESSLY,
+                # then delay to the clip's slide time
+                seg_lbls = []
+                for k2, (a0, b0) in enumerate(segs):
+                    parts.append(f"[{ai}:a]atrim=start={a0:.3f}:end={b0:.3f},"
+                                 f"asetpts=PTS-STARTPTS[s{j}_{k2}]")
+                    seg_lbls.append(f"[s{j}_{k2}]")
+                parts.append("".join(seg_lbls) +
+                             f"concat=n={len(seg_lbls)}:v=0:a=1,"
+                             f"adelay={ms}|{ms}[c{j}]")
             labels.append(f"[c{j}]")
             ai += 1
         parts.append("".join(labels) +
