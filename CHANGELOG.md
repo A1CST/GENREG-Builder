@@ -10,6 +10,26 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-19] (Claude)** — **VIDEO: SCRIPT STUDIO modal + JSON deck
+  templates + ElevenLabs narration (user's design). Pose-alignment UI
+  removed (drag owns placement; CC captions kept).** The script side
+  panel now opens a MODAL with two tabs: SCRIPT (the existing narration
+  tools, moved intact - highlight-to-slide, span, auto-split) and
+  TEMPLATE: paste a JSON deck template, download the sample (schema
+  documented in-file: per slide - pose + position, chart + position/
+  size/start/loop, script text (doubles as the CC caption), duration,
+  transition, free-form meta), and BUILD THE DECK in one click - with
+  optional ELEVENLABS NARRATION: each slide's script is synthesized
+  (voice id field, default Rachel), saved as an mp3 slide clip, and the
+  slide auto-floors to its narration. New POST /api/video/tts (key from
+  ELEVENLABS_API_KEY env or gitignored .keys/elevenlabs.key; graceful
+  503 with instructions when unset - verified); clip whitelist +
+  mimetypes extended to .mp3 (decode/trim/mux all work on mp3 already).
+  Template upload -> entire narrated video: build deck -> TTS -> record
+  over/trim as needed -> export. Routes ride the pending restart; page
+  hard-refresh. NOTE for the user: drop your ElevenLabs key in
+  .keys/elevenlabs.key (one line) or set ELEVENLABS_API_KEY.
+
 - **[2026-07-19] (Claude)** — **VIDEO: media-timeline drag FIXED +
   resizable charts/videos on the stage (user's report + ask).**
   (1) The start slider was killing its own drag: every pointer move

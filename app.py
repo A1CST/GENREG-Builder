@@ -2308,6 +2308,56 @@ def api_video_mute():
         return jsonify({"error": f"mute failed: {exc}"}), 500
 
 
+@app.route("/api/video/tts", methods=["POST"])
+def api_video_tts():
+    """Generate narration via ElevenLabs into a slide clip. Key from
+    ELEVENLABS_API_KEY env or .keys/elevenlabs.key (gitignored)."""
+    try:
+        data = request.get_json(silent=True) or {}
+        text = (data.get("text") or "").strip()
+        if not text or len(text) > 4000:
+            return jsonify({"error": "text empty or too long"}), 400
+        key = os.environ.get("ELEVENLABS_API_KEY", "")
+        if not key:
+            kp = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                              ".keys", "elevenlabs.key")
+            if os.path.isfile(kp):
+                with open(kp) as f:
+                    key = f.read().strip()
+        if not key:
+            return jsonify({"error": "no ElevenLabs key - set "
+                            "ELEVENLABS_API_KEY or put it in "
+                            ".keys/elevenlabs.key"}), 503
+        voice = (data.get("voice") or "").strip() or "21m00Tcm4TlvDq8ikWAM"
+        import re as _re
+        if not _re.fullmatch(r"[A-Za-z0-9]{8,40}", voice):
+            return jsonify({"error": "bad voice id"}), 400
+        import urllib.request as _ur
+        req = _ur.Request(
+            f"https://api.elevenlabs.io/v1/text-to-speech/{voice}",
+            data=json.dumps({
+                "text": text,
+                "model_id": "eleven_multilingual_v2",
+            }).encode(),
+            headers={"xi-api-key": key,
+                     "Content-Type": "application/json",
+                     "Accept": "audio/mpeg"})
+        with _ur.urlopen(req, timeout=120) as resp:
+            audio = resp.read()
+        if not audio:
+            return jsonify({"error": "empty TTS response"}), 502
+        import time as _time
+        import secrets as _secrets
+        cid = f"{int(_time.time())}_{_secrets.token_hex(4)}.mp3"
+        path = os.path.join(anim_service.SLIDE_AUDIO_DIR, cid)
+        with open(path, "wb") as f:
+            f.write(audio)
+        dur = float(video_service.probe(path).get("duration", 0) or 0)
+        return jsonify({"id": cid, "dur": round(dur, 2)})
+    except Exception as exc:
+        return jsonify({"error": f"tts failed: {exc}"}), 500
+
+
 @app.route("/api/video/slide_audio", methods=["POST"])
 def api_slide_audio_upload():
     """Save a browser mic recording (webm/opus blob) for a slide clip."""
@@ -2330,7 +2380,7 @@ def api_slide_audio_upload():
 def api_slide_audio(cid):
     """Serve or delete one slide clip (whitelisted id pattern)."""
     import re as _re
-    if not _re.fullmatch(r"[0-9]+_[0-9a-f]+\.webm", cid):
+    if not _re.fullmatch(r"[0-9]+_[0-9a-f]+\.(webm|mp3)", cid):
         return jsonify({"error": "bad clip id"}), 400
     path = os.path.join(anim_service.SLIDE_AUDIO_DIR, cid)
     if not os.path.isfile(path):
@@ -2357,7 +2407,8 @@ def api_slide_audio(cid):
             _th.Thread(target=_retry, daemon=True).start()
             return jsonify({"ok": True, "deferred": True})
     from flask import send_file
-    return send_file(path, mimetype="audio/webm")
+    mt = "audio/mpeg" if cid.endswith(".mp3") else "audio/webm"
+    return send_file(path, mimetype=mt)
 
 
 @app.route("/api/video/library")

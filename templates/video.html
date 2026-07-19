@@ -81,6 +81,7 @@
     .media-span { position: absolute; top: 3px; bottom: 3px;
       background: rgba(78,161,255,0.45); border-radius: 3px; }
     .media-span-loop { background: rgba(78,161,255,0.22); }
+    .studio-tab.on { border-color: #2e7d5b; color: #7ee787; }
     .media-handle { position: absolute; top: -3px; bottom: -3px; width: 8px;
       margin-left: -4px; background: #4ea1ff; border-radius: 3px;
       cursor: ew-resize; }
@@ -161,15 +162,6 @@
             </div>
           </div>
           <div class="field">
-            <label>Pose Alignment</label>
-            <select id="slide-pose-align" class="vd-mini-select" style="width: 100%;">
-              <option value="left">Left</option>
-              <option value="center">Center</option>
-              <option value="right">Right</option>
-              <option value="none">None</option>
-            </select>
-          </div>
-          <div class="field">
             <label>Embed Chart / Image</label>
             <select id="slide-chart" class="vd-mini-select" style="width: 100%;"></select>
             <div id="slide-chart-preview-container" style="margin-top: 6px; display: none;">
@@ -216,33 +208,8 @@
 
       <!-- panel: script -->
       <div class="side-body control-panel" data-vpanel="script" hidden>
-        <div class="field">
-          <label>Full script</label>
-          <textarea id="script-text" rows="12" placeholder="Paste your whole narration here. Then highlight a sentence and send it to a slide, or auto-split the entire script into slides below." style="width: 100%; background: #10141c; border: 1px solid #1c232c; color: #c7d0da; border-radius: 4px; padding: 6px; font-size: 12px; resize: vertical; line-height: 1.5;"></textarea>
-          <span class="field-hint" id="script-sel-info">Highlight text above, then use the buttons below.</span>
-        </div>
-
-        <div class="field vd-inline" style="display: flex; gap: 10px; align-items: flex-end; margin-top: 4px;">
-          <div style="width: 90px;">
-            <label>Span (slides)</label>
-            <input type="number" id="script-span" min="1" max="50" step="1" value="1" style="width: 100%; background: #10141c; border: 1px solid #1c232c; color: #c7d0da; border-radius: 4px; padding: 4px;" />
-          </div>
-          <button id="script-add-sel" class="runs-btn tlm-primary" style="flex: 1;">Highlight &rarr; new slide(s)</button>
-        </div>
-        <button id="script-set-current" class="runs-btn" style="width: 100%; margin-top: 8px;">Highlight &rarr; selected slide caption</button>
-
-        <div class="field" style="margin-top: 18px; border-top: 1px solid #1c232c; padding-top: 14px;">
-          <label>Auto-split whole script into slides</label>
-          <select id="script-split-mode" class="vd-mini-select" style="width: 100%;">
-            <option value="sentence">By sentence</option>
-            <option value="line">By line</option>
-            <option value="paragraph">By paragraph (blank line)</option>
-          </select>
-        </div>
-        <label style="display: flex; gap: 6px; align-items: center; font-size: 12px; color: #8b95a1; margin: 8px 0 10px;">
-          <input type="checkbox" id="script-replace" /> Replace existing slides
-        </label>
-        <button id="script-split" class="runs-btn tlm-primary" style="width: 100%;">Split into slides</button>
+        <button id="open-script-studio" class="runs-btn tlm-primary" style="width: 100%;">Open Script Studio</button>
+        <span class="field-hint" style="display:block; margin-top:8px;">Write or paste the narration, or load a JSON template that builds the whole deck - with optional ElevenLabs narration.</span>
       </div>
 
       <!-- panel 2: media -->
@@ -332,6 +299,69 @@
         </section>
       </div>
     </main>
+  </div>
+
+
+  <div id="studio-overlay" style="display:none; position:fixed; inset:0; background:rgba(5,7,10,0.72); z-index:80;">
+    <div style="max-width: 860px; margin: 4vh auto; background:#0d1117; border:1px solid #2f4152; border-radius:10px; max-height: 90vh; display:flex; flex-direction:column;">
+      <div style="display:flex; align-items:center; gap:10px; padding: 12px 16px; border-bottom:1px solid #1c232c;">
+        <b style="color:#e6ebf1; font-size:14px;">Script Studio</b>
+        <button class="runs-btn vd-mini studio-tab on" data-stab="script">Script</button>
+        <button class="runs-btn vd-mini studio-tab" data-stab="template">Template</button>
+        <button id="studio-close" class="runs-btn vd-mini" style="margin-left:auto;">Close</button>
+      </div>
+      <div style="padding: 14px 16px; overflow-y:auto;">
+        <div id="studio-script">
+
+        <div class="field">
+          <label>Full script</label>
+          <textarea id="script-text" rows="12" placeholder="Paste your whole narration here. Then highlight a sentence and send it to a slide, or auto-split the entire script into slides below." style="width: 100%; background: #10141c; border: 1px solid #1c232c; color: #c7d0da; border-radius: 4px; padding: 6px; font-size: 12px; resize: vertical; line-height: 1.5;"></textarea>
+          <span class="field-hint" id="script-sel-info">Highlight text above, then use the buttons below.</span>
+        </div>
+
+        <div class="field vd-inline" style="display: flex; gap: 10px; align-items: flex-end; margin-top: 4px;">
+          <div style="width: 90px;">
+            <label>Span (slides)</label>
+            <input type="number" id="script-span" min="1" max="50" step="1" value="1" style="width: 100%; background: #10141c; border: 1px solid #1c232c; color: #c7d0da; border-radius: 4px; padding: 4px;" />
+          </div>
+          <button id="script-add-sel" class="runs-btn tlm-primary" style="flex: 1;">Highlight &rarr; new slide(s)</button>
+        </div>
+        <button id="script-set-current" class="runs-btn" style="width: 100%; margin-top: 8px;">Highlight &rarr; selected slide caption</button>
+
+        <div class="field" style="margin-top: 18px; border-top: 1px solid #1c232c; padding-top: 14px;">
+          <label>Auto-split whole script into slides</label>
+          <select id="script-split-mode" class="vd-mini-select" style="width: 100%;">
+            <option value="sentence">By sentence</option>
+            <option value="line">By line</option>
+            <option value="paragraph">By paragraph (blank line)</option>
+          </select>
+        </div>
+        <label style="display: flex; gap: 6px; align-items: center; font-size: 12px; color: #8b95a1; margin: 8px 0 10px;">
+          <input type="checkbox" id="script-replace" /> Replace existing slides
+        </label>
+        <button id="script-split" class="runs-btn tlm-primary" style="width: 100%;">Split into slides</button>
+      
+        </div>
+        <div id="studio-template" style="display:none;">
+          <div class="field">
+            <label>Deck template (JSON)</label>
+            <textarea id="tmpl-json" rows="14" placeholder="Paste a deck template here, or download the sample to see the format." style="width:100%; background:#10141c; border:1px solid #1c232c; color:#c7d0da; border-radius:4px; padding:6px; font-size:11.5px; font-family:ui-monospace,monospace; resize:vertical; line-height:1.45;"></textarea>
+          </div>
+          <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-top:8px;">
+            <button id="tmpl-download" class="runs-btn vd-mini">Download sample template</button>
+            <label style="display:flex; gap:5px; align-items:center; font-size:11.5px; color:#8b95a1;">
+              <input type="checkbox" id="tmpl-replace" checked /> replace existing slides</label>
+          </div>
+          <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-top:10px; border-top:1px solid #1c232c; padding-top:10px;">
+            <label style="display:flex; gap:5px; align-items:center; font-size:11.5px; color:#8b95a1;">
+              <input type="checkbox" id="tmpl-tts" checked /> generate ElevenLabs narration from each slide's script</label>
+            <input id="tmpl-voice" type="text" placeholder="voice id (blank = default)" style="width: 210px; background:#10141c; border:1px solid #1c232c; color:#c7d0da; border-radius:4px; padding:4px 6px; font-size:11px;" />
+          </div>
+          <button id="tmpl-load" class="runs-btn tlm-primary" style="width:100%; margin-top:12px;">Build deck from template</button>
+          <div id="tmpl-status" style="font-size:11px; color:#8b95a1; margin-top:8px; font-family:ui-monospace,monospace;"></div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <script src="{{ url_for('static', filename='vendor/xterm.js') }}"></script>
