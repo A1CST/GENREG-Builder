@@ -573,7 +573,6 @@
 
     const slide = slides[idx];
     $("slide-pose").value = slide.pose || "";
-    $("slide-pose-align").value = slide.pose_align || "left";
     $("slide-chart").value = slide.chart || "";
     $("slide-chart-align").value = slide.chart_align || "right";
     $("slide-text").value = slide.text || "";
@@ -627,9 +626,6 @@
         poseCont.style.display = "none";
       }
     }
-  });
-  $("slide-pose-align").addEventListener("change", (e) => {
-    if (activeIndex >= 0) { slides[activeIndex].pose_align = e.target.value; saveSlides(); renderPreview(); }
   });
   $("slide-chart").addEventListener("change", (e) => {
     if (activeIndex >= 0) {
@@ -1178,7 +1174,6 @@
       slides[activeIndex].pose_x = tempGhosts.pose_x;
       slides[activeIndex].pose_y = tempGhosts.pose_y;
       $("slide-pose").value = tempGhosts.pose;
-      $("slide-pose-align").value = tempGhosts.pose_align;
       
       const poseMini = $("slide-pose-preview-mini");
       const poseCont = $("slide-pose-preview-container");
@@ -1723,6 +1718,126 @@
       state.textContent = `recording for slide #${activeIndex + 1}...`;
     } catch (e) {
       state.textContent = "mic unavailable: " + e.message;
+    }
+  });
+
+  // ---- SCRIPT STUDIO modal -------------------------------------------
+  $("open-script-studio").addEventListener("click", () => {
+    $("studio-overlay").style.display = "block";
+  });
+  $("studio-close").addEventListener("click", () => {
+    $("studio-overlay").style.display = "none";
+  });
+  document.querySelectorAll(".studio-tab").forEach((b) => {
+    b.addEventListener("click", () => {
+      document.querySelectorAll(".studio-tab").forEach((x) => x.classList.remove("on"));
+      b.classList.add("on");
+      $("studio-script").style.display = b.dataset.stab === "script" ? "block" : "none";
+      $("studio-template").style.display = b.dataset.stab === "template" ? "block" : "none";
+    });
+  });
+
+  const DECK_TEMPLATE = {
+    _doc: {
+      what: "GENREG slide-deck template - build an entire narrated video from JSON",
+      slide_fields: {
+        pose: "pose image filename from your poses library (blank = none)",
+        pose_x: "x position on the 1280x720 stage", pose_y: "y position",
+        chart: "library image or video filename to embed (blank = none)",
+        chart_x: "x", chart_y: "y", chart_w: "width", chart_h: "height",
+        chart_start: "seconds into the slide the video starts", chart_loop: "true = loop the video",
+        script: "what you (or ElevenLabs) say on this slide - also becomes the CC caption",
+        duration: "minimum seconds on screen (audio/media can extend it)",
+        transition: "none | fade", transition_dur: "crossfade seconds",
+        meta: "free-form notes, ignored by the builder"
+      }
+    },
+    slides: [
+      { pose: "", pose_x: 80, pose_y: 80,
+        chart: "", chart_x: 650, chart_y: 80, chart_w: 550, chart_h: 420,
+        chart_start: 0, chart_loop: false,
+        script: "Welcome - this deck was built from a template.",
+        duration: 3.0, transition: "fade", transition_dur: 0.5,
+        meta: "intro" },
+      { pose: "", pose_x: 80, pose_y: 80,
+        chart: "", chart_x: 400, chart_y: 100, chart_w: 880, chart_h: 500,
+        chart_start: 1.0, chart_loop: true,
+        script: "Here the animation starts one second in and loops while I talk.",
+        duration: 4.0, transition: "fade", transition_dur: 0.5,
+        meta: "demo slide" }
+    ]
+  };
+
+  $("tmpl-download").addEventListener("click", () => {
+    const blob = new Blob([JSON.stringify(DECK_TEMPLATE, null, 2)],
+                         { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "deck_template.json";
+    a.click();
+    URL.revokeObjectURL(a.href);
+  });
+
+  function slideFromTemplate(t) {
+    return sanitizeSlide({
+      pose: t.pose || "", pose_x: Number(t.pose_x) || 0, pose_y: Number(t.pose_y) || 0,
+      chart: t.chart || "", chart_x: Number(t.chart_x) || 0, chart_y: Number(t.chart_y) || 0,
+      chart_w: Number(t.chart_w) || 550, chart_h: Number(t.chart_h) || 420,
+      chart_start: Number(t.chart_start) || 0, chart_loop: !!t.chart_loop,
+      text: String(t.script || t.text || ""),
+      duration: Number(t.duration) || 3.0,
+      transition: t.transition || "fade",
+      transition_dur: Number(t.transition_dur) || 0.5,
+      clips: [],
+    });
+  }
+
+  $("tmpl-load").addEventListener("click", async () => {
+    const status = $("tmpl-status");
+    let doc;
+    try {
+      doc = JSON.parse($("tmpl-json").value);
+    } catch (e) {
+      status.textContent = "invalid JSON: " + e.message;
+      return;
+    }
+    const list = Array.isArray(doc) ? doc : doc.slides;
+    if (!Array.isArray(list) || !list.length) {
+      status.textContent = "template needs a 'slides' array";
+      return;
+    }
+    const built = list.map(slideFromTemplate);
+    if ($("tmpl-replace").checked) slides = built;
+    else slides = slides.concat(built);
+    saveSlides();
+    selectSlide(slides.length - built.length);
+    built.forEach((sl) => { if (sl.chart) refreshChartDur(sl); });
+    status.textContent = `built ${built.length} slide(s)`;
+
+    if ($("tmpl-tts").checked) {
+      const voice = $("tmpl-voice").value.trim();
+      let done = 0;
+      for (const sl of built) {
+        if (!sl.text || !sl.text.trim()) continue;
+        status.textContent = `narrating slide ${done + 1}/${built.length}...`;
+        try {
+          const r = await (await fetch("/api/video/tts", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ text: sl.text, voice: voice }),
+          })).json();
+          if (r.error) throw new Error(r.error);
+          sl.clips = [{ id: r.id, dur: Number(r.dur) || 0, cuts: [] }];
+          saveSlides();
+        } catch (e) {
+          status.textContent = "narration failed: " + e.message;
+          renderSlideList(); renderAudioPanel(); updateScrubMax();
+          return;
+        }
+        done += 1;
+      }
+      status.textContent = `deck built - ${done} slide(s) narrated`;
+      renderSlideList(); renderAudioPanel(); updateScrubMax(); renderPreview();
     }
   });
 
