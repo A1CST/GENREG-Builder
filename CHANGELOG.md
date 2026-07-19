@@ -10,6 +10,24 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-19] (Claude)** — **VIDEO: media timeline moved to its own
+  panel** under the preview stage and audio area (was nested inside the
+  audio card). Details in CHANGELOG_VIDEO.md.
+
+- **[2026-07-19] (Claude)** — **REPLICATE module 8 VERDICT: vocabulary
+  conjunctions plateau below significance — the axis works, the width is
+  the bottleneck.** Five reads across 54→145 genomes: residual over the
+  0.7942 concat control oscillates +0.09/+0.11/+0.18/+0.10/+0.16pt — no
+  growth, noise-band plateau (161 genomes checkpointed in
+  state_vocabcompose.json; resumable any time). What stands from module 8:
+  (1) question-tuned vocabularies WORK as encoders — warp/texture 0.3453
+  kNN beats the generic encoders' 0.334, all four emerged label-free in
+  526s total; (2) 16-dim codes are too narrow next to 12k visual columns
+  for conjunctions to earn beyond noise — the next lever is vocabulary
+  WIDTH (d=32+, more questions: rotation, scale-only, channel-drop), not
+  more genomes. Day's standing record: **0.7967** (module 6, measurement
+  diversity). Runs ...-182504/-182927-replicate_vocabcompose; notice #636.
+
 - **[2026-07-19] (Claude)** — **VIDEO: multiple charts/videos per
   slide** - new `slide.media` list (legacy chart fields auto-migrate);
   each item has its own position/size, start time, loop flag, and
