@@ -9,6 +9,19 @@ the top of the log below, and also in the master CHANGELOG.md.
 
 ---
 
+- **[2026-07-19] (Claude)** — **VIDEO: CC captions word-wrap inside the
+  box (user report: words ran over the edges).** Both renderers (client
+  preview `static/slideshow.js` and export compositor
+  `services/anim_service.py::slide_to_svg_group`) now share identical
+  wrap math: captions word-wrap at ~68 chars for the 24px bold font; if
+  the result exceeds 4 lines the font steps down to 20px and rewraps at
+  ~82 chars. The caption box auto-sizes to the line count (pad 14, line
+  height 1.35em) and stays bottom-anchored at y=692 so it grows upward,
+  never off-screen. Manual line breaks in the script still respected.
+  Verified: 190-char caption wraps to 4 lines (longest 66 chars, box
+  bottom exactly 692.0); double-length stress caption drops to font 20
+  at 6 lines. node --check + ast.parse clean.
+
 - **[2026-07-19] (Claude)** — **VIDEO: TTS credit guard - a lookup json
   ties each generated line to its clip so identical narration NEVER bills
   twice (user's call).** `runs/video/slide_audio/tts_cache.json` maps
