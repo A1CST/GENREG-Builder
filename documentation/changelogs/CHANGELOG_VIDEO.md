@@ -9,6 +9,21 @@ the top of the log below, and also in the master CHANGELOG.md.
 
 ---
 
+- **[2026-07-19] (Claude)** — **VIDEO: media-timeline drag FIXED +
+  resizable charts/videos on the stage (user's report + ask).**
+  (1) The start slider was killing its own drag: every pointer move
+  rebuilt the timeline DOM, destroying the captured handle mid-gesture.
+  Now the drag updates the handle/span/readout inline and only re-renders
+  on release - window-level listeners, smooth drag.
+  (2) RESIZE: charts and videos get a blue corner grip on the stage
+  (bottom-right, nwse cursor) wired into the existing drag system as a
+  chart-resize mode - slide.chart_w/chart_h (min 80x60, defaults
+  550x420), sanitized, copied by apply-to-all, used by the stage image,
+  the LIVE VIDEO OVERLAY (so the playing video matches the resized box),
+  and the RENDERER. Verified: rendered a deck with an 880x500 looping
+  video at a custom position (resizetest.mp4, 2.0s, clean). Frontend
+  hard-refresh; renderer hot-loaded.
+
 - **[2026-07-19] (Claude)** — **VIDEO: media timeline responsive
   pre-restart + the preview stage actually PLAYS videos (user's report).**
   Two causes: (1) the media timeline armed off /api/video/meta, which is

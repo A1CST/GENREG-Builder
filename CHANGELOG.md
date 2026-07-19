@@ -10,6 +10,30 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-19] (Claude)** — **VIDEO: media-timeline drag FIXED +
+  resizable charts/videos on the stage (user's report + ask).**
+  (1) The start slider was killing its own drag: every pointer move
+  rebuilt the timeline DOM, destroying the captured handle mid-gesture.
+  Now the drag updates the handle/span/readout inline and only re-renders
+  on release - window-level listeners, smooth drag.
+  (2) RESIZE: charts and videos get a blue corner grip on the stage
+  (bottom-right, nwse cursor) wired into the existing drag system as a
+  chart-resize mode - slide.chart_w/chart_h (min 80x60, defaults
+  550x420), sanitized, copied by apply-to-all, used by the stage image,
+  the LIVE VIDEO OVERLAY (so the playing video matches the resized box),
+  and the RENDERER. Verified: rendered a deck with an 880x500 looping
+  video at a custom position (resizetest.mp4, 2.0s, clean). Frontend
+  hard-refresh; renderer hot-loaded.
+
+- **[2026-07-19] (Claude)** — **/ocr: real-time screen OCR — latency feasible, screen-text accuracy a
+  negative result; model regression recovered.** New `ocr/ocr_live.py` (grab→read→print loop, warm model
+  across frames) runs end-to-end. Reader craters on screen-size glyphs (81.5% at 28px → 20% at 12px);
+  both PDF-derived fixes FAILED — multi-DPI (no size variation because `_to_tile` canonicalizes size) and
+  blur-aug (traded away sharp accuracy for nothing). Real screen reading needs actual screen-capture
+  training data, not PDF proxies. Also fixed a self-inflicted regression: a cap-during-extraction hack +
+  an `n_test_pdfs` default change silently altered the train data/split; reverted → doc model
+  byte-identical (TEST 0.9154, clean-page 81.5%). See CHANGELOG_OCR.md.
+
 - **[2026-07-19] (Claude)** — **VIDEO: media timeline responsive
   pre-restart + the preview stage actually PLAYS videos (user's report).**
   Two causes: (1) the media timeline armed off /api/video/meta, which is

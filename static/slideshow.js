@@ -127,6 +127,8 @@
       chart_dur: Number(s.chart_dur) || 0,
       chart_start: Math.max(0, Number(s.chart_start) || 0),
       chart_loop: !!s.chart_loop,
+      chart_w: Math.max(80, Number(s.chart_w) || 550),
+      chart_h: Math.max(60, Number(s.chart_h) || 420),
       chart_x: Number(s.chart_x) || 0, chart_y: Number(s.chart_y) || 0,
       text: typeof s.text === "string" ? s.text : "",
       bg: s.bg || s.background || "",
@@ -736,6 +738,8 @@
       sl.chart_dur = s.chart_dur;
       sl.chart_start = s.chart_start;
       sl.chart_loop = s.chart_loop;
+      sl.chart_w = s.chart_w;
+      sl.chart_h = s.chart_h;
     });
     saveSlides();
     renderPreview();
@@ -844,7 +848,7 @@
       out.push(`<image href="/api/poses/${encodeURIComponent(assetName)}" x="${px}" y="${py}" width="${pw}" height="${ph}" preserveAspectRatio="xMidYMid meet"/>`);
     } else {
       let chx = 650, chy = 80;
-      const cw = 550, ch = 420;
+      const cw = Number(slide.chart_w) || 550, ch = Number(slide.chart_h) || 420;
       if (prevSlide.chart_x !== undefined && prevSlide.chart_y !== undefined) {
         chx = prevSlide.chart_x;
         chy = prevSlide.chart_y;
@@ -900,7 +904,7 @@
     if (s.chart) {
       const align = s.chart_align || "right";
       let cx = 650, cy = 80;
-      const cw = 550, ch = 420;
+      const cw = Number(s.chart_w) || 550, ch = Number(s.chart_h) || 420;
       if (s.chart_x !== undefined && s.chart_y !== undefined) {
         cx = s.chart_x;
         cy = s.chart_y;
@@ -911,6 +915,7 @@
       
       if (align !== "none" || s.chart_x !== undefined) {
         out.push(`<image href="${chartHref(s.chart)}" x="${cx}" y="${cy}" width="${cw}" height="${ch}" data-drag="chart" style="cursor: move;" preserveAspectRatio="xMidYMid meet"/>`);
+        out.push(`<rect x="${cx + cw - 14}" y="${cy + ch - 14}" width="16" height="16" rx="3" fill="#4ea1ff" fill-opacity="0.85" data-drag="chart-resize" style="cursor: nwse-resize;"/>`);
       }
     }
 
@@ -990,7 +995,7 @@
     const scale = Math.min(sr.width / 1280, sr.height / 720);
     const ox = (sr.width - 1280 * scale) / 2 + (sr.left - wr.left);
     const oy = (sr.height - 720 * scale) / 2 + (sr.top - wr.top);
-    const cw = 550, ch = 420;
+    const cw = Number(slide.chart_w) || 550, ch = Number(slide.chart_h) || 420;
     let cx = 650, cy = 80;
     if (slide.chart_x !== undefined && slide.chart_x !== null && slide.chart_x !== 0) cx = Number(slide.chart_x);
     if (slide.chart_y !== undefined && slide.chart_y !== null && slide.chart_y !== 0) cy = Number(slide.chart_y);
@@ -1245,6 +1250,9 @@
         else if (align === "center") curX = 365;
       }
       itemStartPos = { x: curX, y: curY };
+    } else if (dragItem === "chart-resize") {
+      itemStartPos = { w: Number(slide.chart_w) || 550,
+                       h: Number(slide.chart_h) || 420 };
     }
     
     const moveHandler = (ev) => {
@@ -1261,6 +1269,9 @@
       } else if (dragItem === "chart") {
         slideToEdit.chart_x = itemStartPos.x + dx;
         slideToEdit.chart_y = itemStartPos.y + dy;
+      } else if (dragItem === "chart-resize") {
+        slideToEdit.chart_w = Math.max(80, Math.round(itemStartPos.w + dx));
+        slideToEdit.chart_h = Math.max(60, Math.round(itemStartPos.h + dy));
       }
       renderPreview();
     };
@@ -1621,23 +1632,33 @@
     info.textContent = `${slide.chart} - starts at ${start.toFixed(1)}s` +
       (slide.chart_loop ? `, loops every ${d.toFixed(1)}s`
                         : `, plays ${d.toFixed(1)}s (ends ${(start + d).toFixed(1)}s)`);
-    let dragging = false;
-    const move = (ev) => {
-      if (!dragging) return;
-      const r = track.getBoundingClientRect();
-      const t = Math.max(0, Math.min(total - 0.1,
-        (ev.clientX - r.left) / r.width * total));
-      slide.chart_start = Math.round(t * 10) / 10;
-      saveSlides();
-      renderMediaTimeline();
-      renderSlideList(); updateScrubMax();
-    };
+    // drag WITHOUT rebuilding the DOM (a rebuild destroys the handle
+    // mid-gesture and kills the drag) - inline updates while moving,
+    // full re-render on release
     hd.addEventListener("pointerdown", (ev) => {
-      dragging = true;
-      hd.setPointerCapture(ev.pointerId);
+      ev.preventDefault();
+      ev.stopPropagation();
+      const move = (e2) => {
+        const r = track.getBoundingClientRect();
+        const t = Math.max(0, Math.min(total - 0.1,
+          (e2.clientX - r.left) / r.width * total));
+        slide.chart_start = Math.round(t * 10) / 10;
+        hd.style.left = (slide.chart_start / total * 100) + "%";
+        const first = track.querySelector(".media-span");
+        if (first) first.style.left = hd.style.left;
+        info.textContent = `${slide.chart} - starts at ` +
+          `${slide.chart_start.toFixed(1)}s`;
+      };
+      const up = () => {
+        window.removeEventListener("pointermove", move);
+        window.removeEventListener("pointerup", up);
+        saveSlides();
+        renderMediaTimeline(); renderSlideList(); updateScrubMax();
+        renderPreview();
+      };
+      window.addEventListener("pointermove", move);
+      window.addEventListener("pointerup", up);
     });
-    hd.addEventListener("pointermove", move);
-    hd.addEventListener("pointerup", () => { dragging = false; });
     track.addEventListener("pointerdown", (ev) => {
       if (ev.target !== track) return;
       const r = track.getBoundingClientRect();
