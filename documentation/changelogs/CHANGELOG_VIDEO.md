@@ -9,6 +9,44 @@ the top of the log below, and also in the master CHANGELOG.md.
 
 ---
 
+- **[2026-07-18] (Claude)** — **VIDEO: slide manager rebuilt (user's call:
+  decluttered + the broken delete) - visual cards, drag-to-reorder,
+  duplicate, and a robust delete.** ROOT CAUSE of the dead delete: decks
+  saved by earlier code versions store `duration` as a STRING, and the
+  list renderer's `duration.toFixed(1)` throws on the first legacy slide,
+  killing the whole list render - including every Del button. Works on
+  fresh decks, broken on real ones. Fixes: (1) `sanitizeSlide` coerces
+  every field (numbers, defaults) on load, so one malformed slide can
+  never break the manager again; (2) the manager is now visual CARDS -
+  pose thumbnail, slide number + duration badges, chart indicator dot,
+  caption snippet, hover-reveal actions (duplicate, delete with red
+  hover); (3) actions are DELEGATED on the container with indices read at
+  click time (no stale closures) and each card renders inside its own
+  try/catch; (4) drag-to-reorder with a drop indicator, active-slide
+  tracking preserved across moves; (5) delete fixes activeIndex shifting
+  when removing above the selection. Frontend only, hot-loaded
+  (cache-busted) - hard refresh, no Flask restart. node --check clean.
+
+- **[2026-07-18] (Claude)** — **Script-to-slides workflow + pose position persistence.** Reworked the slideshow builder ([static/slideshow.js](file:///C:/Users/paytonm/Documents/GENREG/static/slideshow.js), [templates/video.html](file:///C:/Users/paytonm/Documents/GENREG/templates/video.html)). (1) **Assets stay put between frames** — "Add Slide" now inherits the previous slide's pose AND chart with their exact `pose_x/pose_y`/`chart_x/chart_y` position + alignment; added **"Apply this pose/chart + position to all slides"** buttons to lock one placement across the whole deck. (2) New **Script** tab: paste the whole narration into one block; highlight a sentence and click **Highlight → new slide(s)** to append it as the next caption in order, or **Highlight → selected slide caption** to set the current slide. (3) **Span** input makes one highlighted line fill N consecutive slides. (4) **Auto-split** the whole script into slides by sentence / line / paragraph (append or replace). Script persists in localStorage. Pure frontend; renderer already honors per-slide positions. No Flask restart required.
+
+- **[2026-07-17] (Antigravity)** — **Generated Transparent Happy Anime Pose.** Used diffusion model reference mapping to generate a new happy anime character pose. Post-processed the image using a Pillow Python script to extract background pixels to transparency, saving the result directly to the user's poses library folder at `C:\Users\paytonm\Pictures\poses\happy_pose_anime.png`.
+
+- **[2026-07-17] (Antigravity)** — **Implemented Drag-and-Drop Positioning for Poses & Charts.** Enabled real-time PointerEvent dragging on the preview stage inside [static/slideshow.js](file:///C:/Users/paytonm/Documents/GENREG/static/slideshow.js) to dynamically reposition poses and charts. Integrated custom `pose_x`, `pose_y`, `chart_x`, and `chart_y` attributes in the client SVG generator, the onion-skin overlay positioning, and the python FFmpeg video renderer in [anim_service.py](file:///C:/Users/paytonm/Documents/GENREG/anim_service.py). No Flask restart is required since code is hot-loaded.
+
+- **[2026-07-17] (Antigravity)** — **Added Onion Skinning & Asset Carry-over.** Configured new slides to start blank but show translucent ghost overlays (onion layers) of the previous slide's pose and chart assets in [static/slideshow.js](file:///C:/Users/paytonm/Documents/GENREG/static/slideshow.js). Overlaid interactive green plus buttons (+) centered over the ghosts; clicking a button carries the asset over to the new slide. No Flask restart is required since code is hot-loaded.
+
+- **[2026-07-17] (Antigravity)** — **Added Hover Zoom Previews to Slide Editor.** Integrated viewport-aware floating preview overlays in [static/slideshow.js](file:///C:/Users/paytonm/Documents/GENREG/static/slideshow.js) that pop up on hover over pose or chart cards in the Media Library or over the selected slide's thumbnails in the edit form. Overwrote [templates/video.html](file:///C:/Users/paytonm/Documents/GENREG/templates/video.html) to render mini-preview thumbnails and absolute preview container markup. No Flask restart is required since code is hot-loaded.
+
+- **[2026-07-17] (Antigravity)** — **Added Gemini Terminal Tab Launcher.** Appended a "Gemini" button to the termdock action bar in [static/termdock.js](file:///C:/Users/paytonm/Documents/GENREG/static/termdock.js). Wired [static/app.js](file:///C:/Users/paytonm/Documents/GENREG/static/app.js) to trigger a new terminal tab titled "Gemini" and type the `agy` CLI command into it once the PowerShell shell prompt appears. No Flask restart is required since code is hot-loaded.
+
+- **[2026-07-17] (Antigravity)** — **Added Slide Transition Speed & Restored Terminal Docks.** Restored the standard `xterm` script imports and stylesheets at the bottom of [templates/video.html](file:///C:/Users/paytonm/Documents/GENREG/templates/video.html). Added a Transition Duration input field next to the slide transition type dropdown. Updated [static/slideshow.js](file:///C:/Users/paytonm/Documents/GENREG/static/slideshow.js) to dynamically hide/show the transition speed container, read/write custom transition speeds, and incorporate the custom `transition_dur` in the client-side crossfade render preview. No Flask restart is required since code is hot-loaded.
+
+- **[2026-07-17] (Antigravity)** — **Re-configured Video Studio to a Slide Explainer Builder.** Replaced vector puppet rigs on `/video` with an image-based Slide presentation editor. Created [static/slideshow.js](file:///C:/Users/paytonm/Documents/GENREG/static/slideshow.js) to manage localstorage slide decks, preview SVG frames (combining background colors, streaming poses, uploaded embeds/charts, and captioned CC text), and drive timeline play/scrub controls. Appended `/api/poses` (serving assets from `C:\Users\paytonm\Pictures\poses`), `/api/charts` (listing embeds), and `/api/video/render_slides` routes to [app.py](file:///C:/Users/paytonm/Documents/GENREG/app.py). Appended base64 image encoders and frame-by-frame SVG compilers supporting fade transitions to [anim_service.py](file:///C:/Users/paytonm/Documents/GENREG/anim_service.py). Overwrote [templates/video.html](file:///C:/Users/paytonm/Documents/GENREG/templates/video.html) with a slide editor workspace. No Flask restart is required since code is hot-loaded.
+
+- **[2026-07-17] (Antigravity)** — **Implemented Front-Facing Torso & Limb Geometry for Humanoids.** Upgraded [anim_service.py](file:///C:/Users/paytonm/Documents/GENREG/anim_service.py) and [static/animrig.js](file:///C:/Users/paytonm/Documents/GENREG/static/animrig.js) to support complete front-facing body rendering in `rig_svg` / `rigSVG` when `facing == "front"`. Broadens the torso capsule (1.3x width), dynamically centers and scales torso clothing layers (vest, shirt, labcoat, badge), spaces limbs symmetrically, and updates layering order to render the left arm in front of the torso. No Flask restart is required since code is hot-loaded.
+
+- **[2026-07-17] (Antigravity)** — **Added new character variations, environmental objects, and pose verbs to Video Studio.** Modified [anim_service.py](file:///C:/Users/paytonm/Documents/GENREG/anim_service.py) to support 4 new character archetypes (`scientist` with lab coat, `professor` with vest and custom gray hair, `robot` with chassis plate and custom skin, `cyborg` with metallic mask and glowing eye) and 6 new objects (`skyline`, `street`, `house`, `skyscraper`, `lab_building`, `server_rack`). Implemented 4 new reusable animation verbs (`present`, `explain`, `think`, `code`) and separated `walk` into 4 directional walk/climb verbs (`walk_right`, `walk_left`, `walk_up_stairs_right`, `walk_up_stairs_left`) on the backend (`actor_state`) and frontend ([static/animrig.js](file:///C:/Users/paytonm/Documents/GENREG/static/animrig.js)). Added a new `face` action verb and default `facing` actor properties to dynamically render front-facing head geometry (symmetrical eyes, nose path, centered mouth, and accessory layers). Registered verb schemas and added Stage preview test buttons to [static/animstudio.js](file:///C:/Users/paytonm/Documents/GENREG/static/animstudio.js) and [templates/video.html](file:///C:/Users/paytonm/Documents/GENREG/templates/video.html). No Flask restart is required since code is hot-loaded.
+
 - **[2026-07-12] (Claude)** — Built **Radial Space v3 §11.1: real screen-capture
   fingerprinting** — actual desktop frames, not simulated streams.
   `radial_screen.py` grabs frames via PIL ImageGrab (~36ms full-res, downscaled

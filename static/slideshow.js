@@ -28,10 +28,26 @@
   let ghostIndex = -1;
 
   // Initialize from LocalStorage
+  function sanitizeSlide(s) {
+    // legacy decks stored numbers as strings and lack newer fields; one
+    // bad slide must never crash the manager
+    s = s || {};
+    return {
+      pose: s.pose || "", pose_align: s.pose_align || "left",
+      pose_x: Number(s.pose_x) || 0, pose_y: Number(s.pose_y) || 0,
+      chart: s.chart || "", chart_align: s.chart_align || "right",
+      chart_x: Number(s.chart_x) || 0, chart_y: Number(s.chart_y) || 0,
+      text: typeof s.text === "string" ? s.text : "",
+      bg: s.bg || s.background || "",
+      duration: Math.max(0.5, Number(s.duration) || 3.0),
+      transition: s.transition || "fade",
+      transition_dur: Math.max(0, Number(s.transition_dur) || 0.5),
+    };
+  }
   try {
     const saved = localStorage.getItem("genreg_slides");
     if (saved) {
-      slides = JSON.parse(saved);
+      slides = JSON.parse(saved).map(sanitizeSlide);
     }
   } catch (e) {
     console.error("Failed to load slides state:", e);
@@ -231,55 +247,120 @@
     $("player-time-label").textContent = `${currentTime.toFixed(1)}s / ${totalDuration.toFixed(1)}s`;
   }
 
-  // Render list of slides in sidebar
+  // Slide manager: visual cards, drag-to-reorder, duplicate, delete.
+  // Actions are DELEGATED on the container (indices read at click time -
+  // no stale closures) and one malformed slide cannot break the list.
+  let dragFrom = -1;
+
+  function slideCard(slide, idx) {
+    const card = document.createElement("div");
+    card.className = "sld-card" + (idx === activeIndex ? " active" : "");
+    card.draggable = true;
+    card.dataset.idx = idx;
+    const poseImg = slide.pose
+      ? `<img class="sld-pose" src="/api/poses/${encodeURIComponent(slide.pose)}" draggable="false" />`
+      : "";
+    const chartDot = slide.chart ? '<span class="sld-dot" title="has chart"></span>' : "";
+    const cap = (slide.text || "").slice(0, 60);
+    card.innerHTML =
+      `<div class="sld-thumb">${poseImg}` +
+      `<span class="sld-num">${idx + 1}</span>` +
+      `<span class="sld-dur">${(Number(slide.duration) || 3).toFixed(1)}s</span>${chartDot}</div>` +
+      `<div class="sld-cap">${cap ? "" : '<span class="sld-empty">no caption</span>'}</div>` +
+      `<div class="sld-acts">` +
+      `<button class="sld-act" data-act="dup" data-idx="${idx}" title="duplicate">+</button>` +
+      `<button class="sld-act sld-del" data-act="del" data-idx="${idx}" title="delete">&times;</button>` +
+      `</div>`;
+    card.querySelector(".sld-cap").prepend(document.createTextNode(cap));
+    return card;
+  }
+
   function renderSlideList() {
     const container = $("slide-list");
     container.innerHTML = "";
     slides.forEach((slide, idx) => {
-      const item = document.createElement("div");
-      item.className = "slide-item" + (idx === activeIndex ? " active" : "");
-      
-      const label = document.createElement("div");
-      label.style.fontWeight = "bold";
-      label.style.fontSize = "12px";
-      label.textContent = `#${idx + 1} (${slide.duration.toFixed(1)}s) — ${slide.pose ? "me" : "blank"}`;
-      
-      const previewText = document.createElement("div");
-      previewText.style.fontSize = "11px";
-      previewText.style.color = "#8b95a1";
-      previewText.style.textOverflow = "ellipsis";
-      previewText.style.overflow = "hidden";
-      previewText.style.whiteSpace = "nowrap";
-      previewText.style.width = "180px";
-      previewText.textContent = slide.text || "(no text)";
-
-      const leftCol = document.createElement("div");
-      leftCol.appendChild(label);
-      leftCol.appendChild(previewText);
-
-      const delBtn = document.createElement("button");
-      delBtn.className = "runs-btn vd-mini";
-      delBtn.textContent = "Del";
-      delBtn.addEventListener("click", (ev) => {
-        ev.stopPropagation();
-        slides.splice(idx, 1);
-        if (activeIndex >= slides.length) {
-          activeIndex = slides.length - 1;
-        }
-        saveSlides();
-        if (activeIndex >= 0) selectSlide(activeIndex);
-        else {
-          $("slide-editor").style.display = "none";
-          renderPreview();
-        }
-      });
-
-      item.appendChild(leftCol);
-      item.appendChild(delBtn);
-      item.addEventListener("click", () => selectSlide(idx));
-      container.appendChild(item);
+      try {
+        container.appendChild(slideCard(slide, idx));
+      } catch (e) {
+        console.error("slide card failed", idx, e);
+      }
     });
+    if (!slides.length) {
+      container.innerHTML = '<div class="sld-empty" style="padding:10px">no slides yet - use Add Slide or the Script tab</div>';
+    }
   }
+
+  function deleteSlide(idx) {
+    if (idx < 0 || idx >= slides.length) return;
+    slides.splice(idx, 1);
+    if (activeIndex >= slides.length) activeIndex = slides.length - 1;
+    else if (idx < activeIndex) activeIndex -= 1;
+    saveSlides();
+    if (activeIndex >= 0) selectSlide(activeIndex);
+    else {
+      $("slide-editor").style.display = "none";
+      renderSlideList();
+      renderPreview();
+    }
+  }
+
+  function duplicateSlide(idx) {
+    if (idx < 0 || idx >= slides.length) return;
+    slides.splice(idx + 1, 0, sanitizeSlide(JSON.parse(JSON.stringify(slides[idx]))));
+    if (activeIndex > idx) activeIndex += 1;
+    saveSlides();
+    selectSlide(idx + 1);
+  }
+
+  (function bindSlideList() {
+    const container = $("slide-list");
+    container.addEventListener("click", (ev) => {
+      const btn = ev.target.closest(".sld-act");
+      if (btn) {
+        ev.stopPropagation();
+        const idx = Number(btn.dataset.idx);
+        if (btn.dataset.act === "del") deleteSlide(idx);
+        else if (btn.dataset.act === "dup") duplicateSlide(idx);
+        return;
+      }
+      const card = ev.target.closest(".sld-card");
+      if (card) selectSlide(Number(card.dataset.idx));
+    });
+    container.addEventListener("dragstart", (ev) => {
+      const card = ev.target.closest(".sld-card");
+      if (!card) return;
+      dragFrom = Number(card.dataset.idx);
+      ev.dataTransfer.effectAllowed = "move";
+    });
+    container.addEventListener("dragover", (ev) => {
+      ev.preventDefault();
+      const card = ev.target.closest(".sld-card");
+      container.querySelectorAll(".sld-card").forEach((c) =>
+        c.classList.remove("drop-before"));
+      if (card) card.classList.add("drop-before");
+    });
+    container.addEventListener("dragleave", () => {
+      container.querySelectorAll(".sld-card").forEach((c) =>
+        c.classList.remove("drop-before"));
+    });
+    container.addEventListener("drop", (ev) => {
+      ev.preventDefault();
+      container.querySelectorAll(".sld-card").forEach((c) =>
+        c.classList.remove("drop-before"));
+      const card = ev.target.closest(".sld-card");
+      if (!card || dragFrom < 0) return;
+      let to = Number(card.dataset.idx);
+      if (to === dragFrom) { dragFrom = -1; return; }
+      const activeSlide = slides[activeIndex];
+      const [moved] = slides.splice(dragFrom, 1);
+      slides.splice(to, 0, moved);
+      activeIndex = slides.indexOf(activeSlide);
+      dragFrom = -1;
+      saveSlides();
+      renderSlideList();
+      renderPreview();
+    });
+  })();
 
   function selectSlide(idx) {
     activeIndex = idx;

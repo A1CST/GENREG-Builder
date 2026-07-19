@@ -10,6 +10,206 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-18] (Claude)** — **VIDEO: slide manager rebuilt (user's call:
+  decluttered + the broken delete) - visual cards, drag-to-reorder,
+  duplicate, and a robust delete.** ROOT CAUSE of the dead delete: decks
+  saved by earlier code versions store `duration` as a STRING, and the
+  list renderer's `duration.toFixed(1)` throws on the first legacy slide,
+  killing the whole list render - including every Del button. Works on
+  fresh decks, broken on real ones. Fixes: (1) `sanitizeSlide` coerces
+  every field (numbers, defaults) on load, so one malformed slide can
+  never break the manager again; (2) the manager is now visual CARDS -
+  pose thumbnail, slide number + duration badges, chart indicator dot,
+  caption snippet, hover-reveal actions (duplicate, delete with red
+  hover); (3) actions are DELEGATED on the container with indices read at
+  click time (no stale closures) and each card renders inside its own
+  try/catch; (4) drag-to-reorder with a drop indicator, active-slide
+  tracking preserved across moves; (5) delete fixes activeIndex shifting
+  when removing above the selection. Frontend only, hot-loaded
+  (cache-busted) - hard refresh, no Flask restart. node --check clean.
+
+- **[2026-07-18] (Claude)** — **/ocr: working synthetic screen reader — localization solved, crop
+  domain-gap fixed.** Rebuilt `ocr_screen.propose_boxes` (bg-distance mask + dilation + box-merge for
+  multi-part glyphs). The old 0.607 loc-recall was a **metric artifact** (truth boxes were size-squares;
+  tight-ink proposals scored low IoU on narrow glyphs) — fixed `render_page` truth to actual ink extent:
+  **loc 1.0 recall / 1.0 precision**. New bottleneck was the tight crop being off-distribution; pad
+  sweep 0.25→0.679, **0.6→0.857** (≈ reader ceiling 0.877). Locked `pad=0.6`. **End-to-end: loc 1.0/1.0,
+  modality 0.935, label 0.869.** See CHANGELOG_OCR.md.
+
+- **[2026-07-18] (Claude)** — **/ocr: end-to-end screen-reading milestone — unified reader +
+  measurable page reader; classification solved, localization is the bottleneck.** Pushed toward
+  the OCR goal. **Three strong recognizers** (all rich-env, held-out fonts): digits 0.9333, shapes
+  0.9911, **letters 0.7679 → 0.8800** (retrained bigger per the user — pop 160, gens 24, n_per 600,
+  max_spaces 18; fixed the worst letters, e.g. `n` 0.28→0.49, `i` 0.52→0.75 — the user was right
+  that more compute helps). **The reader investigation** (new `ocr/ocr_page.py` renders a synthetic
+  multi-glyph page → localize → classify → score vs ground truth): a **confidence router failed**
+  (label 0.33 = chance — the 0.99 shapes model's sharp softmax wins every vote); a **modality
+  classifier** revealed **digit-vs-letter is nearly ill-posed** (0.72; digit 0.58 / letter 0.63 /
+  shape 0.94 — `0`≡`o`, `1`≡`l` are the same glyph, so routing digits from letters is as hard as
+  reading them); the answer is a **unified 51-class reader** (`--charset reader` = alnum+shapes,
+  new `og.render_shape` + 15 `og.SHAPES`, per-item shape detection in `build_dataset`, `og.MODALITY`
+  + `build_modality_dataset`, `ocr_model.predict` for confidences) — **reader_v1 TEST 0.8769**. **End-
+  to-end page score: label 0.922 on localized tiles (up from 0.33), localization recall 0.607** —
+  classification is essentially solved; the first-cut connected-components localizer (multi-part
+  glyphs split, some merge) is the remaining bottleneck. Also: **lineage graph runs now post a
+  run-finished alert** (`_notify_done`, was silent). `shapes`/`reader` charsets in the CLIs; all
+  runs record to RUNS with confusion matrices. Next: improve localization.
+
+- **[2026-07-18] (Claude)** — **/ocr: shapes dataset (15 basic shapes) + run-finished alerts for
+  lineage graphs.** (1) **Shapes charset**: added `og.SHAPES` (circle, square, triangle, diamond,
+  pentagon, hexagon, star, plus, xcross, ring, rectangle, ellipse, arrow, trapezoid, crescent) and
+  `og.render_shape()` — drawn procedurally in the SAME rich environment (moving, random colors,
+  varied contrast/size; fonts N/A). `build_dataset` auto-detects a shape charset; `"shapes"` added
+  to CHARSETS + the `--charset` CLIs + the lineage Dataset dropdown. Verified: montage looks right,
+  and a smoke train hit TEST 0.7533 on 15 classes (chance 0.067, anchor 0.15). Shapes train via the
+  subprocess CLIs so they work immediately (hard-refresh for the dropdown option). (2) **Alerts**:
+  the lineage engine posted NO notice on graph completion (only Train nodes did, via dot_runs;
+  eval/union are silent) — so a graph run finished with no alert. Added `_notify_done()` in
+  `ocr/lineage.py` → posts a "Lineage run done: N ok" notice with the key accuracies via
+  `agent_board.post`. Also truncated confusion-matrix axis labels for long shape names. The alerts
+  live in the Flask-cached `ocr/lineage.py`, so they need the pending restart.
+
+- **[2026-07-18] (Claude)** — **/ocr/lineage: nameable trained models + auto-refreshing model
+  dropdown.** Two usability fixes from live use. (1) The Train node gets a **Model name** text
+  field → the model saves as `<charset>_<name>` (e.g. `letters_big`) instead of a cryptic
+  auto-tag; falls back to the node-id tag if blank (`ocr/lineage.py` `_train`, `static/lineage.js`
+  Train prop + text-input support in `renderProps`). (2) The Existing-model dropdown was loaded
+  **once** on page load, so models trained in-session never appeared. Now it **reloads after
+  every run** and via a new **"↻ models"** toolbar button (`reloadModels()`), and re-renders an
+  open dropdown. Frontend fixes are static JS (hard-refresh); the naming (`_train` in the
+  Flask-cached `ocr/lineage.py`) needs the pending restart. Note: found only one letter model
+  on disk (`letters_ln8`, 0.7457) — a second reused the same node/tag and overwrote, which the
+  naming fix prevents.
+
+- **[2026-07-18] (Claude)** — **/ocr: confusion matrices everywhere + all runs recorded to RUNS.**
+  Added `og.confusion_matrix()`; every **train / eval / union** now computes an NxN confusion
+  matrix (rows=true, cols=read) and includes it in its export + its RUNS record. **Recording
+  coverage completed:** `ocr_train` already recorded; now `ocr_eval` and `ocr_union` also
+  `dot_runs.record("ocr", ...)` (per-class + confusion in the summary), so every lineage node
+  operation lands on `/runs` (train alerts; eval/union notify=False to avoid spam). The OCR page
+  renders each confusion as an **inline-SVG heatmap** (cyan diagonal = correct, red = errors,
+  hover = counts) in the classifier and union modules — plus fixed an id-collision so all three
+  digit modules render independently. Backfilled the confusion into the existing digits/s7/s11
+  exports (0 and 9 collect the most confusions). Confusion + recording run in the subprocess CLIs,
+  so they take effect on the next run with **no Flask restart** — just hard-refresh `/ocr` for the
+  heatmaps on existing models. (The earlier Union→Eval fix in `ocr/lineage.py` still needs the
+  pending restart.)
+
+- **[2026-07-18] (Claude)** — **/ocr/lineage: a Union is now a first-class model (Union → Eval
+  works).** During live use, wiring a Union's output into an Eval errored ("needs a model input")
+  because a union produced a number, not a model. Fixed: `ocr_union.py` now persists a **fused
+  checkpoint** (`--out-stem` → `ocr/models/<stem>_model.json` with the source stems + fitted head);
+  `ocr_model.bank()` replays a union checkpoint (concat each source model's bank → fused head);
+  the lineage Union node outputs `kind:"model"` so Eval/other unions can consume it. Verified:
+  digits + digits_s7 → Union (saved `union_lnu`, 0.878) → Eval in a wired full-rich Dataset = 0.883.
+  Also: the Existing-model dropdown now shows a stale/deleted checkpoint as "<stem> (missing)"
+  instead of masquerading as valid (static JS, hard-refresh). **Flask restart required** —
+  `ocr/lineage.py` is imported/cached by Flask (the subprocess CLIs are already current).
+
+- **[2026-07-18] (Claude)** — **/ocr/lineage engine tested + a real basis-env bug fixed;
+  cross-environment eval added.** Ran a full engine battery (no UI — Flask restart pending):
+  error handling all clean (union<2, eval no-model, train no-dataset, missing checkpoint →
+  graceful errors); existing→eval 0.9117 and 2-seed→union 0.878 correct; full dataset→train→eval
+  executes. **Bug found:** a model trained in a REDUCED environment (Dataset with vary
+  pos/color/contrast off) reported train 0.975 but eval'd at chance — because
+  `ocr_model.training_ref` rebuilt the patch-PCA basis in the DEFAULT full-rich env, so the
+  frozen genomes read the wrong basis at inference. **Fix:** store each model's `env_spec`
+  (vary_off/sizes/font_set) in the checkpoint; `training_ref` now rebuilds the basis in the
+  model's actual training env; `ocr_eval` defaults to the model's own env (fair — reduced model
+  now evals 0.967, matching train). **New capability:** wiring a Dataset into the Eval node
+  evaluates a model in a DIFFERENT environment (cross-env transfer) — a reduced-env model reads
+  0.157 on the full moving/colored env, experimentally confirming the "variables must be in the
+  environment" thesis. Eval node gains an optional `data` input. Existing rich-env models
+  unaffected (no env_spec → full-rich default = their training env). **Flask restart still
+  required** for the live page.
+
+- **[2026-07-18] (Claude)** — **NEW: /ocr/lineage — node-graph model-lineage editor with
+  real server-side execution.** A subpage where you wire Dataset → Train → Union/Eval like a
+  flow chart, hit Run, and each node fills in with real performance. **Canvas forked from
+  `static/pure.js`** (node/edge model, drag/pan/wire state machine, bezier wires, reuses the
+  `.pg-*` CSS) — `static/lineage.js` swaps in the OCR node catalog and adds Run/poll; `/pure`
+  had no server execution, so I built it: `ocr/lineage.py` topo-sorts the DAG and runs each
+  node by **shelling out to the tested OCR CLIs** (keeps torch out of Flask), streaming
+  per-node status into a job dict the page polls. Node types: **Dataset** (env spec — charset,
+  n_per, size range, vary pos/color/contrast/font, font set), **Existing model** (reuse a
+  checkpoint), **Train** (fresh model — `ocr_train` extended with `vary/sizes/font_set` +
+  `--vary-off/--sizes/--font-set` CLI + returns stem), **Union** (dynamic model inputs →
+  `ocr_union`), **Eval** (held-out-font accuracy → new `ocr/ocr_eval.py`). Routes `/ocr/lineage`
+  + `/api/ocr/lineage/{run,status/<job>,models}`; a Lineage link on `/ocr`. Verified the whole
+  engine without the UI: existing→Eval (0.9117), two existing→Union (0.878 +1.6pt), and a full
+  Dataset→Train(real, tagged model)→Eval pipeline all execute and fill in. Persistence:
+  localStorage (per-browser). **Flask restart required.**
+
+- **[2026-07-18] (Claude)** — **/ocr 3rd seed: union HELPS but SATURATES at 2.** Trained a third
+  digit model (seed 11, TEST 0.9173 — three seeds now all reproduce ~0.917-0.933). Generalized
+  `ocr_union.py` to N models with a cumulative progression. Result (common held-out-font eval):
+  solo 0.852 / 0.862 / 0.852; **1-model 0.852 → 2-way 0.878 → 3-way 0.8773 (flat)**; union +1.5pt
+  over best single. The third seed adds NOTHING over the pair — the union gain is a one-time polish,
+  not a compounding ladder. Agreement at 3 models: any-disagree 29.2%, union-rescued 19.6% (both up),
+  but union_acc flat because the extra disagreements are 3-way noise the union can't resolve; all-wrong
+  3.3% shared floor. Conclusion: at a high floor 2 seeds captures the union benefit; more seeds are
+  redundant because their errors are correlated (same hard cases — tiny glyphs). `seed-union` module
+  updated to the N-way progression view. **Flask restart required.**
+
+- **[2026-07-18] (Claude)** — **/ocr seed reproducibility + seed union at a high floor.** Trained
+  a second digit model (seed 7, same 8K rich-env recipe): **TEST 0.9173** (seed 5 was 0.9333) —
+  **the performance level reproduces across seeds**, 894 genomes / 6 spaces. Then UNIONED the two
+  (`ocr/ocr_union.py`: concat both frozen banks, one fresh ridge head; A/B/union all refit on a
+  common held-out-font eval for fair comparison): A 0.852 | B 0.862 | **UNION 0.878 (+1.6pt over
+  the better model)**. The agreement dissection is the finding — the two seeds still **disagree on
+  21.5%** of tiles (real diversity persists at a high floor, they are NOT the same solution), the
+  union **rescues 12.7%** (cases where an individual was wrong), but a **shared intrinsic floor of
+  4.7%** (all three wrong) caps what any union can add — those are the hard cases (tiny glyphs,
+  ambiguous fonts) both models miss the same way. So the "seed-union raises the floor" law still
+  operates when the floor is already high: it polishes (+1.6pt) up to the shared-error ceiling.
+  New: `ocr_model.bank()` (raw feature bank for late fusion), `--tag` on `ocr_train`, `ocr_union.py`
+  + a union module renderer. Modules `digits_s7-recognizer` + `seed-union` in the log. **Flask
+  restart required.**
+
+- **[2026-07-18] (Claude)** — **/ocr digit model: 0.70 → 0.9333 on held-out fonts (more data
+  was the lever).** Retrained with 3× data (8000 train / 1500 test, pop 96, gens 16). Space 0
+  alone went val 0.68 → 0.83 — perception was data-starved, not architecture-limited; converged
+  naturally at 6 spaces (809 genomes), 49s. Per-digit now uniform 0.87-0.99 (the old 9/3 collapse
+  0.38/0.49 fixed → 0.87/0.91). Robustness re-run: font gap ≈ 0 (held-out 0.88 vs train 0.863 —
+  held-out edges train, excellent generalization); small glyphs still the one weakness (10px
+  0.34, 12px 0.63, 0.89-0.94 from 16px); invariance ablation position -6.7pt / contrast -4pt /
+  color neutral. Added `--n-per/--n-test/--pop/--gens/--rounds/--max-spaces/--seed` CLI to
+  `ocr_train.py`. Modules `digits-recognizer` + `robustness` updated in the log. **Flask restart
+  still required** for the /ocr routes.
+
+- **[2026-07-18] (Claude)** — **/ocr: page reworked to the /lm append-only iteration log +
+  first training run.** Page is now the research-log pattern (module registry
+  `radial_data/ocr_modules.json`, endpoints `/api/ocr/modules` + `/api/ocr/export/<name>`
+  whitelisted, newest-at-bottom, auto-snap), not the demo layout — `templates/ocr.html` +
+  `static/ocr.js` rewritten; `ocr_train`/`ocr_robust` append modules via `ocr_demo.append_module`.
+  **First run (gradient-free, held-out fonts, test-once):** DIGIT recognizer **TEST 0.70** on
+  unseen fonts (raw-pixel anchor 0.131, chance 0.10), 759 genomes self-organized into 6 stacked
+  spaces (val 0.68→0.80), 30s on the 4080. Per-digit strongest 7/1/4, weakest 9/3. ROBUSTNESS:
+  font gap train 0.657 vs held-out 0.623 (only 3.3pt — good generalization); size sweep shows
+  small glyphs are the failure mode (10px 0.20 → 22px 0.75 → 28px 0.64); invariance ablation
+  (accuracy with each axis removed) pos-off 0.72 / contrast-off 0.74 / color-off 0.64 vs all-on
+  0.623 — position and contrast are the ~10-12pt difficulty axes the rich environment made the
+  model learn to handle. Two modules in the log (`digits-recognizer`, `robustness`). Caveat: the
+  robustness replay (Env rebuilt per eval) reads 0.62 held-out vs training's 0.70 — sample/seed
+  variance (n=300 seed 900 vs n=800 seed 6), both honest held-out-font numbers. **Flask restart
+  still required** for the /ocr routes.
+
+- **[2026-07-18] (Claude)** — **NEW project /ocr — scaffold + full setup (no training yet).**
+  Gradient-free OCR toward screen reading of numbers/letters, built up in stages. Core
+  principle (user): a bred genome only learns invariance to a variable if that variable is in
+  its environment, so the digit model is trained from scratch in a RICH environment — glyphs
+  MOVE around the frame, take RANDOM COLORS, vary in CONTRAST, and use MANY FONTS/SIZES (35
+  system fonts, 24 train / 11 held-out; 32×32 RGB). New `ocr/` package: `ocr_glyphs.py`
+  (rich-env renderer, verified with a montage), `ocr_train.py` (charset-agnostic stacked
+  radial trainer, held-out-font test), `ocr_model.py` (replay), `ocr_robust.py` (font/size/
+  invariance harness), `ocr_infer.py` (download CLI), `ocr_screen.py` (capture ready +
+  first-cut localization — greenfield stage), `ocr_demo.py` (assembles `radial_data/ocr.json`).
+  Page mirrors /vision_demo (`templates/ocr.html` + `static/ocr.js`): five staged sections,
+  each pending until run; download card. Routes `/ocr` + `/api/ocr/data` +
+  `/api/ocr/download/<name|bundle>`; Vision nav entry; changelog-modal mapping;
+  `CHANGELOG_OCR.md`; `runs/ocr/`. Per the user, **nothing trained/tested yet** — the roadmap
+  is live; next is `python ocr/ocr_train.py --charset digits`. **Flask restart required.**
+
 - **[2026-07-18] (Claude)** — **SESSION CLOSE (user's call). State of the
   line at stop:** the /lm generator is a FOUR-SPECIALIST UNION
   (continuation + topic + grammar + intent, modules 32-41) on the wiki
