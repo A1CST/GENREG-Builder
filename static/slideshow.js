@@ -465,6 +465,8 @@
       `<span class="sld-dur">${effDur(slide).toFixed(1)}s</span>${chartDot}${audDot}</div>` +
       `<div class="sld-cap">${cap ? "" : '<span class="sld-empty">no caption</span>'}</div>` +
       `<div class="sld-acts">` +
+      `<button class="sld-act" data-act="up" data-idx="${idx}" title="move up"${idx === 0 ? " disabled" : ""}>&#9650;</button>` +
+      `<button class="sld-act" data-act="down" data-idx="${idx}" title="move down"${idx === slides.length - 1 ? " disabled" : ""}>&#9660;</button>` +
       `<button class="sld-act" data-act="dup" data-idx="${idx}" title="duplicate">+</button>` +
       `<button class="sld-act sld-del" data-act="del" data-idx="${idx}" title="delete">&times;</button>` +
       `</div>`;
@@ -501,6 +503,19 @@
     }
   }
 
+  function moveSlide(idx, dir) {
+    const to = idx + dir;
+    if (idx < 0 || idx >= slides.length || to < 0 || to >= slides.length) return;
+    const activeSlide = slides[activeIndex];
+    const [moved] = slides.splice(idx, 1);
+    slides.splice(to, 0, moved);
+    activeIndex = slides.indexOf(activeSlide);
+    saveSlides();
+    renderSlideList();
+    renderPreview();
+    updateScrubMax();
+  }
+
   function duplicateSlide(idx) {
     if (idx < 0 || idx >= slides.length) return;
     slides.splice(idx + 1, 0, sanitizeSlide(JSON.parse(JSON.stringify(slides[idx]))));
@@ -518,6 +533,8 @@
         const idx = Number(btn.dataset.idx);
         if (btn.dataset.act === "del") deleteSlide(idx);
         else if (btn.dataset.act === "dup") duplicateSlide(idx);
+        else if (btn.dataset.act === "up") moveSlide(idx, -1);
+        else if (btn.dataset.act === "down") moveSlide(idx, 1);
         return;
       }
       const card = ev.target.closest(".sld-card");
