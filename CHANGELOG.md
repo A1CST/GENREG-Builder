@@ -10,6 +10,23 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-18] (Claude)** — **VIDEO: library Videos section + one-click
+  MUTE (user's call: Gemini-generated animations arrive with baked-in
+  audio).** Answered + built: exports save to `runs/video/library/`
+  (every rendered mp4 + uploads; /api/video/library reads it). New in
+  the media panel: a **Videos** list (mp4/webm/mov/mkv/gif from the
+  library) with inline muted preview players and a **Mute** button per
+  video - POST /api/video/mute writes `<name>_muted.<ext>` via ffmpeg
+  `-c:v copy -an` (video stream untouched, lossless + fast); muted
+  copies are labeled and not re-mutable. New GET /api/video/videos.
+  VERIFIED live: muted the actual Gemini clip
+  (3D_scene_camera_orbit_clockwise_202607182042.mp4 ->
+  ..._muted.mp4, HTTP 200) through the Flask test client. One
+  self-inflicted bug caught: a patch escape mangled a string literal in
+  app.py (unterminated) - repaired and ast-verified before anything ran.
+  Routes need the SAME pending Flask restart; page part is
+  hard-refresh-only.
+
 - **[2026-07-18] (Claude)** — **VIDEO: per-slide AUDIO panel (user's call)
   - record narration per slide through the browser mic, ordered clips,
   move/delete, and the renderer muxes every clip at its true timestamp.

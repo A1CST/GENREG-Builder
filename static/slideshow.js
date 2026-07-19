@@ -78,6 +78,7 @@
       posesList = Array.isArray(poses) ? poses : [];
       populateDropdown($("slide-pose"), posesList, "none");
       renderPosesLibrary();
+      loadVideosLibrary();
     } catch (e) {
       console.error("Error loading poses:", e);
     }
@@ -153,6 +154,68 @@
   }
 
   // Render library panel grid thumbnails
+  let videosList = [];
+
+  async function loadVideosLibrary() {
+    try {
+      const res = await (await fetch("/api/video/videos")).json();
+      videosList = Array.isArray(res) ? res : [];
+    } catch (e) { videosList = []; }
+    renderVideosLibrary();
+  }
+
+  function renderVideosLibrary() {
+    const box = $("videos-library");
+    if (!box) return;
+    box.innerHTML = "";
+    if (!videosList.length) {
+      box.innerHTML = '<div style="font-size:11px;color:#5a6672;">no videos in the library yet</div>';
+      return;
+    }
+    videosList.forEach((name) => {
+      const card = document.createElement("div");
+      card.className = "media-card";
+      card.title = name;
+      const muted = /_muted\.[a-z0-9]+$/i.test(name);
+      card.innerHTML =
+        `<video src="/api/video/file/${encodeURIComponent(name)}" muted preload="metadata"` +
+        ` style="max-width:100%; max-height:80px; object-fit:contain; margin-bottom:6px;"></video>` +
+        `<span>${name}</span>` +
+        `<div style="display:flex; gap:4px; margin-top:4px;">` +
+        `<button class="runs-btn vd-mini" data-a="prev">Preview</button>` +
+        (muted ? `<span style="font-size:10px;color:#7ee787;align-self:center;">muted</span>`
+               : `<button class="runs-btn vd-mini" data-a="mute">Mute</button>`) +
+        `</div>`;
+      const vid = card.querySelector("video");
+      card.querySelector('[data-a="prev"]').addEventListener("click", () => {
+        if (vid.paused) { vid.currentTime = 0; vid.play(); }
+        else { vid.pause(); }
+      });
+      const muteBtn = card.querySelector('[data-a="mute"]');
+      if (muteBtn) {
+        muteBtn.addEventListener("click", async () => {
+          muteBtn.disabled = true;
+          muteBtn.textContent = "Muting...";
+          try {
+            const r = await (await fetch("/api/video/mute", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ name }),
+            })).json();
+            if (r.error) throw new Error(r.error);
+            muteBtn.textContent = "Done";
+            await loadVideosLibrary();
+          } catch (e) {
+            muteBtn.textContent = "Mute";
+            muteBtn.disabled = false;
+            alert("Mute failed: " + e.message);
+          }
+        });
+      }
+      box.appendChild(card);
+    });
+  }
+
   function renderPosesLibrary() {
     const box = $("poses-library");
     box.innerHTML = "";
