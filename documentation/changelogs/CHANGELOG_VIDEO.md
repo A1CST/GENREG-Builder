@@ -9,6 +9,27 @@ the top of the log below, and also in the master CHANGELOG.md.
 
 ---
 
+- **[2026-07-19] (Claude)** — **VIDEO: Audio Studio - one modal to see,
+  hear, and re-record every clip in the deck (user's call).** New "Open
+  Audio Studio" button under Script Studio opens a modal listing every
+  audio clip grouped by slide (TTS/MIC badge, duration, clip id). Per
+  clip: Play/Stop (shared Audio element), an editable script textarea
+  (TTS clips prefill their exact generated line via the new
+  `/api/video/tts_map` reverse-lookup of the credit-guard cache; mic
+  clips start blank), and "Regenerate & replace" which synthesizes the
+  edited line through the normal `/api/video/tts` credit guard and swaps
+  the clip in place (trims reset). A per-row "permanently delete
+  replaced clip" checkbox (default on) purges the old recording via
+  `DELETE /api/video/slide_audio/<id>?purge=1` - purge overrides the
+  cache-keep, removing BOTH the file and its cache entry (so that line
+  re-bills if narrated again); skipped with a note if another slide
+  still uses the clip. Server verified by test-client: tts_map returned
+  11 live cache entries; plain DELETE kept a cache-owned mp3, ?purge=1
+  removed file + cache entry. New route + purge branch need the pending
+  Flask restart; until then the modal still works (captions prefill,
+  purge falls back to the keep behavior). Files: static/slideshow.js,
+  templates/video.html, app.py.
+
 - **[2026-07-19] (Claude)** — **VIDEO: CC captions word-wrap inside the
   box (user report: words ran over the edges).** Both renderers (client
   preview `static/slideshow.js` and export compositor

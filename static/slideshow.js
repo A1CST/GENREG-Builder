@@ -1768,6 +1768,146 @@
     }
   });
 
+  // ---- AUDIO STUDIO modal --------------------------------------------
+  // every clip on every slide: listen, edit the script line, regenerate
+  // and replace, optionally purging the replaced recording for good
+  let ttsMap = {};             // clip id -> {text, voice, dur}
+  let auPlayer = null;         // shared preview player
+  let auPlayingId = null;
+
+  async function loadTtsMap() {
+    try {
+      const r = await (await fetch("/api/video/tts_map")).json();
+      if (r && !r.error) ttsMap = r;
+    } catch (e) { /* route goes live after Flask restart; captions prefill */ }
+  }
+
+  function auStopPlayback() {
+    if (auPlayer) { auPlayer.pause(); auPlayer = null; }
+    auPlayingId = null;
+    document.querySelectorAll(".au-play").forEach((b) => { b.textContent = "Play"; });
+  }
+
+  function renderAudioStudio() {
+    const body = $("austudio-body");
+    const esc = (t) => String(t).replace(/&/g, "&amp;").replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    const rows = [];
+    slides.forEach((s, si) => {
+      const clips = s.clips || [];
+      if (!clips.length) return;
+      const cap = (s.text || "").split("\n")[0].slice(0, 70);
+      rows.push(`<div class="au-slide-hd">SLIDE #${si + 1}${cap ? " &mdash; " + esc(cap) : ""}</div>`);
+      clips.forEach((c, ci) => {
+        const isTts = /\.mp3$/i.test(c.id || "");
+        const known = ttsMap[c.id];
+        const script = known ? known.text : (isTts ? (s.text || "") : "");
+        const ph = isTts && !known
+          ? "script lookup needs a Flask restart - caption prefilled; edit and regenerate"
+          : "type the line to synthesize - it replaces this clip";
+        rows.push(`<div class="au-row" data-si="${si}" data-ci="${ci}">
+          <div class="au-row-top">
+            <span class="au-badge${isTts ? "" : " au-badge-mic"}">${isTts ? "TTS" : "MIC"}</span>
+            <span class="au-dur">${(Number(c.dur) || 0).toFixed(1)}s</span>
+            <span class="au-id">${esc(c.id || "")}</span>
+            <button class="runs-btn vd-mini au-play">${auPlayingId === c.id ? "Stop" : "Play"}</button>
+          </div>
+          <textarea class="au-script" rows="2" placeholder="${esc(ph)}">${esc(script)}</textarea>
+          <div class="au-row-bot">
+            <button class="runs-btn vd-mini au-regen">Regenerate &amp; replace</button>
+            <label><input type="checkbox" class="au-purge" checked /> permanently delete replaced clip</label>
+            <span class="au-status"></span>
+          </div>
+        </div>`);
+      });
+    });
+    body.innerHTML = rows.length ? rows.join("")
+      : '<div style="color:#5a6672; font-size:12px;">No audio clips on any slide yet. Record or Narrate from the panel under the stage.</div>';
+  }
+
+  $("open-audio-studio").addEventListener("click", async () => {
+    $("austudio-overlay").style.display = "block";
+    await loadTtsMap();
+    renderAudioStudio();
+  });
+  $("austudio-close").addEventListener("click", () => {
+    auStopPlayback();
+    $("austudio-overlay").style.display = "none";
+  });
+
+  $("austudio-body").addEventListener("click", async (ev) => {
+    const row = ev.target.closest(".au-row");
+    if (!row) return;
+    const si = Number(row.dataset.si);
+    const ci = Number(row.dataset.ci);
+    const slide = slides[si];
+    const clip = slide && slide.clips && slide.clips[ci];
+    if (!clip) return;
+
+    if (ev.target.classList.contains("au-play")) {
+      const btn = ev.target;
+      if (auPlayingId === clip.id) { auStopPlayback(); return; }
+      auStopPlayback();
+      auPlayer = new Audio(`/api/video/slide_audio/${encodeURIComponent(clip.id)}`);
+      auPlayingId = clip.id;
+      btn.textContent = "Stop";
+      auPlayer.addEventListener("ended", auStopPlayback);
+      auPlayer.play().catch(() => { auStopPlayback(); });
+      return;
+    }
+
+    if (ev.target.classList.contains("au-regen")) {
+      const text = row.querySelector(".au-script").value.trim();
+      const status = row.querySelector(".au-status");
+      if (!text) { status.textContent = "enter a script line first"; return; }
+      const btn = ev.target;
+      btn.disabled = true;
+      status.textContent = "synthesizing...";
+      try {
+        const voice = ($("tmpl-voice") && $("tmpl-voice").value.trim()) || "";
+        const r = await (await fetch("/api/video/tts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text: text, voice: voice }),
+        })).json();
+        if (r.error) throw new Error(r.error);
+        if (r.id === clip.id) {
+          status.textContent = "unchanged - same script maps to this same clip";
+          btn.disabled = false;
+          return;
+        }
+        const oldId = clip.id;
+        auStopPlayback();
+        slide.clips[ci] = { id: r.id, dur: Number(r.dur) || 0, cuts: [] };
+        saveSlides();
+        ttsMap[r.id] = { text: text, dur: Number(r.dur) || 0 };
+        let purged = "";
+        if (row.querySelector(".au-purge").checked) {
+          const stillUsed = slides.some((s2) =>
+            (s2.clips || []).some((c2) => c2.id === oldId));
+          if (stillUsed) {
+            purged = ", old clip kept (another slide uses it)";
+          } else {
+            try {
+              await fetch(`/api/video/slide_audio/${encodeURIComponent(oldId)}?purge=1`,
+                          { method: "DELETE" });
+              purged = ", old clip deleted";
+            } catch (e) { purged = ", old clip delete failed"; }
+          }
+        }
+        renderAudioStudio(); renderAudioPanel(); renderSlideList();
+        updateScrubMax(); renderPreview();
+        const ns = $("austudio-body").querySelector(
+          `.au-row[data-si="${si}"][data-ci="${ci}"] .au-status`);
+        if (ns) ns.textContent = (r.cached ? "reused cached narration" : "replaced") +
+          ` ${(Number(r.dur) || 0).toFixed(1)}s` + purged;
+      } catch (e) {
+        status.textContent = "failed: " + e.message;
+        btn.disabled = false;
+      }
+    }
+  });
+
   // ---- SCRIPT STUDIO modal -------------------------------------------
   $("open-script-studio").addEventListener("click", () => {
     $("studio-overlay").style.display = "block";

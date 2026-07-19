@@ -2460,16 +2460,28 @@ def api_slide_audio(cid):
     if not os.path.isfile(path):
         return jsonify({"error": "no such clip"}), 404
     if request.method == "DELETE":
+        purge = request.args.get("purge") in ("1", "true")
         if cid.endswith(".mp3"):
             cache_path = os.path.join(anim_service.SLIDE_AUDIO_DIR,
                                       "tts_cache.json")
             try:
                 with open(cache_path, encoding="utf-8") as f:
                     cch = json.load(f)
-                if any(v.get("id") == cid for v in cch.values()):
+                owned = [k for k, v in cch.items() if v.get("id") == cid]
+                if owned and not purge:
                     # generated narration: keep the file for credit-free
                     # reuse; the slide reference is gone client-side
                     return jsonify({"ok": True, "kept": True})
+                if owned and purge:
+                    # permanent delete: drop the cache entry too, so the
+                    # same line re-bills if narrated again
+                    for k in owned:
+                        cch.pop(k, None)
+                    try:
+                        with open(cache_path, "w", encoding="utf-8") as f:
+                            json.dump(cch, f, indent=1)
+                    except OSError:
+                        pass
             except (ValueError, OSError):
                 pass
         try:
@@ -2495,6 +2507,27 @@ def api_slide_audio(cid):
     from flask import send_file
     mt = "audio/mpeg" if cid.endswith(".mp3") else "audio/webm"
     return send_file(path, mimetype=mt)
+
+
+@app.route("/api/video/tts_map")
+def api_video_tts_map():
+    """Reverse lookup for the Audio Studio: clip id -> the script line
+    it narrates (from the TTS credit-guard cache)."""
+    cache_path = os.path.join(anim_service.SLIDE_AUDIO_DIR,
+                              "tts_cache.json")
+    out = {}
+    if os.path.isfile(cache_path):
+        try:
+            with open(cache_path, encoding="utf-8") as f:
+                cache = json.load(f)
+            for v in cache.values():
+                if v.get("id"):
+                    out[v["id"]] = {"text": v.get("text", ""),
+                                    "voice": v.get("voice", ""),
+                                    "dur": v.get("dur", 0)}
+        except (ValueError, OSError):
+            pass
+    return jsonify(out)
 
 
 @app.route("/api/video/library")

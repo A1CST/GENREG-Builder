@@ -82,6 +82,32 @@
       background: rgba(78,161,255,0.45); border-radius: 3px; }
     .media-span-loop { background: rgba(78,161,255,0.22); }
     .studio-tab.on { border-color: #2e7d5b; color: #7ee787; }
+    .au-slide-hd { font-size: 11px; color: #5a6672;
+      font-family: ui-monospace, monospace; margin: 14px 0 6px;
+      border-bottom: 1px solid #1c232c; padding-bottom: 3px; }
+    .au-slide-hd:first-child { margin-top: 0; }
+    .au-row { background: #10141c; border: 1px solid #1c232c;
+      border-radius: 6px; padding: 8px; margin-bottom: 8px; }
+    .au-row-top { display: flex; gap: 8px; align-items: center; }
+    .au-badge { font-size: 9.5px; color: #7ee787; border: 1px solid #2e7d5b;
+      border-radius: 3px; padding: 1px 5px;
+      font-family: ui-monospace, monospace; }
+    .au-badge-mic { color: #4ea1ff; border-color: #2f4152; }
+    .au-dur { font-size: 11px; color: #8b95a1;
+      font-family: ui-monospace, monospace; }
+    .au-id { font-size: 10px; color: #5a6672; flex: 1; overflow: hidden;
+      text-overflow: ellipsis; white-space: nowrap;
+      font-family: ui-monospace, monospace; }
+    .au-script { width: 100%; margin-top: 7px; background: #0b0e12;
+      border: 1px solid #1c232c; color: #c7d0da; border-radius: 4px;
+      padding: 5px 6px; font-size: 11.5px; line-height: 1.45;
+      resize: vertical; }
+    .au-row-bot { display: flex; gap: 10px; align-items: center;
+      margin-top: 6px; flex-wrap: wrap; }
+    .au-row-bot label { display: flex; gap: 5px; align-items: center;
+      font-size: 10.5px; color: #8b95a1; cursor: pointer; }
+    .au-status { font-size: 10.5px; color: #8b95a1;
+      font-family: ui-monospace, monospace; }
     .media-handle { position: absolute; top: -3px; bottom: -3px; width: 8px;
       margin-left: -4px; background: #4ea1ff; border-radius: 3px;
       cursor: ew-resize; }
@@ -209,6 +235,7 @@
       <!-- panel: script -->
       <div class="side-body control-panel" data-vpanel="script" hidden>
         <button id="open-script-studio" class="runs-btn tlm-primary" style="width: 100%;">Open Script Studio</button>
+        <button id="open-audio-studio" class="runs-btn" style="width: 100%; margin-top: 6px;">Open Audio Studio</button>
         <span class="field-hint" style="display:block; margin-top:8px;">Write or paste the narration, or load a JSON template that builds the whole deck - with optional ElevenLabs narration.</span>
       </div>
 
@@ -362,6 +389,17 @@
           <div id="tmpl-status" style="font-size:11px; color:#8b95a1; margin-top:8px; font-family:ui-monospace,monospace;"></div>
         </div>
       </div>
+    </div>
+  </div>
+
+  <div id="austudio-overlay" style="display:none; position:fixed; inset:0; background:rgba(5,7,10,0.72); z-index:80;">
+    <div style="max-width: 860px; margin: 4vh auto; background:#0d1117; border:1px solid #2f4152; border-radius:10px; max-height: 90vh; display:flex; flex-direction:column;">
+      <div style="display:flex; align-items:center; gap:10px; padding: 12px 16px; border-bottom:1px solid #1c232c;">
+        <b style="color:#e6ebf1; font-size:14px;">Audio Studio</b>
+        <span style="font-size:11px; color:#5a6672;">every clip on every slide - listen, edit the line, regenerate</span>
+        <button id="austudio-close" class="runs-btn vd-mini" style="margin-left:auto;">Close</button>
+      </div>
+      <div id="austudio-body" style="padding: 14px 16px; overflow-y:auto;"></div>
     </div>
   </div>
 
