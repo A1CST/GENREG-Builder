@@ -9,6 +9,11 @@ the top of the log below, and also in the master CHANGELOG.md.
 
 ---
 
+- **[2026-07-18] (Claude)** — **VIDEO: audio panel repositioned - it had
+  landed INSIDE the stage's flex-centering wrapper (floating beside the
+  SVG); now it sits properly under the stage preview + scrubber.**
+  Template-only, hard refresh.
+
 - **[2026-07-18] (Claude)** — **VIDEO: library Videos section + one-click
   MUTE (user's call: Gemini-generated animations arrive with baked-in
   audio).** Answered + built: exports save to `runs/video/library/`
