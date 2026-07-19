@@ -1226,7 +1226,20 @@ def slide_to_svg_group(slide, w=1280, h=720, local_t=0.0, chart_frames=None):
         else:
             img_uri = _get_base64_img(chart_path)
         if img_uri:
-            out.append(f'<image href="{img_uri}" x="{m["x"]}" y="{m["y"]}" width="{m["w"]}" height="{m["h"]}" preserveAspectRatio="xMidYMid meet"/>')
+            # optional fade at the window edges (0.5s ramps)
+            fade = 0.5
+            op = 1.0
+            if m["fade_in"]:
+                op = min(op, (local_t - m["start"]) / fade)
+            if m["fade_out"] and m["end"] > 0:
+                op = min(op, (m["end"] - local_t) / fade)
+            op = max(0.0, min(1.0, op))
+            tag = (f'<image href="{img_uri}" x="{m["x"]}" y="{m["y"]}" '
+                   f'width="{m["w"]}" height="{m["h"]}" '
+                   f'preserveAspectRatio="xMidYMid meet"/>')
+            if op < 0.999:
+                tag = f'<g opacity="{op:.3f}">{tag}</g>'
+            out.append(tag)
                 
     # Caption / CC Text - word-wrapped, box grows with the lines
     # (identical math to the client preview in slideshow.js)
@@ -1263,8 +1276,11 @@ def slide_to_svg_group(slide, w=1280, h=720, local_t=0.0, chart_frames=None):
         
     return "".join(out)
 
-def slideshow_svg(slides, t, w=1280, h=720, chart_frames=None):
-    """Renders a complete SVG frame for time t, handling crossfades."""
+def slideshow_svg(slides, t, w=1280, h=720, chart_frames=None,
+                  bg_frames=None):
+    """Renders a complete SVG frame for time t, handling crossfades.
+    bg_frames = (frame_dir, fps, n_frames) for a looping global
+    background video/gif drawn behind every slide, or None."""
     ranges = []
     curr = 0.0
     for s in slides:
@@ -1281,6 +1297,12 @@ def slideshow_svg(slides, t, w=1280, h=720, chart_frames=None):
     bg_color = slides[0].get("bg", "#0b0d10") if slides else "#0b0d10"
     out = [f'<svg xmlns="http://www.w3.org/2000/svg" width="{w}" height="{h}" viewBox="0 0 {w} {h}">',
            f'<rect width="{w}" height="{h}" fill="{_esc(bg_color)}"/>']
+    if bg_frames:
+        bdir, bfps, bnfr = bg_frames
+        bi = int(t * bfps) % bnfr + 1
+        buri = _get_base64_img(os.path.join(bdir, f"f_{bi:05d}.png"))
+        if buri:
+            out.append(f'<image href="{buri}" x="0" y="0" width="{w}" height="{h}" preserveAspectRatio="xMidYMid slice"/>')
            
     for idx, r in enumerate(ranges):
         if r["start"] <= t <= r["end"]:
@@ -1369,6 +1391,8 @@ def _slide_media(s):
                 "start": max(0.0, float(m.get("start", 0) or 0)),
                 "loop": bool(m.get("loop")),
                 "end": max(0.0, float(m.get("end", 0) or 0)),
+                "fade_in": bool(m.get("fade_in")),
+                "fade_out": bool(m.get("fade_out")),
             })
         return out
     if s.get("chart"):
@@ -1383,6 +1407,8 @@ def _slide_media(s):
             "start": max(0.0, float(s.get("chart_start", 0) or 0)),
             "loop": bool(s.get("chart_loop")),
             "end": 0.0,
+            "fade_in": False,
+            "fade_out": False,
         })
     return out
 
@@ -1413,8 +1439,9 @@ SLIDE_AUDIO_DIR = os.path.join(os.path.dirname(os.path.dirname(
 os.makedirs(SLIDE_AUDIO_DIR, exist_ok=True)
 
 
-def render_slides(slides, out_name="", fps=24, w=1280, h=720):
-    """Encodes a presentation slides deck into an MP4 file."""
+def render_slides(slides, out_name="", fps=24, w=1280, h=720, bg=""):
+    """Encodes a presentation slides deck into an MP4 file. bg = library
+    gif/video looped as the global background behind every slide."""
     if not RASTER_OK:
         raise RuntimeError(f"resvg unavailable: {RASTER_ERR} (pip install resvg-py)")
     if not video_service.available():
@@ -1489,6 +1516,28 @@ def render_slides(slides, out_name="", fps=24, w=1280, h=720):
         if r_.returncode == 0 and nfr:
             chart_frames[ch_name] = (fdir, fps, nfr)
 
+    # global background: extract one loop's worth of frames at deck fps,
+    # full frame size (slice-cropped to fill in the compositor)
+    bg_frames = None
+    if bg:
+        bsrc = os.path.normpath(os.path.join(
+            video_service.LIB_DIR, video_service.safe_name(str(bg))))
+        if bsrc.startswith(os.path.normpath(video_service.LIB_DIR)) \
+                and os.path.isfile(bsrc) \
+                and bsrc.lower().endswith(VIDEO_CHART_EXTS):
+            bneed = min(max(_chart_dur(str(bg)), 1.0), 120.0)
+            bdir = tempfile.mkdtemp(prefix="slidebg_")
+            rb_ = subprocess.run(
+                [video_service.FFMPEG, "-y", "-i", bsrc,
+                 "-t", f"{bneed:.3f}",
+                 "-vf", f"fps={fps},scale={w}:-2",
+                 os.path.join(bdir, "f_%05d.png")],
+                capture_output=True, timeout=600,
+                creationflags=video_service.CREATE_NO_WINDOW)
+            bn = len([f for f in os.listdir(bdir) if f.endswith(".png")])
+            if rb_.returncode == 0 and bn:
+                bg_frames = (bdir, fps, bn)
+
     name = slug(out_name or "slideshow")
     out = video_service.unique_path(name + ".mp4")
     cmd = [video_service.FFMPEG, "-y",
@@ -1547,7 +1596,8 @@ def render_slides(slides, out_name="", fps=24, w=1280, h=720):
             for i in range(total):
                 if job.get("cancelled"):
                     break
-                svg = slideshow_svg(slides, i / fps, w, h, chart_frames)
+                svg = slideshow_svg(slides, i / fps, w, h, chart_frames,
+                                    bg_frames)
                 png = bytes(resvg_py.svg_to_bytes(svg_string=svg))
                 proc.stdin.write(png)
                 job["progress"] = (i + 1) / total

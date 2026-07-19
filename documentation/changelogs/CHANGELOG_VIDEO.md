@@ -9,6 +9,27 @@ the top of the log below, and also in the master CHANGELOG.md.
 
 ---
 
+- **[2026-07-19] (Claude)** — **VIDEO: media fade in/out + global
+  looping background (user's call - "vanishing is too abrupt").** (1)
+  Each media-timeline row gains "fade in" / "fade out" checkboxes:
+  0.5s opacity ramps at the item's visibility-window edges (fade-out
+  applies at its vanish handle). Identical math client (SVG group
+  opacity + live-overlay style.opacity) and renderer (<g opacity>). (2)
+  Slides control panel gains a "Global background" upload (gif/video):
+  the file loops behind EVERY slide, replacing the flat black. Client
+  keeps it in localStorage (genreg_deck_bg), previews it as a
+  z-layered element under the stage SVG (stage goes transparent, media
+  overlays z-index 2), and sends `bg` with the export request; renderer
+  pre-extracts one loop of frames at deck fps full-frame
+  (slice-cropped) and composites them beneath each frame. Verified by
+  real render (6.0s, bg + fading item): background alive in a
+  media-free corner (std 12.3 vs 0 for black), item ramp partial at
+  1.2s (27.9) -> full at 3.0s (49.9) -> faint at 4.9s (15.8). NOTE:
+  GUI exports with a background need the pending Flask restart (route +
+  renderer changes); fades render already since they ride the slides
+  JSON. Files: static/slideshow.js, templates/video.html,
+  services/anim_service.py, app.py.
+
 - **[2026-07-19] (Claude)** — **VIDEO: preview stage screen-boundary
   outline (user's call).** A dashed gray rect now marks the exact
   1280x720 frame that ends up in the export, and the stage SVG got

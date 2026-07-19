@@ -80,6 +80,15 @@
     return !(end > 0 && t >= end);
   }
 
+  function mediaFadeOpacity(m, t) {
+    // 0.5s ramps at the visibility-window edges when fades are on
+    const F = 0.5;
+    let op = 1;
+    if (m.fade_in) op = Math.min(op, (t - (Number(m.start) || 0)) / F);
+    if (m.fade_out && Number(m.end) > 0) op = Math.min(op, (Number(m.end) - t) / F);
+    return Math.max(0, Math.min(1, op));
+  }
+
   function mediaFloor(slide) {
     // each non-looping timed item floors the slide at start + runtime
     // (or its explicit vanish time if that is earlier); loops and still
@@ -148,6 +157,8 @@
             dur: Math.max(0, Number(m.dur) || 0),
             loop: !!m.loop,
             end: Math.max(0, Number(m.end) || 0),
+            fade_in: !!m.fade_in,
+            fade_out: !!m.fade_out,
           }))
         : (s.chart ? [{
             // migrate the legacy single-chart fields into media[0]
@@ -789,6 +800,83 @@
     renderPreview();
   });
 
+  // ---- GLOBAL BACKGROUND: a library gif/video looped behind every
+  // slide, replacing the flat black background ------------------------
+  let deckBg = "";
+  try { deckBg = localStorage.getItem("genreg_deck_bg") || ""; } catch (e) {}
+  let deckBgEl = null;
+
+  function positionDeckBg() {
+    if (!deckBgEl) return;
+    const stage = $("slides-stage");
+    const wrap = stage.parentElement;
+    const sr = stage.getBoundingClientRect();
+    const wr = wrap.getBoundingClientRect();
+    const scale = Math.min(sr.width / 1280, sr.height / 720);
+    deckBgEl.style.left = ((sr.width - 1280 * scale) / 2 + (sr.left - wr.left)) + "px";
+    deckBgEl.style.top = ((sr.height - 720 * scale) / 2 + (sr.top - wr.top)) + "px";
+    deckBgEl.style.width = (1280 * scale) + "px";
+    deckBgEl.style.height = (720 * scale) + "px";
+  }
+
+  function syncDeckBgEl() {
+    const stage = $("slides-stage");
+    const wrap = stage.parentElement;
+    if (deckBgEl) { deckBgEl.remove(); deckBgEl = null; }
+    const label = $("bg-name");
+    if (label) label.textContent = deckBg || "none";
+    if (!deckBg) { renderPreview(); return; }
+    const isGif = /\.gif$/i.test(deckBg);
+    deckBgEl = document.createElement(isGif ? "img" : "video");
+    if (!isGif) {
+      deckBgEl.muted = true;
+      deckBgEl.loop = true;
+      deckBgEl.autoplay = true;
+      deckBgEl.playsInline = true;
+    }
+    deckBgEl.src = `/api/video/file/${encodeURIComponent(deckBg)}`;
+    deckBgEl.style.position = "absolute";
+    deckBgEl.style.objectFit = "cover";
+    deckBgEl.style.pointerEvents = "none";
+    deckBgEl.style.zIndex = "0";
+    stage.style.position = "relative";
+    stage.style.zIndex = "1";
+    wrap.insertBefore(deckBgEl, stage);
+    positionDeckBg();
+    if (!isGif) deckBgEl.play && deckBgEl.play().catch(() => {});
+    renderPreview();
+  }
+
+  function setDeckBg(name) {
+    deckBg = name || "";
+    try { localStorage.setItem("genreg_deck_bg", deckBg); } catch (e) {}
+    syncDeckBgEl();
+  }
+
+  if ($("bg-upload-btn")) {
+    $("bg-upload-btn").addEventListener("click", () => $("bg-upload").click());
+    $("bg-upload").addEventListener("change", async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const form = new FormData();
+      form.append("file", file);
+      try {
+        const res = await (await fetch("/api/video/upload", {
+          method: "POST", body: form,
+        })).json();
+        if (res.error) throw new Error(res.error);
+        await loadLibrary();
+        setDeckBg(res.name);
+      } catch (err) {
+        alert("Background upload failed: " + err.message);
+      }
+      e.target.value = "";
+    });
+    $("bg-clear").addEventListener("click", () => setDeckBg(""));
+    window.addEventListener("resize", positionDeckBg);
+    setTimeout(syncDeckBgEl, 0);
+  }
+
   $("slide-clear").addEventListener("click", () => {
     if (confirm("Clear all slides?")) {
       slides = [];
@@ -833,7 +921,8 @@
     $("stage-slide-label").textContent = `Slide ${activeIdx + 1} / ${slides.length}`;
     
     const bg = slides[0].bg || "#0b0d10";
-    stage.style.background = bg;
+    stage.style.background = deckBg ? "transparent" : bg;
+    positionDeckBg();
 
     const r = ranges[activeIdx];
     if (!r) return;
@@ -968,7 +1057,12 @@
       if (!m.name) return;
       const vis = mediaVisible(m, t);
       if (!vis && (typeof isPlaying !== "undefined" && isPlaying)) return;
-      const op = vis ? "" : ' opacity="0.3"';
+      let op = "";
+      if (!vis) op = ' opacity="0.3"';
+      else {
+        const f = mediaFadeOpacity(m, t);
+        if (f < 0.999) op = ` opacity="${f.toFixed(3)}"`;
+      }
       out.push(`<g${op}>` +
         `<image href="${chartHref(m.name)}" x="${m.x}" y="${m.y}" width="${m.w}" height="${m.h}" data-drag="media" data-mi="${mi}" style="cursor: move;" preserveAspectRatio="xMidYMid meet"/>` +
         `<rect x="${m.x + m.w - 14}" y="${m.y + m.h - 14}" width="16" height="16" rx="3" fill="#4ea1ff" fill-opacity="0.85" data-drag="media-resize" data-mi="${mi}" style="cursor: nwse-resize;"/>` +
@@ -1021,6 +1115,7 @@
       v.muted = true;                 // narration owns the audio
       v.playsInline = true;
       v.style.position = "absolute";
+      v.style.zIndex = "2";           // above the global background layer
       v.style.display = "none";
       v.style.objectFit = "contain";
       v.style.pointerEvents = "none";
@@ -1080,6 +1175,7 @@
       v.style.top = (oy + m.y * scale) + "px";
       v.style.width = (m.w * scale) + "px";
       v.style.height = (m.h * scale) + "px";
+      v.style.opacity = String(mediaFadeOpacity(m, localT));
       v.style.display = "block";
       if (Math.abs((v.currentTime || 0) - mt) > 0.3) v.currentTime = mt;
       if (isPlaying && v.paused) v.play().catch(() => {});
@@ -1697,6 +1793,8 @@
       head.innerHTML =
         `<span class="media-name" title="${m.name}">${m.name}</span>` +
         `<label><input type="checkbox" ${m.loop ? "checked" : ""} data-mi="${mi}" class="media-loop-cb" /> loop</label>` +
+        `<label title="0.5s fade when it appears"><input type="checkbox" ${m.fade_in ? "checked" : ""} data-mi="${mi}" class="media-fadein-cb" /> fade in</label>` +
+        `<label title="0.5s fade at its vanish time (needs a vanish handle set)"><input type="checkbox" ${m.fade_out ? "checked" : ""} data-mi="${mi}" class="media-fadeout-cb" /> fade out</label>` +
         `<span class="media-row-info"></span>` +
         `<button class="sld-act sld-del media-rm" data-mi="${mi}" title="remove from slide">&times;</button>`;
       row.appendChild(head);
@@ -1768,10 +1866,14 @@
   }
 
   $("media-rows").addEventListener("change", (ev) => {
-    if (!ev.target.classList.contains("media-loop-cb") || activeIndex < 0) return;
+    if (activeIndex < 0) return;
+    const cls = ev.target.classList;
     const m = (slides[activeIndex].media || [])[Number(ev.target.dataset.mi)];
     if (!m) return;
-    m.loop = ev.target.checked;
+    if (cls.contains("media-loop-cb")) m.loop = ev.target.checked;
+    else if (cls.contains("media-fadein-cb")) m.fade_in = ev.target.checked;
+    else if (cls.contains("media-fadeout-cb")) m.fade_out = ev.target.checked;
+    else return;
     saveSlides(); renderMediaTimeline(); renderSlideList(); updateScrubMax();
     renderPreview();
   });
@@ -2186,6 +2288,7 @@
           slides: configSlides,
           out_name: outName,
           fps: fps,
+          bg: deckBg,
           w: Number(res[0]),
           h: Number(res[1])
         })

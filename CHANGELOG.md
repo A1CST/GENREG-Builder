@@ -10,6 +10,13 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-19] (Claude)** — **VIDEO: media fade in/out + global
+  looping background** - per-item fade checkboxes (0.5s ramps at the
+  visibility window edges) and a deck-wide gif/video background that
+  loops behind every slide in preview and export (verified by real
+  render). GUI background exports need the pending Flask restart.
+  Details in CHANGELOG_VIDEO.md.
+
 - **[2026-07-19] (Claude)** — **VIDEO: preview stage boundary outline**
   - dashed 1280x720 frame on the stage plus overflow-visible so items
   dragged off screen stay visible instead of clipping. Preview-only.

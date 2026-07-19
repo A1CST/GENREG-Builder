@@ -189,6 +189,15 @@
           <button id="slide-add" class="runs-btn tlm-primary">Add Slide</button>
           <button id="slide-clear" class="runs-btn">Clear All</button>
         </div>
+        <div class="field" style="margin-bottom: 15px;">
+          <label>Global background (gif/video, loops behind every slide)</label>
+          <div style="display:flex; gap:6px; align-items:center;">
+            <input type="file" id="bg-upload" accept=".gif,.mp4,.webm,.mov" style="display:none;" />
+            <button id="bg-upload-btn" class="runs-btn vd-mini">Upload</button>
+            <span id="bg-name" style="font-size:10.5px; color:#8b95a1; font-family:ui-monospace,monospace; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">none</span>
+            <button id="bg-clear" class="runs-btn vd-mini">Clear</button>
+          </div>
+        </div>
         <div id="slide-list" class="vd-doclist" style="max-height: 250px; overflow-y: auto; margin-bottom: 15px;"></div>
         
         <div id="slide-editor" class="tlm-card" style="padding: 12px; display: none;">

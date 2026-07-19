@@ -2287,8 +2287,10 @@ def api_video_render_slides():
     fps = int(data.get("fps", 24))
     w = int(data.get("w", 1280))
     h = int(data.get("h", 720))
+    bg = str(data.get("bg") or "")
     try:
-        job = anim_service.render_slides(slides, out_name=out_name, fps=fps, w=w, h=h)
+        job = anim_service.render_slides(slides, out_name=out_name, fps=fps,
+                                         w=w, h=h, bg=bg)
         return jsonify(video_service.job_view(job))
     except Exception as exc:
         return jsonify({"error": str(exc)}), 400
