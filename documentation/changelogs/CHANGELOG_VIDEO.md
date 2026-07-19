@@ -9,6 +9,12 @@ the top of the log below, and also in the master CHANGELOG.md.
 
 ---
 
+- **[2026-07-19] (Claude)** — **VIDEO: media timeline promoted to its
+  own panel (user's call).** The MEDIA TIMELINE was nested inside the
+  SLIDE AUDIO card; it is now a sibling card in the main column,
+  directly under the preview stage and the audio track area. Markup-only
+  change (same #media-tl id, JS untouched). File: templates/video.html.
+
 - **[2026-07-19] (Claude)** — **VIDEO: multiple charts/videos per slide
   with visibility windows (user's call - "slides can and will have
   multiple charts or videos... control when they start, if they loop,
