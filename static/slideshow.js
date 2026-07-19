@@ -1369,7 +1369,27 @@
       }
       drawTrim(cv, buf, clip, sel);
     });
-    cv.addEventListener("pointerup", () => { drag = null; sel = -1; refresh(); });
+    cv.addEventListener("pointerup", (ev) => {
+      const t = evT(ev);
+      const wasNew = drag && drag.mode === "new";
+      drag = null;
+      clip.cuts = normCuts(clip.cuts, dur);
+      // a bare click on empty wave creates a zero-width cut: drop it and
+      // treat the click as deselect; otherwise keep the touched cut
+      // SELECTED so Delete stays armed after release
+      if (wasNew) {
+        const tiny = clip.cuts.findIndex((c) => c[1] - c[0] < dur * 0.015);
+        if (tiny >= 0) {
+          clip.cuts.splice(tiny, 1);
+          sel = -1;
+          refresh();
+          return;
+        }
+      }
+      sel = clip.cuts.findIndex((c) =>
+        t >= c[0] - dur * 0.02 && t <= c[1] + dur * 0.02);
+      refresh();
+    });
 
     ed.querySelector('[data-t="play"]').addEventListener("click", (ev) => {
       if (trimPlayer) { trimPlayer.stop(); trimPlayer = null;

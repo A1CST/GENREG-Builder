@@ -9,6 +9,13 @@ the top of the log below, and also in the master CHANGELOG.md.
 
 ---
 
+- **[2026-07-18] (Claude)** — **VIDEO: trim-editor selection now persists
+  after release** - pointerup was clearing the selection on every
+  interaction, so Delete cut disarmed the moment the mouse let go.
+  Now: releasing keeps the touched cut selected (Delete stays armed);
+  a bare click on empty waveform deselects (and the zero-width cut a
+  click would create is discarded). Frontend only, hard refresh.
+
 - **[2026-07-18] (Claude)** — **VIDEO: audio TRIM editor + audio-driven
   minimum slide duration (user's two fixes).**
   (1) TRIM: each clip row gains a Trim button opening a waveform editor
