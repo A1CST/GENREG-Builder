@@ -67,11 +67,18 @@
     return (slide.clips || []).reduce((a, c) => a + effClipDur(c), 0);
   }
 
+  function mediaFloor(slide) {
+    // a non-looping video floors the slide at start + runtime; a looping
+    // one fills whatever the slide gives it (no floor)
+    const d = Number(slide.chart_dur) || 0;
+    if (!d || slide.chart_loop) return 0;
+    return (Number(slide.chart_start) || 0) + d;
+  }
+
   function effDur(slide) {
-    // the slide floor: set duration, then narration, then embedded
-    // media (gif/video charts have their own runtime)
+    // the slide floor: set duration, then narration, then embedded media
     return Math.max(Number(slide.duration) || 3.0, slideAudioTotal(slide),
-                    Number(slide.chart_dur) || 0);
+                    mediaFloor(slide));
   }
 
   async function refreshChartDur(slide) {
@@ -82,6 +89,7 @@
       slide.chart_dur = Number(r.duration) || 0;
     } catch (e) { slide.chart_dur = 0; }
     saveSlides(); renderSlideList(); updateScrubMax(); renderPreview();
+    renderMediaTimeline();
   }
 
   function sanitizeSlide(s) {
@@ -93,6 +101,8 @@
       pose_x: Number(s.pose_x) || 0, pose_y: Number(s.pose_y) || 0,
       chart: s.chart || "", chart_align: s.chart_align || "right",
       chart_dur: Number(s.chart_dur) || 0,
+      chart_start: Math.max(0, Number(s.chart_start) || 0),
+      chart_loop: !!s.chart_loop,
       chart_x: Number(s.chart_x) || 0, chart_y: Number(s.chart_y) || 0,
       text: typeof s.text === "string" ? s.text : "",
       bg: s.bg || s.background || "",
@@ -525,7 +535,7 @@
 
   function selectSlide(idx) {
     activeIndex = idx;
-    setTimeout(renderAudioPanel, 0);
+    setTimeout(() => { renderAudioPanel(); renderMediaTimeline(); }, 0);
     if (idx !== ghostIndex) {
       tempGhosts = null;
       ghostIndex = -1;
@@ -700,6 +710,8 @@
       sl.chart_x = s.chart_x;
       sl.chart_y = s.chart_y;
       sl.chart_dur = s.chart_dur;
+      sl.chart_start = s.chart_start;
+      sl.chart_loop = s.chart_loop;
     });
     saveSlides();
     renderPreview();
@@ -1462,6 +1474,78 @@
     });
     refresh();
   }
+
+  // ---- MEDIA TIMELINE: when the slide's video/gif starts + loop ------
+  function renderMediaTimeline() {
+    const panel = $("media-tl");
+    if (!panel) return;
+    if (activeIndex < 0 || !slides[activeIndex]) { panel.style.display = "none"; return; }
+    const slide = slides[activeIndex];
+    const d = Number(slide.chart_dur) || 0;
+    if (!slide.chart || !d) { panel.style.display = "none"; return; }
+    panel.style.display = "block";
+    const total = effDur(slide);
+    const start = Math.min(Number(slide.chart_start) || 0, Math.max(0, total - 0.1));
+    const track = $("media-track");
+    const info = $("media-info");
+    $("media-loop").checked = !!slide.chart_loop;
+    track.innerHTML = "";
+    // play window span(s)
+    const mk = (a, b, cls) => {
+      const sp = document.createElement("div");
+      sp.className = cls;
+      sp.style.left = (a / total * 100) + "%";
+      sp.style.width = (Math.max(0, Math.min(b, total) - a) / total * 100) + "%";
+      track.appendChild(sp);
+    };
+    if (slide.chart_loop) {
+      for (let t0 = start, k = 0; t0 < total && k < 40; t0 += d, k++) {
+        mk(t0, t0 + d, "media-span" + (k > 0 ? " media-span-loop" : ""));
+      }
+    } else {
+      mk(start, start + d, "media-span");
+    }
+    // draggable start handle
+    const hd = document.createElement("div");
+    hd.className = "media-handle";
+    hd.style.left = (start / total * 100) + "%";
+    hd.title = "drag: when the media starts";
+    track.appendChild(hd);
+    info.textContent = `${slide.chart} - starts at ${start.toFixed(1)}s` +
+      (slide.chart_loop ? `, loops every ${d.toFixed(1)}s`
+                        : `, plays ${d.toFixed(1)}s (ends ${(start + d).toFixed(1)}s)`);
+    let dragging = false;
+    const move = (ev) => {
+      if (!dragging) return;
+      const r = track.getBoundingClientRect();
+      const t = Math.max(0, Math.min(total - 0.1,
+        (ev.clientX - r.left) / r.width * total));
+      slide.chart_start = Math.round(t * 10) / 10;
+      saveSlides();
+      renderMediaTimeline();
+      renderSlideList(); updateScrubMax();
+    };
+    hd.addEventListener("pointerdown", (ev) => {
+      dragging = true;
+      hd.setPointerCapture(ev.pointerId);
+    });
+    hd.addEventListener("pointermove", move);
+    hd.addEventListener("pointerup", () => { dragging = false; });
+    track.addEventListener("pointerdown", (ev) => {
+      if (ev.target !== track) return;
+      const r = track.getBoundingClientRect();
+      slide.chart_start = Math.round(Math.max(0, Math.min(total - 0.1,
+        (ev.clientX - r.left) / r.width * total)) * 10) / 10;
+      saveSlides(); renderMediaTimeline(); renderSlideList(); updateScrubMax();
+    });
+  }
+
+  $("media-loop").addEventListener("change", (e) => {
+    if (activeIndex < 0) return;
+    slides[activeIndex].chart_loop = e.target.checked;
+    saveSlides(); renderMediaTimeline(); renderSlideList(); updateScrubMax();
+    renderPreview();
+  });
 
   $("aud-record").addEventListener("click", async () => {
     const btn = $("aud-record");

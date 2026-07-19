@@ -75,6 +75,15 @@
     .trim-bar button:disabled { opacity: 0.4; cursor: default; }
     .trim-info { font-size: 10px; color: #8b95a1; font-family: ui-monospace, monospace; }
     .trim-hint { font-size: 9.5px; color: #5a6672; margin-top: 4px; }
+    .media-track { position: relative; height: 26px; background: #0b0e12;
+      border: 1px solid #1c232c; border-radius: 5px; margin-top: 7px;
+      cursor: pointer; touch-action: none; }
+    .media-span { position: absolute; top: 3px; bottom: 3px;
+      background: rgba(78,161,255,0.45); border-radius: 3px; }
+    .media-span-loop { background: rgba(78,161,255,0.22); }
+    .media-handle { position: absolute; top: -3px; bottom: -3px; width: 8px;
+      margin-left: -4px; background: #4ea1ff; border-radius: 3px;
+      cursor: ew-resize; }
     .slide-thumb-wrap {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
@@ -310,6 +319,15 @@
               <span id="aud-slide-label" style="font-size:11px; color:#5a6672; margin-left:auto;"></span>
             </div>
             <div id="aud-clips" style="margin-top:8px;"></div>
+            <div id="media-tl" style="display:none; margin-top: 12px; border-top: 1px solid #1c232c; padding-top: 8px;">
+              <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+                <span style="font-size:11px; color:#5a6672; font-family:ui-monospace,monospace;">MEDIA TIMELINE</span>
+                <label style="font-size:11px; color:#8b95a1; display:flex; gap:5px; align-items:center; cursor:pointer;">
+                  <input type="checkbox" id="media-loop" /> loop</label>
+                <span id="media-info" style="font-size:10.5px; color:#8b95a1; font-family:ui-monospace,monospace;"></span>
+              </div>
+              <div id="media-track" class="media-track"></div>
+            </div>
           </div>
         </section>
       </div>

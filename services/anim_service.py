@@ -1210,7 +1210,14 @@ def slide_to_svg_group(slide, w=1280, h=720, local_t=0.0, chart_frames=None):
             if chart.lower().endswith(VIDEO_CHART_EXTS) and chart_frames \
                     and chart in chart_frames:
                 fdir, ffps, nfr = chart_frames[chart]
-                fi = min(nfr, max(1, int(local_t * ffps) + 1))
+                m_start = max(0.0, float(slide.get("chart_start", 0) or 0))
+                mt = local_t - m_start
+                if mt <= 0:
+                    fi = 1                    # poster frame until start
+                elif slide.get("chart_loop"):
+                    fi = int(mt * ffps) % nfr + 1
+                else:
+                    fi = min(nfr, int(mt * ffps) + 1)
                 img_uri = _get_base64_img(
                     os.path.join(fdir, f"f_{fi:05d}.png"))
             else:
@@ -1326,12 +1333,21 @@ def _chart_dur(name):
         return 0.0
 
 
+def _media_floor(s):
+    """Non-looping media floors the slide at start + runtime; looping
+    media fills whatever the slide gives it."""
+    d = _chart_dur(s.get("chart"))
+    if not d or s.get("chart_loop"):
+        return 0.0
+    return max(0.0, float(s.get("chart_start", 0) or 0)) + d
+
+
 def _eff_slide_dur(s):
     """The slide floor: set duration, then audio, then embedded media -
     a slide stays up long enough for everything it carries."""
     base = float(s.get("duration", 3.0) or 3.0)
     audio = sum(_eff_clip_dur(c) for c in (s.get("clips") or []))
-    return max(base, audio, _chart_dur(s.get("chart")))
+    return max(base, audio, _media_floor(s))
 
 
 SLIDE_AUDIO_DIR = os.path.join(os.path.dirname(os.path.dirname(
@@ -1394,8 +1410,15 @@ def render_slides(slides, out_name="", fps=24, w=1280, h=720):
         if not src.startswith(os.path.normpath(video_service.LIB_DIR)) \
                 or not os.path.isfile(src):
             continue
-        need = max(_eff_slide_dur(x) for x in slides
-                   if (x.get("chart") or "") == ch_name)
+        need = 0.0
+        for x in slides:
+            if (x.get("chart") or "") != ch_name:
+                continue
+            if x.get("chart_loop"):
+                need = max(need, min(_chart_dur(ch_name), 120.0))
+            else:
+                st_ = max(0.0, float(x.get("chart_start", 0) or 0))
+                need = max(need, _eff_slide_dur(x) - st_)
         fdir = tempfile.mkdtemp(prefix="slidechart_")
         r_ = subprocess.run(
             [video_service.FFMPEG, "-y", "-i", src, "-t", f"{need:.3f}",
