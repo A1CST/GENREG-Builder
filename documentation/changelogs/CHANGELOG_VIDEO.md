@@ -9,6 +9,19 @@ the top of the log below, and also in the master CHANGELOG.md.
 
 ---
 
+- **[2026-07-18] (Claude)** — **VIDEO: embedded-media duration joins the
+  slide floor (user's call).** A slide now stays up for
+  max(set duration, kept narration, EMBEDDED MEDIA runtime) - if the
+  chart is animated media (gif / video), its ffprobe duration becomes a
+  third floor, evaluated after audio exactly as asked. New
+  /api/video/meta?name= (mtime-cached probe; stills report 0 and change
+  nothing); client stores slide.chart_dur (refreshed on chart assignment
+  from the select or the library, copied by apply-to-all); renderer
+  mirrors via _chart_dur in _eff_slide_dur, probing server-side so the
+  mp4 is authoritative. VERIFIED on the real muted Gemini clip: 10.0s
+  probe; 2s slide -> floors to 10.0s; with 9s narration the 10s video
+  still wins. Routes ride the pending restart; page is hard-refresh.
+
 - **[2026-07-18] (Claude)** — **VIDEO: trim-editor selection now persists
   after release** - pointerup was clearing the selection on every
   interaction, so Delete cut disarmed the moment the mouse let go.

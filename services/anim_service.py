@@ -1298,10 +1298,27 @@ def _eff_clip_dur(clip):
     return sum(b - a for a, b in _kept_segments(clip))
 
 
+def _chart_dur(name):
+    """Duration of an embedded chart if it is animated media (gif/video);
+    0 for stills. ffprobe result is mtime-cached by video_service."""
+    if not name:
+        return 0.0
+    try:
+        safe = video_service.safe_name(str(name))
+        path = os.path.normpath(os.path.join(video_service.LIB_DIR, safe))
+        if not path.startswith(os.path.normpath(video_service.LIB_DIR))                 or not os.path.isfile(path):
+            return 0.0
+        return float(video_service._meta(safe, path).get("duration", 0) or 0)
+    except Exception:
+        return 0.0
+
+
 def _eff_slide_dur(s):
+    """The slide floor: set duration, then audio, then embedded media -
+    a slide stays up long enough for everything it carries."""
     base = float(s.get("duration", 3.0) or 3.0)
     audio = sum(_eff_clip_dur(c) for c in (s.get("clips") or []))
-    return max(base, audio)
+    return max(base, audio, _chart_dur(s.get("chart")))
 
 
 SLIDE_AUDIO_DIR = os.path.join(os.path.dirname(os.path.dirname(

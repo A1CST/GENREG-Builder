@@ -68,8 +68,20 @@
   }
 
   function effDur(slide) {
-    // a slide is on screen at least as long as its narration
-    return Math.max(Number(slide.duration) || 3.0, slideAudioTotal(slide));
+    // the slide floor: set duration, then narration, then embedded
+    // media (gif/video charts have their own runtime)
+    return Math.max(Number(slide.duration) || 3.0, slideAudioTotal(slide),
+                    Number(slide.chart_dur) || 0);
+  }
+
+  async function refreshChartDur(slide) {
+    if (!slide.chart) { slide.chart_dur = 0; return; }
+    try {
+      const r = await (await fetch(
+        `/api/video/meta?name=${encodeURIComponent(slide.chart)}`)).json();
+      slide.chart_dur = Number(r.duration) || 0;
+    } catch (e) { slide.chart_dur = 0; }
+    saveSlides(); renderSlideList(); updateScrubMax(); renderPreview();
   }
 
   function sanitizeSlide(s) {
@@ -80,6 +92,7 @@
       pose: s.pose || "", pose_align: s.pose_align || "left",
       pose_x: Number(s.pose_x) || 0, pose_y: Number(s.pose_y) || 0,
       chart: s.chart || "", chart_align: s.chart_align || "right",
+      chart_dur: Number(s.chart_dur) || 0,
       chart_x: Number(s.chart_x) || 0, chart_y: Number(s.chart_y) || 0,
       text: typeof s.text === "string" ? s.text : "",
       bg: s.bg || s.background || "",
@@ -300,6 +313,7 @@
       card.addEventListener("click", () => {
         if (activeIndex >= 0) {
           slides[activeIndex].chart = chartName;
+          refreshChartDur(slides[activeIndex]);
           $("slide-chart").value = chartName;
           saveSlides();
           renderPreview();
@@ -571,6 +585,9 @@
       }
     }
   });
+  $("slide-chart").addEventListener("change", () => {
+    if (activeIndex >= 0) refreshChartDur(slides[activeIndex]);
+  });
   $("slide-chart-align").addEventListener("change", (e) => {
     if (activeIndex >= 0) { slides[activeIndex].chart_align = e.target.value; saveSlides(); renderPreview(); }
   });
@@ -656,6 +673,7 @@
       sl.chart_align = s.chart_align;
       sl.chart_x = s.chart_x;
       sl.chart_y = s.chart_y;
+      sl.chart_dur = s.chart_dur;
     });
     saveSlides();
     renderPreview();
