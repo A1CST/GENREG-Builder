@@ -1202,40 +1202,31 @@ def slide_to_svg_group(slide, w=1280, h=720, local_t=0.0, chart_frames=None):
                         px = (w - pw) // 2
                 out.append(f'<image href="{img_uri}" x="{px}" y="{py}" width="{pw}" height="{ph}" preserveAspectRatio="xMidYMid meet"/>')
                 
-    # Chart Image / Uploaded Embed Graphic (From runs/video/library)
-    chart = slide.get("chart")
-    if chart:
-        chart_path = os.path.normpath(os.path.join(video_service.LIB_DIR, video_service.safe_name(chart)))
-        if chart_path.startswith(os.path.normpath(video_service.LIB_DIR)):
-            if chart.lower().endswith(VIDEO_CHART_EXTS) and chart_frames \
-                    and chart in chart_frames:
-                fdir, ffps, nfr = chart_frames[chart]
-                m_start = max(0.0, float(slide.get("chart_start", 0) or 0))
-                mt = local_t - m_start
-                if mt <= 0:
-                    fi = 1                    # poster frame until start
-                elif slide.get("chart_loop"):
-                    fi = int(mt * ffps) % nfr + 1
-                else:
-                    fi = min(nfr, int(mt * ffps) + 1)
-                img_uri = _get_base64_img(
-                    os.path.join(fdir, f"f_{fi:05d}.png"))
+    # Media items (multiple charts/videos per slide, each with its own
+    # visibility window: start -> end; end 0 = auto/until slide end)
+    for m in _slide_media(slide):
+        name = m["name"]
+        if local_t < m["start"]:
+            continue                          # not on stage yet
+        if m["end"] > 0 and local_t >= m["end"]:
+            continue                          # vanished
+        chart_path = os.path.normpath(os.path.join(video_service.LIB_DIR, video_service.safe_name(name)))
+        if not chart_path.startswith(os.path.normpath(video_service.LIB_DIR)):
+            continue
+        if name.lower().endswith(VIDEO_CHART_EXTS) and chart_frames \
+                and name in chart_frames:
+            fdir, ffps, nfr = chart_frames[name]
+            mt = max(0.0, local_t - m["start"])
+            if m["loop"]:
+                fi = int(mt * ffps) % nfr + 1
             else:
-                img_uri = _get_base64_img(chart_path)
-            if img_uri:
-                cw = max(80.0, float(slide.get("chart_w", 550) or 550))
-                ch_h = max(60.0, float(slide.get("chart_h", 420) or 420))
-                cx, cy = 650, 80
-                if slide.get("chart_x") is not None and slide.get("chart_y") is not None:
-                    cx = float(slide["chart_x"])
-                    cy = float(slide["chart_y"])
-                else:
-                    align = slide.get("chart_align", "right")
-                    if align == "left":
-                        cx = 80
-                    elif align == "center":
-                        cx = (w - cw) // 2
-                out.append(f'<image href="{img_uri}" x="{cx}" y="{cy}" width="{cw}" height="{ch_h}" preserveAspectRatio="xMidYMid meet"/>')
+                fi = min(nfr, int(mt * ffps) + 1)   # hold last frame
+            img_uri = _get_base64_img(
+                os.path.join(fdir, f"f_{fi:05d}.png"))
+        else:
+            img_uri = _get_base64_img(chart_path)
+        if img_uri:
+            out.append(f'<image href="{img_uri}" x="{m["x"]}" y="{m["y"]}" width="{m["w"]}" height="{m["h"]}" preserveAspectRatio="xMidYMid meet"/>')
                 
     # Caption / CC Text - word-wrapped, box grows with the lines
     # (identical math to the client preview in slideshow.js)
@@ -1359,13 +1350,54 @@ def _chart_dur(name):
         return 0.0
 
 
+def _slide_media(s):
+    """A slide's media items, normalized. New decks carry a `media` list
+    ([{name, x, y, w, h, start, loop, end}]); legacy decks carry singular
+    chart_* fields which become a one-item list."""
+    items = s.get("media")
+    out = []
+    if isinstance(items, list):
+        for m in items:
+            if not isinstance(m, dict) or not m.get("name"):
+                continue
+            out.append({
+                "name": str(m["name"]),
+                "x": float(m.get("x", 650) or 0),
+                "y": float(m.get("y", 80) or 0),
+                "w": max(80.0, float(m.get("w", 550) or 550)),
+                "h": max(60.0, float(m.get("h", 420) or 420)),
+                "start": max(0.0, float(m.get("start", 0) or 0)),
+                "loop": bool(m.get("loop")),
+                "end": max(0.0, float(m.get("end", 0) or 0)),
+            })
+        return out
+    if s.get("chart"):
+        align = s.get("chart_align", "right")
+        default_x = 80 if align == "left" else 365 if align == "center" else 650
+        out.append({
+            "name": str(s["chart"]),
+            "x": float(s.get("chart_x") or default_x),
+            "y": float(s.get("chart_y") or 80),
+            "w": max(80.0, float(s.get("chart_w", 550) or 550)),
+            "h": max(60.0, float(s.get("chart_h", 420) or 420)),
+            "start": max(0.0, float(s.get("chart_start", 0) or 0)),
+            "loop": bool(s.get("chart_loop")),
+            "end": 0.0,
+        })
+    return out
+
+
 def _media_floor(s):
-    """Non-looping media floors the slide at start + runtime; looping
-    media fills whatever the slide gives it."""
-    d = _chart_dur(s.get("chart"))
-    if not d or s.get("chart_loop"):
-        return 0.0
-    return max(0.0, float(s.get("chart_start", 0) or 0)) + d
+    """Each non-looping timed item floors the slide at start + runtime
+    (or its explicit vanish time if earlier); loops/stills add none."""
+    f = 0.0
+    for m in _slide_media(s):
+        d = _chart_dur(m["name"])
+        if not d or m["loop"]:
+            continue
+        natural = m["start"] + d
+        f = max(f, min(m["end"], natural) if m["end"] > 0 else natural)
+    return f
 
 
 def _eff_slide_dur(s):
@@ -1425,8 +1457,9 @@ def render_slides(slides, out_name="", fps=24, w=1280, h=720):
     # compositor can base64 the right frame per output frame
     chart_frames = {}
     import tempfile
-    for s_ in slides:
-        ch_name = s_.get("chart") or ""
+    all_items = [(s_, m_) for s_ in slides for m_ in _slide_media(s_)]
+    for _, m0 in all_items:
+        ch_name = m0["name"]
         if not ch_name.lower().endswith(VIDEO_CHART_EXTS):
             continue
         if ch_name in chart_frames:
@@ -1437,14 +1470,14 @@ def render_slides(slides, out_name="", fps=24, w=1280, h=720):
                 or not os.path.isfile(src):
             continue
         need = 0.0
-        for x in slides:
-            if (x.get("chart") or "") != ch_name:
+        for sx, mx in all_items:
+            if mx["name"] != ch_name:
                 continue
-            if x.get("chart_loop"):
+            if mx["loop"]:
                 need = max(need, min(_chart_dur(ch_name), 120.0))
             else:
-                st_ = max(0.0, float(x.get("chart_start", 0) or 0))
-                need = max(need, _eff_slide_dur(x) - st_)
+                stop = mx["end"] if mx["end"] > 0 else _eff_slide_dur(sx)
+                need = max(need, stop - mx["start"])
         fdir = tempfile.mkdtemp(prefix="slidechart_")
         r_ = subprocess.run(
             [video_service.FFMPEG, "-y", "-i", src, "-t", f"{need:.3f}",
