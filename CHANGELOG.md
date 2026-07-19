@@ -10,6 +10,11 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-19] (Claude)** — **VIDEO: preview stage boundary outline**
+  - dashed 1280x720 frame on the stage plus overflow-visible so items
+  dragged off screen stay visible instead of clipping. Preview-only.
+  Details in CHANGELOG_VIDEO.md.
+
 - **[2026-07-19] (Claude)** — **VIDEO: media timeline moved to its own
   panel** under the preview stage and audio area (was nested inside the
   audio card). Details in CHANGELOG_VIDEO.md.
