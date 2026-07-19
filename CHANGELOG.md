@@ -10,6 +10,44 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-19] (Claude)** — **VIDEO SESSION CLOSE (user switching to
+  CIFAR). State of /video at stop:** the slide builder is a complete
+  narrated-explainer pipeline - slide manager (visual cards,
+  drag-reorder, duplicate, robust delete), per-slide mic recording
+  (ordered clips, move, lock-resilient delete), seamless multi-cut trim
+  editor (waveform, persistent selection, WebAudio gapless playback),
+  preview that faithfully rehearses the export (audio scheduled at true
+  timestamps, live video overlay synced to the deck clock with start
+  offset + loop, scrub-aware), one-click library mute, three-layer
+  duration floor (duration -> kept audio -> media runtime, identical
+  client/renderer), first-class video embeds (stage thumbnails, frame-
+  accurate export compositing, corner-grip resize), media timeline
+  (draggable start, loop), and SCRIPT STUDIO (modal: narration tools +
+  JSON deck templates with downloadable schema + per-slide ElevenLabs
+  narration as mp3 clips). Every feature verified with real renders
+  (charttest/looptest/resizetest.mp4 in the library, all exact).
+  PENDING on the user: the accumulated Flask restart (slide-audio, mute,
+  meta, image-upload, TTS routes) and the ElevenLabs key in
+  .keys/elevenlabs.key. All work committed and merged to origin/main
+  (19a51f8). The uncommitted files in the tree (app.py Replicate
+  routes, radial_evo2, several static/*.js) belong to ANOTHER session's
+  in-progress work and were deliberately left untouched.
+
+- **[2026-07-19] (Claude)** — **REPLICATE project created — audio by
+  replication, seeded from the two best frozen substrates.** New project
+  line: recognize audio by REPLICATING it, in the first temporal radial
+  space with realtime input. Inherits the LETTER bank
+  (`ocr/models/letters_v1_model.json`, 0.88 held-out fonts — token
+  substrate) and the temporal SHAPE bank (`radial_data/anim_model_shape.json`,
+  0.9989 anim test, motion-invariant — the waveform's home in 3D), copied to
+  `replicate/checkpoints/`. `replicate/replicate_seed.py` (module 1) replays
+  both in their native protocols, exports `radial_data/replicate_seed.json`,
+  records the run under `runs/replicate/`, posts a notice. Page `/replicate`
+  (append-only /lm pattern) + modules/export API, `static/replicate.js`,
+  nav entry (Sequence), changelog-modal mapping, and
+  `documentation/changelogs/CHANGELOG_REPLICATE.md`. **Flask restart
+  needed** for the new route/endpoints.
+
 - **[2026-07-19] (Claude)** — **VIDEO: SCRIPT STUDIO modal + JSON deck
   templates + ElevenLabs narration (user's design). Pose-alignment UI
   removed (drag owns placement; CC captions kept).** The script side
