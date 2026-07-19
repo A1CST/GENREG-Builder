@@ -10,6 +10,31 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-19] (Claude)** — **VIDEO: multiple charts/videos per
+  slide** - new `slide.media` list (legacy chart fields auto-migrate);
+  each item has its own position/size, start time, loop flag, and
+  vanish time so items can replace each other mid-slide; per-item
+  timeline rows with start + vanish handles; preview pools live video
+  overlays; renderer mirrors the windows (verified by real render).
+  Details in CHANGELOG_VIDEO.md.
+
+- **[2026-07-19] (Claude)** — **REPLICATE module 8 (user's direction) in
+  progress: question-tuned vocabularies + CONJUNCTION composition.**
+  Stage 1 done in 526s: four label-free contrastive encoders, one per
+  augmentation question (`evolve_encoder(aug_kind=...)`) — color/shape
+  kNN 0.2973, crop/identity 0.3163, occlude/parts 0.2713, warp/texture
+  **0.3453** (beats the generic encoders' 0.334); all four passed the
+  emergence check; codes cached as lang_<kind> blocks; run
+  20260719-172420-replicate_vocab-298e13. Stage 2: CONCAT CONTROL first —
+  package 0.7941 vs package+vocabs 0.7943 = linear null (as always for
+  same-source), so any conjunction residual is attributable to composition
+  alone. Conjunction evolution (12,383-channel bank, resumable chunks after
+  external kills — state_<tag>.json checkpoint + rng advance added to
+  replicate_compose): residual trajectory MONOTONE +0.09pt @54 genomes →
+  +0.11 @81 → **+0.18 @102** (0.7942 → 0.7960), attend/gate/absdiff ops
+  dominant, admissions not yet flat. Pre-registered stop: two flat rounds
+  or ~240 genomes, verdict from the final read only. Chaining continues.
+
 - **[2026-07-19] (Claude)** — **VIDEO: slide reorder buttons** - move
   up/down actions on each slide card (drag-reorder kept); active
   selection preserved across moves. Details in CHANGELOG_VIDEO.md.

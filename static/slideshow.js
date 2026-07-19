@@ -67,12 +67,32 @@
     return (slide.clips || []).reduce((a, c) => a + effClipDur(c), 0);
   }
 
+  function mediaItems(slide) {
+    return Array.isArray(slide.media) ? slide.media : [];
+  }
+
+  function mediaVisible(m, t) {
+    // an item is on stage from its start until its explicit vanish time
+    // (end); end 0 = auto (until the slide ends; non-loop video holds
+    // its last frame)
+    if (t < (Number(m.start) || 0)) return false;
+    const end = Number(m.end) || 0;
+    return !(end > 0 && t >= end);
+  }
+
   function mediaFloor(slide) {
-    // a non-looping video floors the slide at start + runtime; a looping
-    // one fills whatever the slide gives it (no floor)
-    const d = Number(slide.chart_dur) || 0;
-    if (!d || slide.chart_loop) return 0;
-    return (Number(slide.chart_start) || 0) + d;
+    // each non-looping timed item floors the slide at start + runtime
+    // (or its explicit vanish time if that is earlier); loops and still
+    // images add no floor
+    let f = 0;
+    mediaItems(slide).forEach((m) => {
+      const d = Number(m.dur) || 0;
+      if (!d || m.loop) return;
+      const natural = (Number(m.start) || 0) + d;
+      const end = Number(m.end) || 0;
+      f = Math.max(f, end > 0 ? Math.min(end, natural) : natural);
+    });
+    return f;
   }
 
   function effDur(slide) {
@@ -95,26 +115,20 @@
     });
   }
 
-  async function refreshChartDur(slide) {
-    if (!slide.chart) { slide.chart_dur = 0; return; }
+  async function refreshMediaDur(slide, item) {
+    if (!item || !item.name) return;
+    if (!/\.(mp4|webm|mov|gif)$/i.test(item.name)) { item.dur = 0; return; }
     let d = 0;
     try {
       const r = await (await fetch(
-        `/api/video/meta?name=${encodeURIComponent(slide.chart)}`)).json();
+        `/api/video/meta?name=${encodeURIComponent(item.name)}`)).json();
       d = Number(r.duration) || 0;
     } catch (e) { d = 0; }
-    if (!d) d = await probeDurClient(slide.chart);
-    slide.chart_dur = Math.round(d * 10) / 10;
+    if (!d) d = await probeDurClient(item.name);
+    item.dur = Math.round(d * 10) / 10;
     saveSlides(); renderSlideList(); updateScrubMax(); renderPreview();
     renderMediaTimeline();
   }
-
-  // heal existing decks whose videos were assigned before durations worked
-  slides.forEach((sl) => {
-    if (sl.chart && !sl.chart_dur && /\.(mp4|webm|mov|gif)$/i.test(sl.chart)) {
-      refreshChartDur(sl);
-    }
-  });
 
   function sanitizeSlide(s) {
     // legacy decks stored numbers as strings and lack newer fields; one
@@ -123,13 +137,31 @@
     return {
       pose: s.pose || "", pose_align: s.pose_align || "left",
       pose_x: Number(s.pose_x) || 0, pose_y: Number(s.pose_y) || 0,
-      chart: s.chart || "", chart_align: s.chart_align || "right",
-      chart_dur: Number(s.chart_dur) || 0,
-      chart_start: Math.max(0, Number(s.chart_start) || 0),
-      chart_loop: !!s.chart_loop,
-      chart_w: Math.max(80, Number(s.chart_w) || 550),
-      chart_h: Math.max(60, Number(s.chart_h) || 420),
-      chart_x: Number(s.chart_x) || 0, chart_y: Number(s.chart_y) || 0,
+      media: Array.isArray(s.media)
+        ? s.media.filter((m) => m && m.name).map((m) => ({
+            name: String(m.name),
+            x: Number.isFinite(Number(m.x)) ? Number(m.x) : 650,
+            y: Number.isFinite(Number(m.y)) ? Number(m.y) : 80,
+            w: Math.max(80, Number(m.w) || 550),
+            h: Math.max(60, Number(m.h) || 420),
+            start: Math.max(0, Number(m.start) || 0),
+            dur: Math.max(0, Number(m.dur) || 0),
+            loop: !!m.loop,
+            end: Math.max(0, Number(m.end) || 0),
+          }))
+        : (s.chart ? [{
+            // migrate the legacy single-chart fields into media[0]
+            name: String(s.chart),
+            x: Number(s.chart_x) || (s.chart_align === "left" ? 80
+               : s.chart_align === "center" ? 365 : 650),
+            y: Number(s.chart_y) || 80,
+            w: Math.max(80, Number(s.chart_w) || 550),
+            h: Math.max(60, Number(s.chart_h) || 420),
+            start: Math.max(0, Number(s.chart_start) || 0),
+            dur: Math.max(0, Number(s.chart_dur) || 0),
+            loop: !!s.chart_loop,
+            end: 0,
+          }] : []),
       text: typeof s.text === "string" ? s.text : "",
       bg: s.bg || s.background || "",
       duration: Math.max(0.5, Number(s.duration) || 3.0),
@@ -155,8 +187,7 @@
       {
         pose: "",
         pose_align: "left",
-        chart: "",
-        chart_align: "right",
+        media: [],
         text: "Welcome to the evolutionary gradient-free explainer!",
         duration: 3.0,
         transition: "fade",
@@ -164,6 +195,15 @@
       }
     ];
   }
+
+  // heal decks whose media was assigned before duration probing worked
+  slides.forEach((sl) => {
+    mediaItems(sl).forEach((m) => {
+      if (m.name && !m.dur && /\.(mp4|webm|mov|gif)$/i.test(m.name)) {
+        refreshMediaDur(sl, m);
+      }
+    });
+  });
 
   // Load Library Data
   async function loadLibrary() {
@@ -300,10 +340,7 @@
       });
       card.querySelector('[data-a="use"]').addEventListener("click", () => {
         if (activeIndex < 0) { alert("Select a slide first."); return; }
-        slides[activeIndex].chart = name;
-        $("slide-chart").value = name;
-        refreshChartDur(slides[activeIndex]);
-        saveSlides(); renderPreview(); renderSlideList();
+        addMediaToSlide(slides[activeIndex], name);
       });
       const muteBtn = card.querySelector('[data-a="mute"]');
       if (muteBtn) {
@@ -328,6 +365,18 @@
       }
       box.appendChild(card);
     });
+  }
+
+  function addMediaToSlide(slide, name) {
+    // slides can carry MULTIPLE charts/videos; each add appends an item
+    // with its own position, size, start, loop, and vanish time
+    slide.media = slide.media || [];
+    const n = slide.media.length;
+    const item = { name: name, x: Math.max(80, 650 - n * 24), y: 80 + n * 24,
+                   w: 550, h: 420, start: 0, dur: 0, loop: false, end: 0 };
+    slide.media.push(item);
+    refreshMediaDur(slide, item);
+    saveSlides(); renderPreview(); renderSlideList(); renderMediaTimeline();
   }
 
   function chartHref(name) {
@@ -374,12 +423,7 @@
       card.innerHTML = `<img src="/api/video/file/${encodeURIComponent(chartName)}" /><span>${chartName}</span>`;
       card.addEventListener("click", () => {
         if (activeIndex >= 0) {
-          slides[activeIndex].chart = chartName;
-          refreshChartDur(slides[activeIndex]);
-          $("slide-chart").value = chartName;
-          saveSlides();
-          renderPreview();
-          // Update mini preview
+          addMediaToSlide(slides[activeIndex], chartName);
           const chartMini = $("slide-chart-preview-mini");
           const chartCont = $("slide-chart-preview-container");
           chartMini.src = `/api/video/file/${encodeURIComponent(chartName)}`;
@@ -406,10 +450,7 @@
       else {
         await loadLibrary();
         if (activeIndex >= 0) {
-          slides[activeIndex].chart = res.name;
-          $("slide-chart").value = res.name;
-          saveSlides();
-          renderPreview();
+          addMediaToSlide(slides[activeIndex], res.name);
         }
       }
     } catch (e) {
@@ -454,7 +495,8 @@
     const poseImg = slide.pose
       ? `<img class="sld-pose" src="/api/poses/${encodeURIComponent(slide.pose)}" draggable="false" />`
       : "";
-    const chartDot = slide.chart ? '<span class="sld-dot" title="has chart"></span>' : "";
+    const chartDot = (slide.media && slide.media.length)
+      ? `<span class="sld-dot" title="${slide.media.length} media item(s)"></span>` : "";
     const audDot = (slide.clips && slide.clips.length)
       ? `<span class="sld-dot" style="background:#7ee787; right: 12px;" title="${slide.clips.length} audio clip(s)"></span>`
       : "";
@@ -590,8 +632,7 @@
 
     const slide = slides[idx];
     $("slide-pose").value = slide.pose || "";
-    $("slide-chart").value = slide.chart || "";
-    $("slide-chart-align").value = slide.chart_align || "right";
+    $("slide-chart").value = "";
     $("slide-text").value = slide.text || "";
     $("slide-duration").value = slide.duration;
     $("slide-transition").value = slide.transition || "none";
@@ -610,8 +651,9 @@
 
     const chartMini = $("slide-chart-preview-mini");
     const chartCont = $("slide-chart-preview-container");
-    if (slide.chart) {
-      chartMini.src = chartHref(slide.chart);
+    const firstMedia = (slide.media || [])[0];
+    if (firstMedia) {
+      chartMini.src = chartHref(firstMedia.name);
       chartCont.style.display = "block";
     } else {
       chartCont.style.display = "none";
@@ -645,26 +687,26 @@
     }
   });
   $("slide-chart").addEventListener("change", (e) => {
-    if (activeIndex >= 0) {
-      slides[activeIndex].chart = e.target.value;
-      saveSlides();
-      renderPreview();
-      // Update mini preview
+    // the select is now an ADD control: each pick appends another media
+    // item to the slide (manage/remove them in the media timeline)
+    if (activeIndex >= 0 && e.target.value) {
+      addMediaToSlide(slides[activeIndex], e.target.value);
       const chartMini = $("slide-chart-preview-mini");
       const chartCont = $("slide-chart-preview-container");
-      if (e.target.value) {
-        chartMini.src = chartHref(e.target.value);
-        chartCont.style.display = "block";
-      } else {
-        chartCont.style.display = "none";
-      }
+      chartMini.src = chartHref(e.target.value);
+      chartCont.style.display = "block";
+      e.target.value = "";
     }
   });
-  $("slide-chart").addEventListener("change", () => {
-    if (activeIndex >= 0) refreshChartDur(slides[activeIndex]);
-  });
   $("slide-chart-align").addEventListener("change", (e) => {
-    if (activeIndex >= 0) { slides[activeIndex].chart_align = e.target.value; saveSlides(); renderPreview(); }
+    // align presets nudge the most recently added media item
+    if (activeIndex < 0) return;
+    const ms = slides[activeIndex].media || [];
+    const m = ms[ms.length - 1];
+    if (!m) return;
+    m.x = e.target.value === "left" ? 80
+        : e.target.value === "center" ? Math.round((1280 - m.w) / 2) : 650;
+    saveSlides(); renderPreview();
   });
   $("slide-text").addEventListener("input", (e) => {
     if (activeIndex >= 0) { slides[activeIndex].text = e.target.value; saveSlides(); renderPreview(); }
@@ -705,10 +747,7 @@
       pose_align: r.pose_align || "left",
       pose_x: r.pose_x,
       pose_y: r.pose_y,
-      chart: r.chart || "",
-      chart_align: r.chart_align || "right",
-      chart_x: r.chart_x,
-      chart_y: r.chart_y,
+      media: JSON.parse(JSON.stringify(r.media || [])),
       text: caption || "",
       duration: 3.0,
       transition: "fade",
@@ -744,15 +783,7 @@
     if (activeIndex < 0) return;
     const s = slides[activeIndex];
     slides.forEach((sl) => {
-      sl.chart = s.chart;
-      sl.chart_align = s.chart_align;
-      sl.chart_x = s.chart_x;
-      sl.chart_y = s.chart_y;
-      sl.chart_dur = s.chart_dur;
-      sl.chart_start = s.chart_start;
-      sl.chart_loop = s.chart_loop;
-      sl.chart_w = s.chart_w;
-      sl.chart_h = s.chart_h;
+      sl.media = JSON.parse(JSON.stringify(s.media || []));
     });
     saveSlides();
     renderPreview();
@@ -814,22 +845,22 @@
       
       const g1 = document.createElementNS("http://www.w3.org/2000/svg", "g");
       g1.setAttribute("opacity", 1.0 - alpha);
-      g1.innerHTML = makeSlideGroup(r.slide);
-      
+      g1.innerHTML = makeSlideGroup(r.slide, currentTime - r.start);
+
       const g2 = document.createElementNS("http://www.w3.org/2000/svg", "g");
       g2.setAttribute("opacity", alpha);
-      g2.innerHTML = makeSlideGroup(nextR.slide);
-      
+      g2.innerHTML = makeSlideGroup(nextR.slide, 0);
+
       stage.appendChild(g1);
       stage.appendChild(g2);
     } else {
-      stage.innerHTML = makeSlideGroup(r.slide);
-      
+      stage.innerHTML = makeSlideGroup(r.slide, currentTime - r.start);
+
       if (tempGhosts && activeIndex === ghostIndex) {
         if (!r.slide.pose && tempGhosts.pose) {
           stage.appendChild(makeGhostGroup(tempGhosts.pose, tempGhosts.pose_align, "keep-pose"));
         }
-        if (!r.slide.chart && tempGhosts.chart) {
+        if (!(r.slide.media || []).length && tempGhosts.chart) {
           stage.appendChild(makeGhostGroup(tempGhosts.chart, tempGhosts.chart_align, "keep-chart"));
         }
       }
@@ -861,10 +892,11 @@
       out.push(`<image href="/api/poses/${encodeURIComponent(assetName)}" x="${px}" y="${py}" width="${pw}" height="${ph}" preserveAspectRatio="xMidYMid meet"/>`);
     } else {
       let chx = 650, chy = 80;
-      const cw = Number(slide.chart_w) || 550, ch = Number(slide.chart_h) || 420;
-      if (prevSlide.chart_x !== undefined && prevSlide.chart_y !== undefined) {
-        chx = prevSlide.chart_x;
-        chy = prevSlide.chart_y;
+      const cw = 550, ch = 420;
+      const pm = (prevSlide.media || [])[0];
+      if (pm) {
+        chx = pm.x;
+        chy = pm.y;
       } else {
         if (align === "left") chx = 80;
         else if (align === "center") chx = (w - cw) / 2;
@@ -891,9 +923,10 @@
     return wrapper;
   }
 
-  function makeSlideGroup(s) {
+  function makeSlideGroup(s, localT) {
     let out = [];
     const w = 1280, h = 720;
+    const t = Number(localT) || 0;
     
     // Pose
     if (s.pose) {
@@ -913,24 +946,19 @@
       }
     }
 
-    // Chart
-    if (s.chart) {
-      const align = s.chart_align || "right";
-      let cx = 650, cy = 80;
-      const cw = Number(s.chart_w) || 550, ch = Number(s.chart_h) || 420;
-      if (s.chart_x !== undefined && s.chart_y !== undefined) {
-        cx = s.chart_x;
-        cy = s.chart_y;
-      } else {
-        if (align === "left") cx = 80;
-        else if (align === "center") cx = (w - cw) / 2;
-      }
-      
-      if (align !== "none" || s.chart_x !== undefined) {
-        out.push(`<image href="${chartHref(s.chart)}" x="${cx}" y="${cy}" width="${cw}" height="${ch}" data-drag="chart" style="cursor: move;" preserveAspectRatio="xMidYMid meet"/>`);
-        out.push(`<rect x="${cx + cw - 14}" y="${cy + ch - 14}" width="16" height="16" rx="3" fill="#4ea1ff" fill-opacity="0.85" data-drag="chart-resize" style="cursor: nwse-resize;"/>`);
-      }
-    }
+    // Media items (multiple charts/videos per slide, each with its own
+    // visibility window). While EDITING (paused) an item outside its
+    // window still shows at low opacity so it stays selectable/dragable.
+    (s.media || []).forEach((m, mi) => {
+      if (!m.name) return;
+      const vis = mediaVisible(m, t);
+      if (!vis && (typeof isPlaying !== "undefined" && isPlaying)) return;
+      const op = vis ? "" : ' opacity="0.3"';
+      out.push(`<g${op}>` +
+        `<image href="${chartHref(m.name)}" x="${m.x}" y="${m.y}" width="${m.w}" height="${m.h}" data-drag="media" data-mi="${mi}" style="cursor: move;" preserveAspectRatio="xMidYMid meet"/>` +
+        `<rect x="${m.x + m.w - 14}" y="${m.y + m.h - 14}" width="16" height="16" rx="3" fill="#4ea1ff" fill-opacity="0.85" data-drag="media-resize" data-mi="${mi}" style="cursor: nwse-resize;"/>` +
+        `</g>`);
+    });
 
     // CC Text - word-wrapped to the box, box grows with the lines
     if (s.text) {
@@ -965,36 +993,42 @@
   }
 
   // Player controls
-  // live video overlay: the stage SVG shows a static thumb for video
-  // charts; during preview an HTML <video> is positioned over the stage
-  // at the chart's exact box and kept in sync with the deck clock
-  let stageVideo = null;
+  // live video overlays: the stage SVG shows static thumbs for video
+  // media; during preview a POOL of HTML <video> elements is positioned
+  // over the stage (one per concurrently visible video) and kept in
+  // sync with the deck clock
+  let stagePool = [];
 
-  function ensureStageVideo() {
-    if (stageVideo) return stageVideo;
-    const wrap = $("slides-stage").parentElement;
-    stageVideo = document.createElement("video");
-    stageVideo.muted = true;                 // narration owns the audio
-    stageVideo.playsInline = true;
-    stageVideo.style.position = "absolute";
-    stageVideo.style.display = "none";
-    stageVideo.style.objectFit = "contain";
-    stageVideo.style.pointerEvents = "none";
-    wrap.appendChild(stageVideo);
-    return stageVideo;
+  function stageVideoEl(k) {
+    while (stagePool.length <= k) {
+      const wrap = $("slides-stage").parentElement;
+      const v = document.createElement("video");
+      v.muted = true;                 // narration owns the audio
+      v.playsInline = true;
+      v.style.position = "absolute";
+      v.style.display = "none";
+      v.style.objectFit = "contain";
+      v.style.pointerEvents = "none";
+      wrap.appendChild(v);
+      stagePool.push(v);
+    }
+    return stagePool[k];
   }
 
-  function hideStageVideo() {
-    if (stageVideo) {
-      stageVideo.pause();
-      stageVideo.style.display = "none";
-      stageVideo.dataset.src = "";
-      stageVideo.removeAttribute("src");
+  function hideStageVideos(from) {
+    for (let i = from || 0; i < stagePool.length; i++) {
+      const v = stagePool[i];
+      if (!v.paused) v.pause();
+      v.style.display = "none";
+      v.dataset.src = "";
+      v.removeAttribute("src");
     }
   }
+  function hideStageVideo() { hideStageVideos(0); }
 
   function syncStageVideo(t) {
-    // t = deck time; find the active slide and place/seek the overlay
+    // t = deck time; find the active slide and drive one overlay per
+    // visible video item
     let curr = 0;
     let slide = null;
     let localT = 0;
@@ -1003,22 +1037,7 @@
       if (t < curr + d) { slide = s; localT = t - curr; break; }
       curr += d;
     }
-    if (!slide || !slide.chart || !/\.(mp4|webm|mov)$/i.test(slide.chart)
-        || !(Number(slide.chart_dur) > 0)) { hideStageVideo(); return; }
-    const start = Number(slide.chart_start) || 0;
-    const d = Number(slide.chart_dur);
-    let mt = localT - start;
-    if (mt < 0) { hideStageVideo(); return; }        // poster shows in SVG
-    if (slide.chart_loop) mt = mt % d;
-    else if (mt >= d) mt = d - 0.05;                  // hold last frame
-    const v = ensureStageVideo();
-    const url = `/api/video/file/${encodeURIComponent(slide.chart)}`;
-    if (v.dataset.src !== url) {
-      v.dataset.src = url;
-      v.src = url;
-      v.loop = !!slide.chart_loop;
-    }
-    // position: map viewBox (1280x720) coords to the stage's CSS box
+    if (!slide) { hideStageVideos(0); return; }
     const stage = $("slides-stage");
     const wrap = stage.parentElement;
     const sr = stage.getBoundingClientRect();
@@ -1026,23 +1045,32 @@
     const scale = Math.min(sr.width / 1280, sr.height / 720);
     const ox = (sr.width - 1280 * scale) / 2 + (sr.left - wr.left);
     const oy = (sr.height - 720 * scale) / 2 + (sr.top - wr.top);
-    const cw = Number(slide.chart_w) || 550, ch = Number(slide.chart_h) || 420;
-    let cx = 650, cy = 80;
-    if (slide.chart_x !== undefined && slide.chart_x !== null && slide.chart_x !== 0) cx = Number(slide.chart_x);
-    if (slide.chart_y !== undefined && slide.chart_y !== null && slide.chart_y !== 0) cy = Number(slide.chart_y);
-    else {
-      const align = slide.chart_align || "right";
-      if (align === "left") cx = 80;
-      else if (align === "center") cx = (1280 - cw) / 2;
-    }
-    v.style.left = (ox + cx * scale) + "px";
-    v.style.top = (oy + cy * scale) + "px";
-    v.style.width = (cw * scale) + "px";
-    v.style.height = (ch * scale) + "px";
-    v.style.display = "block";
-    if (Math.abs((v.currentTime || 0) - mt) > 0.3) v.currentTime = mt;
-    if (isPlaying && v.paused) v.play().catch(() => {});
-    if (!isPlaying && !v.paused) v.pause();
+    let k = 0;
+    (slide.media || []).forEach((m) => {
+      const d = Number(m.dur) || 0;
+      if (!m.name || !/\.(mp4|webm|mov)$/i.test(m.name) || !d) return;
+      if (!mediaVisible(m, localT)) return;
+      let mt = localT - (Number(m.start) || 0);
+      if (mt < 0) return;
+      if (m.loop) mt = mt % d;
+      else if (mt >= d) mt = d - 0.05;               // hold last frame
+      const v = stageVideoEl(k++);
+      const url = `/api/video/file/${encodeURIComponent(m.name)}`;
+      if (v.dataset.src !== url) {
+        v.dataset.src = url;
+        v.src = url;
+      }
+      v.loop = !!m.loop;
+      v.style.left = (ox + m.x * scale) + "px";
+      v.style.top = (oy + m.y * scale) + "px";
+      v.style.width = (m.w * scale) + "px";
+      v.style.height = (m.h * scale) + "px";
+      v.style.display = "block";
+      if (Math.abs((v.currentTime || 0) - mt) > 0.3) v.currentTime = mt;
+      if (isPlaying && v.paused) v.play().catch(() => {});
+      if (!isPlaying && !v.paused) v.pause();
+    });
+    hideStageVideos(k);
   }
 
   // preview audio: WebAudio players so multi-cut clips play SEAMLESSLY
@@ -1170,7 +1198,7 @@
     $("player-play").textContent = "Play";
     if (playerAnimFrame) cancelAnimationFrame(playerAnimFrame);
     stopPreviewAudio();
-    if (stageVideo && !stageVideo.paused) stageVideo.pause();
+    stagePool.forEach((v) => { if (!v.paused) v.pause(); });
   }
 
   $("player-prev").addEventListener("click", () => {
@@ -1219,12 +1247,14 @@
       saveSlides();
       renderPreview();
     } else if (action === "keep-chart") {
-      slides[activeIndex].chart = tempGhosts.chart;
-      slides[activeIndex].chart_align = tempGhosts.chart_align;
-      slides[activeIndex].chart_x = tempGhosts.chart_x;
-      slides[activeIndex].chart_y = tempGhosts.chart_y;
-      $("slide-chart").value = tempGhosts.chart;
-      $("slide-chart-align").value = tempGhosts.chart_align;
+      const gsl = slides[activeIndex];
+      gsl.media = gsl.media || [];
+      const gItem = { name: tempGhosts.chart,
+        x: Number(tempGhosts.chart_x) || 650,
+        y: Number(tempGhosts.chart_y) || 80,
+        w: 550, h: 420, start: 0, dur: 0, loop: false, end: 0 };
+      gsl.media.push(gItem);
+      refreshMediaDur(gsl, gItem);
       
       const chartMini = $("slide-chart-preview-mini");
       const chartCont = $("slide-chart-preview-container");
@@ -1238,6 +1268,7 @@
   });
 
   let dragItem = null;
+  let dragMi = -1;
   let dragStartPos = { x: 0, y: 0 };
   let itemStartPos = { x: 0, y: 0 };
   
@@ -1270,19 +1301,12 @@
         else if (align === "center") curX = 415;
       }
       itemStartPos = { x: curX, y: curY };
-    } else if (dragItem === "chart") {
-      let curX = slide.chart_x;
-      let curY = slide.chart_y;
-      if (curX === undefined || curY === undefined) {
-        const align = slide.chart_align || "right";
-        curX = 650; curY = 80;
-        if (align === "left") curX = 80;
-        else if (align === "center") curX = 365;
-      }
-      itemStartPos = { x: curX, y: curY };
-    } else if (dragItem === "chart-resize") {
-      itemStartPos = { w: Number(slide.chart_w) || 550,
-                       h: Number(slide.chart_h) || 420 };
+    } else if (dragItem === "media" || dragItem === "media-resize") {
+      dragMi = Number(item.dataset.mi);
+      const m = (slide.media || [])[dragMi];
+      if (!m) { dragItem = null; return; }
+      itemStartPos = dragItem === "media"
+        ? { x: m.x, y: m.y } : { w: m.w, h: m.h };
     }
     
     const moveHandler = (ev) => {
@@ -1296,12 +1320,18 @@
       if (dragItem === "pose") {
         slideToEdit.pose_x = itemStartPos.x + dx;
         slideToEdit.pose_y = itemStartPos.y + dy;
-      } else if (dragItem === "chart") {
-        slideToEdit.chart_x = itemStartPos.x + dx;
-        slideToEdit.chart_y = itemStartPos.y + dy;
-      } else if (dragItem === "chart-resize") {
-        slideToEdit.chart_w = Math.max(80, Math.round(itemStartPos.w + dx));
-        slideToEdit.chart_h = Math.max(60, Math.round(itemStartPos.h + dy));
+      } else if (dragItem === "media") {
+        const m = (slideToEdit.media || [])[dragMi];
+        if (m) {
+          m.x = Math.round(itemStartPos.x + dx);
+          m.y = Math.round(itemStartPos.y + dy);
+        }
+      } else if (dragItem === "media-resize") {
+        const m = (slideToEdit.media || [])[dragMi];
+        if (m) {
+          m.w = Math.max(80, Math.round(itemStartPos.w + dx));
+          m.h = Math.max(60, Math.round(itemStartPos.h + dy));
+        }
       }
       renderPreview();
     };
@@ -1623,84 +1653,117 @@
     refresh();
   }
 
-  // ---- MEDIA TIMELINE: when the slide's video/gif starts + loop ------
+  // ---- MEDIA TIMELINE: one row per media item - when it appears, if
+  // it loops, and when it vanishes so another item can take its place
   function renderMediaTimeline() {
     const panel = $("media-tl");
     if (!panel) return;
     if (activeIndex < 0 || !slides[activeIndex]) { panel.style.display = "none"; return; }
     const slide = slides[activeIndex];
-    const d = Number(slide.chart_dur) || 0;
-    if (!slide.chart || !d) { panel.style.display = "none"; return; }
+    const items = slide.media || [];
+    if (!items.length) { panel.style.display = "none"; return; }
     panel.style.display = "block";
     const total = effDur(slide);
-    const start = Math.min(Number(slide.chart_start) || 0, Math.max(0, total - 0.1));
-    const track = $("media-track");
-    const info = $("media-info");
-    $("media-loop").checked = !!slide.chart_loop;
-    track.innerHTML = "";
-    // play window span(s)
-    const mk = (a, b, cls) => {
-      const sp = document.createElement("div");
-      sp.className = cls;
-      sp.style.left = (a / total * 100) + "%";
-      sp.style.width = (Math.max(0, Math.min(b, total) - a) / total * 100) + "%";
-      track.appendChild(sp);
-    };
-    if (slide.chart_loop) {
-      for (let t0 = start, k = 0; t0 < total && k < 40; t0 += d, k++) {
-        mk(t0, t0 + d, "media-span" + (k > 0 ? " media-span-loop" : ""));
-      }
-    } else {
-      mk(start, start + d, "media-span");
-    }
-    // draggable start handle
-    const hd = document.createElement("div");
-    hd.className = "media-handle";
-    hd.style.left = (start / total * 100) + "%";
-    hd.title = "drag: when the media starts";
-    track.appendChild(hd);
-    info.textContent = `${slide.chart} - starts at ${start.toFixed(1)}s` +
-      (slide.chart_loop ? `, loops every ${d.toFixed(1)}s`
-                        : `, plays ${d.toFixed(1)}s (ends ${(start + d).toFixed(1)}s)`);
-    // drag WITHOUT rebuilding the DOM (a rebuild destroys the handle
-    // mid-gesture and kills the drag) - inline updates while moving,
-    // full re-render on release
-    hd.addEventListener("pointerdown", (ev) => {
-      ev.preventDefault();
-      ev.stopPropagation();
-      const move = (e2) => {
-        const r = track.getBoundingClientRect();
-        const t = Math.max(0, Math.min(total - 0.1,
-          (e2.clientX - r.left) / r.width * total));
-        slide.chart_start = Math.round(t * 10) / 10;
-        hd.style.left = (slide.chart_start / total * 100) + "%";
-        const first = track.querySelector(".media-span");
-        if (first) first.style.left = hd.style.left;
-        info.textContent = `${slide.chart} - starts at ` +
-          `${slide.chart_start.toFixed(1)}s`;
+    const box = $("media-rows");
+    box.innerHTML = "";
+    items.forEach((m, mi) => {
+      const d = Number(m.dur) || 0;
+      const geom = () => {
+        const s2 = Math.min(Number(m.start) || 0, Math.max(0, total - 0.1));
+        const eAuto = (m.loop || !d) ? total : Math.min(total, s2 + d);
+        const e2 = Number(m.end) > 0 ? Math.min(Number(m.end), total) : eAuto;
+        return { s: s2, e: Math.max(e2, s2) };
       };
-      const up = () => {
-        window.removeEventListener("pointermove", move);
-        window.removeEventListener("pointerup", up);
-        saveSlides();
-        renderMediaTimeline(); renderSlideList(); updateScrubMax();
-        renderPreview();
+
+      const row = document.createElement("div");
+      row.className = "media-row";
+      const head = document.createElement("div");
+      head.className = "media-row-head";
+      head.innerHTML =
+        `<span class="media-name" title="${m.name}">${m.name}</span>` +
+        `<label><input type="checkbox" ${m.loop ? "checked" : ""} data-mi="${mi}" class="media-loop-cb" /> loop</label>` +
+        `<span class="media-row-info"></span>` +
+        `<button class="sld-act sld-del media-rm" data-mi="${mi}" title="remove from slide">&times;</button>`;
+      row.appendChild(head);
+
+      const track = document.createElement("div");
+      track.className = "media-track";
+      const span = document.createElement("div");
+      span.className = "media-span" + (m.loop ? " media-span-loop" : "");
+      track.appendChild(span);
+      const hs = document.createElement("div");
+      hs.className = "media-handle";
+      hs.title = "drag: when this media appears";
+      track.appendChild(hs);
+      const he = document.createElement("div");
+      he.className = "media-handle media-handle-end";
+      he.title = "drag: when it vanishes (far right = until slide end)";
+      track.appendChild(he);
+      row.appendChild(track);
+      box.appendChild(row);
+
+      const info = head.querySelector(".media-row-info");
+      const paint = () => {
+        const g = geom();
+        hs.style.left = (g.s / total * 100) + "%";
+        he.style.left = (g.e / total * 100) + "%";
+        span.style.left = (g.s / total * 100) + "%";
+        span.style.width = (Math.max(0, g.e - g.s) / total * 100) + "%";
+        const endTxt = Number(m.end) > 0 ? `vanishes ${Number(m.end).toFixed(1)}s`
+          : (m.loop || !d ? "until slide end"
+                          : `ends ${Math.min(total, g.s + d).toFixed(1)}s`);
+        info.textContent = `in ${g.s.toFixed(1)}s, ${endTxt}` +
+          (d ? `, runtime ${d.toFixed(1)}s` : "");
       };
-      window.addEventListener("pointermove", move);
-      window.addEventListener("pointerup", up);
-    });
-    track.addEventListener("pointerdown", (ev) => {
-      if (ev.target !== track) return;
-      const r = track.getBoundingClientRect();
-      slide.chart_start = Math.round(Math.max(0, Math.min(total - 0.1,
-        (ev.clientX - r.left) / r.width * total)) * 10) / 10;
-      saveSlides(); renderMediaTimeline(); renderSlideList(); updateScrubMax();
+      paint();
+
+      // drag WITHOUT rebuilding the DOM (a rebuild destroys the handle
+      // mid-gesture) - inline paint while moving, full re-render on release
+      const dragHandle = (hd, apply) => {
+        hd.addEventListener("pointerdown", (ev) => {
+          ev.preventDefault();
+          ev.stopPropagation();
+          const move = (e2) => {
+            const r = track.getBoundingClientRect();
+            const t = Math.max(0, Math.min(total,
+              (e2.clientX - r.left) / r.width * total));
+            apply(Math.round(t * 10) / 10);
+            paint();
+          };
+          const up = () => {
+            window.removeEventListener("pointermove", move);
+            window.removeEventListener("pointerup", up);
+            saveSlides();
+            renderMediaTimeline(); renderSlideList(); updateScrubMax();
+            renderPreview();
+          };
+          window.addEventListener("pointermove", move);
+          window.addEventListener("pointerup", up);
+        });
+      };
+      dragHandle(hs, (t) => {
+        m.start = Math.min(t, Math.max(0, total - 0.1));
+      });
+      dragHandle(he, (t) => {
+        // dragging to the far right resets to auto (until slide end)
+        m.end = t >= total - 0.05 ? 0
+          : Math.max(t, (Number(m.start) || 0) + 0.1);
+      });
     });
   }
 
-  $("media-loop").addEventListener("change", (e) => {
-    if (activeIndex < 0) return;
-    slides[activeIndex].chart_loop = e.target.checked;
+  $("media-rows").addEventListener("change", (ev) => {
+    if (!ev.target.classList.contains("media-loop-cb") || activeIndex < 0) return;
+    const m = (slides[activeIndex].media || [])[Number(ev.target.dataset.mi)];
+    if (!m) return;
+    m.loop = ev.target.checked;
+    saveSlides(); renderMediaTimeline(); renderSlideList(); updateScrubMax();
+    renderPreview();
+  });
+  $("media-rows").addEventListener("click", (ev) => {
+    const btn = ev.target.closest(".media-rm");
+    if (!btn || activeIndex < 0) return;
+    (slides[activeIndex].media || []).splice(Number(btn.dataset.mi), 1);
     saveSlides(); renderMediaTimeline(); renderSlideList(); updateScrubMax();
     renderPreview();
   });
@@ -1947,9 +2010,10 @@
       slide_fields: {
         pose: "pose image filename from your poses library (blank = none)",
         pose_x: "x position on the 1280x720 stage", pose_y: "y position",
-        chart: "library image or video filename to embed (blank = none)",
+        chart: "library image or video filename to embed (blank = none; legacy single-item form)",
         chart_x: "x", chart_y: "y", chart_w: "width", chart_h: "height",
         chart_start: "seconds into the slide the video starts", chart_loop: "true = loop the video",
+        media: "OR a list of items for multiple charts/videos: [{name, x, y, w, h, start, loop, end}] - end 0 = until slide end, otherwise the item vanishes at that second",
         script: "what you (or ElevenLabs) say on this slide - also becomes the CC caption",
         duration: "minimum seconds on screen (audio/media can extend it)",
         transition: "none | fade", transition_dur: "crossfade seconds",
@@ -1985,6 +2049,7 @@
   function slideFromTemplate(t) {
     return sanitizeSlide({
       pose: t.pose || "", pose_x: Number(t.pose_x) || 0, pose_y: Number(t.pose_y) || 0,
+      media: Array.isArray(t.media) ? t.media : undefined,
       chart: t.chart || "", chart_x: Number(t.chart_x) || 0, chart_y: Number(t.chart_y) || 0,
       chart_w: Number(t.chart_w) || 550, chart_h: Number(t.chart_h) || 420,
       chart_start: Number(t.chart_start) || 0, chart_loop: !!t.chart_loop,
@@ -2015,7 +2080,7 @@
     else slides = slides.concat(built);
     saveSlides();
     selectSlide(slides.length - built.length);
-    built.forEach((sl) => { if (sl.chart) refreshChartDur(sl); });
+    built.forEach((sl) => { mediaItems(sl).forEach((m) => refreshMediaDur(sl, m)); });
     status.textContent = `built ${built.length} slide(s)`;
 
     if ($("tmpl-tts").checked) {

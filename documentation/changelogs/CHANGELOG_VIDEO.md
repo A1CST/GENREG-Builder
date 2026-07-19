@@ -9,6 +9,34 @@ the top of the log below, and also in the master CHANGELOG.md.
 
 ---
 
+- **[2026-07-19] (Claude)** — **VIDEO: multiple charts/videos per slide
+  with visibility windows (user's call - "slides can and will have
+  multiple charts or videos... control when they start, if they loop,
+  and when they should vanish so another can replace them").** Data
+  model: singular `chart_*` fields replaced by `slide.media = [{name,
+  x, y, w, h, start, dur, loop, end}]`; legacy decks and templates
+  auto-migrate on load (sanitizeSlide client-side, `_slide_media()`
+  server-side) - nothing breaks, old JSON template fields still work,
+  and templates may now pass a `media` list directly. Every add action
+  (library click, video "Use on slide", upload, the editor select, ghost
+  accept) now APPENDS an item instead of replacing; each item is
+  independently draggable/resizable on the stage. Visibility: an item is
+  on stage from `start` until `end` (end 0 = auto: until slide end,
+  non-loop video holds its last frame); while paused for editing,
+  out-of-window items show at 30% opacity so they stay selectable. Media
+  timeline is now one row per item: blue start handle, orange vanish
+  handle (drag far right = until slide end), per-item loop checkbox,
+  remove button. Preview uses a POOL of live video overlays (multiple
+  videos play simultaneously). Duration floor: max over non-loop timed
+  items of start+runtime (or explicit vanish if earlier). Renderer
+  mirrors everything: per-item windows, loop modulo, hold-last-frame,
+  frame pre-extraction driven by the union of items. Verified by real
+  render: 8.0s slide with video A (0-4s, vanish) and video B (4s-end,
+  loop) - frame at 2s has content ONLY in A's box (std 40.7 vs 0.0),
+  frame at 6s ONLY in B's box (0.0 vs 40.7); exact 8.0s output. Floor
+  unit tests: vanish 5.0, natural 8.0, loop 0.0. Files:
+  static/slideshow.js, templates/video.html, services/anim_service.py.
+
 - **[2026-07-19] (Claude)** — **VIDEO: explicit slide reorder buttons
   (user's call - drag-to-reorder existed but wasn't reliable enough).**
   Each slide card's hover actions now include move-up / move-down
