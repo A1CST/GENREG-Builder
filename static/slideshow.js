@@ -1856,16 +1856,13 @@
     box.innerHTML = "";
     const rEsc = (txt) => String(txt).replace(/&/g, "&amp;").replace(/</g, "&lt;")
       .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-    const mkOpts = (names, label) =>
-      `<option value="">${label}</option>` +
-      names.map((n) => `<option value="${rEsc(n)}">${rEsc(n)}</option>`).join("");
     if (slide.pose_request && !slide.pose) {
       const preq = document.createElement("div");
       preq.className = "media-req pose-req";
       preq.innerHTML =
         `<span class="media-req-tag" style="color:#4ea1ff;">POSE NEEDED</span>` +
         `<span class="media-req-text">${rEsc(slide.pose_request)}</span>` +
-        `<select class="vd-mini-select pose-req-lib" style="max-width:190px;">${mkOpts(posesList, "from library...")}</select>` +
+        `<button class="runs-btn vd-mini pose-req-lib">From library</button>` +
         `<button class="runs-btn vd-mini pose-req-upload">Upload</button>` +
         `<button class="runs-btn vd-mini pose-req-dismiss" title="clear the request">Dismiss</button>`;
       box.appendChild(preq);
@@ -1876,7 +1873,7 @@
       req.innerHTML =
         `<span class="media-req-tag">MEDIA NEEDED</span>` +
         `<span class="media-req-text">${rEsc(slide.media_request)}</span>` +
-        `<select class="vd-mini-select media-req-lib" style="max-width:190px;">${mkOpts([].concat(chartsList, videosList), "from library...")}</select>` +
+        `<button class="runs-btn vd-mini media-req-lib">From library</button>` +
         `<button class="runs-btn vd-mini media-req-upload">Upload</button>` +
         `<button class="runs-btn vd-mini media-req-dismiss" title="clear the request without uploading">Dismiss</button>`;
       box.appendChild(req);
@@ -1992,14 +1989,6 @@
   $("media-rows").addEventListener("change", (ev) => {
     if (activeIndex < 0) return;
     const cls = ev.target.classList;
-    if (cls.contains("media-req-lib")) {
-      if (ev.target.value) fulfillMediaRequest(slides[activeIndex], ev.target.value);
-      return;
-    }
-    if (cls.contains("pose-req-lib")) {
-      if (ev.target.value) fulfillPoseRequest(slides[activeIndex], ev.target.value);
-      return;
-    }
     const m = (slides[activeIndex].media || [])[Number(ev.target.dataset.mi)];
     if (!m) return;
     if (cls.contains("media-loop-cb")) m.loop = ev.target.checked;
@@ -2020,6 +2009,14 @@
       saveSlides(); renderMediaTimeline(); renderSlideList(); renderPreview();
       return;
     }
+    if (ev.target.classList.contains("media-req-lib")) {
+      openLibraryPicker("media");
+      return;
+    }
+    if (ev.target.classList.contains("pose-req-lib")) {
+      openLibraryPicker("pose");
+      return;
+    }
     if (ev.target.classList.contains("pose-req-upload")) {
       $("pose-req-file").click();
       return;
@@ -2034,6 +2031,93 @@
     (slides[activeIndex].media || []).splice(Number(btn.dataset.mi), 1);
     saveSlides(); renderMediaTimeline(); renderSlideList(); updateScrubMax();
     renderPreview();
+  });
+
+  // ---- LIBRARY PICKER modal: visual thumbnail grid, grouped by
+  // folder, with filter - because a name list means nothing for
+  // unlabeled images ---------------------------------------------------
+  let libPickKind = "media";
+
+  function libPickEntries() {
+    if (libPickKind === "pose") {
+      return posesList.map((p) => ({
+        name: p,
+        folder: p.includes("/") ? p.slice(0, p.lastIndexOf("/")) : "(top level)",
+        thumb: `/api/poses/${encodeURIComponent(p)}`,
+        video: false,
+      }));
+    }
+    return chartsList.map((n) => ({
+      name: n, folder: "images", thumb: `/api/video/file/${encodeURIComponent(n)}`,
+      video: false,
+    })).concat(videosList.map((n) => ({
+      name: n, folder: "videos", thumb: `/api/video/thumb/${encodeURIComponent(n)}`,
+      video: true,
+    })));
+  }
+
+  function renderLibraryPicker() {
+    const body = $("libpick-body");
+    const q = $("libpick-search").value.trim().toLowerCase();
+    const folderSel = $("libpick-folder").value;
+    const entries = libPickEntries().filter((e) =>
+      (!q || e.name.toLowerCase().includes(q)) &&
+      (!folderSel || e.folder === folderSel));
+    const byFolder = {};
+    entries.forEach((e) => {
+      (byFolder[e.folder] = byFolder[e.folder] || []).push(e);
+    });
+    const folders = Object.keys(byFolder).sort();
+    body.innerHTML = "";
+    if (!folders.length) {
+      body.innerHTML = '<div style="color:#5a6672; font-size:12px;">nothing matches</div>';
+      return;
+    }
+    folders.forEach((f) => {
+      const hd = document.createElement("div");
+      hd.className = "lp-folder";
+      hd.textContent = `${f} (${byFolder[f].length})`;
+      body.appendChild(hd);
+      const grid = document.createElement("div");
+      grid.className = "lp-grid";
+      byFolder[f].forEach((e) => {
+        const card = document.createElement("div");
+        card.className = "lp-card";
+        card.dataset.name = e.name;
+        card.title = e.name;
+        card.innerHTML = `<img src="${e.thumb}" loading="lazy" />` +
+          `<span>${e.name.split("/").pop()}</span>`;
+        grid.appendChild(card);
+      });
+      body.appendChild(grid);
+    });
+  }
+
+  function openLibraryPicker(kind) {
+    libPickKind = kind;
+    $("libpick-title").textContent = kind === "pose"
+      ? "Pick a pose from the library" : "Pick media from the library";
+    $("libpick-search").value = "";
+    const fsel = $("libpick-folder");
+    const folders = [...new Set(libPickEntries().map((e) => e.folder))].sort();
+    fsel.innerHTML = '<option value="">all folders</option>' +
+      folders.map((f) => `<option value="${f.replace(/"/g, "&quot;")}">${f}</option>`).join("");
+    $("libpick-overlay").style.display = "block";
+    renderLibraryPicker();
+  }
+
+  $("libpick-close").addEventListener("click", () => {
+    $("libpick-overlay").style.display = "none";
+  });
+  $("libpick-search").addEventListener("input", renderLibraryPicker);
+  $("libpick-folder").addEventListener("change", renderLibraryPicker);
+  $("libpick-body").addEventListener("click", (ev) => {
+    const card = ev.target.closest(".lp-card");
+    if (!card || activeIndex < 0) return;
+    const name = card.dataset.name;
+    if (libPickKind === "pose") fulfillPoseRequest(slides[activeIndex], name);
+    else fulfillMediaRequest(slides[activeIndex], name);
+    $("libpick-overlay").style.display = "none";
   });
 
   // fulfilling a media request: upload lands on the requesting slide at

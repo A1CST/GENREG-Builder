@@ -9,6 +9,16 @@ the top of the log below, and also in the master CHANGELOG.md.
 
 ---
 
+- **[2026-07-19] (Claude)** — **VIDEO: visual library picker modal
+  (user's call - "a list does nothing for me if they aren't named").**
+  The "from library" dropdowns on the MEDIA/POSE NEEDED rows are now a
+  button that opens a thumbnail-grid modal: poses grouped by their
+  actual subfolders under Pictures/poses, media grouped into
+  images/videos (video thumbs via /api/video/thumb). Header has a text
+  filter and a folder dropdown; lazy-loaded thumbs; clicking a card
+  fulfills the request at the gesture position and closes the modal.
+  Files: static/slideshow.js, templates/video.html.
+
 - **[2026-07-19] (Claude)** — **VIDEO: library pickers on prompts +
   POSE NEEDED prompts (user's call).** (1) Both prompt rows in the
   media timeline gain a "from library..." select beside Upload/Dismiss:

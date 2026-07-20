@@ -10,6 +10,11 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-19] (Claude)** — **VIDEO: visual library picker modal** -
+  thumbnail grid grouped by folder (poses use their real subfolders)
+  with filter + folder dropdown, replacing the name-only selects on the
+  MEDIA/POSE NEEDED rows. Details in CHANGELOG_VIDEO.md.
+
 - **[2026-07-19] (Claude)** — **VIDEO: library pickers on prompts +
   POSE NEEDED prompts** - "from library" selects beside Upload/Dismiss
   on both request rows; unresolved/omitted template poses now prompt
