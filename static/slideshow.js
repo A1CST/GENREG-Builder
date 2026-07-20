@@ -173,6 +173,8 @@
             loop: !!s.chart_loop,
             end: 0,
           }] : []),
+      pose_gesture: typeof s.pose_gesture === "string" ? s.pose_gesture : "",
+      media_request: typeof s.media_request === "string" ? s.media_request : "",
       text: typeof s.text === "string" ? s.text : "",
       bg: s.bg || s.background || "",
       duration: Math.max(0.5, Number(s.duration) || 3.0),
@@ -378,6 +380,38 @@
     });
   }
 
+  // Pose gesture vocabulary: a labeled pose (e.g. "Pose-gesture-right")
+  // tells the layout where media belongs - the character gestures AT the
+  // media, so gesture-right = media on the RIGHT, pose on the left.
+  function gestureOf(s) {
+    const g = (s.pose_gesture || s.pose || "").toLowerCase();
+    if (g.includes("gesture-right") || g.includes("point-right")) return "right";
+    if (g.includes("gesture-left") || g.includes("point-left")) return "left";
+    if (g.includes("gesture-up") || g.includes("point-up")) return "up";
+    return "";
+  }
+
+  function gestureMediaPos(g) {
+    if (g === "left") return { x: 80, y: 80 };
+    if (g === "up") return { x: 365, y: 30 };
+    return { x: 650, y: 80 };            // right / default
+  }
+
+  function gesturePosePos(g) {
+    if (g === "left") return { x: 750, y: 80 };   // media left -> pose right
+    return { x: 80, y: 80 };
+  }
+
+  function resolvePoseLabel(label) {
+    // template gave a gesture label instead of a filename: match it
+    // against the (user-labeled) poses library
+    if (!label) return "";
+    if (posesList.includes(label)) return label;
+    const norm = label.toLowerCase().replace(/^pose-/, "");
+    const hit = posesList.find((p) => p.toLowerCase().includes(norm));
+    return hit || "";
+  }
+
   function addMediaToSlide(slide, name) {
     // slides can carry MULTIPLE charts/videos; each add appends an item
     // with its own position, size, start, loop, and vanish time
@@ -508,6 +542,8 @@
       : "";
     const chartDot = (slide.media && slide.media.length)
       ? `<span class="sld-dot" title="${slide.media.length} media item(s)"></span>` : "";
+    const reqDot = (slide.media_request && !(slide.media || []).length)
+      ? '<span class="sld-dot" style="background:#f0a35e; right: 22px;" title="media needed - see the media timeline"></span>' : "";
     const audDot = (slide.clips && slide.clips.length)
       ? `<span class="sld-dot" style="background:#7ee787; right: 12px;" title="${slide.clips.length} audio clip(s)"></span>`
       : "";
@@ -515,7 +551,7 @@
     card.innerHTML =
       `<div class="sld-thumb">${poseImg}` +
       `<span class="sld-num">${idx + 1}</span>` +
-      `<span class="sld-dur">${effDur(slide).toFixed(1)}s</span>${chartDot}${audDot}</div>` +
+      `<span class="sld-dur">${effDur(slide).toFixed(1)}s</span>${chartDot}${reqDot}${audDot}</div>` +
       `<div class="sld-cap">${cap ? "" : '<span class="sld-empty">no caption</span>'}</div>` +
       `<div class="sld-acts">` +
       `<button class="sld-act" data-act="up" data-idx="${idx}" title="move up"${idx === 0 ? " disabled" : ""}>&#9650;</button>` +
@@ -1068,6 +1104,31 @@
         `<rect x="${m.x + m.w - 14}" y="${m.y + m.h - 14}" width="16" height="16" rx="3" fill="#4ea1ff" fill-opacity="0.85" data-drag="media-resize" data-mi="${mi}" style="cursor: nwse-resize;"/>` +
         `</g>`);
     });
+
+    // Media-request placeholder: the template asked for a chart/video
+    // that only the human can supply - show WHERE it goes (per the pose
+    // gesture) and WHAT is needed, until something is uploaded
+    if (s.media_request && !(s.media || []).length) {
+      const gp = gestureMediaPos(gestureOf(s));
+      const rEsc = (txt) => String(txt).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      const words = String(s.media_request).split(/\s+/);
+      const reqLines = [];
+      let cur = "";
+      words.forEach((wd) => {
+        const cand = cur ? cur + " " + wd : wd;
+        if (cand.length > 38 && cur) { reqLines.push(cur); cur = wd; }
+        else cur = cand;
+      });
+      if (cur) reqLines.push(cur);
+      const spans = reqLines.slice(0, 6).map((ln, i) =>
+        `<tspan x="${gp.x + 275}" dy="${i ? 22 : 0}">${rEsc(ln)}</tspan>`).join("");
+      out.push(`<g opacity="0.85">` +
+        `<rect x="${gp.x}" y="${gp.y}" width="550" height="420" rx="10" fill="#10141c" fill-opacity="0.5" stroke="#f0a35e" stroke-width="2" stroke-dasharray="10 8"/>` +
+        `<text x="${gp.x + 275}" y="${gp.y + 170}" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="bold" fill="#f0a35e" text-anchor="middle">MEDIA NEEDED</text>` +
+        `<text x="${gp.x + 275}" y="${gp.y + 205}" font-family="Arial, Helvetica, sans-serif" font-size="16" fill="#c7d0da" text-anchor="middle">${spans}</text>` +
+        `<text x="${gp.x + 275}" y="${gp.y + 390}" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#8b95a1" text-anchor="middle">upload it from the MEDIA TIMELINE panel below</text>` +
+        `</g>`);
+    }
 
     // CC Text - word-wrapped to the box, box grows with the lines
     if (s.text) {
@@ -1772,11 +1833,22 @@
     if (activeIndex < 0 || !slides[activeIndex]) { panel.style.display = "none"; return; }
     const slide = slides[activeIndex];
     const items = slide.media || [];
-    if (!items.length) { panel.style.display = "none"; return; }
+    if (!items.length && !slide.media_request) { panel.style.display = "none"; return; }
     panel.style.display = "block";
     const total = effDur(slide);
     const box = $("media-rows");
     box.innerHTML = "";
+    if (slide.media_request) {
+      const req = document.createElement("div");
+      req.className = "media-req";
+      const rEsc = (txt) => String(txt).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      req.innerHTML =
+        `<span class="media-req-tag">MEDIA NEEDED</span>` +
+        `<span class="media-req-text">${rEsc(slide.media_request)}</span>` +
+        `<button class="runs-btn vd-mini media-req-upload">Upload</button>` +
+        `<button class="runs-btn vd-mini media-req-dismiss" title="clear the request without uploading">Dismiss</button>`;
+      box.appendChild(req);
+    }
     items.forEach((m, mi) => {
       const d = Number(m.dur) || 0;
       const geom = () => {
@@ -1878,11 +1950,47 @@
     renderPreview();
   });
   $("media-rows").addEventListener("click", (ev) => {
+    if (activeIndex < 0) return;
+    if (ev.target.classList.contains("media-req-upload")) {
+      $("media-req-file").click();
+      return;
+    }
+    if (ev.target.classList.contains("media-req-dismiss")) {
+      slides[activeIndex].media_request = "";
+      saveSlides(); renderMediaTimeline(); renderSlideList(); renderPreview();
+      return;
+    }
     const btn = ev.target.closest(".media-rm");
-    if (!btn || activeIndex < 0) return;
+    if (!btn) return;
     (slides[activeIndex].media || []).splice(Number(btn.dataset.mi), 1);
     saveSlides(); renderMediaTimeline(); renderSlideList(); updateScrubMax();
     renderPreview();
+  });
+
+  // fulfilling a media request: upload lands on the requesting slide at
+  // the gesture-implied position and clears the prompt
+  $("media-req-file").addEventListener("change", async (e) => {
+    const file = e.target.files[0];
+    if (!file || activeIndex < 0) return;
+    const slide = slides[activeIndex];
+    const form = new FormData();
+    form.append("file", file);
+    try {
+      const res = await (await fetch("/api/video/upload", {
+        method: "POST", body: form,
+      })).json();
+      if (res.error) throw new Error(res.error);
+      await loadLibrary();
+      addMediaToSlide(slide, res.name);
+      const item = slide.media[slide.media.length - 1];
+      const gp = gestureMediaPos(gestureOf(slide));
+      item.x = gp.x; item.y = gp.y;
+      slide.media_request = "";
+      saveSlides(); renderMediaTimeline(); renderSlideList(); renderPreview();
+    } catch (err) {
+      alert("Upload failed: " + err.message);
+    }
+    e.target.value = "";
   });
 
   $("aud-narrate").addEventListener("click", async () => {
@@ -2124,9 +2232,18 @@
   const DECK_TEMPLATE = {
     _doc: {
       what: "GENREG slide-deck template - build an entire narrated video from JSON",
+      pose_vocabulary: {
+        about: "poses are labeled character images; use a gesture LABEL in the pose field when you do not know the library filenames - the builder matches it against the labeled library and positions everything",
+        "Pose-gesture-right": "character gestures to the right - media goes on the RIGHT half (x~650), pose on the left",
+        "Pose-gesture-left": "character gestures to the left - media goes LEFT (x~80), pose moves to the right",
+        "Pose-gesture-up": "character points up - media goes TOP-CENTER",
+        "Pose-explain": "talking pose, no directional gesture - media anywhere or none",
+        "Pose-neutral": "neutral stance - typically caption-only slides"
+      },
       slide_fields: {
-        pose: "pose image filename from your poses library (blank = none)",
+        pose: "pose image filename from your poses library, OR a gesture label from pose_vocabulary above (blank = none)",
         pose_x: "x position on the 1280x720 stage", pose_y: "y position",
+        media_request: "can't attach a file? DESCRIBE the chart/video this slide needs (e.g. 'bar chart of accuracy per module'). The builder shows it as an on-slide upload prompt for the human, positioned by the pose gesture. Blank = no media needed.",
         chart: "library image or video filename to embed (blank = none; legacy single-item form)",
         chart_x: "x", chart_y: "y", chart_w: "width", chart_h: "height",
         chart_start: "seconds into the slide the video starts", chart_loop: "true = loop the video",
@@ -2138,18 +2255,22 @@
       }
     },
     slides: [
-      { pose: "", pose_x: 80, pose_y: 80,
-        chart: "", chart_x: 650, chart_y: 80, chart_w: 550, chart_h: 420,
-        chart_start: 0, chart_loop: false,
+      { pose: "Pose-neutral", pose_x: 80, pose_y: 80,
+        media_request: "",
         script: "Welcome - this deck was built from a template.",
         duration: 3.0, transition: "fade", transition_dur: 0.5,
         meta: "intro" },
+      { pose: "Pose-gesture-right",
+        media_request: "line chart of accuracy over training generations",
+        script: "As you can see on the chart, accuracy climbs steadily.",
+        duration: 4.0, transition: "fade", transition_dur: 0.5,
+        meta: "the human uploads the chart when loading; it lands on the right because of the gesture" },
       { pose: "", pose_x: 80, pose_y: 80,
         chart: "", chart_x: 400, chart_y: 100, chart_w: 880, chart_h: 500,
         chart_start: 1.0, chart_loop: true,
         script: "Here the animation starts one second in and loops while I talk.",
         duration: 4.0, transition: "fade", transition_dur: 0.5,
-        meta: "demo slide" }
+        meta: "demo slide with a known library file" }
     ]
   };
 
@@ -2164,8 +2285,22 @@
   });
 
   function slideFromTemplate(t) {
+    // pose may be a gesture LABEL rather than a filename: resolve it
+    // against the labeled poses library; keep the label either way so
+    // the gesture keeps steering media placement
+    const rawPose = String(t.pose || "");
+    const resolved = resolvePoseLabel(rawPose);
+    const gesture = gestureOf({ pose: rawPose });
+    let px = Number(t.pose_x) || 0;
+    let py = Number(t.pose_y) || 0;
+    if (!px && !py && gesture) {
+      const pp = gesturePosePos(gesture);
+      px = pp.x; py = pp.y;
+    }
     return sanitizeSlide({
-      pose: t.pose || "", pose_x: Number(t.pose_x) || 0, pose_y: Number(t.pose_y) || 0,
+      pose: resolved, pose_gesture: rawPose,
+      media_request: String(t.media_request || t.chart_request || ""),
+      pose_x: px, pose_y: py,
       media: Array.isArray(t.media) ? t.media : undefined,
       chart: t.chart || "", chart_x: Number(t.chart_x) || 0, chart_y: Number(t.chart_y) || 0,
       chart_w: Number(t.chart_w) || 550, chart_h: Number(t.chart_h) || 420,
