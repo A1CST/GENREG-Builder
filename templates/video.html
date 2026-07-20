@@ -124,6 +124,13 @@
     .media-row-info { font-size: 10px; color: #8b95a1; flex: 1;
       font-family: ui-monospace, monospace; }
     .media-rm { flex: 0 0 auto; }
+    .media-req { display: flex; align-items: center; gap: 10px;
+      margin-top: 9px; padding: 7px 9px; background: rgba(240,163,94,0.08);
+      border: 1px dashed #f0a35e; border-radius: 6px; flex-wrap: wrap; }
+    .media-req-tag { font-size: 10px; color: #f0a35e; font-weight: bold;
+      font-family: ui-monospace, monospace; }
+    .media-req-text { font-size: 11px; color: #c7d0da; flex: 1;
+      min-width: 160px; }
     .slide-thumb-wrap {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
@@ -343,6 +350,7 @@
               <span style="font-size:10px; color:#5a6672;">one row per chart/video - drag the left handle for start, the right one for when it vanishes</span>
             </div>
             <div id="media-rows"></div>
+            <input type="file" id="media-req-file" accept=".png,.jpg,.jpeg,.gif,.webp,.mp4,.webm,.mov" style="display:none;" />
           </div>
         </section>
       </div>

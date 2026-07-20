@@ -9,6 +9,25 @@ the top of the log below, and also in the master CHANGELOG.md.
 
 ---
 
+- **[2026-07-19] (Claude)** — **VIDEO: pose gesture vocabulary + media
+  request prompts in templates (user's call).** The template head now
+  documents a pose_vocabulary (Pose-gesture-right/-left/-up,
+  Pose-explain, Pose-neutral): an AI filling the template can put a
+  gesture LABEL in the pose field instead of a filename; on load the
+  builder matches the label against the user-labeled poses library
+  (substring match) and the gesture steers layout - gesture-right puts
+  media on the right half and the pose on the left, gesture-left
+  mirrors, gesture-up centers media up top. New slide field
+  `media_request`: since the AI can't attach files, it DESCRIBES the
+  chart/video the slide needs; the loaded deck then prompts the human -
+  a dashed amber "MEDIA NEEDED" placeholder on the stage at the
+  gesture-implied spot with the description, an amber dot on the slide
+  card, and a request row in the media timeline with Upload (file lands
+  on that slide at the gesture position and clears the prompt) and
+  Dismiss. Placeholders are preview-only - exports never include them.
+  Sample template updated with a gesture + request slide. Files:
+  static/slideshow.js, templates/video.html.
+
 - **[2026-07-19] (Claude)** — **VIDEO: media fade in/out + global
   looping background (user's call - "vanishing is too abrupt").** (1)
   Each media-timeline row gains "fade in" / "fade out" checkboxes:

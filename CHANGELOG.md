@@ -10,6 +10,12 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-19] (Claude)** — **VIDEO: pose gesture vocabulary + media
+  request prompts** - templates accept gesture labels (matched against
+  the labeled poses library, steering media placement) and a
+  media_request description that becomes an on-stage "MEDIA NEEDED"
+  upload prompt for the human. Details in CHANGELOG_VIDEO.md.
+
 - **[2026-07-19] (Claude)** — **VIDEO: media fade in/out + global
   looping background** - per-item fade checkboxes (0.5s ramps at the
   visibility window edges) and a deck-wide gif/video background that
