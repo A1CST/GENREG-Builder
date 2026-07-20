@@ -9,6 +9,17 @@ the top of the log below, and also in the master CHANGELOG.md.
 
 ---
 
+- **[2026-07-19] (Claude)** — **VIDEO: template fill-out instructions
+  (user's call).** The template head gains a `how_to_fill` section - 8
+  numbered steps covering script-first authoring, gesture labels vs
+  filenames, media vs media_request, that slides can hold MULTIPLE
+  images/videos/gifs, and the rule that multi-item slides must give
+  each item its times (start/end) so items replace instead of stack,
+  plus loop/fade/duration-floor guidance. The `media` field doc now
+  spells out the full item shape incl. fade_in/fade_out, and the sample
+  deck gains a two-item slide (chart fades out at 4s, looping video
+  fades in to replace it). File: static/slideshow.js (DECK_TEMPLATE).
+
 - **[2026-07-19] (Claude)** — **VIDEO: pose gesture vocabulary + media
   request prompts in templates (user's call).** The template head now
   documents a pose_vocabulary (Pose-gesture-right/-left/-up,

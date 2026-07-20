@@ -2232,6 +2232,16 @@
   const DECK_TEMPLATE = {
     _doc: {
       what: "GENREG slide-deck template - build an entire narrated video from JSON",
+      how_to_fill: [
+        "1. Write one entry in `slides` per scene, in playback order. Only `script` is truly required; every other field has a sane default.",
+        "2. `script` is what gets spoken (ElevenLabs) AND shown as the closed caption. Keep each slide to 1-3 sentences; long scripts auto-extend the slide because narration sets a minimum duration.",
+        "3. Pick a pose: use a gesture label from pose_vocabulary (e.g. Pose-gesture-right) when you do not know the library filenames. The gesture also decides which side media goes on.",
+        "4. Media you KNOW exists in the library: reference it in `media` (see below). Media you CANNOT attach: describe it in `media_request` instead - the human gets an on-slide upload prompt at the gesture position.",
+        "5. Slides can hold MULTIPLE images/videos/gifs at once via the `media` list. If you add more than one, GIVE EACH ITEM ITS TIMES: `start` (seconds into the slide it appears) and `end` (seconds when it vanishes; 0 = stays to the end). Stagger them so items replace each other instead of stacking, e.g. item A {start: 0, end: 4}, item B {start: 4, end: 0}.",
+        "6. Per media item you can also set `loop` (true = repeat while visible, good for short gifs), `fade_in` / `fade_out` (0.5s ramps so appearing/vanishing is not abrupt - recommended whenever you set an `end`), and `x, y, w, h` for placement on the 1280x720 stage.",
+        "7. `duration` is a MINIMUM - narration audio and non-looping video runtimes extend the slide automatically, so set the media times to fit the script rather than stretching duration by hand.",
+        "8. Use `transition: 'fade'` with `transition_dur` ~0.5 between scenes; `meta` is your scratch space and is ignored by the builder."
+      ],
       pose_vocabulary: {
         about: "poses are labeled character images; use a gesture LABEL in the pose field when you do not know the library filenames - the builder matches it against the labeled library and positions everything",
         "Pose-gesture-right": "character gestures to the right - media goes on the RIGHT half (x~650), pose on the left",
@@ -2247,7 +2257,7 @@
         chart: "library image or video filename to embed (blank = none; legacy single-item form)",
         chart_x: "x", chart_y: "y", chart_w: "width", chart_h: "height",
         chart_start: "seconds into the slide the video starts", chart_loop: "true = loop the video",
-        media: "OR a list of items for multiple charts/videos: [{name, x, y, w, h, start, loop, end}] - end 0 = until slide end, otherwise the item vanishes at that second",
+        media: "list of items - a slide can hold SEVERAL images/videos/gifs: [{name, x, y, w, h, start, end, loop, fade_in, fade_out}]. When adding multiple, set each item's times: start = seconds into the slide it appears, end = seconds it vanishes (0 = until slide end). loop repeats a video/gif while visible; fade_in/fade_out add 0.5s ramps.",
         script: "what you (or ElevenLabs) say on this slide - also becomes the CC caption",
         duration: "minimum seconds on screen (audio/media can extend it)",
         transition: "none | fade", transition_dur: "crossfade seconds",
@@ -2270,7 +2280,17 @@
         chart_start: 1.0, chart_loop: true,
         script: "Here the animation starts one second in and loops while I talk.",
         duration: 4.0, transition: "fade", transition_dur: 0.5,
-        meta: "demo slide with a known library file" }
+        meta: "demo slide with a known library file" },
+      { pose: "Pose-gesture-right",
+        media: [
+          { name: "intro_chart.png", x: 650, y: 80, w: 550, h: 420,
+            start: 0, end: 4.0, fade_out: true },
+          { name: "results_anim.mp4", x: 650, y: 80, w: 550, h: 420,
+            start: 4.0, end: 0, loop: true, fade_in: true }
+        ],
+        script: "First the static chart, then at four seconds the looping animation takes its place.",
+        duration: 8.0, transition: "fade", transition_dur: 0.5,
+        meta: "multiple media items with times - the chart fades out at 4s and the video fades in to replace it" }
     ]
   };
 

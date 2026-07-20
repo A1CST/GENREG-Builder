@@ -10,6 +10,11 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-19] (Claude)** — **VIDEO: template how_to_fill
+  instructions** - 8-step guide in the template head incl. multi-media
+  slides and per-item timing rules; sample deck gains a two-item timed
+  slide. Details in CHANGELOG_VIDEO.md.
+
 - **[2026-07-19] (Claude)** — **VIDEO: pose gesture vocabulary + media
   request prompts** - templates accept gesture labels (matched against
   the labeled poses library, steering media placement) and a
