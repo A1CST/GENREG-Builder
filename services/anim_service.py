@@ -35,6 +35,7 @@ import re
 import subprocess
 import threading
 import time
+from collections import deque
 
 import video_service
 
@@ -1650,6 +1651,44 @@ def render_slides(slides, out_name="", fps=24, w=1280, h=720, bg=""):
                                      stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
                                      creationflags=video_service.CREATE_NO_WINDOW)
             job["proc"] = proc
+            # DEADLOCK FIX: stderr must be drained WHILE encoding. With
+            # stderr=PIPE unread, ffmpeg's warning chatter (adelay/amix
+            # decks produce plenty) fills the 64KB pipe buffer, ffmpeg
+            # blocks on stderr, stops reading stdin, and the render hangs
+            # forever at ~0% - the reported 131-minute stall
+            err_tail = deque(maxlen=60)
+
+            def _drain():
+                try:
+                    for ln in iter(proc.stderr.readline, b""):
+                        err_tail.append(ln.decode("utf-8", "replace"))
+                except Exception:
+                    pass
+
+            drain_t = threading.Thread(target=_drain, daemon=True,
+                                       name="slides-stderr")
+            drain_t.start()
+
+            # stall watchdog: if no frame lands for 5 minutes, kill the
+            # encoder so the job FAILS VISIBLY instead of sitting forever
+            def _watchdog():
+                last, last_t = -1, time.time()
+                while job["status"] == "running" and proc.poll() is None:
+                    fd = job.get("frames_done", 0)
+                    if fd != last:
+                        last, last_t = fd, time.time()
+                    elif time.time() - last_t > 300:
+                        job["stalled"] = True
+                        try:
+                            proc.kill()
+                        except Exception:
+                            pass
+                        return
+                    time.sleep(5)
+
+            threading.Thread(target=_watchdog, daemon=True,
+                             name="slides-watchdog").start()
+
             for i in range(total):
                 if job.get("cancelled"):
                     break
@@ -1660,15 +1699,21 @@ def render_slides(slides, out_name="", fps=24, w=1280, h=720, bg=""):
                 job["progress"] = (i + 1) / total
                 job["frames_done"] = i + 1
             proc.stdin.close()
-            err = proc.stderr.read().decode("utf-8", "replace")
+            drain_t.join(timeout=120)
             proc.wait()
             job["proc"] = None
+            err = "".join(err_tail)
             if job.get("cancelled"):
                 job.update(status="cancelled", message="cancelled")
                 try:
                     os.unlink(out)
                 except OSError:
                     pass
+            elif job.get("stalled"):
+                job.update(status="error",
+                           message="encoder stalled (no frame for 5 min) - "
+                                   "killed. Last ffmpeg output:\n" +
+                                   "\n".join(err.strip().splitlines()[-6:]))
             elif proc.returncode == 0:
                 job.update(status="done", progress=1.0)
                 video_service.invalidate_meta(os.path.basename(out))

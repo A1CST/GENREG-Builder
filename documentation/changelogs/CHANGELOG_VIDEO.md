@@ -9,6 +9,24 @@ the top of the log below, and also in the master CHANGELOG.md.
 
 ---
 
+- **[2026-07-20] (Claude)** — **VIDEO: export DEADLOCK fixed (user
+  report: stuck at 0.1% for 131 minutes).** Root cause: the encoder ran
+  with stderr=PIPE but nothing read it until after the frame loop -
+  once ffmpeg's warning chatter (the adelay/amix audio graph is chatty)
+  filled the 64KB pipe buffer, ffmpeg blocked writing stderr, stopped
+  reading frames from stdin, and proc.stdin.write() blocked forever:
+  render frozen at ~0% with the process alive. Fix: a drain thread
+  consumes stderr line-by-line into a 60-line tail deque for the whole
+  encode (tail still reported on failure), plus a stall WATCHDOG - if
+  no frame lands for 5 minutes the encoder is killed and the job fails
+  visibly with "encoder stalled... last ffmpeg output" instead of
+  sitting forever. Verified: multi-clip adelay/amix deck renders done
+  in 7.1s with intact AAC audio (21.9s output). NOTE: the stuck job and
+  this fix both live server-side - the accumulated Flask RESTART is
+  required (new shell for the ElevenLabs env var); the stuck job's
+  Cancel button kills its ffmpeg, which also unblocks the frozen write.
+  File: services/anim_service.py.
+
 - **[2026-07-20] (Claude)** — **VIDEO: export tab liveness overhaul
   (user report: "stayed at 0% and i didn't know if it was actually
   doing anything").** Root causes: (a) chart/background frame

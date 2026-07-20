@@ -10,6 +10,42 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-20] (Claude)** — **VIDEO: export deadlock fixed** - the
+  131-minute 0.1% hang was ffmpeg blocking on an unread stderr pipe
+  (audio-graph warning chatter), freezing the frame feed; stderr now
+  drains on a side thread and a 5-minute stall watchdog kills-and-fails
+  visibly. Verified with a multi-clip audio render. Needs the Flask
+  restart. Details in CHANGELOG_VIDEO.md.
+
+- **[2026-07-20] (Claude)** — **REPLICATE module 35 (SHARED OPERATOR
+  SEMANTICS, PRIVATE OPERANDS — user's refinement of the factoring idea):
+  the campaign's efficiency headline. Matches the flat vocabulary's
+  accuracy for ~40-45% of the parameters, and the advantage GROWS with
+  size.** Module 34 factored operator AND arguments and lost 6.6pt
+  (pruning had shown words are independent facts, so an argument codebook
+  strips their freedom to name channels). The user's cut: keep operands
+  fully private (every word names any channels/weights it wants), share
+  ONLY the operator semantics — the sharp/th/p/b that define what "count"
+  or "compare" MEAN, which are properties of the operator, not the fact.
+  A word drops from ~26 genes to ~16; the model carries 4 shared genes
+  per operator (32 total) for the whole vocabulary. Curve, all honestly
+  sized / test-once: 467w 0.7111 @ 7,776p · 927w 0.7424 @ 15,550p ·
+  1,183w 0.7509 @ 19,742p (still climbing, holdout 0.7695). vs FLAT:
+  0.7106 needed 13,583p, 0.7472 needed 44,351p — shared-op reaches the
+  same tiers at 40-45% of the cost. TWO WHY'S: (a) the sharing amortizes
+  — 32 fixed semantic genes over N words saves 1,920 genes at 467 words,
+  4,879 at 1,183; (b) the shared semantics REGULARIZE — count converged
+  to sharp 0.164, compare to 0.10 (very soft, near-linear); privately-
+  owned sharpness had been fit to per-word noise, so one global value
+  across 200+ count-words is both cheaper AND better-fit. The user's
+  proposed operators RELATE and CONDITIONAL, which did not exist before,
+  are now ~20% of the vocabulary (compare 211 / proj 258 / count 211 /
+  relate 162 / conditional 100 / select 105 / absdiff 121). Honest
+  headline it rewrites: **71% CIFAR-10 gradient-free from a 7.8K-parameter
+  evolved vocabulary** (135K end-to-end w/ frozen substrate + basis), and
+  75% at 19.7K. All on the Blackwell pod. `replicate/replicate_sharedop.py`;
+  module `sharedop` on /replicate; growth continuing.
+
 - **[2026-07-20] (Claude)** — **VIDEO: export tab liveness overhaul** -
   frame extraction moved into the render thread (submit returns
   instantly, live phase messages), frame counter + rate-based ETA +
