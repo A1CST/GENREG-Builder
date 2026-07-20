@@ -10,6 +10,11 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-19] (Claude)** — **VIDEO: unknown template media names
+  become upload prompts** - template media files missing from the
+  library convert to MEDIA NEEDED prompts on load; status reports how
+  many slides need uploads. Details in CHANGELOG_VIDEO.md.
+
 - **[2026-07-19] (Claude)** — **VIDEO: template how_to_fill
   instructions** - 8-step guide in the template head incl. multi-media
   slides and per-item timing rules; sample deck gains a two-item timed

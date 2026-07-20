@@ -9,6 +9,17 @@ the top of the log below, and also in the master CHANGELOG.md.
 
 ---
 
+- **[2026-07-19] (Claude)** — **VIDEO: unknown template media names
+  become upload prompts (user asked whether loading a template prompts
+  for images/videos - closing the gap).** On template load, every
+  `media` item whose filename is not in the library (images or videos
+  list) is stripped from the slide and folded into that slide's
+  `media_request` ("upload: <names>"), so it gets the same amber
+  MEDIA NEEDED treatment as described requests: on-stage placeholder,
+  card dot, Upload/Dismiss row in the media timeline. The load status
+  line now reports "N slide(s) NEED MEDIA" (also after the TTS pass).
+  File: static/slideshow.js (tmpl-load).
+
 - **[2026-07-19] (Claude)** — **VIDEO: template fill-out instructions
   (user's call).** The template head gains a `how_to_fill` section - 8
   numbered steps covering script-first authoring, gesture labels vs

@@ -2348,12 +2348,28 @@
       return;
     }
     const built = list.map(slideFromTemplate);
+    // media filenames the library does NOT have become upload prompts
+    // instead of broken items - same flow as media_request
+    let prompts = 0;
+    const known = new Set([].concat(chartsList, videosList));
+    built.forEach((sl) => {
+      const missing = (sl.media || []).filter((m) => !known.has(m.name));
+      if (missing.length) {
+        sl.media = (sl.media || []).filter((m) => known.has(m.name));
+        const desc = missing.map((m) => m.name).join(", ");
+        sl.media_request = (sl.media_request ? sl.media_request + "; " : "") +
+          "upload: " + desc;
+      }
+      if (sl.media_request) prompts += 1;
+    });
     if ($("tmpl-replace").checked) slides = built;
     else slides = slides.concat(built);
     saveSlides();
     selectSlide(slides.length - built.length);
     built.forEach((sl) => { mediaItems(sl).forEach((m) => refreshMediaDur(sl, m)); });
-    status.textContent = `built ${built.length} slide(s)`;
+    const promptNote = prompts
+      ? ` - ${prompts} slide(s) NEED MEDIA (amber prompts on stage/cards)` : "";
+    status.textContent = `built ${built.length} slide(s)` + promptNote;
 
     if ($("tmpl-tts").checked) {
       const voice = $("tmpl-voice").value.trim();
@@ -2379,7 +2395,8 @@
         done += 1;
       }
       status.textContent = `deck built - ${done} slide(s) narrated` +
-        (window.__ttsCacheHits ? ` (${window.__ttsCacheHits} from cache)` : "");
+        (window.__ttsCacheHits ? ` (${window.__ttsCacheHits} from cache)` : "") +
+        promptNote;
       renderSlideList(); renderAudioPanel(); updateScrubMax(); renderPreview();
     }
   });
