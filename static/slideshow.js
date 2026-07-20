@@ -175,6 +175,7 @@
           }] : []),
       pose_gesture: typeof s.pose_gesture === "string" ? s.pose_gesture : "",
       media_request: typeof s.media_request === "string" ? s.media_request : "",
+      pose_request: typeof s.pose_request === "string" ? s.pose_request : "",
       text: typeof s.text === "string" ? s.text : "",
       bg: s.bg || s.background || "",
       duration: Math.max(0.5, Number(s.duration) || 3.0),
@@ -544,6 +545,8 @@
       ? `<span class="sld-dot" title="${slide.media.length} media item(s)"></span>` : "";
     const reqDot = (slide.media_request && !(slide.media || []).length)
       ? '<span class="sld-dot" style="background:#f0a35e; right: 22px;" title="media needed - see the media timeline"></span>' : "";
+    const poseReqDot = (slide.pose_request && !slide.pose)
+      ? '<span class="sld-dot" style="background:#4ea1ff; right: 32px;" title="pose needed - see the media timeline"></span>' : "";
     const audDot = (slide.clips && slide.clips.length)
       ? `<span class="sld-dot" style="background:#7ee787; right: 12px;" title="${slide.clips.length} audio clip(s)"></span>`
       : "";
@@ -551,7 +554,7 @@
     card.innerHTML =
       `<div class="sld-thumb">${poseImg}` +
       `<span class="sld-num">${idx + 1}</span>` +
-      `<span class="sld-dur">${effDur(slide).toFixed(1)}s</span>${chartDot}${reqDot}${audDot}</div>` +
+      `<span class="sld-dur">${effDur(slide).toFixed(1)}s</span>${chartDot}${reqDot}${poseReqDot}${audDot}</div>` +
       `<div class="sld-cap">${cap ? "" : '<span class="sld-empty">no caption</span>'}</div>` +
       `<div class="sld-acts">` +
       `<button class="sld-act" data-act="up" data-idx="${idx}" title="move up"${idx === 0 ? " disabled" : ""}>&#9650;</button>` +
@@ -1104,6 +1107,19 @@
         `<rect x="${m.x + m.w - 14}" y="${m.y + m.h - 14}" width="16" height="16" rx="3" fill="#4ea1ff" fill-opacity="0.85" data-drag="media-resize" data-mi="${mi}" style="cursor: nwse-resize;"/>` +
         `</g>`);
     });
+
+    // Pose-request placeholder: the template wants a pose that is not
+    // in the library (or omitted one) - show WHERE the character goes
+    if (s.pose_request && !s.pose) {
+      const pp = gesturePosePos(gestureOf(s));
+      const pEsc = (txt) => String(txt).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      out.push(`<g opacity="0.85">` +
+        `<rect x="${pp.x}" y="${pp.y}" width="450" height="480" rx="10" fill="#10141c" fill-opacity="0.5" stroke="#4ea1ff" stroke-width="2" stroke-dasharray="10 8"/>` +
+        `<text x="${pp.x + 225}" y="${pp.y + 220}" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="bold" fill="#4ea1ff" text-anchor="middle">POSE NEEDED</text>` +
+        `<text x="${pp.x + 225}" y="${pp.y + 252}" font-family="Arial, Helvetica, sans-serif" font-size="15" fill="#c7d0da" text-anchor="middle">${pEsc(String(s.pose_request).slice(0, 40))}</text>` +
+        `<text x="${pp.x + 225}" y="${pp.y + 440}" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#8b95a1" text-anchor="middle">pick or upload from the MEDIA TIMELINE panel</text>` +
+        `</g>`);
+    }
 
     // Media-request placeholder: the template asked for a chart/video
     // that only the human can supply - show WHERE it goes (per the pose
@@ -1833,18 +1849,34 @@
     if (activeIndex < 0 || !slides[activeIndex]) { panel.style.display = "none"; return; }
     const slide = slides[activeIndex];
     const items = slide.media || [];
-    if (!items.length && !slide.media_request) { panel.style.display = "none"; return; }
+    if (!items.length && !slide.media_request && !slide.pose_request) { panel.style.display = "none"; return; }
     panel.style.display = "block";
     const total = effDur(slide);
     const box = $("media-rows");
     box.innerHTML = "";
+    const rEsc = (txt) => String(txt).replace(/&/g, "&amp;").replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    const mkOpts = (names, label) =>
+      `<option value="">${label}</option>` +
+      names.map((n) => `<option value="${rEsc(n)}">${rEsc(n)}</option>`).join("");
+    if (slide.pose_request && !slide.pose) {
+      const preq = document.createElement("div");
+      preq.className = "media-req pose-req";
+      preq.innerHTML =
+        `<span class="media-req-tag" style="color:#4ea1ff;">POSE NEEDED</span>` +
+        `<span class="media-req-text">${rEsc(slide.pose_request)}</span>` +
+        `<select class="vd-mini-select pose-req-lib" style="max-width:190px;">${mkOpts(posesList, "from library...")}</select>` +
+        `<button class="runs-btn vd-mini pose-req-upload">Upload</button>` +
+        `<button class="runs-btn vd-mini pose-req-dismiss" title="clear the request">Dismiss</button>`;
+      box.appendChild(preq);
+    }
     if (slide.media_request) {
       const req = document.createElement("div");
       req.className = "media-req";
-      const rEsc = (txt) => String(txt).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
       req.innerHTML =
         `<span class="media-req-tag">MEDIA NEEDED</span>` +
         `<span class="media-req-text">${rEsc(slide.media_request)}</span>` +
+        `<select class="vd-mini-select media-req-lib" style="max-width:190px;">${mkOpts([].concat(chartsList, videosList), "from library...")}</select>` +
         `<button class="runs-btn vd-mini media-req-upload">Upload</button>` +
         `<button class="runs-btn vd-mini media-req-dismiss" title="clear the request without uploading">Dismiss</button>`;
       box.appendChild(req);
@@ -1937,9 +1969,37 @@
     });
   }
 
+  function fulfillMediaRequest(slide, name) {
+    addMediaToSlide(slide, name);
+    const item = slide.media[slide.media.length - 1];
+    const gp = gestureMediaPos(gestureOf(slide));
+    item.x = gp.x; item.y = gp.y;
+    slide.media_request = "";
+    saveSlides(); renderMediaTimeline(); renderSlideList(); renderPreview();
+  }
+
+  function fulfillPoseRequest(slide, name) {
+    slide.pose = name;
+    if (!slide.pose_x && !slide.pose_y) {
+      const pp = gesturePosePos(gestureOf(slide));
+      slide.pose_x = pp.x; slide.pose_y = pp.y;
+    }
+    slide.pose_request = "";
+    $("slide-pose").value = name;
+    saveSlides(); renderMediaTimeline(); renderSlideList(); renderPreview();
+  }
+
   $("media-rows").addEventListener("change", (ev) => {
     if (activeIndex < 0) return;
     const cls = ev.target.classList;
+    if (cls.contains("media-req-lib")) {
+      if (ev.target.value) fulfillMediaRequest(slides[activeIndex], ev.target.value);
+      return;
+    }
+    if (cls.contains("pose-req-lib")) {
+      if (ev.target.value) fulfillPoseRequest(slides[activeIndex], ev.target.value);
+      return;
+    }
     const m = (slides[activeIndex].media || [])[Number(ev.target.dataset.mi)];
     if (!m) return;
     if (cls.contains("media-loop-cb")) m.loop = ev.target.checked;
@@ -1957,6 +2017,15 @@
     }
     if (ev.target.classList.contains("media-req-dismiss")) {
       slides[activeIndex].media_request = "";
+      saveSlides(); renderMediaTimeline(); renderSlideList(); renderPreview();
+      return;
+    }
+    if (ev.target.classList.contains("pose-req-upload")) {
+      $("pose-req-file").click();
+      return;
+    }
+    if (ev.target.classList.contains("pose-req-dismiss")) {
+      slides[activeIndex].pose_request = "";
       saveSlides(); renderMediaTimeline(); renderSlideList(); renderPreview();
       return;
     }
@@ -1981,14 +2050,31 @@
       })).json();
       if (res.error) throw new Error(res.error);
       await loadLibrary();
-      addMediaToSlide(slide, res.name);
-      const item = slide.media[slide.media.length - 1];
-      const gp = gestureMediaPos(gestureOf(slide));
-      item.x = gp.x; item.y = gp.y;
-      slide.media_request = "";
-      saveSlides(); renderMediaTimeline(); renderSlideList(); renderPreview();
+      fulfillMediaRequest(slide, res.name);
     } catch (err) {
       alert("Upload failed: " + err.message);
+    }
+    e.target.value = "";
+  });
+
+  // fulfilling a pose request by upload: lands in the poses folder,
+  // then becomes this slide's pose at the gesture position
+  $("pose-req-file").addEventListener("change", async (e) => {
+    const file = e.target.files[0];
+    if (!file || activeIndex < 0) return;
+    const slide = slides[activeIndex];
+    const form = new FormData();
+    form.append("file", file);
+    try {
+      const res = await (await fetch("/api/poses/upload", {
+        method: "POST", body: form,
+      })).json();
+      if (res.error) throw new Error(res.error);
+      await loadLibrary();
+      fulfillPoseRequest(slide, res.name);
+    } catch (err) {
+      alert("Pose upload failed: " + err.message +
+            " (the /api/poses/upload route needs the pending Flask restart)");
     }
     e.target.value = "";
   });
@@ -2235,7 +2321,7 @@
       how_to_fill: [
         "1. Write one entry in `slides` per scene, in playback order. Only `script` is truly required; every other field has a sane default.",
         "2. `script` is what gets spoken (ElevenLabs) AND shown as the closed caption. Keep each slide to 1-3 sentences; long scripts auto-extend the slide because narration sets a minimum duration.",
-        "3. Pick a pose: use a gesture label from pose_vocabulary (e.g. Pose-gesture-right) when you do not know the library filenames. The gesture also decides which side media goes on.",
+        "3. Pick a pose: use a gesture label from pose_vocabulary (e.g. Pose-gesture-right) when you do not know the library filenames. The gesture also decides which side media goes on. If the label matches nothing (or you omit the pose), the human gets a POSE NEEDED prompt on that slide - so always include a pose field.",
         "4. Media you KNOW exists in the library: reference it in `media` (see below). Media you CANNOT attach: describe it in `media_request` instead - the human gets an on-slide upload prompt at the gesture position.",
         "5. Slides can hold MULTIPLE images/videos/gifs at once via the `media` list. If you add more than one, GIVE EACH ITEM ITS TIMES: `start` (seconds into the slide it appears) and `end` (seconds when it vanishes; 0 = stays to the end). Stagger them so items replace each other instead of stacking, e.g. item A {start: 0, end: 4}, item B {start: 4, end: 0}.",
         "6. Per media item you can also set `loop` (true = repeat while visible, good for short gifs), `fade_in` / `fade_out` (0.5s ramps so appearing/vanishing is not abrupt - recommended whenever you set an `end`), and `x, y, w, h` for placement on the 1280x720 stage.",
@@ -2320,6 +2406,9 @@
     return sanitizeSlide({
       pose: resolved, pose_gesture: rawPose,
       media_request: String(t.media_request || t.chart_request || ""),
+      // no resolvable pose = prompt the human (labeled gesture that
+      // matched nothing, or the template omitted the pose entirely)
+      pose_request: resolved ? "" : (rawPose || "choose a pose for this slide"),
       pose_x: px, pose_y: py,
       media: Array.isArray(t.media) ? t.media : undefined,
       chart: t.chart || "", chart_x: Number(t.chart_x) || 0, chart_y: Number(t.chart_y) || 0,
@@ -2360,7 +2449,7 @@
         sl.media_request = (sl.media_request ? sl.media_request + "; " : "") +
           "upload: " + desc;
       }
-      if (sl.media_request) prompts += 1;
+      if (sl.media_request || sl.pose_request) prompts += 1;
     });
     if ($("tmpl-replace").checked) slides = built;
     else slides = slides.concat(built);
@@ -2368,7 +2457,7 @@
     selectSlide(slides.length - built.length);
     built.forEach((sl) => { mediaItems(sl).forEach((m) => refreshMediaDur(sl, m)); });
     const promptNote = prompts
-      ? ` - ${prompts} slide(s) NEED MEDIA (amber prompts on stage/cards)` : "";
+      ? ` - ${prompts} slide(s) NEED MEDIA/POSES (amber/blue prompts on stage and cards)` : "";
     status.textContent = `built ${built.length} slide(s)` + promptNote;
 
     if ($("tmpl-tts").checked) {

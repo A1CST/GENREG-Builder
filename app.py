@@ -2267,6 +2267,32 @@ def api_poses_serve(filename):
     return send_from_directory(folder, filename)
 
 
+@app.route("/api/poses/upload", methods=["POST"])
+def api_poses_upload():
+    """Save an uploaded pose image into the poses folder (POSE NEEDED
+    prompt flow on the video page)."""
+    folder = "C:/Users/paytonm/Pictures/poses"
+    f = request.files.get("file")
+    if not f or not f.filename:
+        return jsonify({"error": "no file uploaded"}), 400
+    name = os.path.basename(f.filename).replace("\\", "_")
+    if not name.lower().endswith((".png", ".jpg", ".jpeg")):
+        return jsonify({"error": "poses must be png/jpg"}), 400
+    try:
+        os.makedirs(folder, exist_ok=True)
+        path = os.path.join(folder, name)
+        base, ext = os.path.splitext(name)
+        k = 1
+        while os.path.exists(path):
+            name = f"{base}_{k}{ext}"
+            path = os.path.join(folder, name)
+            k += 1
+        f.save(path)
+        return jsonify({"name": name})
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+
 @app.route("/api/charts")
 def api_charts_list():
     if not VID_OK:

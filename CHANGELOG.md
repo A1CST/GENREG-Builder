@@ -10,6 +10,12 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-19] (Claude)** — **VIDEO: library pickers on prompts +
+  POSE NEEDED prompts** - "from library" selects beside Upload/Dismiss
+  on both request rows; unresolved/omitted template poses now prompt
+  like media (blue placeholder + picker + new /api/poses/upload).
+  Details in CHANGELOG_VIDEO.md.
+
 - **[2026-07-19] (Claude)** — **VIDEO: unknown template media names
   become upload prompts** - template media files missing from the
   library convert to MEDIA NEEDED prompts on load; status reports how

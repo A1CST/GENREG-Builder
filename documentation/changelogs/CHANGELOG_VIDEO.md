@@ -9,6 +9,23 @@ the top of the log below, and also in the master CHANGELOG.md.
 
 ---
 
+- **[2026-07-19] (Claude)** — **VIDEO: library pickers on prompts +
+  POSE NEEDED prompts (user's call).** (1) Both prompt rows in the
+  media timeline gain a "from library..." select beside Upload/Dismiss:
+  media requests list images+videos, pose requests list the poses
+  library; picking one fulfills the request at the gesture-implied
+  position. (2) Poses now prompt like media: templates whose pose label
+  matches nothing in the library (or that omit the pose) produce
+  `pose_request` - a blue dashed POSE NEEDED placeholder on stage at
+  the pose position, a blue card dot, and a prompt row with library
+  select / Upload / Dismiss. New `POST /api/poses/upload` saves pose
+  images into C:/Users/paytonm/Pictures/poses (collision-safe naming;
+  verified by test client: upload 200 -> listed -> served; needs the
+  pending Flask restart - library picking works now). Template
+  how_to_fill step 3 updated: always include a pose field. Load status
+  now counts pose prompts too ("N slide(s) NEED MEDIA/POSES"). Files:
+  static/slideshow.js, templates/video.html, app.py.
+
 - **[2026-07-19] (Claude)** — **VIDEO: unknown template media names
   become upload prompts (user asked whether loading a template prompts
   for images/videos - closing the gap).** On template load, every
