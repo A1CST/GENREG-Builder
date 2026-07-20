@@ -336,8 +336,11 @@ def custom_job(op, label, output_path):
 
 
 def job_view(job):
-    return {k: job[k] for k in ("id", "op", "label", "status", "progress",
+    view = {k: job[k] for k in ("id", "op", "label", "status", "progress",
                                 "message", "output", "created")}
+    view["frames_done"] = job.get("frames_done", 0)
+    view["frames_total"] = job.get("frames_total", 0)
+    return view
 
 
 def list_jobs():

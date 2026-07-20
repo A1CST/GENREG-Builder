@@ -9,6 +9,29 @@ the top of the log below, and also in the master CHANGELOG.md.
 
 ---
 
+- **[2026-07-20] (Claude)** — **VIDEO: export tab liveness overhaul
+  (user report: "stayed at 0% and i didn't know if it was actually
+  doing anything").** Root causes: (a) chart/background frame
+  extraction ran synchronously in the POST request BEFORE the job
+  existed - minutes of "Submitting render job..." on big videos; (b)
+  encoding runs ~2-3 fps (base64-SVG compositing), so 1% of a long deck
+  takes ~a minute with no visible signal. Fixes: extraction moved
+  INSIDE the render thread with live phase messages on the job
+  ("extracting media frames: <name>", "extracting background frames:
+  <name>") so submit returns instantly; job now carries
+  frames_done/frames_total (exposed via job_view); the export status
+  shows the phase line or "encoding frame X / Y - ~M:SS left" (rate-
+  based ETA), percent to one decimal, a ticking elapsed clock (always
+  moving, even at 0%), a Cancel button wired to the existing
+  /api/video/job/<id>/cancel, and clear done/FAILED/cancelled endings
+  incl. where the file landed. Verified by live render: instant
+  submit -> two extraction messages -> frames 20/60 -> 60/60 -> done,
+  5.0s output probed. Server changes need the pending Flask restart;
+  the client improvements (elapsed heartbeat, cancel, clearer endings)
+  work against the old server too via the progress fallback. Files:
+  static/slideshow.js, services/anim_service.py,
+  services/video_service.py.
+
 - **[2026-07-20] (Claude)** — **VIDEO: thumbnail + credits auto-slides,
   and poses managed from the timeline panel (user's call).** (1) Two
   new buttons in the slides panel: "+ Thumbnail" inserts a title-card

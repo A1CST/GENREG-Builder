@@ -1529,64 +1529,69 @@ def render_slides(slides, out_name="", fps=24, w=1280, h=720, bg=""):
                     off += sum(b - a for a, b in segs)
         t_cursor += _eff_slide_dur(s_)
 
-    # pre-extract frames for VIDEO charts (once per unique video, at the
-    # deck fps, capped to the longest slide that embeds it) so the frame
-    # compositor can base64 the right frame per output frame
-    chart_frames = {}
+    # frame pre-extraction runs INSIDE the render thread (with live phase
+    # messages on the job) so the submit request returns instantly and
+    # the export tab never looks dead
     import tempfile
-    all_items = [(s_, m_) for s_ in slides for m_ in _slide_media(s_)]
-    for _, m0 in all_items:
-        ch_name = m0["name"]
-        if not ch_name.lower().endswith(VIDEO_CHART_EXTS):
-            continue
-        if ch_name in chart_frames:
-            continue
-        src = os.path.normpath(os.path.join(
-            video_service.LIB_DIR, video_service.safe_name(ch_name)))
-        if not src.startswith(os.path.normpath(video_service.LIB_DIR)) \
-                or not os.path.isfile(src):
-            continue
-        need = 0.0
-        for sx, mx in all_items:
-            if mx["name"] != ch_name:
-                continue
-            if mx["loop"]:
-                need = max(need, min(_chart_dur(ch_name), 120.0))
-            else:
-                stop = mx["end"] if mx["end"] > 0 else _eff_slide_dur(sx)
-                need = max(need, stop - mx["start"])
-        fdir = tempfile.mkdtemp(prefix="slidechart_")
-        r_ = subprocess.run(
-            [video_service.FFMPEG, "-y", "-i", src, "-t", f"{need:.3f}",
-             "-vf", f"fps={fps},scale=550:-2",
-             os.path.join(fdir, "f_%05d.png")],
-            capture_output=True, timeout=600,
-            creationflags=video_service.CREATE_NO_WINDOW)
-        nfr = len([f for f in os.listdir(fdir) if f.endswith(".png")])
-        if r_.returncode == 0 and nfr:
-            chart_frames[ch_name] = (fdir, fps, nfr)
 
-    # global background: extract one loop's worth of frames at deck fps,
-    # full frame size (slice-cropped to fill in the compositor)
-    bg_frames = None
-    if bg:
-        bsrc = os.path.normpath(os.path.join(
-            video_service.LIB_DIR, video_service.safe_name(str(bg))))
-        if bsrc.startswith(os.path.normpath(video_service.LIB_DIR)) \
-                and os.path.isfile(bsrc) \
-                and bsrc.lower().endswith(VIDEO_CHART_EXTS):
-            bneed = min(max(_chart_dur(str(bg)), 1.0), 120.0)
-            bdir = tempfile.mkdtemp(prefix="slidebg_")
-            rb_ = subprocess.run(
-                [video_service.FFMPEG, "-y", "-i", bsrc,
-                 "-t", f"{bneed:.3f}",
-                 "-vf", f"fps={fps},scale={w}:-2",
-                 os.path.join(bdir, "f_%05d.png")],
+    def _extract_frames(job):
+        chart_frames = {}
+        all_items = [(s_, m_) for s_ in slides for m_ in _slide_media(s_)]
+        for _, m0 in all_items:
+            ch_name = m0["name"]
+            if not ch_name.lower().endswith(VIDEO_CHART_EXTS):
+                continue
+            if ch_name in chart_frames:
+                continue
+            src = os.path.normpath(os.path.join(
+                video_service.LIB_DIR, video_service.safe_name(ch_name)))
+            if not src.startswith(os.path.normpath(video_service.LIB_DIR)) \
+                    or not os.path.isfile(src):
+                continue
+            need = 0.0
+            for sx, mx in all_items:
+                if mx["name"] != ch_name:
+                    continue
+                if mx["loop"]:
+                    need = max(need, min(_chart_dur(ch_name), 120.0))
+                else:
+                    stop = mx["end"] if mx["end"] > 0 else _eff_slide_dur(sx)
+                    need = max(need, stop - mx["start"])
+            job["message"] = f"extracting media frames: {ch_name}"
+            fdir = tempfile.mkdtemp(prefix="slidechart_")
+            r_ = subprocess.run(
+                [video_service.FFMPEG, "-y", "-i", src, "-t", f"{need:.3f}",
+                 "-vf", f"fps={fps},scale=550:-2",
+                 os.path.join(fdir, "f_%05d.png")],
                 capture_output=True, timeout=600,
                 creationflags=video_service.CREATE_NO_WINDOW)
-            bn = len([f for f in os.listdir(bdir) if f.endswith(".png")])
-            if rb_.returncode == 0 and bn:
-                bg_frames = (bdir, fps, bn)
+            nfr = len([f for f in os.listdir(fdir) if f.endswith(".png")])
+            if r_.returncode == 0 and nfr:
+                chart_frames[ch_name] = (fdir, fps, nfr)
+
+        # global background: one loop's worth at deck fps, full frame
+        bg_frames = None
+        if bg:
+            bsrc = os.path.normpath(os.path.join(
+                video_service.LIB_DIR, video_service.safe_name(str(bg))))
+            if bsrc.startswith(os.path.normpath(video_service.LIB_DIR)) \
+                    and os.path.isfile(bsrc) \
+                    and bsrc.lower().endswith(VIDEO_CHART_EXTS):
+                bneed = min(max(_chart_dur(str(bg)), 1.0), 120.0)
+                job["message"] = f"extracting background frames: {bg}"
+                bdir = tempfile.mkdtemp(prefix="slidebg_")
+                rb_ = subprocess.run(
+                    [video_service.FFMPEG, "-y", "-i", bsrc,
+                     "-t", f"{bneed:.3f}",
+                     "-vf", f"fps={fps},scale={w}:-2",
+                     os.path.join(bdir, "f_%05d.png")],
+                    capture_output=True, timeout=600,
+                    creationflags=video_service.CREATE_NO_WINDOW)
+                bn = len([f for f in os.listdir(bdir) if f.endswith(".png")])
+                if rb_.returncode == 0 and bn:
+                    bg_frames = (bdir, fps, bn)
+        job["message"] = ""
+        return chart_frames, bg_frames
 
     name = slug(out_name or "slideshow")
     out = video_service.unique_path(name + ".mp4")
@@ -1639,6 +1644,8 @@ def render_slides(slides, out_name="", fps=24, w=1280, h=720, bg=""):
     
     def run():
         try:
+            chart_frames, bg_frames = _extract_frames(job)
+            job["frames_total"] = total
             proc = subprocess.Popen(cmd, stdin=subprocess.PIPE,
                                      stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
                                      creationflags=video_service.CREATE_NO_WINDOW)
@@ -1651,6 +1658,7 @@ def render_slides(slides, out_name="", fps=24, w=1280, h=720, bg=""):
                 png = bytes(resvg_py.svg_to_bytes(svg_string=svg))
                 proc.stdin.write(png)
                 job["progress"] = (i + 1) / total
+                job["frames_done"] = i + 1
             proc.stdin.close()
             err = proc.stderr.read().decode("utf-8", "replace")
             proc.wait()

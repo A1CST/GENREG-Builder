@@ -2815,39 +2815,65 @@
     }
   });
 
-  // Poll background job progress
+  // Poll background job progress - always shows SOMETHING alive:
+  // phase message while frames extract, frame counter + ETA while
+  // encoding, ticking elapsed clock throughout, and a Cancel button
   function pollJob(jobId) {
     const statusEl = $("exp-status");
+    const t0 = Date.now();
+    const fmtT = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
     const interval = setInterval(async () => {
       try {
         const jobs = await (await fetch("/api/video/jobs")).json();
-        const job = jobs.find(j => j.id === jobId);
+        const job = jobs.find((j) => j.id === jobId);
         if (!job) {
           clearInterval(interval);
-          statusEl.innerHTML = "Job lost.";
+          statusEl.innerHTML = "Job lost - check the Videos section; the file may still have rendered.";
           return;
         }
-
         if (job.status === "done") {
           clearInterval(interval);
-          statusEl.innerHTML = `<span style="color: #2e7d5b;">Render complete! Output saved: <b>${job.name}</b></span>`;
-          // Trigger browser workspace agent alert
-          fetch(`/api/video/library`)
-            .then(r => r.json())
-            .then(() => {
-              // alert done
-            });
-        } else if (job.status === "error") {
-          clearInterval(interval);
-          statusEl.innerHTML = `<span style="color: #ff3333;">Render failed: ${job.message}</span>`;
-        } else {
-          const pct = Math.round(job.progress * 100);
-          statusEl.innerHTML = `<div style="display:flex; justify-content:space-between; margin-bottom: 5px;">`
-            + `<span>Encoding (${job.status})...</span>`
-            + `<span class="ui-monospace">${pct}%</span></div>`
-            + `<div style="background:#10141c; height: 6px; border-radius: 3px; border:1px solid #1c232c; overflow:hidden;">`
-            + `<div style="background:#2e7d5b; height:100%; width: ${pct}%;"></div></div>`;
+          statusEl.innerHTML = `<span style="color: #7ee787;">Render complete in ${fmtT((Date.now() - t0) / 1000)} - saved as <b>${job.output}</b> in runs/video/library (also listed in the Videos section)</span>`;
+          if (typeof loadVideosLibrary === "function") loadVideosLibrary();
+          return;
         }
+        if (job.status === "error") {
+          clearInterval(interval);
+          statusEl.innerHTML = `<span style="color: #f85149;">Render FAILED: ${job.message || "unknown error - check the server log"}</span>`;
+          return;
+        }
+        if (job.status === "cancelled") {
+          clearInterval(interval);
+          statusEl.innerHTML = "Render cancelled.";
+          return;
+        }
+        const elapsed = (Date.now() - t0) / 1000;
+        const done = Number(job.frames_done) || 0;
+        const totalF = Number(job.frames_total) || 0;
+        const pct = totalF ? (done / totalF * 100)
+                           : (Number(job.progress) || 0) * 100;
+        let line;
+        if (job.message) {
+          line = job.message;                       // extraction phase
+        } else if (totalF) {
+          const rate = done / Math.max(elapsed, 0.1);
+          const eta = done > 5 && rate > 0
+            ? ` - ~${fmtT((totalF - done) / rate)} left` : "";
+          line = `encoding frame ${done.toLocaleString()} / ${totalF.toLocaleString()}${eta}`;
+        } else {
+          line = "starting up (building the encode pipeline)...";
+        }
+        statusEl.innerHTML =
+          `<div style="display:flex; justify-content:space-between; gap:8px; align-items:center; margin-bottom:5px;">`
+          + `<span>${line}</span>`
+          + `<span class="ui-monospace" style="white-space:nowrap;">${pct.toFixed(1)}% · ${fmtT(elapsed)}</span>`
+          + `<button class="runs-btn vd-mini" id="exp-cancel">Cancel</button></div>`
+          + `<div style="background:#10141c; height:6px; border-radius:3px; border:1px solid #1c232c; overflow:hidden;">`
+          + `<div style="background:#2e7d5b; height:100%; width:${Math.max(pct, 0.5).toFixed(1)}%;"></div></div>`;
+        const cbtn = document.getElementById("exp-cancel");
+        if (cbtn) cbtn.onclick = () => {
+          fetch(`/api/video/job/${jobId}/cancel`, { method: "POST" });
+        };
       } catch (e) {
         console.error("Error polling job:", e);
       }

@@ -10,6 +10,222 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-20] (Claude)** — **VIDEO: export tab liveness overhaul** -
+  frame extraction moved into the render thread (submit returns
+  instantly, live phase messages), frame counter + rate-based ETA +
+  ticking elapsed clock + Cancel button in the export status; clear
+  done/failed endings. Root cause of the "stuck at 0%" report.
+  Details in CHANGELOG_VIDEO.md.
+
+- **[2026-07-20] (Claude)** — **REPLICATE module 34 (FACTORED vocabulary,
+  user's proposal: word = operator + arguments + binding from shared
+  codebooks): LOSES on both axes, and the reason is the pruning result.**
+  Implemented faithfully — a word became 5 small ints indexing a SELECTOR
+  codebook (channel groups), a BINDING codebook (spatial/scale masks) and
+  SHARED per-operator parameters, with alternating phases (grow words over
+  a frozen codebook, then refine the hottest selectors under the words
+  using them, so improving one selector improves every word referencing
+  it). Two configurations, both measured honestly, both behind flat at
+  matched budget: 160 selectors x 4ch -> **0.6173 @ 7,779p** (flat ~0.6702
+  @ 8,584p); 640 selectors x 6ch -> **0.6442 @ 13,429p** (flat **0.7106**
+  @ 13,583p). Compression also inverted at the larger codebook (0.84x —
+  the codebook costs more than the flat words it replaces). WHY IT FAILS,
+  and it was already in the data: module 30's pruning curve showed the
+  vocabulary is information-dense with NO redundancy to reclaim. Sharing
+  only pays when words are variations on common themes; here each word is
+  an independent fact about a specific channel combination, so forcing
+  them through a shared argument codebook removes the one thing that made
+  them valuable — the freedom to name their own channels. The operator
+  census did transfer (compare 139 / count 117 / conditional 51 / relate
+  40), confirming the grammar insight was right even though the sharing
+  was not. `replicate/replicate_factored{,_big}.py`; module `factored` on
+  /replicate. ALSO: module 33b — a substrate evolved in a deliberately
+  DIFFERENT WORLD (flipped/shifted images, 464 genomes) is likewise a
+  null (0.7666 vs 0.7672), so changing the substrate's environment fails
+  the same way changing its seed did.
+
+- **[2026-07-20] (Claude)** — **REPLICATE moved to a Blackwell pod, and the
+  move exposed a PORTABILITY LAW; module 33 (second substrate) is a NULL.**
+  (a) POD SETUP: RTX PRO 4500 Blackwell 32GB; the stock image's torch 2.4.1
+  cannot run sm_120 — `pip install torch --index-url .../cu128` (2.11) is
+  mandatory. `genreg_train/__init__` pulls a trainer/engine chain that is
+  absent on the pod; neutralized (backup kept). (b) **THE PATCH-PCA BASIS
+  IS NOT REPRODUCIBLE ACROSS MACHINES.** Rebuilding caches on the pod from
+  identical data + checkpoints + code produced features that looked right
+  (block mean/std matched to ~5 decimals) but cost **1.5pt**: the standing
+  model reproduced at 0.7526 instead of 0.7672. Cause: near-degenerate
+  PCA eigenvalues make the component subspace rotation arbitrary, so a
+  frozen genome reading "component #100" reads a different projection —
+  29% of 2,017 words shifted >1%, hitting every op proportionally. Ruled
+  out first: TF32 (gram bit-identical under torch 2.11's new precision
+  API), vocabulary counts, and input-block equality. FIX: ship the cached
+  feature blocks (1.8GB of visual*/rawenv*), after which the pod
+  reproduced local to four decimals (feat std 5.417413, holdout 0.7527).
+  Consequence for the line's claims: the 66,720-number basis is part of
+  the MODEL, not free-floating infrastructure — as the param bill already
+  counted. (c) MODULE 33: words forced to straddle the fresh 428-genome
+  substrate (module 32) admitted only **15 words in 25 rounds**
+  (refutations 24-36/round) and tested **0.7670 vs the standing 0.7672** —
+  a null. A second substrate evolved by the SAME procedure over the SAME
+  images rediscovers the same truths: the seed-union law that pays for
+  WORDS does not transfer to SUBSTRATES, because substrate evolution is
+  driven by the same fitness and environment. Next probe: raw environment
+  at GRID=5 (finer spatial cardinality — counting-over-space is what the
+  raw words actually earn with). `replicate/replicate_sub2words.py`.
+
+- **[2026-07-20] (Claude)** — **REPLICATE module 31 (fixed-budget
+  vocabulary): NULL — the union's gains were ACCUMULATION, not CHOICE, and
+  the line's fixed-budget ceiling is ~0.76.** Growth was the wrong
+  operator (module 30), so this fixed the vocabulary at 2,600 words and
+  let SEVEN seed vocabularies (4,067 candidates total) compete for the
+  slots by head weight-norm — new words had to displace weaker
+  incumbents. Result: TEST **0.7609** vs the same-size lean prune's
+  0.7635 — choosing from a 66% larger candidate pool is worth nothing
+  (slightly negative, inside noise). Kept mix at 2,600: 1,482 seed /
+  1,039 hybrid / 79 raw. The holdout curve keeps rising with SIZE
+  (2,600w 0.7607 · 3,000w 0.7619 · 4,067w 0.7637), which together with
+  module 30's linear pruning curve pins the mechanism: this vocabulary
+  buys accuracy by holding MORE DISTINCT TRUE THINGS, and there is no
+  compression or better-selection shortcut around that. Practical
+  consequence for the line: at a parameter budget matching the 36,460
+  substrate head, the description model saturates near 0.755-0.76 — it
+  wins on interpretability and on accuracy-per-parameter only in the
+  SMALL regime (807 words = 0.7213 @ 17,579p), and loses the efficiency
+  argument in the large regime. `replicate/replicate_budget.py`; module
+  `budget` on /replicate; run 20260720-075812-replicate_budget-b8eaff.
+
+- **[2026-07-20] (Claude)** — **REPLICATE module 30 (prune): the vocabulary
+  is INFORMATION-DENSE — nothing is free to cut, and the union ladder spent
+  the line's efficiency advantage.** Five-seed union reached TEST 0.7672 @
+  3,337 words / 67,293 params (0.36pt from the substrate head) but the
+  holdout flattened over the last 335 words and the last three seeds cost
+  +17k params for +0.7pt. Pruning by head weight-norm, keep-fraction on
+  the untouched holdout: 1,000w 0.7420 · 1,500w 0.7507 · 2,000w 0.7553 ·
+  2,600w 0.7601 · 3,337w 0.7604 — accuracy tracks vocabulary size almost
+  linearly, so unlike a dense net (where most weights prune free) nearly
+  every WORD is load-bearing. LEAN model (smallest within 0.3pt of peak):
+  2,600 words / 53,259 params / TEST 0.7635. HONEST EFFICIENCY LEDGER —
+  the description model is now LARGER than the 36,460-param substrate
+  ridge head it is chasing and still 0.4-0.7pt behind it; the best
+  accuracy-per-parameter points remain the small vocabularies (807
+  class-informed words = 0.7213 @ 17,579). The union ladder bought
+  accuracy by spending exactly the advantage that made the line
+  interesting, which is the width law biting on schedule. NEXT (correct
+  form): FIXED-BUDGET vocabulary evolution — cap at ~2,600 words and let
+  new seeds REPLACE the weakest incumbents rather than extend the list,
+  the same discipline module 9 applied to the head. Two fresh seeds in
+  flight as replacement candidates. `replicate/replicate_prune.py`;
+  module `prune` on /replicate.
+
+- **[2026-07-20] (Claude)** — **REPLICATE module 29: the fitness law is
+  CROSS-SEED CONFIRMED and the seed-union law transfers to WORDS — new
+  honest best TEST 0.7545 @ 2,487 words / 49,847 params, 1.6pt from the
+  substrate head.** (a) Cross-seed variance, the campaign's missing
+  control: a second class-informed vocabulary (seed 137, 289 words) beat
+  label-free at matched size by **+3.0pt**, against seed 73's **+4.1pt** —
+  both far outside the ±1.4pt band, so the module-24 fitness result is
+  established, not a single-seed artifact; the two vocabularies differ
+  from each other by 1.1pt, exactly the project's known cross-seed
+  spread. (b) Because they differ, they are not the same words — unioning
+  them (prefix chosen on the module-28 untouched holdout, test touched
+  once) gives **0.7472 -> 0.7545 (+0.73pt)**, reproducing the visual
+  line's seed-union law at the vocabulary level for the first time.
+  Standing model: 2,017 hybrid + 220 raw-environment + 250 seed-137
+  words, every number honestly sized, still a readable vocabulary rather
+  than a weight matrix, at a parameter budget comparable to the 0.7708
+  substrate ridge head (36,460). A third seed is in flight since the
+  second paid. `replicate/replicate_seedunion.py`; module `seedunion` on
+  /replicate; run 20260720-...-replicate_seedunion.
+
+- **[2026-07-20] (Claude)** — **REPLICATE modules 27-28: fine scales are a
+  NULL, and the standing result is now HONESTLY SIZED — TEST 0.7465 @
+  2,127 words / 41,790 params.** (27) Patch scales 2x2/3x3 — finer than
+  the basis has ever contained — admitted only 36 words in 15 rounds and
+  tested 0.7446, below coarse-raw's peak: at 32x32 resolution the finest
+  patches carry no class information the 4x4+ basis lacked, so the
+  original basis was correctly specified. (28) PROTOCOL FIX: since module
+  24 the line had been reporting the best test across vocabulary sizes,
+  which is soft test-selection, and class-informed fitness had made val
+  diverge from test (val 0.7582 / test 0.7448 at 179 raw words —
+  usefulness-fitness overfits at scale in a way the label-free line never
+  did). `replicate_stop.py` moves the size decision to a 15% holdout used
+  for NOTHING else: holdout curve peaks at k=110 (0.7519) — independently
+  reproducing the test peak — then k and lambda are frozen, the head is
+  refit on all 50k, and test is touched ONCE: **0.7465**. The honest
+  number slightly exceeds the previously test-peeked 0.7460, so the
+  accuracy was real and the protocol was the only thing at fault.
+  Standing model: 2,017 hybrid words + 110 raw-environment words, 41,790
+  params, 2.4pt from the substrate ridge head (0.7708 @ 36,460).
+  Runs 20260720-...-replicate_stop; module `stop` on /replicate.
+
+- **[2026-07-20] (Claude)** — **REPLICATE module 26 (words reach the RAW
+  ENVIRONMENT): +0.45pt, new best TEST 0.7460 @ 2,127 words / 41,790
+  params — and the admitted grammar names exactly what pooling destroys.**
+  In 25 modules every word read only genome OUTPUTS (pooled detector
+  scalars); the patch-PCA maps themselves — 6 scales x 40 components x 3x3
+  grid = 2,160 channels — had never been in a word's reach. They carry
+  WHERE and AT WHAT SCALE, which pooling averages away before any word
+  sees it. Words forced to touch >=1 raw channel, class-informed fitness,
+  base = the full 1,950-word hybrid (the hardest bar in the campaign):
+  0.7415 -> 0.7444 @ 30 words -> **0.7460 @ 110 words**. THE OP CENSUS IS
+  THE FINDING: count 66 / select 23 / compare 6 / proj 9 / prod 1 — the
+  language's answer to "what did pooling throw away" is CARDINALITY OVER
+  SPACE AND SCALE ("how many cells at this scale contain this pattern"),
+  a sentence no previous grammar could utter about a pooled scalar. This
+  also re-confirms module 24's law at a new layer: give evolution a
+  genuinely new KIND of channel and it invents the word-form that channel
+  supports. Arm-D saturation was therefore about the CHANNEL SET, not the
+  substrate: pooled outputs were exhausted, the environment behind them
+  was not. Gap to the substrate ridge head (0.7708 @ 36,460) now 2.5pt.
+  `replicate/replicate_rawenv.py`; module `rawenv` on /replicate; runs
+  20260720-...-replicate_rawenv.
+
+- **[2026-07-20] (Claude)** — **REPLICATE module 25 (the HYBRID): truth-words
+  and task-words are COMPLEMENTARY — new best TEST 0.7415 @ 1,950 words,
+  the campaign's biggest single jump.** Arms, one substrate, one head each:
+  A label-free alone (1,095w) 0.7017 · B class-informed alone (834w)
+  0.7232 · **C hybrid, both vocabularies (1,929w) 0.7410** · D + 21 words
+  evolved on top of the union (1,950w) 0.7415. The union beats the better
+  vocabulary alone by **+1.8pt** — well outside the ±1.4pt band — so the
+  two questions (what is stably true / what separates classes) index
+  genuinely different information about the same 3,645 channels. This
+  vindicates keeping the label-free language: it is not merely the
+  portable, English-mappable artifact, it carries signal the task-driven
+  vocabulary never finds. ARM D IS THE SATURATION TEST and it reads
+  CLOSED: 12 rounds against the full union earned 21 words and +0.05pt
+  with refutations climbing to 23/round — 1,950 words exhaust what this
+  substrate can say about these ten classes. Standing description-only
+  model: 0.7415 test, ~39k language+head params, vs the substrate ridge
+  head 0.7708 @ 36,460 (gap now 2.9pt, down from 7pt). Run
+  20260720-070912-replicate_hybrid-101727; module `hybrid` on /replicate.
+
+- **[2026-07-20] (Claude)** — **REPLICATE module 24: THE FITNESS WAS THE
+  BOTTLENECK. A class-informed vocabulary beats the label-free one at every
+  matched size — new description-only best TEST 0.7106 @ 619 words /
+  13,583 params (label-free: 0.7017 @ 1,095 words / 19,068).** Identical
+  rig to the label-free line (rich grammar arity<=8, 3-view stream,
+  orthogonality admission, double-split verify, resumable) with ONE
+  variable changed: fitness = ridge gain toward classes instead of
+  novelty-versus-lexicon. Head-to-head at matched vocabulary size:
+  198w 0.6508 vs 219w 0.6159 (+3.5pt), 323w 0.6846 vs 308w 0.6437
+  (+4.1pt), 452w 0.6968 vs 505w 0.6702 (+2.7pt), 619w **0.7106** vs 505w
+  0.6702 (+4.0pt) — and val is still rising (0.7178). THE GRAMMAR CENSUS
+  FLIPS COMPLETELY WITH THE QUESTION, which is the real finding: under
+  TRUTH the count/select/compare ops drew 9-of-15 sampler probability and
+  admitted ZERO words (final census prod 163 / absdiff 29); under
+  USEFULNESS the same grammar on the same stream gives count 175 /
+  select 143 / compare 157 / prod 12 — i.e. ~75% categorical+relational.
+  Stable truth about smooth pooled channels is MULTIPLICATIVE; class
+  separability is RELATIONAL AND CARDINAL ("is this above that", "how many
+  of these eight fire", "which dominates"). This also retro-explains rung
+  6's null — those sentence forms were not useless, they were being asked
+  the wrong question. Purity has a measured price: ~4pt and ~2x the words.
+  ARCHITECTURE IMPLICATION: keep both — the label-free language for
+  description/transfer/English-mapping (it is what makes concepts
+  portable), plus a class-informed vocabulary per task, sharing one
+  substrate; both are cheap and neither widens the head. Runs
+  20260720-...-replicate_oclipsup; module `oclipsup` on /replicate.
+
 - **[2026-07-20] (Claude)** — **VIDEO: thumbnail + credits auto-slides
   and timeline pose management** - "+ Thumbnail" (big-title card at the
   front) and "+ Credits" (auto-populated from deck media/poses/
@@ -269,6 +485,12 @@ log below; don't rewrite existing entries.
   — selecting words about THINGS over stable pixel statistics. Runs
   20260720-030146 / -030853-replicate_oclipfree; module `oclipfree` on
   /replicate.
+
+- **[2026-07-20] (Claude)** — **/progress: goal cards show the real metric + fixed a wrong ResNet value.**
+  The card headline was `current/target` completion, so 0.71 CIFAR at a 0.75 goal read "95%". Now the
+  headline and bar are the ACTUAL metric (CIFAR 71%, ResNet 66%, MNIST 99%, LM 69%) with the goal as a
+  marker line. Corrected `goals.json` ResNet 0.948→0.6638 (real stacked-residual best; 0.948 was stale).
+  goals.json re-reads per request; progress.js needs a browser hard-refresh. See CHANGELOG_PROGRESS.md.
 
 - **[2026-07-20] (Claude)** — **/progress: project assignment fixed — "Other" 74→0, CIFAR de-inflated
   172→84.** The dashboard keyword-matched the changelog body only, dumping untagged entries into "Other"
