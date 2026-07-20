@@ -10,6 +10,11 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-19] (Claude)** — **VIDEO: upload from the library picker**
+  - "Upload new" button in the picker modal (poses go to the poses
+  library, media to the video library); grid refreshes and highlights
+  the new file. Details in CHANGELOG_VIDEO.md.
+
 - **[2026-07-19] (Claude)** — **VIDEO: visual library picker modal** -
   thumbnail grid grouped by folder (poses use their real subfolders)
   with filter + folder dropdown, replacing the name-only selects on the

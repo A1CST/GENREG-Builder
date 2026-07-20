@@ -9,6 +9,15 @@ the top of the log below, and also in the master CHANGELOG.md.
 
 ---
 
+- **[2026-07-19] (Claude)** — **VIDEO: upload from the library picker
+  (user's call).** The picker modal header gains "Upload new": in pose
+  mode it saves into the poses library (POST /api/poses/upload,
+  png/jpg), in media mode into the video library (images/videos). After
+  upload the grid refreshes, scrolls to the new file, and highlights it
+  green, ready to click. Status line reports added-name or failure
+  (pose uploads need the pending Flask restart). Files:
+  static/slideshow.js, templates/video.html.
+
 - **[2026-07-19] (Claude)** — **VIDEO: visual library picker modal
   (user's call - "a list does nothing for me if they aren't named").**
   The "from library" dropdowns on the MEDIA/POSE NEEDED rows are now a

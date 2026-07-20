@@ -2098,6 +2098,7 @@
     $("libpick-title").textContent = kind === "pose"
       ? "Pick a pose from the library" : "Pick media from the library";
     $("libpick-search").value = "";
+    $("libpick-status").textContent = "";
     const fsel = $("libpick-folder");
     const folders = [...new Set(libPickEntries().map((e) => e.folder))].sort();
     fsel.innerHTML = '<option value="">all folders</option>' +
@@ -2108,6 +2109,41 @@
 
   $("libpick-close").addEventListener("click", () => {
     $("libpick-overlay").style.display = "none";
+  });
+  // upload straight into the library from the picker; the new file
+  // appears in the grid ready to click
+  $("libpick-upload").addEventListener("click", () => {
+    const inp = $("libpick-file");
+    inp.accept = libPickKind === "pose"
+      ? ".png,.jpg,.jpeg"
+      : ".png,.jpg,.jpeg,.gif,.webp,.mp4,.webm,.mov";
+    inp.click();
+  });
+  $("libpick-file").addEventListener("change", async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const status = $("libpick-status");
+    status.textContent = "uploading...";
+    const form = new FormData();
+    form.append("file", file);
+    const url = libPickKind === "pose" ? "/api/poses/upload" : "/api/video/upload";
+    try {
+      const res = await (await fetch(url, { method: "POST", body: form })).json();
+      if (res.error) throw new Error(res.error);
+      await loadLibrary();
+      renderLibraryPicker();
+      status.textContent = `added ${res.name}`;
+      const card = $("libpick-body").querySelector(
+        `.lp-card[data-name="${(res.name || "").replace(/"/g, '\\"')}"]`);
+      if (card) {
+        card.scrollIntoView({ block: "center" });
+        card.style.borderColor = "#7ee787";
+      }
+    } catch (err) {
+      status.textContent = "upload failed: " + err.message +
+        (libPickKind === "pose" ? " (pose uploads need the pending Flask restart)" : "");
+    }
+    e.target.value = "";
   });
   $("libpick-search").addEventListener("input", renderLibraryPicker);
   $("libpick-folder").addEventListener("change", renderLibraryPicker);
