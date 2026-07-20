@@ -9,6 +9,26 @@ the top of the log below, and also in the master CHANGELOG.md.
 
 ---
 
+- **[2026-07-20] (Claude)** — **VIDEO: thumbnail + credits auto-slides,
+  and poses managed from the timeline panel (user's call).** (1) Two
+  new buttons in the slides panel: "+ Thumbnail" inserts a title-card
+  slide at the FRONT (kind:"thumb" - its caption field renders as a big
+  centered 64px title, auto-shrinks to 44px for long titles, no CC box;
+  prefilled from the export name) and "+ Credits" appends a
+  kind:"credits" slide auto-populated from the deck: narration type
+  (ElevenLabs/mic), media filenames used (capped at 10), pose names,
+  and a GENREG builder line; regenerated on every click; duration
+  scales with line count. User adds CCs themselves per their note.
+  Both kinds render identically client + export (verified: thumb 64px
+  title without CC box; 4 credit tspans). (2) The media timeline panel
+  now always shows a POSE row: primary pose name with Change/Pick,
+  Remove, and "Add pose" - extra poses are media items with
+  src:"pose" (served from the poses folder client-side, base64'd from
+  it in the renderer - verified) so they get full timeline control:
+  start/vanish handles, fades, drag/resize, multiple at once. Library
+  picker gained an "extra" mode for that flow. Files:
+  static/slideshow.js, templates/video.html, services/anim_service.py.
+
 - **[2026-07-19] (Claude)** — **VIDEO: upload from the library picker
   (user's call).** The picker modal header gains "Upload new": in pose
   mode it saves into the poses library (POST /api/poses/upload,

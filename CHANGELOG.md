@@ -10,6 +10,379 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-20] (Claude)** — **VIDEO: thumbnail + credits auto-slides
+  and timeline pose management** - "+ Thumbnail" (big-title card at the
+  front) and "+ Credits" (auto-populated from deck media/poses/
+  narration); POSE row in the media timeline with Change/Remove/Add -
+  extra poses are timed media items with full window/fade control.
+  Details in CHANGELOG_VIDEO.md.
+
+- **[2026-07-20] (Claude)** — **REPLICATE module 23 (expand the
+  environment): NULL on accuracy (0.7017 → 0.7019) but it breaks the
+  "environment = headroom" hypothesis, and the face census is a real
+  finding.** The four question-tuned encoders (module 8:
+  color/crop/occlude/warp) got honest flip+roll views (encoders re-run on
+  transformed images, no tiling), and 192 words evolved over
+  visual+4-vocabularies with a straddle rule FORCING use of the new
+  material. Evolution loved it — 8 admissions every round, ZERO
+  refutations across 24 rounds, "implied" rejections down to 6-33/round
+  (vs 30-50 in the visual-only environment): the language kept finding
+  things it could not already say. And it bought **nothing**: test
+  0.7019 vs the 0.7017 anchor. FINDING: new material that is *novel to
+  the language* is not automatically *informative about the classes* —
+  the same lesson as rung 7 (R1 words novel w.r.t. the language,
+  redundant w.r.t. labels), now shown for a genuinely NEW environment
+  rather than a deeper layer. Novelty-driven vocabulary growth is
+  self-referential; it optimizes coverage of the input distribution, not
+  class separability. FACE CENSUS (label-free, so it is the language's
+  own account of what CIFAR objects are): crop/scale-identity 113,
+  occlude/parts 104, warp/texture 103, color/shape only 36 — objects are
+  things-with-parts-that-persist-across-scale, not colored shapes. Ops
+  stay multiplicative (prod 176 / absdiff 16). Run
+  20260720-...-replicate_env2; module `env2` on /replicate. PIVOT: since
+  neither depth, reader, grammar, correctors, nor new material move it,
+  the binding constraint is the FITNESS the vocabulary is grown under —
+  next test is a class-informed vocabulary objective (labels touching the
+  word-selection stage, the one thing the line has deliberately never
+  done) measured head-to-head against the label-free lexicon.
+
+- **[2026-07-20] (Claude)** — **REPLICATE module 22 (significance floor on
+  the correctors): the arbiter gain is SOFT EVIDENCE, not a win — and the
+  accuracy push has hit the description's real ceiling (~0.70).** The
+  sweep to 28 specialists (70.3% of test routed) scored 0.7035, BELOW the
+  14-specialist 0.7044 — more gate-passing correctors, less accuracy, the
+  micro-admission law one layer up (late keeps were gated on 44-68 image
+  slices where +0.04 is one or two flips). `replicate_arbiter_filter.py`
+  scores every specialist by Z = gain / SE(paired difference on its own
+  slice) and re-routes at rising trust thresholds: Z>=0 → 0.7035 (28),
+  Z>=0.5 → 0.6994 (13), Z>=1.0 → 0.6967 (1), **Z>=1.5 → 0 specialists
+  survive**. Not one corrector has statistically significant gate
+  evidence. With test σ ≈ 0.46pt at n=10k, the whole arbiter effect
+  (+0.5-0.8pt) sits inside the project's own ±1.4pt soft-evidence band,
+  and the 14-vs-28 ordering is noise. HONEST STANDING NUMBER for the
+  Oclip line: **0.7017 test, 1,095 label-free words, 19,068 params**
+  (rung 6, full-train head, test once) — every internal lever since is
+  null or sub-noise: depth (0.7009), reader nonlinearity (0.6970),
+  grammar forms (0 admitted), correctors (+0.5-0.8pt unverifiable).
+  Chasing further sub-noise deltas here would violate the line's own
+  evidence bar; the remaining headroom to the substrate head's 0.7708 is
+  in the ENVIRONMENT (what the words may look at), which is untouched.
+  Run 20260720-...-replicate_arbiterfilter; module `arbiterfilter` on
+  /replicate.
+
+- **[2026-07-20] (Claude)** — **REPLICATE rung 8 (freeze the model, evolve a
+  corrector on top — user's directive): confusion specialists EARN where
+  features and depth could not. 0.6966 → 0.6987, and the mechanism is
+  per-boundary CAPACITY, not new information.** `replicate_arbiter.py`:
+  freeze the language + R1 + head, diagnose the costliest top-2
+  confusions on val (cat/dog 182 images, automobile/truck 97, deer/horse
+  82, airplane/ship 66, bird/deer 60), evolve a 2-class specialist per
+  pair, route only when the frozen top-2 IS that pair, and KEEP a
+  specialist only if it beats the frozen model on its own routed slice of
+  a third held-out split. 4 of 5 kept (cat/dog 0.6000→0.6113, deer/horse
+  0.7118→0.7343, airplane/ship 0.7707→0.7754, bird/deer 0.6117→0.6220;
+  automobile/truck rejected), 23.7% of test images routed, +0.21pt.
+  METHOD NOTE — the first attempt was a self-inflicted null: specialists
+  were given only 4 evolved features and asked to beat the frozen model's
+  1,287-feature verdict, so cat/dog collapsed to 0.4865 (chance). The
+  corrected design gives each specialist the FULL description restricted
+  to its pair's images (that IS "capacity allocated to one boundary")
+  with evolved features on top. Same idea, opposite result — a reminder
+  that an ablation must be equipped before its null means anything.
+  Standing: the shared 10-way ridge underserves specific boundaries, and
+  that is the one internal lever left that pays. Run
+  20260720-041227-replicate_arbiter-c24f70; module `arbiter` on
+  /replicate; notices #665 (crippled) / #666 (corrected).
+
+- **[2026-07-20] (Claude)** — **REPLICATE rung 7 (a REAL second radial
+  space, prompted by the user's "are you only evolving one RS?"): depth
+  is a NULL on this language — 0.7017 → 0.7009.** The gap the question
+  exposed was real and is now fixed in code: every prior Oclip module
+  evolved ONE space and collapsed each word to a scalar before the head,
+  breaking two stack laws (scalar hand-offs destroy structure; depth must
+  emerge under cap pressure). `replicate/replicate_stack.py` hands R0 off
+  as a BANK — (N, 1095, 3), every word at every glimpse — and evolves R1
+  over it under the same novelty question with cap pressure closing the
+  space. Diagnostics say the fix WORKED mechanically: R1 admitted a full
+  8/round for 24 rounds (192 words, fitness 0.38-0.56, prod 174 /
+  absdiff 18, arity spread 2-7) and was almost never refuted (0/round
+  typical) — versus the scalar-fed reader layer (rung 5) which was
+  refuted 30-44/round. So a bank hand-off genuinely lets depth FIND
+  structure that scalars hide. It just does not CASH: test 0.7009 vs
+  0.7017, val 0.6903. Conclusion: R1 words are novel with respect to the
+  language yet redundant with respect to the LABELS — three
+  independently-motivated depth attempts (oclip2 compounds, rung-5
+  reader, rung-7 stacked space) now agree that this description is
+  class-saturated, and the remaining headroom to 0.7708 lives in the
+  ENVIRONMENT (what the words are allowed to look at), not in depth,
+  reader cleverness, or grammar. Run 20260720-...-replicate_stack;
+  module `stack` on /replicate.
+
+- **[2026-07-20] (Claude)** — **REPLICATE rung 6 (richer word grammar):
+  PAST 70% — TEST 0.7017 from 1,095 label-free words @ 19,068 params.**
+  The A/B was grammar-only (same conditional-novelty question, same gates,
+  same lexicon, 3-view stream). Two results: (1) the three NEW sentence
+  forms were REFUSED — count/select/compare drew 9-of-15 sampler
+  probability and admitted ZERO words (final census prod 163 / absdiff
+  29). Categorical/ordinal words need categorical inputs; frozen genome
+  outputs are smooth pooled responses, so "how many fired" / "which won"
+  have no crisp answer here and the smooth product dominates. (2) The
+  ARITY UNLOCK was the win — admitted arity spread 2:48, 3:84, 4:40,
+  5:14, 6:4, 7:1, 8:1 against the old hard cap of 3, and novelty fitness
+  rose to 0.40-0.52 (rung 2b's identical question ran 0.23-0.43). Deep
+  conjunction is what the substrate had left to give. Run
+  20260720-...-replicate_ocliprich; module `ocliprich` on /replicate.
+  NOTE (user's question, logged as a standing gap): every Oclip module so
+  far evolves ONE radial space — a flat lexicon whose words collapse to
+  scalars before the head. That breaks two stack laws (scalar hand-offs
+  destroy structure; depth should emerge under cap pressure, not be fixed
+  by hand). The two depth attempts were both handicapped (oclip2 stacked
+  over a 117-word lexicon; the reader layer read post-collapse scalars).
+  Next: a fair R1 over the 1,095-word x 3-glimpse bank.
+
+- **[2026-07-20] (Claude)** — **REPLICATE rung 5 (supervised nonlinear
+  reader): NULL — 0.6970 → 0.6970. The description is already linearly
+  saturated; the ceiling is the LANGUAGE, not the reader.** Architecture
+  held the user's CLIP split exactly (language label-free, labels touch
+  only the reader): evolved conjunctions over the 903-word description,
+  multiplicative-biased grammar (prod arity up to 6 — module 12's k≤3 was
+  suspected as the stall), ratio op added, cap at noise, orthogonality,
+  double-split verify. 26 rounds, 43 reader words admitted, TEST
+  identical to the linear reader. Two hard findings: (1) **"it's
+  multiplicative" is SUBSTRATE-level, not language-level** — at the
+  substrate, products of noisy channels carry real conjunction (novelty
+  words: prod 247/absdiff 104); over stable WORDS, products amplify
+  idiosyncrasy and get refuted on verify (refutations dominated: 30-44
+  per round early), surviving readers skew attend 13 / gate 14 — i.e.
+  CONDITIONAL reading ("when this word is loud, listen to that one"), and
+  even those bought nothing on test; (2) admitted prod readers all
+  collapsed to arity 2 despite arity-6 being available — deep
+  conjunctions over words never verified. Conclusion for the line: the
+  986-word description is a linearly-sufficient statistic of what the
+  glimpse stream told it, so accuracy now requires MORE/BETTER WORDS
+  (richer environment, more vocabulary) — no reader cleverness recovers
+  what the words never said. Run 20260720-035611-replicate_reader-748af4;
+  module `reader` on /replicate.
+
+- **[2026-07-20] (Claude)** — **REPLICATE rung 4 (glimpse sweep): MORE LOOKS
+  ARE NOT BETTER LOOKS — 3 views beat 12 with the lexicon unchanged
+  (0.6944 vs 0.6877).** Pure measurement, no evolution: the frozen
+  903-word lexicon read over nine candidate glimpse sets (1→12 views),
+  val-selected, test touched twice (winner + anchor) per module 7's
+  Goodhart law. Val curve is NON-MONOTONE and strikingly flat: 1 view
+  0.6940, 2 views 0.6800, **3 views 0.6987 (winner)**, 3 "max-diversity"
+  0.6809, 4 views 0.6862, 5 views 0.6906, 6 views 0.6872, 9 views 0.6974,
+  12 views 0.6906. Two findings: (1) a word whose value is a MEAN over
+  glimpses is diluted by near-duplicate looks — over-averaging destroys
+  discriminative signal, so glimpse-set curation is worth ~0.7pt for
+  free AND cuts inference 4x; (2) MAXIMIZING diversity backfired
+  (base+zoom+augframe = 0.6809, one of the worst) — the winning trio is
+  base + two SMALL perturbations, i.e. looks should differ enough to
+  decorrelate error but not so much that the word means different things
+  in each. This reframes the module-6 measurement axis: measurements
+  compound only while they stay comparable; the fat 12-view concat's win
+  came from the HEAD holding views separately, which is exactly the form
+  the user rejected — under a mean-aggregated word, fewer looks win. Run
+  20260720-035026-replicate_glimpse-97cd8c; module `glimpse` on
+  /replicate; notice #661.
+
+- **[2026-07-20] (Claude)** — **REPLICATE rung 3 (cross-modal words): the
+  language, given every face, TELLS US WHICH ONES IT NEEDS — and the answer
+  matches four earlier probes.** Channel axis widened 3,645 → 5,093
+  (visual|letter|shape|lang) at the honest common glimpse set (V=3; tiling
+  the 3-view blocks up to 12 would have faked the consistency gate), words
+  forced to straddle ≥2 faces. Result: control (same 903-word lexicon
+  re-read in the same V=3 stream) TEST 0.6946 → +83 cross-modal words
+  **0.6970** (+0.24pt, 16,998 params). The FACE CENSUS is the finding:
+  given free choice, the language reached for visual 80 / **lang 46** /
+  shape 36 / **letter 15** — the 64-channel private-language codes are
+  pulled 3x more often per channel than anything else (dense
+  non-redundant meaning), while the 1,193-channel letter bank — which
+  reads CIFAR at 0.6371 ALONE — is nearly ignored, reproducing the
+  modules 3/5 absorption result from INSIDE the language's own
+  preferences. Also: up to 64 single-face rejections/round, i.e. the best
+  conjunctions want to live inside one modality and the straddle
+  constraint is doing real work. Note the V=3 control (0.6946) beats the
+  V=12 read (0.6877) — fewer, cleaner glimpses beat more diluted ones.
+  Ops stay multiplicative (prod 70 / absdiff 10 / min 3). Run
+  20260720-033830-replicate_oclipcross-ef3b2d; module `oclipcross` on
+  /replicate.
+
+- **[2026-07-20] (Claude)** — **REPLICATE rung 2b curve: 903 words = TEST
+  0.6877 @ 15,530 params — novelty keeps paying, but the ENVIRONMENT is
+  now the binding constraint.** Novelty ladder: 674→0.6801, 792→0.6831,
+  903→0.6877 (val-test gap ~0 throughout; zero label contact until the
+  head). Earn rate ~+0.3pt/100 words vs rung 1's +3pt/100 at comparable
+  size — the question is unsaturated (it keeps finding verified,
+  unclaimed structure) but what it finds is increasingly peripheral: 12
+  glimpses of 32x32 hold a finite number of true things. Op census at
+  356 novelty words: prod 247 / absdiff 104 / gate 4 / min 1 — the
+  multiplicative flip is now overwhelming, confirming that CONJUNCTION is
+  what an additive lexicon structurally cannot say. Diagnosis mirrors the
+  campaign's opening finding one level up: when re-asking stops paying,
+  get a new MEASUREMENT — next levers are cross-modal words (the language
+  has never been allowed to describe the letter/shape/lang channels) and
+  richer glimpse geometry, not more rounds. Run
+  20260720-033420-replicate_oclipnovel-977cc3.
+
+- **[2026-07-20] (Claude)** — **REPLICATE rungs 2 + 2b: the ANSWERABLE-
+  QUESTION law, measured three ways on one language.** Rung 2
+  (`replicate_oclip_pred.py`, predictive words — a word must say the same
+  thing from two DISJOINT look-sets): scores pegged at 0.99 with ZERO
+  verification failures = another question every candidate answers; 42
+  words, 547 total, TEST 0.6759 (+0.6pt over rung 1's 0.6702). Rung 2b
+  (`replicate_oclip_novel.py`, CONDITIONAL NOVELTY — fitness = the
+  variance of a candidate the ENTIRE current lexicon cannot explain,
+  times its consistency; the language regressing on itself, still zero
+  labels): scores 0.23-0.43 (a question candidates struggle with),
+  rejections dominated by "implied" (12-48/round — words the language
+  already contains, invisible to the old PAIRWISE |corr|<0.8 gate), real
+  unverified failures appear; 127 words, 674 total, **TEST 0.6801** at
+  11,554 params. Ladder to date, all label-free: 505→0.6702,
+  547→0.6759, 674→0.6801 (vs label-guided 0.6013 @ 117). Op census flips
+  hard under novelty pressure — prod 91 / absdiff 35 / gate 1, i.e.
+  MULTIPLICATIVE words carry what the additive lexicon could not. The law
+  restated: stability questions saturate because any smooth function
+  answers them; only a question posed against the model's own knowledge
+  keeps selecting, because the target moves with every admission. Runs
+  20260720-032218-replicate_oclippred-cd5f03 /
+  20260720-032717-replicate_oclipnovel-5b9745; modules `oclippred` +
+  `oclipnovel` on /replicate.
+
+- **[2026-07-20] (Claude)** — **REPLICATE rung 1 COMPLETE: the label-free
+  language scales — 505 words = TEST 0.6702 from 8,584 params, and the
+  full words-vs-accuracy curve is measured.** Grew the module-13
+  vocabulary (cap raised via `--cmax`) with zero label contact throughout:
+  174 → 0.5972 (3,012 params), 219 → 0.6159, 308 → 0.6437, 397 → 0.6541,
+  **505 → 0.6702 (8,584 params)**. Per-100-word gain compresses
+  (+4.2 → +3.1 → +1.2 → +1.5pt) so the flat-consistency ceiling is
+  ~0.67-0.70; val-test gap stayed ≤1pt at every point (nothing is
+  selected against labels, so nothing leaks). It beats the LABEL-GUIDED
+  vocabulary (0.6013) by +6.9pt while owing nothing to the taxonomy —
+  the user's thesis measured: words chosen for truth outclassify words
+  chosen for the test. Op census at 505: min 180 / proj 117 / gate 111 /
+  absdiff 68 / attend 22 / prod 7. Still 4x smaller than the substrate
+  head (36k) it is chasing (0.7708). Rung 2 next: the consistency
+  question has saturated (0.95+ everywhere, redundancy doing all the
+  filtering), so per the answerable-question law the fitness changes to
+  PREDICTIVE words — a word must predict other words / hold across crops
+  — selecting words about THINGS over stable pixel statistics. Runs
+  20260720-030146 / -030853-replicate_oclipfree; module `oclipfree` on
+  /replicate.
+
+- **[2026-07-20] (Claude)** — **/progress: project assignment fixed — "Other" 74→0, CIFAR de-inflated
+  172→84.** The dashboard keyword-matched the changelog body only, dumping untagged entries into "Other"
+  and mis-bucketing everything mentioning "radial" (incl. all OCR) into CIFAR. Rewrote `_project_of` to
+  match the TITLE-prefix tag first (`/ocr:`, `VIDEO:`, `REPLICATE`) then fall back to body regex; added
+  the missing projects (OCR, PURE, Replicate, Tree, Humanoid, Vision Demo, X-ray). All 457 entries now map
+  to one of 17 real projects, 0 Other — charts reflect true distribution. Needs a Flask restart (service
+  module is import-cached). See CHANGELOG_PROGRESS.md.
+
+- **[2026-07-20] (Claude)** — **REPLICATE module 13 (Oclip LABEL-FREE — the
+  user's clarified thesis): a language that owes NOTHING to human
+  categories carries them anyway. TEST 0.5972 vs the label-guided
+  vocabulary's 0.6013 — statistically tied.** 174 words admitted with
+  zero label contact: fitness = word-ness itself (cross-glimpse
+  consistency on a 2k image probe — stability across views AND
+  discrimination across images), orthogonality < 0.8 against everything
+  already said, verification on a disjoint probe. Vocabulary facts: word
+  consistency ran 0.95-0.98 (the stream is RICH in view-stable truths),
+  verification failures were ZERO across 26 rounds (word-ness generalizes
+  perfectly across image probes), and orthogonality did all the shaping
+  (~50 rediscoveries rejected per round). Labels touched the language
+  exactly once, at the head, as one reader of a finished description —
+  and recovered the human taxonomy essentially for free (0.5972 from
+  3,012 TOTAL params; the diversity-first law restored after m11 bent
+  it). This is the encoder-convergence result (r=0.977) at vocabulary
+  scale: the categories are real structure in the world, so a
+  truth-seeking language finds them without being told. The English
+  mapping layer (concept -> term alignment, the CLIP text side) can now
+  be trained as TRANSLATION of an independent language, not inheritance.
+  `replicate/replicate_oclip_free.py`; module `oclipfree` on /replicate;
+  run 20260720-023752-replicate_oclipfree-cfe25a; notice #650.
+
+- **[2026-07-20] (Claude)** — **REPLICATE module 12 (Oclip layer 2, words
+  made of words): FLAT on test — depth cannot outrun a thin lexicon.**
+  Same four-gate machine over the per-glimpse L1 description (117 words x
+  12 glimpses), compounds additionally required orthogonal to the ENTIRE
+  L1 vocabulary. 18 compounds admitted (attend 13 / absdiff 4 / min 1 —
+  proto-syntax: words that look words up), evolution gate +2pt val... and
+  TEST 0.6028 vs L1-only 0.6013 (+0.15pt = noise; the L2 arm's 2pt
+  val-test gap shows four gates still leak when the candidate space is
+  small and picked-over). Structural finding: LINEAR compounds of words
+  are definitionally redundant with the head (rejections were dominated by
+  redundant-vs-L1L2), so layer-2 value can only come from nonlinear
+  compounds — and a 117-word lexicon holds few. The Oclip ladder therefore
+  bottlenecks at LAYER-1 VOCABULARY BREADTH: next lever is a wider/richer
+  flat vocabulary (raise C_MAX past 192, deeper concept grammar, multi-seed
+  vocabularies unioned by orthogonality), not more layers. Oclip stands at
+  0.6013-0.6028 from 2,504-2,974 TOTAL params (11x substrate acc/param).
+  `replicate/replicate_oclip2.py`; module `oclip2` on /replicate; run
+  20260720-021443-replicate_oclip2-eb5026; notice #649.
+
+- **[2026-07-20] (Claude)** — **REPLICATE module 11: OCLIP v1 (user's
+  reframe: CLIP + LM in one; the description IS the model) — 117 verified
+  proto-concepts carry TEST 0.6013 from 2,504 params TOTAL.** Concepts are
+  conjunction genomes over the glimpse stream admitted only if (a) they
+  earn through the description bottleneck (ridge gain vs the concept set,
+  cap 0.0008), (b) they are WORDS — view-consistent across the 12 glimpses
+  (mean cross-glimpse corr ≥ 0.35; a word names the thing, not the view),
+  (c) orthogonal to the admitted vocabulary (|corr| < 0.8, fixed probe),
+  and (d) verified on a second split (module 10's law). 27 rounds: val
+  0.096 → 0.6059, test 0.6013 (val-test gap 0.5pt — clean); ops census
+  proj 45 / attend 35 / gate 18 / min 17 / absdiff 2. Params: 1,324 genes
+  + 1,180 head = **2,504 total** — vs substrate head 0.7708 @ 36k (11x
+  the accuracy-per-param), raw-pixel ridge 0.324 @ ~30k, Coates-Ng 0.59.
+  Rejection ledger across rounds: ~500 candidates killed as
+  not-a-word/redundant/refuted — the gates, not the scorer, shaped the
+  vocabulary. The flat k≤4 grammar saturates ~0.60: the gap to 0.77 is
+  language DEPTH, so module 12 = concepts-reading-concepts (words made of
+  words — the LM half of Oclip). `replicate/replicate_oclip.py`
+  (resumable); export replicate_oclip.json; module `oclip` on /replicate;
+  run 20260720-015925-replicate_oclip-9d070f; notice #648.
+
+- **[2026-07-20] (Claude)** — **REPLICATE module 10 (heavylift, user's
+  directive "genomes must do more"): fixed-width SLOT COMPETITION — first
+  pass regressed and taught the day's third Goodhart; rerunning with a
+  verify gate.** Design: the head keeps exactly 3,645 slots; evolved
+  conjunction genomes (any channel x any glimpse: prod/gate/absdiff/min/
+  attend/reweight) EVICT the lowest-weight-norm columns and take their
+  slots; candidate admission = the full model improves with the swap
+  (rank-update gram, ~0.15s/candidate; resumable state). First pass: 96
+  slots taken in 27 rounds, near-100% take rate, every swap positive on
+  its fresh split — and TEST 0.7789, BELOW the 0.7822 start. Diagnosis:
+  the +0.0002 admission cap sat ~20x under single-split noise, so
+  micro-admissions were selection-biased coin flips that COMPOUNDED into
+  −0.33pt (push80's greedy Goodhart at swap granularity — third variant
+  of the day). Fix per the adversarial-verify pattern: every slot winner
+  must now beat the base on a SECOND independent split it was never
+  selected on (cap raised to 0.0008); state reset, rerun in flight.
+  `replicate/replicate_heavylift.py`; regression run
+  20260720-013816-replicate_heavylift-5be0ed; notice #647.
+
+- **[2026-07-19] (Claude)** — **REPLICATE module 9 (temporal — the original
+  vision, user's course correction): the glimpse stream is TIME and the
+  model compresses it itself. 0.7822 at FIXED 3,645 width.** After the
+  user rejected the fat-concat form ("param explosion means it's wrong,
+  evolution isn't greedy"), the 12 cached glimpses (9 views + 3 frames)
+  were fed as a per-genome stream (N, 3645, 12) compressed by 8 EVOLVED
+  aggregation policies (~120 real genes: weighted mean, persistence
+  [softmax-by-magnitude], gated accumulation [reinforce recurring / cancel
+  transient], max/min/range/std/powered mean) + one assignment gene per
+  genome. Head width never grew. Test once per arm: uniform-mean control
+  0.7779, EVOLVED 0.7822 (+0.43pt over control, **+1.14pt over
+  visual-alone 0.7708 at literally identical head size**). Param bill:
+  36,460 head + 120 genes + 3,645 assignments ≈ 40k — vs the fat record's
+  138k-182k head for 0.7967: ~2.3x the accuracy-per-parameter, and the
+  form generalizes to realtime streams (audio) where concat is impossible.
+  Policy census: 704 genomes (19%) abandoned the mean — persist 111,
+  range 112, pmean 113, std 97, max 95, min 92, gate 84: different genomes
+  genuinely want different memories of the stream. Evolution earned every
+  point at fixed width (control-seeded incumbent, fresh-val rounds,
+  §3.8 operators; resumable chunks). `replicate/replicate_temporal.py`;
+  export replicate_temporal.json; module `temporal` on /replicate; run
+  20260719-233903-replicate_temporal-56439c; notice #646.
+
 - **[2026-07-19] (Claude)** — **VIDEO: upload from the library picker**
   - "Upload new" button in the picker modal (poses go to the poses
   library, media to the video library); grid refreshes and highlights

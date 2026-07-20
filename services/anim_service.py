@@ -1210,6 +1210,29 @@ def slide_to_svg_group(slide, w=1280, h=720, local_t=0.0, chart_frames=None):
             continue                          # not on stage yet
         if m["end"] > 0 and local_t >= m["end"]:
             continue                          # vanished
+        if m.get("src") == "pose":
+            # extra pose added as a media item - image from the poses
+            # folder, full timeline control like any other item
+            pdir = os.path.normpath("C:/Users/paytonm/Pictures/poses")
+            ppath = os.path.normpath(os.path.join(pdir, name))
+            if not ppath.startswith(pdir):
+                continue
+            img_uri = _get_base64_img(ppath)
+            if img_uri:
+                fade = 0.5
+                op = 1.0
+                if m["fade_in"]:
+                    op = min(op, (local_t - m["start"]) / fade)
+                if m["fade_out"] and m["end"] > 0:
+                    op = min(op, (m["end"] - local_t) / fade)
+                op = max(0.0, min(1.0, op))
+                tag = (f'<image href="{img_uri}" x="{m["x"]}" y="{m["y"]}" '
+                       f'width="{m["w"]}" height="{m["h"]}" '
+                       f'preserveAspectRatio="xMidYMid meet"/>')
+                if op < 0.999:
+                    tag = f'<g opacity="{op:.3f}">{tag}</g>'
+                out.append(tag)
+            continue
         chart_path = os.path.normpath(os.path.join(video_service.LIB_DIR, video_service.safe_name(name)))
         if not chart_path.startswith(os.path.normpath(video_service.LIB_DIR)):
             continue
@@ -1241,6 +1264,31 @@ def slide_to_svg_group(slide, w=1280, h=720, local_t=0.0, chart_frames=None):
                 tag = f'<g opacity="{op:.3f}">{tag}</g>'
             out.append(tag)
                 
+    # Auto slides: thumbnail (big centered title from text) and credits
+    # (centered line list) - captions still render on credits slides
+    kind = slide.get("kind") or ""
+    if kind == "thumb":
+        title = str(slide.get("text") or "")
+        if title:
+            tlines = [ln for ln in title.split("\n")]
+            t_font = 64 if max(len(x) for x in tlines) <= 28 else 44
+            t_lh = t_font * 1.25
+            ty0 = h / 2 - (len(tlines) - 1) * t_lh / 2 + t_font * 0.35
+            ts = "".join(
+                f'<tspan x="{w / 2}" dy="{t_lh if i > 0 else 0}">{_esc(ln)}</tspan>'
+                for i, ln in enumerate(tlines))
+            out.append(f'<text x="{w / 2}" y="{ty0:.1f}" font-family="Arial, Helvetica, sans-serif" font-size="{t_font}" font-weight="bold" fill="#f0ede4" text-anchor="middle">{ts}</text>')
+        return "".join(out)
+    if kind == "credits":
+        clines = [str(x) for x in (slide.get("credits") or [])]
+        if clines:
+            c_lh = 34
+            cy0 = max(60.0, h / 2 - (len(clines) - 1) * c_lh / 2)
+            ts = "".join(
+                f'<tspan x="{w / 2}" dy="{c_lh if i > 0 else 0}">{_esc(ln) or " "}</tspan>'
+                for i, ln in enumerate(clines))
+            out.append(f'<text x="{w / 2}" y="{cy0:.1f}" font-family="Arial, Helvetica, sans-serif" font-size="22" fill="#c7d0da" text-anchor="middle">{ts}</text>')
+
     # Caption / CC Text - word-wrapped, box grows with the lines
     # (identical math to the client preview in slideshow.js)
     text = slide.get("text")
@@ -1393,6 +1441,7 @@ def _slide_media(s):
                 "end": max(0.0, float(m.get("end", 0) or 0)),
                 "fade_in": bool(m.get("fade_in")),
                 "fade_out": bool(m.get("fade_out")),
+                "src": "pose" if m.get("src") == "pose" else "lib",
             })
         return out
     if s.get("chart"):
@@ -1409,6 +1458,7 @@ def _slide_media(s):
             "end": 0.0,
             "fade_in": False,
             "fade_out": False,
+            "src": "lib",
         })
     return out
 

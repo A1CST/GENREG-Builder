@@ -159,6 +159,7 @@
             end: Math.max(0, Number(m.end) || 0),
             fade_in: !!m.fade_in,
             fade_out: !!m.fade_out,
+            src: m.src === "pose" ? "pose" : "lib",
           }))
         : (s.chart ? [{
             // migrate the legacy single-chart fields into media[0]
@@ -176,6 +177,8 @@
       pose_gesture: typeof s.pose_gesture === "string" ? s.pose_gesture : "",
       media_request: typeof s.media_request === "string" ? s.media_request : "",
       pose_request: typeof s.pose_request === "string" ? s.pose_request : "",
+      kind: s.kind === "thumb" || s.kind === "credits" ? s.kind : "",
+      credits: Array.isArray(s.credits) ? s.credits.map(String) : [],
       text: typeof s.text === "string" ? s.text : "",
       bg: s.bg || s.background || "",
       duration: Math.max(0.5, Number(s.duration) || 3.0),
@@ -429,6 +432,12 @@
     return /\.(mp4|webm|mov|mkv)$/i.test(name || "")
       ? `/api/video/thumb/${encodeURIComponent(name)}`
       : `/api/video/file/${encodeURIComponent(name)}`;
+  }
+
+  function mediaHref(m) {
+    return m.src === "pose"
+      ? `/api/poses/${encodeURIComponent(m.name)}`
+      : chartHref(m.name);
   }
 
   function renderPosesLibrary() {
@@ -839,6 +848,62 @@
     renderPreview();
   });
 
+  // ---- AUTO SLIDES: thumbnail + credits ------------------------------
+  function deckCreditLines() {
+    const poses = new Set();
+    const media = new Set();
+    let tts = false, mic = false;
+    slides.forEach((s) => {
+      if (s.pose) poses.add(s.pose.split("/").pop());
+      (s.media || []).forEach((m) => {
+        if (m.src === "pose") poses.add(m.name.split("/").pop());
+        else media.add(m.name);
+      });
+      (s.clips || []).forEach((c) => {
+        if (/\.mp3$/i.test(c.id || "")) tts = true; else mic = true;
+      });
+    });
+    const lines = ["CREDITS", ""];
+    if (tts) lines.push("Narration - ElevenLabs");
+    if (mic) lines.push("Narration - recorded live");
+    if (media.size) {
+      lines.push("", "MEDIA");
+      [...media].slice(0, 10).forEach((n) => lines.push(n));
+      if (media.size > 10) lines.push(`...and ${media.size - 10} more`);
+    }
+    if (poses.size) {
+      lines.push("", "POSES");
+      [...poses].slice(0, 8).forEach((n) => lines.push(n));
+    }
+    lines.push("", "Built with the GENREG slideshow builder",
+               "gradient-free, like everything else here");
+    return lines;
+  }
+
+  $("slide-add-thumb").addEventListener("click", () => {
+    const title = ($("exp-outname") && $("exp-outname").value.trim()) || "My Explainer";
+    slides.unshift(sanitizeSlide({
+      kind: "thumb",
+      text: title,
+      duration: 3.0, transition: "fade", transition_dur: 0.5,
+    }));
+    activeIndex = 0;
+    saveSlides();
+    selectSlide(0);
+  });
+
+  $("slide-add-credits").addEventListener("click", () => {
+    // regenerate on every click so late media/pose additions are counted
+    slides.push(sanitizeSlide({
+      kind: "credits",
+      credits: deckCreditLines(),
+      duration: Math.max(4, deckCreditLines().length * 0.45),
+      transition: "fade", transition_dur: 0.5,
+    }));
+    saveSlides();
+    selectSlide(slides.length - 1);
+  });
+
   // ---- GLOBAL BACKGROUND: a library gif/video looped behind every
   // slide, replacing the flat black background ------------------------
   let deckBg = "";
@@ -1103,7 +1168,7 @@
         if (f < 0.999) op = ` opacity="${f.toFixed(3)}"`;
       }
       out.push(`<g${op}>` +
-        `<image href="${chartHref(m.name)}" x="${m.x}" y="${m.y}" width="${m.w}" height="${m.h}" data-drag="media" data-mi="${mi}" style="cursor: move;" preserveAspectRatio="xMidYMid meet"/>` +
+        `<image href="${mediaHref(m)}" x="${m.x}" y="${m.y}" width="${m.w}" height="${m.h}" data-drag="media" data-mi="${mi}" style="cursor: move;" preserveAspectRatio="xMidYMid meet"/>` +
         `<rect x="${m.x + m.w - 14}" y="${m.y + m.h - 14}" width="16" height="16" rx="3" fill="#4ea1ff" fill-opacity="0.85" data-drag="media-resize" data-mi="${mi}" style="cursor: nwse-resize;"/>` +
         `</g>`);
     });
@@ -1144,6 +1209,29 @@
         `<text x="${gp.x + 275}" y="${gp.y + 205}" font-family="Arial, Helvetica, sans-serif" font-size="16" fill="#c7d0da" text-anchor="middle">${spans}</text>` +
         `<text x="${gp.x + 275}" y="${gp.y + 390}" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#8b95a1" text-anchor="middle">upload it from the MEDIA TIMELINE panel below</text>` +
         `</g>`);
+    }
+
+    // Auto slides: thumbnail (text renders as a big centered title, no
+    // CC box) and credits (centered line list; CC still available)
+    const kEsc = (txt) => String(txt).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    if (s.kind === "thumb") {
+      if (s.text) {
+        const tlines = String(s.text).split("\n");
+        const tFont = Math.max(...tlines.map((x) => x.length)) <= 28 ? 64 : 44;
+        const tLh = tFont * 1.25;
+        const ty0 = h / 2 - (tlines.length - 1) * tLh / 2 + tFont * 0.35;
+        const ts = tlines.map((ln, i) =>
+          `<tspan x="${w / 2}" dy="${i ? tLh : 0}">${kEsc(ln)}</tspan>`).join("");
+        out.push(`<text x="${w / 2}" y="${ty0.toFixed(1)}" font-family="Arial, Helvetica, sans-serif" font-size="${tFont}" font-weight="bold" fill="#f0ede4" text-anchor="middle">${ts}</text>`);
+      }
+      return out.join("");
+    }
+    if (s.kind === "credits" && (s.credits || []).length) {
+      const cLh = 34;
+      const cy0 = Math.max(60, h / 2 - (s.credits.length - 1) * cLh / 2);
+      const ts = s.credits.map((ln, i) =>
+        `<tspan x="${w / 2}" dy="${i ? cLh : 0}">${kEsc(ln) || " "}</tspan>`).join("");
+      out.push(`<text x="${w / 2}" y="${cy0.toFixed(1)}" font-family="Arial, Helvetica, sans-serif" font-size="22" fill="#c7d0da" text-anchor="middle">${ts}</text>`);
     }
 
     // CC Text - word-wrapped to the box, box grows with the lines
@@ -1849,13 +1937,26 @@
     if (activeIndex < 0 || !slides[activeIndex]) { panel.style.display = "none"; return; }
     const slide = slides[activeIndex];
     const items = slide.media || [];
-    if (!items.length && !slide.media_request && !slide.pose_request) { panel.style.display = "none"; return; }
     panel.style.display = "block";
     const total = effDur(slide);
     const box = $("media-rows");
     box.innerHTML = "";
     const rEsc = (txt) => String(txt).replace(/&/g, "&amp;").replace(/</g, "&lt;")
       .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    // pose row: the slide's primary pose (always on stage) + add/change;
+    // EXTRA poses become media items (src "pose") with full timing rows
+    const poseRow = document.createElement("div");
+    poseRow.className = "media-row";
+    poseRow.innerHTML =
+      `<div class="media-row-head">` +
+      `<span class="media-req-tag" style="color:#4ea1ff;">POSE</span>` +
+      `<span class="media-name" style="max-width:240px;">${slide.pose ? rEsc(slide.pose.split("/").pop()) : "(none)"}</span>` +
+      `<span class="media-row-info">${slide.pose ? "primary - on stage the whole slide" : "no pose on this slide"}</span>` +
+      `<button class="runs-btn vd-mini pose-change">${slide.pose ? "Change" : "Pick"}</button>` +
+      `<button class="runs-btn vd-mini pose-add-extra" title="add another pose as a timed media item (start/vanish/fades like any media)">Add pose</button>` +
+      (slide.pose ? `<button class="sld-act sld-del pose-remove" title="remove the primary pose">&times;</button>` : "") +
+      `</div>`;
+    box.appendChild(poseRow);
     if (slide.pose_request && !slide.pose) {
       const preq = document.createElement("div");
       preq.className = "media-req pose-req";
@@ -2013,8 +2114,19 @@
       openLibraryPicker("media");
       return;
     }
-    if (ev.target.classList.contains("pose-req-lib")) {
+    if (ev.target.classList.contains("pose-req-lib") ||
+        ev.target.classList.contains("pose-change")) {
       openLibraryPicker("pose");
+      return;
+    }
+    if (ev.target.classList.contains("pose-add-extra")) {
+      openLibraryPicker("pose", "extra");
+      return;
+    }
+    if (ev.target.classList.contains("pose-remove")) {
+      slides[activeIndex].pose = "";
+      $("slide-pose").value = "";
+      saveSlides(); renderMediaTimeline(); renderSlideList(); renderPreview();
       return;
     }
     if (ev.target.classList.contains("pose-req-upload")) {
@@ -2037,6 +2149,17 @@
   // folder, with filter - because a name list means nothing for
   // unlabeled images ---------------------------------------------------
   let libPickKind = "media";
+  let libPickMode = "fulfill";     // "fulfill" (primary/request) | "extra"
+
+  function addPoseMediaToSlide(slide, name) {
+    slide.media = slide.media || [];
+    const n = slide.media.length;
+    slide.media.push({ name: name, src: "pose",
+                       x: 80 + n * 24, y: 80, w: 450, h: 480,
+                       start: 0, dur: 0, loop: false, end: 0,
+                       fade_in: false, fade_out: false });
+    saveSlides(); renderPreview(); renderSlideList(); renderMediaTimeline();
+  }
 
   function libPickEntries() {
     if (libPickKind === "pose") {
@@ -2093,10 +2216,13 @@
     });
   }
 
-  function openLibraryPicker(kind) {
+  function openLibraryPicker(kind, mode) {
     libPickKind = kind;
+    libPickMode = mode || "fulfill";
     $("libpick-title").textContent = kind === "pose"
-      ? "Pick a pose from the library" : "Pick media from the library";
+      ? (libPickMode === "extra" ? "Add another pose to the slide"
+                                 : "Pick a pose from the library")
+      : "Pick media from the library";
     $("libpick-search").value = "";
     $("libpick-status").textContent = "";
     const fsel = $("libpick-folder");
@@ -2151,8 +2277,12 @@
     const card = ev.target.closest(".lp-card");
     if (!card || activeIndex < 0) return;
     const name = card.dataset.name;
-    if (libPickKind === "pose") fulfillPoseRequest(slides[activeIndex], name);
-    else fulfillMediaRequest(slides[activeIndex], name);
+    if (libPickKind === "pose") {
+      if (libPickMode === "extra") addPoseMediaToSlide(slides[activeIndex], name);
+      else fulfillPoseRequest(slides[activeIndex], name);
+    } else {
+      fulfillMediaRequest(slides[activeIndex], name);
+    }
     $("libpick-overlay").style.display = "none";
   });
 
