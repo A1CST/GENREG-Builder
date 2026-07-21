@@ -9,6 +9,24 @@ the top of the log below, and also in the master CHANGELOG.md.
 
 ---
 
+- **[2026-07-21] (Claude)** — **VIDEO: export pose edges fixed - sharp
+  in preview, "bad photoshop cut and paste" in export (user report).**
+  Root cause: poses are 1024x1536 RGBA drawn into a ~450x480 box; the
+  browser preview downscales with high-quality resampling but resvg
+  (the export rasterizer) only does plain bilinear, which at 2-3x
+  reduction aliases away the thin character outlines. Fix:
+  `_get_base64_img()` gains a `box` parameter - static images (primary
+  pose, pose-src media items, image media items) are pre-scaled with
+  PIL Lanczos to the exact drawn size before embedding, so resvg
+  composites 1:1 with no resampling of its own. Never upscales; video
+  frames unchanged (already fps-extracted at scale). Also added a
+  (path, mtime, box) cache - the compositor was re-reading and
+  re-base64ing every image EVERY frame. Verified: embedded pose now
+  320x480 RGBA (was 1024x1536), edge-gradient analysis of an exported
+  frame shows 0.97 antialiased-edge fraction, and the encode ran 9.5
+  fps vs the old ~2-3 (cache bonus). Needs the pending Flask restart.
+  File: services/anim_service.py.
+
 - **[2026-07-20] (Claude)** — **VIDEO: export DEADLOCK fixed (user
   report: stuck at 0.1% for 131 minutes).** Root cause: the encoder ran
   with stderr=PIPE but nothing read it until after the frame loop -

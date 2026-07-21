@@ -10,6 +10,13 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-21] (Claude)** — **VIDEO: export pose edges fixed** -
+  resvg's bilinear-only downscaling aliased away pose outlines at 3x
+  reduction; static images now pre-scale with Lanczos to the drawn box
+  before embedding (plus a per-frame base64 cache: encode ~3x faster).
+  Verified by edge analysis of an exported frame. Needs the Flask
+  restart. Details in CHANGELOG_VIDEO.md.
+
 - **[2026-07-20] (Claude)** — **REPLICATE modules 50-53: R1 over R0's
   PRE-POOL FIELD — the direction validated, +0.49pt val and climbing.**
   Per the project direction note (documentation/AI_response/1.txt): R1 must

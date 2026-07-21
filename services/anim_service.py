@@ -1160,17 +1160,55 @@ def render_story(shots, out_name=""):
 
 import base64
 
-def _get_base64_img(path):
+_B64_CACHE = {}
+
+
+def _get_base64_img(path, box=None):
+    """Base64 data-URI for an image. With box=(w, h), static images are
+    pre-scaled with Lanczos to fit the drawn box BEFORE embedding: resvg
+    only does plain bilinear, which at 2-3x downscales aliases away the
+    thin outlines that keep poses looking sharp (export looked like a
+    bad cutout vs the browser preview's high-quality resampling).
+    Results are cached on (path, mtime, box) - the compositor calls this
+    every frame."""
     if not os.path.isfile(path):
         return None
     try:
-        with open(path, "rb") as f:
-            data = f.read()
+        mt = os.path.getmtime(path)
+        key = (path, mt, box)
+        hit = _B64_CACHE.get(key)
+        if hit:
+            return hit
         ext = os.path.splitext(path)[1].lower().strip(".")
         if ext == "jpg":
             ext = "jpeg"
-        b64 = base64.b64encode(data).decode("utf-8")
-        return f"data:image/{ext};base64,{b64}"
+        data = None
+        if box and ext in ("png", "jpeg", "webp"):
+            try:
+                from PIL import Image
+                import io as _io
+                im = Image.open(path)
+                bw, bh = max(1, int(box[0])), max(1, int(box[1]))
+                sc = min(bw / im.width, bh / im.height)
+                if sc < 0.999:                # never upscale
+                    im = im.convert("RGBA").resize(
+                        (max(1, round(im.width * sc)),
+                         max(1, round(im.height * sc))),
+                        Image.LANCZOS)
+                    buf = _io.BytesIO()
+                    im.save(buf, "PNG")
+                    data = buf.getvalue()
+                    ext = "png"
+            except Exception:
+                data = None
+        if data is None:
+            with open(path, "rb") as f:
+                data = f.read()
+        uri = f"data:image/{ext};base64," + base64.b64encode(data).decode("utf-8")
+        if len(_B64_CACHE) > 256:
+            _B64_CACHE.clear()
+        _B64_CACHE[key] = uri
+        return uri
     except Exception:
         return None
 
@@ -1189,7 +1227,7 @@ def slide_to_svg_group(slide, w=1280, h=720, local_t=0.0, chart_frames=None):
     if pose:
         pose_path = os.path.normpath(os.path.join("C:/Users/paytonm/Pictures/poses", pose))
         if pose_path.startswith("C:\\Users\\paytonm\\Pictures\\poses"):
-            img_uri = _get_base64_img(pose_path)
+            img_uri = _get_base64_img(pose_path, box=(450, 480))
             if img_uri:
                 px, py, pw, ph = 80, 80, 450, 480
                 if slide.get("pose_x") is not None and slide.get("pose_y") is not None:
@@ -1218,7 +1256,7 @@ def slide_to_svg_group(slide, w=1280, h=720, local_t=0.0, chart_frames=None):
             ppath = os.path.normpath(os.path.join(pdir, name))
             if not ppath.startswith(pdir):
                 continue
-            img_uri = _get_base64_img(ppath)
+            img_uri = _get_base64_img(ppath, box=(m["w"], m["h"]))
             if img_uri:
                 fade = 0.5
                 op = 1.0
@@ -1248,7 +1286,7 @@ def slide_to_svg_group(slide, w=1280, h=720, local_t=0.0, chart_frames=None):
             img_uri = _get_base64_img(
                 os.path.join(fdir, f"f_{fi:05d}.png"))
         else:
-            img_uri = _get_base64_img(chart_path)
+            img_uri = _get_base64_img(chart_path, box=(m["w"], m["h"]))
         if img_uri:
             # optional fade at the window edges (0.5s ramps)
             fade = 0.5
