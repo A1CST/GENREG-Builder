@@ -46,19 +46,24 @@ _OPS = ["mult", "min", "absdiff"]
 _STATS = ["mean", "max", "std"]
 C_PER_SCALE = 40
 
+_SVD_CACHE = {}          # (fingerprint, ps) -> (comps, mu): the patch-PCA basis is deterministic
+#                          from the reference set, so reuse it across pages/calls (inference speed)
+
 
 # ---------------------------------------------------------------------------
 # environment: lazily-built per-scale patch-PCA maps (data statistics only)
 # ---------------------------------------------------------------------------
 
 class Env:
-    def __init__(self, torch, dev, Xtr, Xte, max_cached=4):
+    def __init__(self, torch, dev, Xtr, Xte, max_cached=4, test_only=False):
         self.torch, self.dev = torch, dev
         self.Xtr, self.Xte = Xtr, Xte
         self.cache = {}                     # ps -> (Mtr fp16, Mte fp16, H, W)
         self.max_cached = max_cached
         self.last_used = {}
         self.tick = 0
+        self.test_only = test_only          # inference: only the test slot is read, so skip
+        #                                     projecting the (large, fixed) reference set -> Mtr
 
     def maps(self, ps):
         import torch.nn.functional as Fn
@@ -72,15 +77,25 @@ class Env:
             del self.cache[ev]; del self.last_used[ev]
             torch.cuda.empty_cache()
         stride = max(2, ps // 2)
-        d = ps * ps * 3
-        i2k = torch.tensor(self.Xtr[:2000], device=self.dev).permute(0, 3, 1, 2).contiguous()
-        P = Fn.unfold(i2k, ps, stride=stride)
-        cols = P.permute(0, 2, 1).reshape(-1, d)
-        g = torch.Generator(device="cpu").manual_seed(ps)
-        cols = cols[torch.randperm(len(cols), generator=g)[:100000].to(self.dev)]
-        mu = cols.mean(0)
-        _, _, V = torch.linalg.svd(cols - mu, full_matrices=False)
-        comps = V[:min(C_PER_SCALE, d)]
+        d = ps * ps * self.Xtr.shape[3]          # channel-agnostic (3 for RGB)
+        # the basis (comps, mu) is deterministic from the reference set — cache it across
+        # Env instances (a fresh Env is built per page at inference) keyed by a cheap fingerprint
+        fp = ((self.Xtr.shape, float(self.Xtr[:64].sum()), float(self.Xtr[-64:].sum()),
+               float(self.Xtr.mean())) if len(self.Xtr) else (0,))
+        bkey = (fp, ps)
+        cached = _SVD_CACHE.get(bkey)
+        if cached is not None:
+            comps, mu = cached
+        else:
+            i2k = torch.tensor(self.Xtr[:2000], device=self.dev).permute(0, 3, 1, 2).contiguous()
+            P = Fn.unfold(i2k, ps, stride=stride)
+            cols = P.permute(0, 2, 1).reshape(-1, d)
+            g = torch.Generator(device="cpu").manual_seed(ps)
+            cols = cols[torch.randperm(len(cols), generator=g)[:100000].to(self.dev)]
+            mu = cols.mean(0)
+            _, _, V = torch.linalg.svd(cols - mu, full_matrices=False)
+            comps = V[:min(C_PER_SCALE, d)]
+            _SVD_CACHE[bkey] = (comps, mu)
         S = self.Xtr.shape[1]                    # input resolution (was hardcoded 32)
         H = W = (S - ps) // stride + 1
 
@@ -99,7 +114,7 @@ class Env:
                 out[b:b + len(imgs)] = (M / sd).half()
             return out
 
-        Mtr = build(self.Xtr)
+        Mtr = None if self.test_only else build(self.Xtr)   # Mtr unused when only test feats read
         Mte = build(self.Xte)
         self.cache[ps] = (Mtr, Mte, H, W)
         self.last_used[ps] = self.tick

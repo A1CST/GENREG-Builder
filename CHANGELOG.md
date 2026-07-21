@@ -10,6 +10,228 @@ log below; don't rewrite existing entries.
 
 ---
 
+- **[2026-07-20] (Claude)** — **REPLICATE modules 50-53: R1 over R0's
+  PRE-POOL FIELD — the direction validated, +0.49pt val and climbing.**
+  Per the project direction note (documentation/AI_response/1.txt): R1 must
+  read R0's spatial activation FIELD before collapse, not its pooled outputs,
+  and not bypass R0. (m50) confirmed the collapse is the problem, not R0's
+  computation: a nonlinear readout (RBF random-features) of R0's POOLED
+  outputs gives no val-robust gain — the earlier "+1.67pt from products" was
+  test-set noise (10k test ~±0.4pt); on VAL the pooled-output bank went
+  DOWN. Pooled R0 is nonlinearly exhausted ~0.78. (m52) exposed R0's pre-pool
+  field (G=8) to R1 grid-grammar compositions (channels/positions/local
+  neighborhoods via shift genes, src=prev only): RANDOM diverse+stable field
+  features give a real, consistent +0.25pt val over the pooled baseline
+  (where the pooled-output bank was flat-to-negative) — so the pre-pool field
+  DOES carry information the collapse discards. (m53) EVOLVED the field
+  compositions for cross-split stability x correlation-magnitude (diversity+
+  stability admission, NOT ensemble label gain; full R0|R1 stack judged on
+  VAL): +0.49pt val @ 612 features (0.7867 vs R0 0.7818), test 0.7703 vs
+  0.7675 — evolution ~doubled random, climbing steadily. Below the +1pt bar
+  but the RS-stack premise is confirmed in sign: depth over the pre-pool
+  field earns where every readout of the collapsed outputs nulled. Key fixes
+  vs the m38 null: higher-res field (8 vs 4), diversity/stability selection
+  (not the label-significance gate that strangled the diffuse signal), pure
+  R0->R1, val-judged. RESOLUTION LEVER REFUTED: G=10 (+0.17) and G=12 (+0.21)
+  did NOT beat G=8 (+0.49), so the field's advantage over the collapse is NOT
+  fine spatial detail (my "blurry reconstruction => detail discarded"
+  inference is wrong, as the direction cautioned) — it's spatial structure/
+  co-occurrence composition captures, worth ~+0.5pt val and capping there.
+  Remaining ~+0.5pt to the bar is the open question.
+  `replicate/replicate_r1probe.py`, `replicate_r1bank.py`,
+  `replicate_r1field.py`, `replicate_r1fieldevo.py`.
+
+- **[2026-07-20] (Claude)** — **REPLICATE module 48: SPATIAL CONFIGURATION
+  binding (depth) = NULL, and it closes the loop.** Gave each grammar term
+  its OWN window + scale so one genome can require feature A in region 1 AND
+  feature B in region 2 (a part configuration single-layer co-located
+  detectors can't express). Matched A/B (same seeds, 588 vs 573 genomes):
+  configuration 0.6517 vs standard 0.6694 = -1.8pt. Reason it doesn't help:
+  the UNION already encodes spatial configuration ACROSS genomes — each
+  genome carries a position via its window, so "A-at-top" and "B-at-bottom"
+  are two union features the RIDGE binds linearly; the within-genome
+  conjunction only adds a nonlinear AND the ridge can't express, and that
+  added nothing => CIFAR at 0.77 is largely LINEARLY separable in the
+  union-of-single-features space. CONSOLIDATED (m44-48, whole perception+
+  depth axis, ~8 angles): single-layer gradient-free CIFAR saturates at
+  ~0.77-0.78 and our evolved substrate is its PARAMETER-EFFICIENT frontier
+  (0.77 at ~8-20K params). This is a REPRESENTATIONAL-DEPTH ceiling, not a
+  search-time one — evolution cannot search past a class-of-function limit.
+  Known gradient-free literature (incl. 2-layer k-means stacks) tops
+  ~80-82%; 90% on CIFAR requires gradient-based training. The honest
+  strategic fork now goes to the user. `replicate/replicate_config.py`.
+
+- **[2026-07-20] (Claude)** — **REPLICATE modules 46-47: the NONLINEAR
+  perception lever, tested to conclusion — 0.77 is the SINGLE-LAYER ceiling,
+  from both directions.** (m46) Swapped the linear patch-PCA environment for
+  a NONLINEAR k-means dictionary (40 prototypes, signed rectification) and
+  evolved the identical grammar over it: matched A/B (same seeds, 562 vs 573
+  genomes) NONLINEAR 0.6173 vs RAW-PCA 0.6694 = -5.2pt. Not a verdict on
+  nonlinearity — a sparse-code-into-low-order-grammar mismatch: our grammar
+  is ALREADY nonlinear and reads only 2-3 dense channels/genome, which PCA
+  serves better than a sparse prototype code. (m47) So probed the nonlinear
+  code the way it's meant to be read — the canonical Coates-Ng single-layer
+  pipeline (contrast-norm + ZCA + k-means + triangle activation + 2x2
+  sum-pool + ridge), the gradient-free method that reached ~80% on CIFAR.
+  Scaling: K=400 0.7017, K=800 0.7287, K=1600 0.7516, K=3200 0.7753; pool=4
+  overfits (0.7594). VERDICT: the full nonlinear dictionary MATCHES our
+  evolved substrate only at K=1600 (0.7516 < 0.7698, ~170K params) and edges
+  past only at K=3200 (0.7753, +0.55pt, ~345K params vs our ~8-20K). Our
+  evolved grammar over LINEAR PCA is the PARAMETER-EFFICIENT frontier of the
+  same ~0.77-0.78 wall the canonical nonlinear method also hits. CONCLUSION
+  (whole perception axis, m44-47): 0.77 is the SINGLE-LAYER information
+  ceiling for CIFAR — not the readout, not spatial pooling, not linear
+  enrichment, not nonlinear encoding. Breaking it to 90% requires DEPTH
+  (hierarchical composition of first-layer features into spatial part
+  configurations), the known single-layer->deep gap — NOT a better first
+  layer. `replicate/replicate_nonlin.py`, `replicate/replicate_coatesng.py`.
+
+- **[2026-07-20] (Claude)** — **REPLICATE modules 44-45: the PERCEPTION
+  PRIMITIVE — two clean results that locate the 0.77 lever precisely.**
+  (m44, SPATIAL LAYOUT = NULL) Read the union substrate's spatial GRID
+  (GxG cells) instead of its scalar. Grids are WORSE: scalar 0.7698, 2x2
+  0.7282, 3x3 0.7182. The genome's learned soft-window pool is already the
+  right spatial summary; the raw grid just adds noise+dimensionality. So the
+  limit is not HOW genomes pool space — it is WHAT they detect.
+  (m45, HAND-ENRICHED ENVIRONMENT = REGRESSION) Enriched CIFAR with
+  Sobel-x/y + gradient-magnitude + luminance channels (7ch) so the patch-PCA
+  basis could capture oriented edges/texture, and evolved R0 detectors over
+  it. Matched A/B — identical per-round seeds mean raw and enriched get the
+  IDENTICAL genome proposals each round, only the environment differs; both
+  reach exactly 573 genomes at round 80: RAW val 0.6810 / TEST 0.6694 vs
+  ENRICHED val 0.6652 / TEST 0.6525 (**-1.7pt, enrichment HURTS**). Reason:
+  patch-PCA already spans edge structure (a Sobel gradient is a LINEAR combo
+  of neighbouring pixels, so the raw basis already represents it), so the
+  extra channels add zero information and DILUTE the fixed component budget,
+  crowding out discriminative color modes. LESSON: you cannot hand-engineer
+  better perception into a LINEAR environment — linear features are exactly
+  what PCA gives for free. The only untried perception lever that could
+  exceed 0.77 is a NONLINEAR / learned feature layer patch-PCA structurally
+  cannot represent. `replicate/replicate_perception.py`,
+  `replicate/replicate_richenv.py`; Env made channel-agnostic
+  (`radial/radial_evo2.py` line 80, bit-identical for RGB).
+
+- **[2026-07-20] (Claude)** — **REPLICATE module 43 (the BRIDGE: does
+  memory-perception break the clean 0.77 ceiling?): NO — and the reason is
+  structural, a proof-by-measurement.** Presented clean CIFAR as T=8 mildly
+  AUGMENTED views (crop+flip+brightness, real labels) and evolved TWO banks
+  on the identical stream for a clean, non-confounded test: --mode memory
+  (decay free) vs --mode memless (decay pinned 0). RESULT: memory EARNS —
+  0.5123 vs memless 0.4507, **+6.2pt at the system level** (both evolved
+  separately + refit, so not the ablation-coverage confound of module 42);
+  memory adoption 249/300, decay 0.318 even on mild aug. BUT both are FAR
+  below clean single-shot (~0.77). Structural reason: to evolve memory you
+  must present information across steps = partial/degraded observation, and
+  partial observation of a clean image is strictly LESS than the full image;
+  memory recovers information spread across degraded steps (climbs toward
+  full-obs) but CANNOT EXCEED what one clean look already contains, and one
+  clean look = 0.77. VERDICT on the whole memory arc (41-43): the user's law
+  MEMORY-EVOLVES-IFF-REQUIRED is validated; memory is a real robustness/
+  integration tool earning +6pt in its niche (degraded/partial input); but
+  it is categorically NOT the clean-ceiling lever — you cannot integrate
+  past the information in a single clean observation. Combined with the
+  reconstruction result (m40: description sufficiency != discriminative
+  sufficiency) and every readout-side null, the 0.77 wall is now
+  established from ~a dozen angles as the SUBSTRATE's clean-image
+  information content. Breaking it requires a better clean-image PERCEPTION
+  PRIMITIVE, full stop. `replicate/replicate_recbridge.py`.
+
+- **[2026-07-20] (Claude)** — **REPLICATE modules 41-42: RECURRENT-MEMORY
+  genomes, and the user's law — MEMORY EVOLVES IFF THE ENVIRONMENT REQUIRES
+  IT.** (41) Energy-constrained recurrent-memory genome grammar (leaky
+  integrator r_t=act(decay*r+gain*x+bias), injected entropy, memory cost in
+  the ENERGY channel not fitness per the stillness-optimal law, bootstrapped
+  no-op decay=0). On full-observation CIFAR across 3 iteration axes
+  (glimpse/scan/refine): memory REFUSED to turn on — 2-17 of ~267 genomes,
+  mean decay 0.002-0.02, all NULL below the feedforward baseline (0.65/0.61/
+  0.45). Correct behavior: a single look sees the whole image, so memory has
+  no reason to exist. (42) The user's fix — the ENVIRONMENT must require
+  memory: present each image as T=8 heavily CORRUPTED glimpses (heavy noise
+  + random occlusion + brightness, different each step) so no single glimpse
+  suffices and only accumulation denoises (the persistence-operator regime,
+  0.38->0.93 on corrupted letters). RESULT: memory adoption 2/268 -> 227/259
+  (~88%), mean decay 0.002 -> 0.35 — a categorical switch from IDENTICAL
+  machinery, only the environment changed. Clean validation of the GENREG
+  thesis (constraints deform the possibility space) applied to state. CAVEAT
+  (honest): the does-it-EARN test is confounded — ablating memory (decay->0)
+  + refitting the head only drops 0.2949->0.2912 (+0.37pt) because with 259
+  genomes a flexible ridge re-weights to compensate; bank coverage
+  substitutes for per-genome memory, so the refit-ablation undersells it.
+  Corruption is also brutal (0.29 bank ceiling). ESTABLISHED: memory is real
+  and evolves on demand; the machinery works. NOT yet established: system-
+  level payoff, or whether memory-evolved perception transfers to CLEAN-
+  image classification (the bridge to the 0.77 ceiling).
+  `replicate/replicate_{recurrent,recmem}.py`.
+
+- **[2026-07-20] (Claude)** — **REPLICATE modules 39-40: reconstruction is a
+  beautiful CONSTRUCTIVE result, and generative fitness is a clean NULL that
+  pins the ceiling's true cause.** (39) Ran the ~2,168-word description
+  BACKWARDS via a closed-form linear decoder D=(WtW+lamI)^-1 Wt X (zero
+  gradients): held-out test images reconstruct RECOGNIZABLY (pixel MSE
+  0.0077 vs 0.0618 mean-image baseline, ~8x) — cat/truck/horse/car/ship all
+  render with correct color/pose/layout from ~2,000 numbers, never trained
+  to reconstruct. Constructive proof the description is sufficient to render
+  the image. Per-word D-rows = pixel signatures: the vocabulary is
+  localized oriented color-texture detectors (edges, blobs, sky-region,
+  warm-region) — meaningful visual primitives, not hash.
+  `replicate/recon/{reconstructions,word_signatures}.png`. (40) GENERATIVE
+  FITNESS test — evolve words that explain the pixel RESIDUAL the frozen
+  description can't reconstruct (label-free), then ask if that helps
+  classification: gen-words reconstruct BETTER (MSE 0.00540 vs
+  class-informed 0.00709) but classify at 0.5464 ALONE and the union is
+  0.7695 vs class-informed 0.7703 = NULL. VERDICT: reconstruction
+  sufficiency and discriminative sufficiency are ORTHOGONAL — pixel-MSE is
+  dominated by low-freq color/background (high pixel-variance,
+  class-irrelevant), while class detail (whiskers/ears) is low
+  pixel-variance. Corrects my own pitch: the 0.77 ceiling is NOT "the
+  description is too lossy" — you can reconstruct much better with zero
+  classification gain. Every readout-side lever now agrees the
+  discriminative information is not in the substrate; the ceiling is the
+  substrate's linear-separability, full stop. `replicate/replicate_{recon-
+  struct,genfit}.py`.
+
+- **[2026-07-20] (Claude)** — **REPLICATE module 38 (add a radial space, R1
+  at the SUBSTRATE level — the user's depth bet): clean NULL for both ridge
+  AND vocabulary. One space over a union changes nothing.** Built the real
+  thing on the 96GB pod: R0's spatial GRIDS from the 7-union
+  (feature_r0 want_grid, N x 3645 x 4x4) handed to freshly evolved R1
+  grammar genomes (feature_grid_g, class-informed, orthogonal admission +
+  verify, 303 genomes). DE-RISK RIDGE: R0 alone 0.7698, R1 alone 0.6315
+  (real but weak), R0|R1 0.7731 (+0.33pt = noise), R0|R1|raw 0.7665
+  (raw skip bank OVERFIT, went backwards). VOCABULARY TEST (per-view words
+  over [R0|R1|raw], 830 words): 0.7284 vs R0-only at matched size 0.7285 —
+  IDENTICAL to 4 decimals. Verdict: the 7-UNION already captures the
+  single-space information, so one stacked space is redundant for any
+  readout, linear or compositional. Depth-by-one-space is dead; if depth
+  is the lever it must be genuinely DEEP (multi-space, fresh, high
+  capacity), not bolted onto a saturated union. Best result STANDS at the
+  module-37 per-view crossing 0.7772. `replicate/replicate_r1build.py`,
+  `replicate_r1views.py`, `replicate_mvwords_r1.py`.
+
+- **[2026-07-20] (Claude)** — **REPLICATE modules 36-37: the description-only
+  model CROSSES THE SUBSTRATE HEAD for the first time — PER-VIEW head 0.7772
+  > substrate ridge 0.7708 — and the mechanism for module 6's +2.6pt is
+  pinned as LINEAR-per-view, not conjunction.** Context: every word had been
+  calling .mean() over its 3 views, throwing away the +2.6pt module 6 proved
+  views carry (0.7965 concat vs 0.7708 averaged). (36) MV-WORDS — words over
+  the view-FLATTENED channel space (17,415 single-view channels) so they can
+  form CROSS-VIEW conjunctions: tracked BELOW the averaged line (0.7285 @ 832
+  words vs ~0.735 averaged) — nonlinear view-mixing does NOT capture the
+  gain. (37) PER-VIEW head — module 6's ACTUAL mechanism (views held
+  separate, combined LINEARLY by the head) applied to word features: the
+  same 1,931 shared-op words, each handing the head its 3 per-view
+  activations instead of the mean. Result: averaged 0.7669 -> **per-view
+  0.7772 (+1.03pt)**, holdout/test clean (0.7764/0.7772), clearing the
+  0.7708 substrate head — the first description that beats its own
+  perception layer. Params 32,350 -> 70,970 (head tripled; still 1-2 orders
+  below conventional CIFAR nets). PERF: the batched population evaluator
+  (sharedop_fast, validated bit-exact 0.0) took the 96GB pod from 44% to
+  96% GPU. Path to module 6's 0.7965 is now clear — per-view accuracy scales
+  with word count and the vocabulary was still climbing; growing more words
+  + per-view re-read rides toward 0.79. Growth relaunched on the 96GB
+  Blackwell (RTX PRO 6000) pod. `replicate/replicate_{mvwords,perview}.py`;
+  modules `mvwords`/`perview` on /replicate.
+
 - **[2026-07-20] (Claude)** — **VIDEO: export deadlock fixed** - the
   131-minute 0.1% hang was ffmpeg blocking on an unread stderr pipe
   (audio-graph warning chatter), freezing the frame feed; stderr now

@@ -1,0 +1,19 @@
+Pick 1. Pre-pool R0 maps.
+
+But the framing in that prompt is still slightly wrong. R1 should not read thousands of pooled R0 outputs, and it should not bypass R0. It should read the spatial activation field produced by R0 before collapse. That is the natural output of one radial space and the input to the next.
+
+The failed nonlinear-bank test only shows that the collapsed R0 representation is exhausted. It does not show the R0 computation itself is exhausted.
+
+I would avoid option 2 for now. Hard-pair specialists can improve the benchmark, but they risk turning R1 into a patchwork classifier instead of testing the RS stack. Option 3 just rebuilds another R0.
+
+For the clean experiment:
+
+Freeze R0.
+Expose its pre-pool maps to R1.
+Let R1 compose across channels, positions, and local neighborhoods.
+Preserve R1’s output as another spatial field until its own pooling stage.
+Select R1 features for diversity/stability, not individual label gain.
+Judge only the complete R0 → R1 → head stack on validation.
+Require at least +1 validation point before treating it as signal.
+
+One caution: the claim that fine detail was definitely discarded because reconstruction was blurry is still an inference. The decisive test is whether a strong readout on pre-pool maps beats the pooled-output baseline. But architecturally, pre-pool maps are the correct next set.
