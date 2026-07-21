@@ -17,6 +17,61 @@ log below; don't rewrite existing entries.
   Verified by edge analysis of an exported frame. Needs the Flask
   restart. Details in CHANGELOG_VIDEO.md.
 
+- **[2026-07-21] (Claude)** — **REPLICATE modules 57-62: the INTERNAL-LANGUAGE
+  / EMBEDDING / CNN-from-RS arc — depth finally EARNS.** (57-58) Architecture:
+  image -> space -> words -> space -> words -> OUTPUT HEAD, labels ONLY at the
+  end; every space evolves label-free (contrastive: view-stable x informative
+  x diverse). My earlier stacks leaked labels into every space (scored each on
+  classification), forcing redundancy = depth dead. Label-free depth earned
+  +1.34pt in smoke where label-supervised earned 0. Spaces OSCILLATE (never
+  flatline — removed premature stop; this also invalidated m56's "depth dead"
+  which quit on an oscillation dip). (59-60) Each space must ask a DIFFERENT
+  question: geometric-invariance S2 adds +1.05pt over a filled photometric-S1
+  where the SAME question twice added -0.26pt. Self-assembling stack
+  (replicate_autostack.py): walk a question library, evolve a space each, KEEP
+  if held-out val rises else DROP. KEY user correction: from R1 up the
+  questions must be about the WORDS (semantic), not the raw image — image
+  questions re-derive data already in the first space and saturate; WORD
+  questions (worddrop/wordhalf/wordnoise: survive dropping the vocabulary =
+  distributed concept) compose and are ~10x cheaper. (61) WORD EMBEDDING
+  (replicate_wordspace.py): R1 fires on WORDS (each R0-word a data point),
+  evolves coords smooth over the word co-occurrence graph (co-firing words
+  cluster — validated 13.0 vs 20.0). R2 = opposition. Embedding is
+  accuracy-neutral LINEARLY (a linear reshape of R0, as predicted) but reading
+  it NONLINEARLY (products of embedding axes) = +3.6pt (0.596->0.632). (62)
+  CNN-FROM-RS (replicate_convrs.py) — THE CEILING-BREAK: conv filter = 1
+  evolved genome applied at every position (keep the MAP, don't pool to
+  scalar); depth = stack RS on the MAPS. Layer 2 (spatial conv over layer-1
+  maps) ADDS +1.3pt test / +2.1pt val where every pooled-handoff stack all
+  session earned 0. Collapsing maps to scalars before stacking was what killed
+  depth. All gradient-free, ~20s-7min on a single RTX 4080, <12GB. Compute
+  cost tracked (device/wall-time/peak-mem/genome-image-evals). Running
+  autonomously overnight on: what questions build the embedding space that
+  solves CIFAR.
+
+- **[2026-07-21] (Claude)** — **REPLICATE module 56: R1 finally evolved as a
+  REAL radial space (energy homeostasis on) — depth is confirmed dead by the
+  pipeline's OWN logic.** Every prior R1 (m38, m49, m52-54) ran a hand-rolled
+  greedy elite GA with the energy economy OFF and top-N selection; that is NOT
+  a radial space, and I was wrong to report caps from it as if they were the
+  space's caps. This runs the actual machinery: radial_stack._evolve_space
+  (R0 in the scoring base so R1 is scored on the residual; energy economy with
+  starvation-driven turnover; tournament selection among the living; adaptive
+  per-genome mutation; freeze-every-decorrelated-contributor; emergent cap).
+  TWO ways: (a) _evolve_space over the frozen 0.77 union R0 -> froze 0 genomes,
+  val 0.7770 flat, energy live (starved/gen ~3); (b) full run_stacked from
+  scratch on full CIFAR -> space 0 filled to its emergent cap (502 genomes,
+  val 0.6751), space 1 stacked and earned -0.0003, and the pipeline itself
+  declared "gain < 0.003 -> the stack is done; deeper spaces can't earn their
+  keep." Final single-seed stack: 2 spaces [502,10], val 0.6748 TEST 0.6658.
+  VERDICT: the stacking/depth wall is REAL, not an artifact of my broken loop
+  (which reached the same 0 by a wrong method). The +2.83pt R1 gain in the
+  smoke run was an artifact of a STARVED R0 (68 genomes, tiny budget); let R0
+  fill to its emergent cap and there is no residual for depth. The 0.77 came
+  from the SEED/UNION axis (7 independent R0 seeds composed), NOT depth —
+  matching [[mnist-seed-axis-law]] and [[seed-union-saturation]].
+  `replicate/replicate_r1space.py`.
+
 - **[2026-07-20] (Claude)** — **REPLICATE modules 50-53: R1 over R0's
   PRE-POOL FIELD — the direction validated, +0.49pt val and climbing.**
   Per the project direction note (documentation/AI_response/1.txt): R1 must
